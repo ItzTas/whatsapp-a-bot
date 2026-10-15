@@ -69,16 +69,12 @@ func favoriteWords(texts []string) []wordCount {
 	totals := map[string]int{}
 	spellings := map[string]map[string]int{}
 	for _, text := range texts {
-		for _, word := range strings.FieldsFunc(strings.ToLower(urlPattern.ReplaceAllString(text, " ")), isWordSeparator) {
-			key, ok := wordKey(word)
-			if !ok {
-				continue
+		for _, w := range textWords(text) {
+			totals[w.key]++
+			if spellings[w.key] == nil {
+				spellings[w.key] = map[string]int{}
 			}
-			totals[key]++
-			if spellings[key] == nil {
-				spellings[key] = map[string]int{}
-			}
-			spellings[key][word]++
+			spellings[w.key][w.spelling]++
 		}
 	}
 
@@ -93,6 +89,21 @@ func favoriteWords(texts []string) []wordCount {
 		return strings.Compare(a.word, b.word)
 	})
 	return words[:min(len(words), favoriteWordCount)]
+}
+
+type spelledWord struct {
+	key      string
+	spelling string
+}
+
+func textWords(text string) []spelledWord {
+	var words []spelledWord
+	for _, word := range strings.FieldsFunc(strings.ToLower(urlPattern.ReplaceAllString(text, " ")), isWordSeparator) {
+		if key, ok := wordKey(word); ok {
+			words = append(words, spelledWord{key: key, spelling: word})
+		}
+	}
+	return words
 }
 
 func isWordSeparator(r rune) bool {

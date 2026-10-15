@@ -78,12 +78,14 @@ func rankingPeriodFrom(text string) rankingPeriod {
 	return periods["semana"]
 }
 
-func (b *bot) rankMembers(participants []types.GroupParticipant, counts []senderCount) []rankedMember {
+type memberOwners map[string]types.JID
+
+func (b *bot) memberOwners(participants []types.GroupParticipant) memberOwners {
 	self := map[string]bool{
 		b.client.Store.GetJID().User: true,
 		b.client.Store.GetLID().User: true,
 	}
-	owners := map[string]types.JID{}
+	owners := memberOwners{}
 	for _, p := range participants {
 		for _, id := range []types.JID{p.JID, p.LID, p.PhoneNumber} {
 			if id.User == "" || self[id.User] {
@@ -92,13 +94,22 @@ func (b *bot) rankMembers(participants []types.GroupParticipant, counts []sender
 			owners[id.User] = p.JID
 		}
 	}
+	return owners
+}
 
+func (o memberOwners) of(sender, senderAlt string) (types.JID, bool) {
+	if owner, ok := o[sender]; ok {
+		return owner, true
+	}
+	owner, ok := o[senderAlt]
+	return owner, ok
+}
+
+func (b *bot) rankMembers(participants []types.GroupParticipant, counts []senderCount) []rankedMember {
+	owners := b.memberOwners(participants)
 	totals := map[types.JID]int{}
 	for _, c := range counts {
-		owner, ok := owners[c.sender]
-		if !ok {
-			owner, ok = owners[c.senderAlt]
-		}
+		owner, ok := owners.of(c.sender, c.senderAlt)
 		if !ok {
 			continue
 		}

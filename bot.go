@@ -17,12 +17,16 @@ type bot struct {
 	client *whatsmeow.Client
 	gifs   map[string][]gif
 
-	bmcRounds   sync.Map
-	vddAnswered sync.Map
-	messages    *messageStore
-	nicknames   *nicknameStore
-	marriages   *marriageStore
-	assistant   *assistant
+	bmcRounds       sync.Map
+	vddAnswered     sync.Map
+	quemfalouRounds sync.Map
+	forcaGames      sync.Map
+	revolvers       sync.Map
+	messages        *messageStore
+	nicknames       *nicknameStore
+	marriages       *marriageStore
+	adoptions       *adoptionStore
+	assistant       *assistant
 }
 
 type command func(ctx context.Context, evt *events.Message) error
@@ -47,6 +51,7 @@ func (c botCommand) matches(name string) bool {
 func (b *bot) commands() []botCommand {
 	const (
 		romance      = "💞 Romance"
+		familia      = "👨‍👩‍👧 Família"
 		jogos        = "🎲 Jogos"
 		medidores    = "📊 Medidores"
 		estatisticas = "📈 Estatísticas"
@@ -75,6 +80,22 @@ func (b *bot) commands() []botCommand {
 			run: b.divorciar,
 		},
 		{
+			name:     "adotar",
+			category: familia,
+			help:     []usage{{"!adotar @pessoa", "você adota a pessoa marcada como filho(a) 🍼"}},
+			run:      b.adotar,
+		},
+		{
+			name:     "familia",
+			aliases:  []string{"família"},
+			category: familia,
+			help: []usage{
+				{"!familia", "mostra a sua árvore: cônjuges, pais, filhos, irmãos, avós e netos 🌳"},
+				{"!familia @pessoa", "mostra a família da pessoa marcada"},
+			},
+			run: b.familia,
+		},
+		{
 			name:     "ship",
 			category: romance,
 			help: []usage{
@@ -82,6 +103,16 @@ func (b *bot) commands() []botCommand {
 				{"!ship @pessoa1 @pessoa2", "faz o ship das duas pessoas marcadas"},
 			},
 			run: b.ship,
+		},
+		{
+			name:     "almagemea",
+			aliases:  []string{"alma"},
+			category: romance,
+			help: []usage{
+				{"!almagemea", "lê as mensagens do grupo e descobre quem escreve mais parecido com você, a sua alma gêmea 💞"},
+				{"!almagemea @pessoa", "procura a alma gêmea da pessoa marcada"},
+			},
+			run: b.almagemea,
 		},
 		{
 			name:     "sexo",
@@ -101,6 +132,15 @@ func (b *bot) commands() []botCommand {
 				{"!beijo @pessoa1 @pessoa2", "a primeira pessoa marcada beija a segunda 💋"},
 			},
 			run: b.beijo,
+		},
+		{
+			name:     "trair",
+			category: romance,
+			help: []usage{
+				{"!trair @pessoa", "você trai quem você casou com a pessoa marcada 🐍"},
+				{"!trair @pessoa1 @pessoa2", "a primeira pessoa marcada trai com a segunda"},
+			},
+			run: b.trair,
 		},
 		{
 			name:     "bmc",
@@ -140,6 +180,30 @@ func (b *bot) commands() []botCommand {
 				{"!quem <pergunta>", "faz a sua pergunta, tipo !quem vai casar primeiro"},
 			},
 			run: b.quem,
+		},
+		{
+			name:     "quemfalou",
+			category: jogos,
+			help:     []usage{{"!quemfalou", "o bot desenterra uma mensagem antiga e abre uma enquete pra adivinhar quem mandou 🕵️"}},
+			run:      b.quemfalou,
+		},
+		{
+			name:     "forca",
+			category: jogos,
+			help: []usage{
+				{"!forca", "começa um jogo da forca no grupo, e depois é só mandar uma letra pra chutar 🪢"},
+				{"!forca <palavra>", "chuta a palavra inteira"},
+			},
+			run: b.forca,
+		},
+		{
+			name:     "roleta",
+			category: jogos,
+			help: []usage{
+				{"!roleta", "roleta russa: 1 bala, 6 câmaras, e a chance de morrer sobe a cada rodada 🔫"},
+				{"!roleta @pessoa", "aponta o revólver pra pessoa marcada"},
+			},
+			run: b.roleta,
 		},
 		{
 			name:     "medidor",
@@ -202,6 +266,15 @@ func (b *bot) commands() []botCommand {
 				{"!chute @pessoa1 @pessoa2", "a primeira pessoa marcada chuta a segunda 🦵"},
 			},
 			run: b.chute,
+		},
+		{
+			name:     "morder",
+			category: zoeira,
+			help: []usage{
+				{"!morder @pessoa", "você morde a pessoa marcada 🦷"},
+				{"!morder @pessoa1 @pessoa2", "a primeira pessoa marcada morde a segunda 🦷"},
+			},
+			run: b.morder,
 		},
 		{
 			name:     "arrogante",
@@ -272,6 +345,12 @@ func (b *bot) handleMessage(ctx context.Context, evt *events.Message) {
 	}
 	if err := b.answerVdd(ctx, evt); err != nil {
 		b.client.Log.Errorf("responder !vdd: %v", err)
+	}
+	if err := b.answerQuemfalou(ctx, evt); err != nil {
+		b.client.Log.Errorf("responder !quemfalou: %v", err)
+	}
+	if err := b.answerForca(ctx, evt); err != nil {
+		b.client.Log.Errorf("responder !forca: %v", err)
 	}
 	name, ok := commandName(messageText(evt.Message))
 	if !ok {

@@ -265,9 +265,13 @@ func joinMentions(people []types.JID) string {
 	for i, p := range people {
 		tags[i] = "@" + p.User
 	}
-	last := len(tags) - 1
+	return joinWithAnd(tags)
+}
+
+func joinWithAnd(items []string) string {
+	last := len(items) - 1
 	if last == 0 {
-		return tags[0]
+		return items[0]
 	}
-	return strings.Join(tags[:last], ", ") + " e " + tags[last]
+	return strings.Join(items[:last], ", ") + " e " + items[last]
 }

@@ -55,6 +55,10 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	adoptions, err := openAdoptionStore(ctx, messages.db)
+	if err != nil {
+		return err
+	}
 	assistant, err := newAssistantFromEnv()
 	if err != nil {
 		return fmt.Errorf("configurar IA: %w", err)
@@ -64,7 +68,7 @@ func run(ctx context.Context) (err error) {
 	defer endSession(nil)
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
-	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: nicknames, marriages: marriages, assistant: assistant}
+	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: nicknames, marriages: marriages, adoptions: adoptions, assistant: assistant}
 	client.AddEventHandler(func(evt any) {
 		switch evt := evt.(type) {
 		case *events.Message:
