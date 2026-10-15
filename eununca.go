@@ -1,0 +1,60 @@
+package main
+
+import (
+	"context"
+	"math/rand/v2"
+
+	"go.mau.fi/whatsmeow/types/events"
+)
+
+var euNuncaFrases = []string{
+	"Eu nunca beijei alguém deste grupo",
+	"Eu nunca mandei nude",
+	"Eu nunca transei no carro",
+	"Eu nunca fingi um orgasmo",
+	"Eu nunca fiquei com duas pessoas na mesma festa",
+	"Eu nunca stalkeei o ex do meu crush",
+	"Eu nunca mandei mensagem safada pra pessoa errada",
+	"Eu nunca transei com alguém que conheci no mesmo dia",
+	"Eu nunca fui pego(a) no flagra",
+	"Eu nunca tive um sonho picante com alguém deste grupo",
+	"Eu nunca beijei alguém do mesmo sexo",
+	"Eu nunca voltei com um ex só pelo sexo",
+	"Eu nunca fiz sexo em lugar público",
+	"Eu nunca usei um app de pegação",
+	"Eu nunca fiquei com o ex de um amigo(a)",
+	"Eu nunca acordei sem lembrar com quem fiquei",
+	"Eu nunca fiz chamada de vídeo picante",
+	"Eu nunca transei na casa dos meus pais com eles em casa",
+	"Eu nunca fiz ménage",
+	"Eu nunca tive tesão no professor(a)",
+	"Eu nunca menti a minha idade pra ficar com alguém",
+	"Eu nunca fiquei com alguém só pra fazer ciúme",
+	"Eu nunca fiz strip pra alguém",
+	"Eu nunca comprei um brinquedo erótico",
+	"Eu nunca falei mal de alguém deste grupo pelas costas",
+	"Eu nunca menti que estava doente pra faltar",
+	"Eu nunca fingi que não vi uma mensagem pra não responder",
+	"Eu nunca silenciei este grupo",
+	"Eu nunca stalkeei alguém daqui de madrugada",
+	"Eu nunca chorei por causa de ex",
+	"Eu nunca mijei no banho",
+	"Eu nunca peguei comida do chão e comi",
+	"Eu nunca fiquei bêbado(a) a ponto de vomitar",
+	"Eu nunca fiz xixi na piscina",
+	"Eu nunca colei numa prova",
+	"Eu nunca usei a mesma cueca ou calcinha dois dias seguidos",
+	"Eu nunca dei perdido em alguém depois de ficar",
+	"Eu nunca bloqueei alguém deste grupo",
+	"Eu nunca tive crush no namorado(a) de um amigo(a)",
+	"Eu nunca peguei dinheiro dos meus pais sem pedir",
+	"Eu nunca cheirei a própria axila pra ver se tava fedendo",
+	"Eu nunca fingi que tava rindo de uma piada sem graça daqui",
+	"Eu nunca mandei print de conversa daqui pra alguém de fora",
+	"Eu nunca fiquei com alguém feio(a) e neguei depois",
+}
+
+func (b *bot) euNunca(ctx context.Context, evt *events.Message) error {
+	frase := euNuncaFrases[rand.IntN(len(euNuncaFrases))]
+	return b.sendPoll(ctx, evt.Info.Chat, "🙊 "+frase, []string{"🍻 Eu já", "😇 Eu nunca"})
+}
