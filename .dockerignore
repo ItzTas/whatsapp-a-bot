@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+CLAUDE.md
+Dockerfile
+.dockerignore
+whatsapp-a-bot
+sessao.db
+sessao.db-*
+tmp
+mensagens.db
+mensagens.db-*
