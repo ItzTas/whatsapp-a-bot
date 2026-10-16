@@ -20,14 +20,6 @@ CREATE TABLE IF NOT EXISTS apelidos (
     PRIMARY KEY (chat, usuario)
 );
 
-CREATE TABLE IF NOT EXISTS casamentos (
-    chat       TEXT    NOT NULL,
-    conjuge1   TEXT    NOT NULL,
-    conjuge2   TEXT    NOT NULL,
-    casados_em INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS casamentos_por_chat ON casamentos (chat);
-
 CREATE TABLE IF NOT EXISTS adocoes (
     chat       TEXT    NOT NULL,
     pai        TEXT    NOT NULL,
@@ -38,6 +30,5 @@ CREATE INDEX IF NOT EXISTS adocoes_por_chat ON adocoes (chat);
 
 -- +goose Down
 DROP TABLE IF EXISTS adocoes;
-DROP TABLE IF EXISTS casamentos;
 DROP TABLE IF EXISTS apelidos;
 DROP TABLE IF EXISTS mensagens;

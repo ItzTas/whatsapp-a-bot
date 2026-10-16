@@ -56,7 +56,7 @@ func run(ctx context.Context) (err error) {
 	defer endSession(nil)
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
-	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &nicknameStore{db: messages.db}, marriages: &marriageStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, datings: &datingStore{db: messages.db}, assistant: assistant, filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, owners: ownersFromEnv()}
+	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &nicknameStore{db: messages.db}, relationships: &relationshipStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, assistant: assistant, filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, owners: ownersFromEnv()}
 	if len(b.owners) == 0 {
 		client.Log.Warnf("BOT_DONO não definido: ninguém consegue usar !modo, !blacklist e !whitelist")
 	}

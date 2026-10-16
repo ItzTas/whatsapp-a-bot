@@ -31,17 +31,17 @@ func (b *bot) namoro(ctx context.Context, evt *events.Message) error {
 	var (
 		members []types.JID
 		aliases []string
-		datings []dating
+		datings []relationship
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { members, err = b.groupMembers(gctx, chat); return err })
-	g.Go(func() (err error) { datings, err = b.datings.inChat(gctx, chat); return err })
+	g.Go(func() (err error) { datings, err = b.relationships.inChat(gctx, chat, kindDating); return err })
 	g.Go(func() error { aliases = b.userAliases(gctx, person); return nil })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("procurar namorado(a): %w", err)
 	}
 
-	if own := datingsOf(datings, aliases); len(own) > 0 {
+	if own := relationshipsOf(datings, aliases); len(own) > 0 {
 		text, mentioned := datingSummary(name, person, own, aliases, time.Now())
 		_, err := b.sendMentions(ctx, chat, text, mentioned)
 		return err
@@ -65,7 +65,7 @@ var datingPhrases = map[string][2]string{
 	"namoro":   {"💑 @%s namora com %s", "💑 @%s namora com %s"},
 }
 
-func datingSummary(name string, person types.JID, own []dating, aliases []string, now time.Time) (string, []types.JID) {
+func datingSummary(name string, person types.JID, own []relationship, aliases []string, now time.Time) (string, []types.JID) {
 	partners := make([]types.JID, len(own))
 	lines := make([]string, len(own))
 	for i, d := range own {

@@ -25,9 +25,8 @@ type bot struct {
 	laughStickerSent sync.Map
 	messages         *messageStore
 	nicknames        *nicknameStore
-	marriages        *marriageStore
+	relationships    *relationshipStore
 	adoptions        *adoptionStore
-	datings          *datingStore
 	assistant        *assistant
 	filters          *filterStore
 	modes            *modeStore

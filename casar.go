@@ -45,7 +45,7 @@ func (b *bot) casar(ctx context.Context, evt *events.Message) error {
 	if news.renewal {
 		return nil
 	}
-	return b.marriages.add(ctx, evt.Info.Chat, couple, time.Now())
+	return b.relationships.add(ctx, evt.Info.Chat, kindMarriage, couple, time.Now())
 }
 
 func coupleFrom(sender types.JID, mentions []types.JID) ([2]types.JID, bool) {

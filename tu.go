@@ -36,7 +36,7 @@ func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 		identities []types.JID
 		group      *types.GroupInfo
 		counts     []senderCount
-		marriages  []marriage
+		marriages  []relationship
 		adoptions  []adoption
 	)
 	g, gctx := errgroup.WithContext(ctx)
@@ -50,7 +50,7 @@ func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 		return h.Wait()
 	})
 	g.Go(func() error { p.about = b.about(gctx, person); return nil })
-	g.Go(func() (err error) { marriages, err = b.marriages.inChat(gctx, chat); return err })
+	g.Go(func() (err error) { marriages, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
 	g.Go(func() (err error) { adoptions, err = b.adoptions.inChat(gctx, chat); return err })
 	if chat.Server == types.GroupServer {
 		g.Go(func() (err error) { group, err = b.client.GetGroupInfo(gctx, chat); return err })
@@ -61,7 +61,7 @@ func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 	}
 
 	aliases := usersOf(identities)
-	for _, m := range marriagesOf(marriages, aliases) {
+	for _, m := range relationshipsOf(marriages, aliases) {
 		partner, _ := m.partnerOf(aliases)
 		p.spouses = append(p.spouses, partner)
 	}

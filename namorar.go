@@ -20,11 +20,11 @@ func (b *bot) namorar(ctx context.Context, evt *events.Message) error {
 	}
 
 	var (
-		all     []dating
+		all     []relationship
 		aliases [2][]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { all, err = b.datings.inChat(gctx, chat); return err })
+	g.Go(func() (err error) { all, err = b.relationships.inChat(gctx, chat, kindDating); return err })
 	for i, p := range couple {
 		g.Go(func() error { aliases[i] = b.userAliases(gctx, p); return nil })
 	}
@@ -35,13 +35,13 @@ func (b *bot) namorar(ctx context.Context, evt *events.Message) error {
 	if slices.ContainsFunc(aliases[0], func(a string) bool { return slices.Contains(aliases[1], a) }) {
 		return b.sendText(ctx, chat, "Namorar consigo mesmo(a) não vale 🪞 Marca outra pessoa")
 	}
-	if i := slices.IndexFunc(all, func(d dating) bool { return d.joins(aliases[0], aliases[1]) }); i >= 0 {
+	if i := slices.IndexFunc(all, func(d relationship) bool { return d.joins(aliases[0], aliases[1]) }); i >= 0 {
 		text := fmt.Sprintf("💑 @%s e @%s já namoram há %s", couple[0].User, couple[1].User, marriageLength(time.Since(all[i].since)))
 		_, err := b.sendMentions(ctx, chat, text, couple[:])
 		return err
 	}
 
-	if err := b.datings.add(ctx, chat, couple, time.Now()); err != nil {
+	if err := b.relationships.add(ctx, chat, kindDating, couple, time.Now()); err != nil {
 		return fmt.Errorf("salvar namoro: %w", err)
 	}
 	lines, mentioned := polyamoryNews(all, couple, aliases)
@@ -53,13 +53,13 @@ func (b *bot) namorar(ctx context.Context, evt *events.Message) error {
 	return err
 }
 
-func polyamoryNews(all []dating, couple [2]types.JID, aliases [2][]string) ([]string, []types.JID) {
+func polyamoryNews(all []relationship, couple [2]types.JID, aliases [2][]string) ([]string, []types.JID) {
 	var (
 		lines     []string
 		mentioned []types.JID
 	)
 	for i, p := range couple {
-		others := datingPartnersOf(all, aliases[i])
+		others := otherPartners(all, aliases[i], nil)
 		if len(others) == 0 {
 			continue
 		}

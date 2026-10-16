@@ -102,12 +102,12 @@ func (b *bot) adotar(ctx context.Context, evt *events.Message) error {
 	parent, child := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
 
 	var (
-		marriages []marriage
+		marriages []relationship
 		adoptions []adoption
 		aliases   [2][]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { marriages, err = b.marriages.inChat(gctx, chat); return err })
+	g.Go(func() (err error) { marriages, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
 	g.Go(func() (err error) { adoptions, err = b.adoptions.inChat(gctx, chat); return err })
 	for i, p := range []types.JID{parent, child} {
 		g.Go(func() error { aliases[i] = b.userAliases(gctx, p); return nil })
@@ -124,7 +124,7 @@ func (b *bot) adotar(ctx context.Context, evt *events.Message) error {
 		return fmt.Errorf("guardar adoção: %w", err)
 	}
 
-	spouses := otherPartners(marriagesOf(marriages, aliases[0]), aliases[0], nil)
+	spouses := otherPartners(marriages, aliases[0], nil)
 	text := adoptionText(parent, child, spouses, aliases[1])
 	_, err := b.sendMentions(ctx, chat, text, append([]types.JID{parent, child}, spouses...))
 	return err

@@ -23,19 +23,19 @@ func (b *bot) familia(ctx context.Context, evt *events.Message) error {
 	person := firstMentionOrSender(evt).ToNonAD()
 
 	var (
-		marriages []marriage
+		marriages []relationship
 		adoptions []adoption
 		aliases   []string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { marriages, err = b.marriages.inChat(gctx, chat); return err })
+	g.Go(func() (err error) { marriages, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
 	g.Go(func() (err error) { adoptions, err = b.adoptions.inChat(gctx, chat); return err })
 	g.Go(func() error { aliases = b.userAliases(gctx, person); return nil })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler família: %w", err)
 	}
 
-	own := marriagesOf(marriages, aliases)
+	own := relationshipsOf(marriages, aliases)
 	branches := familyBranches(adoptions, aliases)
 	if len(own) == 0 && !slices.ContainsFunc(branches, func(br familyBranch) bool { return len(br.people) > 0 }) {
 		text := fmt.Sprintf("🥲 @%s ainda não tem família nenhuma por aqui. Usa !casar ou !adotar", person.User)
@@ -76,7 +76,7 @@ func familyBranches(adoptions []adoption, aliases []string) []familyBranch {
 	}
 }
 
-func spousesLine(own []marriage, aliases []string, now time.Time) ([]types.JID, string) {
+func spousesLine(own []relationship, aliases []string, now time.Time) ([]types.JID, string) {
 	spouses := make([]types.JID, 0, len(own))
 	parts := make([]string, 0, len(own))
 	for _, m := range own {

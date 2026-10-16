@@ -21,11 +21,11 @@ func (b *bot) trair(ctx context.Context, evt *events.Message) error {
 	cheater, lover := pair[0], pair[1]
 
 	var (
-		all     []marriage
+		all     []relationship
 		aliases [2][]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { all, err = b.marriages.inChat(gctx, chat); return err })
+	g.Go(func() (err error) { all, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
 	for i, p := range pair {
 		g.Go(func() error { aliases[i] = b.userAliases(gctx, p); return nil })
 	}
@@ -33,7 +33,7 @@ func (b *bot) trair(ctx context.Context, evt *events.Message) error {
 		return fmt.Errorf("ler casamentos: %w", err)
 	}
 
-	spouses := otherPartners(marriagesOf(all, aliases[0]), aliases[0], nil)
+	spouses := otherPartners(all, aliases[0], nil)
 	if len(spouses) == 0 {
 		text := fmt.Sprintf("💅 @%s nem é casado(a), então ficar com @%s não é traição, é só pegação 😏", cheater.User, lover.User)
 		_, err := b.sendMentions(ctx, chat, text, pair[:])
@@ -57,14 +57,15 @@ type cheatingNews struct {
 
 func (b *bot) cheatingNews(ctx context.Context, chat types.JID, people []types.JID) (cheatingNews, error) {
 	var (
-		marriages []marriage
-		datings   []dating
-		aliases   = make([][]string, len(people))
+		all     []relationship
+		aliases = make([][]string, len(people))
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(16)
-	g.Go(func() (err error) { marriages, err = b.marriages.inChat(gctx, chat); return err })
-	g.Go(func() (err error) { datings, err = b.datings.inChat(gctx, chat); return err })
+	g.Go(func() (err error) {
+		all, err = b.relationships.inChat(gctx, chat, kindMarriage, kindDating)
+		return err
+	})
 	for i, p := range people {
 		g.Go(func() error { aliases[i] = b.userAliases(gctx, p); return nil })
 	}
@@ -79,8 +80,8 @@ func (b *bot) cheatingNews(ctx context.Context, chat types.JID, people []types.J
 			verb     string
 			partners []types.JID
 		}{
-			{"é casado(a) com", otherPartners(marriagesOf(marriages, aliases[i]), aliases[i], nil)},
-			{"namora", datingPartnersOf(datings, aliases[i])},
+			{"é casado(a) com", otherPartners(ofKind(all, kindMarriage), aliases[i], nil)},
+			{"namora", otherPartners(ofKind(all, kindDating), aliases[i], nil)},
 		}
 		for _, r := range relations {
 			betrayed := slices.DeleteFunc(r.partners, func(s types.JID) bool { return slices.Contains(present, s.User) })
