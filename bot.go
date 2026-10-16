@@ -363,6 +363,16 @@ func (b *bot) commands() []botCommand {
 			run: b.ambrugui,
 		},
 		{
+			name:     "pedirpix",
+			category: zoeira,
+			help: []usage{
+				{"!pedirpix @pessoa", "você pede um pix pra pessoa marcada, com valor e motivo sorteados 💸"},
+				{"!pedirpix @pessoa1 @pessoa2", "a primeira pessoa marcada pede pix pra segunda"},
+				{"!pedirpix", "você pede pix pra alguém aleatório do grupo"},
+			},
+			run: b.pedirpix,
+		},
+		{
 			name:     "apelido",
 			category: zoeira,
 			help: []usage{
