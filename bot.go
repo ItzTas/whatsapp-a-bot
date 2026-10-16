@@ -417,7 +417,7 @@ func (b *bot) commands() []botCommand {
 			category: utilidades,
 			help: []usage{
 				{"!baixar <link>", "baixa o vídeo, a imagem ou o gif do link e manda aqui 📥 (links do Instagram, TikTok, X e outros nem precisam do comando, é só mandar)"},
-				{"!baixar", "responda uma mensagem que tenha link e o bot baixa o que tem nele"},
+				{"!baixar", "responda uma mensagem que tenha link e o bot baixa o que tem nele, ou responda uma figurinha e o bot manda ela como imagem (ou gif, se for animada)"},
 			},
 			run: b.baixar,
 		},

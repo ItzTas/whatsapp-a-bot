@@ -49,8 +49,12 @@ func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat
 	quoted := evt.Message.GetExtendedTextMessage().GetContextInfo().GetQuotedMessage()
 	link := cmp.Or(linkPattern.FindString(messageText(evt.Message)), linkPattern.FindString(messageText(quoted)))
+	sticker := quoted.GetStickerMessage()
+	if link == "" && sticker == nil {
+		return b.sendText(ctx, chat, "Manda o link junto, tipo !baixar https://... Ou responde com !baixar uma mensagem que tenha link ou uma figurinha")
+	}
 	if link == "" {
-		return b.sendText(ctx, chat, "Manda o link junto, tipo !baixar https://... Ou responde uma mensagem que tenha o link com !baixar")
+		return b.baixarFigurinha(ctx, evt, sticker)
 	}
 	err := b.withMediaJob(ctx, evt, func(ctx context.Context) error { return b.downloadAndSend(ctx, evt, link) })
 	if err == nil {

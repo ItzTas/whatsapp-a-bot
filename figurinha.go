@@ -89,6 +89,55 @@ func encodeSticker(ctx context.Context, in, out, filter string, extra ...string)
 	return os.ReadFile(out)
 }
 
+func (b *bot) baixarFigurinha(ctx context.Context, evt *events.Message, sticker *waE2E.StickerMessage) error {
+	chat := evt.Info.Chat
+	err := b.withMediaJob(ctx, evt, func(ctx context.Context) error {
+		data, err := b.client.Download(ctx, sticker)
+		if err != nil {
+			return fmt.Errorf("baixar figurinha: %w", err)
+		}
+		m, err := stickerMedia(ctx, data)
+		if err != nil {
+			return err
+		}
+		return b.sendMedia(ctx, chat, m, replyTo(evt))
+	})
+	if err == nil {
+		return nil
+	}
+	b.client.Log.Warnf("baixar figurinha: %v", err)
+	return b.sendText(ctx, chat, "Não consegui transformar essa figurinha em imagem 😕")
+}
+
+func stickerMedia(ctx context.Context, sticker []byte) (m outgoing, err error) {
+	dir, err := os.MkdirTemp("", "baixar-figurinha-*")
+	if err != nil {
+		return outgoing{}, err
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(dir)) }()
+
+	in := filepath.Join(dir, "figurinha.webp")
+	if err := os.WriteFile(in, sticker, 0o600); err != nil {
+		return outgoing{}, err
+	}
+	if isAnimatedWebP(sticker) {
+		return animatedStickerMedia(ctx, in)
+	}
+	out := filepath.Join(dir, "figurinha.png")
+	if err := runTool(ctx, "ffmpeg", "-y", "-loglevel", "error", "-i", in, "-frames:v", "1", out); err != nil {
+		return outgoing{}, err
+	}
+	return imageMedia(ctx, out)
+}
+
+func animatedStickerMedia(ctx context.Context, in string) (outgoing, error) {
+	gif := in + ".gif"
+	if err := runTool(ctx, "magick", in, "-coalesce", "-background", "white", "-alpha", "remove", "-alpha", "off", gif); err != nil {
+		return outgoing{}, err
+	}
+	return gifMedia(ctx, gif)
+}
+
 func isAnimatedWebP(webp []byte) bool {
 	return len(webp) > 20 && string(webp[12:16]) == "VP8X" && webp[20]&0x02 != 0
 }
