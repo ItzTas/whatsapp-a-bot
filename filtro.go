@@ -47,10 +47,14 @@ func (e filterEntry) label() string {
 	return "@" + e.ids[0].User
 }
 
-func (s *filterStore) allows(ctx context.Context, e filterEntry) (bool, error) {
+type filterVerdict struct {
+	mode   string
+	listed bool
+}
+
+func (s *filterStore) verdict(ctx context.Context, e filterEntry) (filterVerdict, error) {
 	first, second := e.keys()
-	var mode string
-	var listed bool
+	var v filterVerdict
 	err := s.db.QueryRowContext(ctx,
 		`SELECT m.modo, EXISTS (
 		   SELECT 1 FROM filtro_listas l
@@ -58,14 +62,11 @@ func (s *filterStore) allows(ctx context.Context, e filterEntry) (bool, error) {
 		     AND (l.id IN (?, ?) OR l.id_alt IN (?, ?))
 		 ) FROM filtro_modos m WHERE m.alvo = ?`,
 		first, second, first, second, e.target,
-	).Scan(&mode, &listed)
+	).Scan(&v.mode, &v.listed)
 	if errors.Is(err, sql.ErrNoRows) {
-		return true, nil
+		return filterVerdict{mode: filterOff}, nil
 	}
-	if err != nil {
-		return false, err
-	}
-	return listed == (mode == whitelist), nil
+	return v, err
 }
 
 func (s *filterStore) add(ctx context.Context, list string, e filterEntry) (bool, error) {
@@ -207,18 +208,34 @@ func (b *bot) isOwner(ctx context.Context, evt *events.Message) bool {
 	})
 }
 
-func (b *bot) allowed(ctx context.Context, evt *events.Message) (bool, error) {
+func (b *bot) filterChecks(ctx context.Context, evt *events.Message) []filterEntry {
+	chat := evt.Info.Chat.ToNonAD()
+	if chat.Server == types.DefaultUserServer || chat.Server == types.HiddenUserServer {
+		return []filterEntry{{target: filterPeople, ids: b.identities(ctx, chat)}}
+	}
 	checks := []filterEntry{{target: filterPeople, ids: b.senderIdentities(ctx, evt)}}
-	if chat := evt.Info.Chat.ToNonAD(); chat.Server == types.GroupServer {
+	if chat.Server == types.GroupServer {
 		checks = append(checks, filterEntry{target: filterGroups, ids: []types.JID{chat}})
 	}
-	for _, e := range checks {
-		ok, err := b.filters.allows(ctx, e)
-		if err != nil || !ok {
-			return false, err
-		}
+	return checks
+}
+
+func (b *bot) allowed(ctx context.Context, evt *events.Message) (bool, error) {
+	checks := b.filterChecks(ctx, evt)
+	verdicts := make([]filterVerdict, len(checks))
+	g, gctx := errgroup.WithContext(ctx)
+	for i, e := range checks {
+		g.Go(func() (err error) { verdicts[i], err = b.filters.verdict(gctx, e); return err })
 	}
-	return true, nil
+	if err := g.Wait(); err != nil {
+		return false, err
+	}
+
+	if slices.ContainsFunc(verdicts, func(v filterVerdict) bool { return v.mode == blacklist && v.listed }) {
+		return false, nil
+	}
+	whitelists := slices.DeleteFunc(verdicts, func(v filterVerdict) bool { return v.mode != whitelist })
+	return len(whitelists) == 0 || slices.ContainsFunc(whitelists, func(v filterVerdict) bool { return v.listed }), nil
 }
 
 func (b *bot) runOwnerCommand(ctx context.Context, evt *events.Message, name string) bool {
@@ -248,7 +265,8 @@ func (b *bot) ownerCommands() []botCommand {
 				{"!modo", "mostra o modo dos grupos e das pessoas e quantos tem em cada lista"},
 				{"!modo grupos blacklist", "o bot ignora os grupos da blacklist"},
 				{"!modo grupos whitelist", "o bot só funciona nos grupos da whitelist"},
-				{"!modo pessoas blacklist", "o bot ignora as pessoas da blacklist (whitelist funciona igual)"},
+				{"!modo pessoas blacklist", "o bot ignora as pessoas da blacklist"},
+				{"!modo pessoas whitelist", "o bot só responde as pessoas da whitelist. Se os grupos também estiverem em whitelist, basta o grupo ou a pessoa estar na lista"},
 				{"!modo grupos desligado", "desliga o filtro dos grupos, ou das pessoas com !modo pessoas desligado"},
 				{"!modo ativar diversao", "nesta conversa, libera de uma vez romance, família, jogos, medidores, estatísticas, zoeira e economia"},
 				{"!modo ativar jogos", "libera só uma categoria (romance, familia, jogos, medidores, estatisticas, zoeira, economia ou ia)"},
@@ -311,10 +329,14 @@ func (b *bot) modo(ctx context.Context, evt *events.Message) error {
 		return b.sendText(ctx, chat, usageText)
 	}
 
-	var counts map[[2]string]int
+	var (
+		counts      map[[2]string]int
+		filterModes map[string]string
+	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return b.filters.setMode(gctx, target, mode) })
 	g.Go(func() (err error) { counts, err = b.filters.counts(gctx); return err })
+	g.Go(func() (err error) { filterModes, err = b.filters.modes(gctx); return err })
 	if err := g.Wait(); err != nil {
 		return err
 	}
@@ -325,7 +347,16 @@ func (b *bot) modo(ctx context.Context, evt *events.Message) error {
 		whitelist: "✅ %s em modo whitelist. O bot só responde quem tá na whitelist.",
 	}
 	text := fmt.Sprintf(confirmations[mode], target)
-	if mode == whitelist && counts[[2]string{target, whitelist}] == 0 {
+	if mode != whitelist {
+		return b.sendText(ctx, chat, text)
+	}
+	other := map[string]string{filterGroups: filterPeople, filterPeople: filterGroups}[target]
+	otherWhitelisted := filterModes[other] == whitelist
+	if otherWhitelisted {
+		text += "\n\nℹ️ Grupos e pessoas tão em whitelist: o bot responde quando o grupo ou a pessoa tá na lista."
+	}
+	otherLetsSomeoneIn := otherWhitelisted && counts[[2]string{other, whitelist}] > 0
+	if counts[[2]string{target, whitelist}] == 0 && !otherLetsSomeoneIn {
 		text += fmt.Sprintf("\n\n⚠️ A whitelist de %s tá vazia, então o bot vai ignorar todos os %s até você colocar alguém nela.", target, target)
 	}
 	return b.sendText(ctx, chat, text)
