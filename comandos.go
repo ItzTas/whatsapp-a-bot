@@ -3,13 +3,41 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
+	"time"
 
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
 )
 
+const commandsMenuLifetime = time.Minute
+
 func (b *bot) comandos(ctx context.Context, evt *events.Message) error {
-	return b.sendText(ctx, evt.Info.Chat, commandsMenu(b.commands()))
+	commands := b.commands()
+	if b.isOwner(ctx, evt) {
+		commands = slices.Concat(commands, b.ownerCommands())
+	}
+	chat := evt.Info.Chat
+	resp, err := b.client.SendMessage(ctx, chat, &waE2E.Message{Conversation: proto.String(commandsMenu(commands))})
+	if err != nil {
+		return err
+	}
+	go b.revokeCommandsMenu(ctx, chat, resp.ID)
+	return nil
+}
+
+func (b *bot) revokeCommandsMenu(ctx context.Context, chat types.JID, id types.MessageID) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(commandsMenuLifetime):
+	}
+	if _, err := b.client.SendMessage(ctx, chat, b.client.BuildRevoke(chat, types.EmptyJID, id)); err != nil {
+		b.client.Log.Errorf("apagar menu de comandos: %v", err)
+	}
 }
 
 func commandsMenu(commands []botCommand) string {
@@ -33,5 +61,6 @@ func commandsMenu(commands []botCommand) string {
 			}
 		}
 	}
+	sb.WriteString("\n\n_Esse menu some em 1 minuto_ ⏳")
 	return sb.String()
 }

@@ -1,0 +1,4 @@
+env_files = [".env"]
+
+[build]
+entrypoint = ["./tmp/main"]

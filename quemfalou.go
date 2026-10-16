@@ -19,7 +19,7 @@ import (
 
 const (
 	quemfalouOptionCount = 4
-	quemfalouCandidates  = 30
+	quemfalouCandidates  = 80
 	quemfalouRevealDelay = time.Minute
 )
 
@@ -27,6 +27,7 @@ type storedQuote struct {
 	quote
 	sender    string
 	senderAlt string
+	laughs    int
 }
 
 type quemfalouRound struct {
@@ -49,23 +50,29 @@ func (b *bot) quemfalou(ctx context.Context, evt *events.Message) error {
 		return b.sendText(ctx, chat, "O !quemfalou só funciona em grupo")
 	}
 
+	phrase := quemfalouPhrase(messageText(evt.Message))
 	var (
 		group  *types.GroupInfo
 		quotes []storedQuote
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { group, err = b.client.GetGroupInfo(gctx, chat); return err })
-	g.Go(func() (err error) { quotes, err = b.messages.randomQuotes(gctx, chat, quemfalouCandidates); return err })
+	g.Go(func() (err error) {
+		quotes, err = b.messages.randomQuotes(gctx, chat, phrase, quemfalouCandidates)
+		return err
+	})
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("preparar !quemfalou: %w", err)
 	}
 
 	owners := b.memberOwners(group.Participants)
-	i := slices.IndexFunc(quotes, func(q storedQuote) bool { _, ok := owners.of(q.sender, q.senderAlt); return ok })
-	if i < 0 {
-		return b.sendText(ctx, chat, "Ainda não tenho mensagem guardada de ninguém daqui 🤷")
+	picked, author, found := pickQuemfalouQuote(quotes, owners, phrase == "")
+	if !found && phrase != "" {
+		return b.sendText(ctx, chat, "Não achei nenhuma mensagem de alguém daqui com essa frase 🤷")
 	}
-	author, _ := owners.of(quotes[i].sender, quotes[i].senderAlt)
+	if !found {
+		return b.sendText(ctx, chat, "Ainda não tenho mensagem boa guardada de ninguém daqui 🤷")
+	}
 	options := quemfalouOptions(owners, author)
 	if len(options) < 2 {
 		return b.sendText(ctx, chat, "O grupo precisa ter pelo menos 2 pessoas além do bot")
@@ -73,7 +80,7 @@ func (b *bot) quemfalou(ctx context.Context, evt *events.Message) error {
 	names := b.pollNames(ctx, chat, options)
 	answer := names[slices.Index(options, author)]
 
-	intro := fmt.Sprintf("🕵️ *Quem falou?*\n\n%s\n\n_Vota na enquete, a resposta sai em 1 minuto_ ⏳", quoteBlock(quotes[i].text))
+	intro := fmt.Sprintf("🕵️ *Quem falou?*\n\n%s\n\n_Vota na enquete, a resposta sai em 1 minuto_ ⏳", quoteBlock(picked.text))
 	if err := b.sendText(ctx, chat, intro); err != nil {
 		return err
 	}
@@ -84,13 +91,37 @@ func (b *bot) quemfalou(ctx context.Context, evt *events.Message) error {
 
 	round := &quemfalouRound{
 		author:     author,
-		q:          quotes[i].quote,
+		q:          picked.quote,
 		answerHash: sha256.Sum256([]byte(answer)),
 		votes:      map[string]quemfalouVote{},
 	}
 	b.quemfalouRounds.Store(resp.ID, round)
 	go b.revealQuemfalou(ctx, chat, resp.ID, round)
 	return nil
+}
+
+func pickQuemfalouQuote(quotes []storedQuote, owners memberOwners, onlyWorthQuoting bool) (storedQuote, types.JID, bool) {
+	var (
+		best   storedQuote
+		author types.JID
+		found  bool
+	)
+	for _, q := range quotes {
+		owner, ok := owners.of(q.sender, q.senderAlt)
+		if !ok || (onlyWorthQuoting && !q.worthQuoting()) || (found && q.laughs <= best.laughs) {
+			continue
+		}
+		best, author, found = q, owner, true
+	}
+	return best, author, found
+}
+
+func quemfalouPhrase(text string) string {
+	fields := strings.Fields(text)
+	if len(fields) < 2 {
+		return ""
+	}
+	return strings.Trim(strings.Join(fields[1:], " "), `"'“”‘’`)
 }
 
 func quemfalouOptions(owners memberOwners, author types.JID) []types.JID {
@@ -142,20 +173,30 @@ func (b *bot) revealQuemfalou(ctx context.Context, chat types.JID, pollID types.
 	case <-time.After(quemfalouRevealDelay):
 	}
 	b.quemfalouRounds.Delete(pollID)
-	text, mentions := round.reveal()
-	if _, err := b.sendMentions(ctx, chat, text, mentions); err != nil {
+	nicknames := b.chatNicknames(ctx, chat)
+	text, mentions := round.reveal(b.fullName(ctx, round.author, nicknames), nicknames)
+	if _, err := b.sendRawMentions(ctx, chat, text, mentions); err != nil {
 		b.client.Log.Errorf("revelar !quemfalou: %v", err)
 	}
 }
 
-func (r *quemfalouRound) reveal() (string, []types.JID) {
+func (r *quemfalouRound) reveal(authorName string, nicknames map[string]string) (string, []types.JID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	lines := []string{fmt.Sprintf("🕵️ Quem falou foi @%s, em %s!", r.author.User, brazilianDate(r.q.sentAt)), "", quoteBlock(r.q.text)}
-	mentions := []types.JID{r.author}
+	author := "@" + r.author.User
+	if authorName != "" {
+		author = fmt.Sprintf("%s (%s)", author, authorName)
+	}
+	header := fmt.Sprintf("🕵️ Quem falou foi %s, em %s!", author, brazilianDate(r.q.sentAt))
+	body, winners := r.outcome()
+	return header + "\n\n" + tagNicknames(body, nicknames), append([]types.JID{r.author}, winners...)
+}
+
+func (r *quemfalouRound) outcome() (string, []types.JID) {
+	quote := quoteBlock(r.q.text)
 	if len(r.votes) == 0 {
-		return strings.Join(lines, "\n"), mentions
+		return quote, nil
 	}
 
 	var winners []types.JID
@@ -165,20 +206,23 @@ func (r *quemfalouRound) reveal() (string, []types.JID) {
 		}
 	}
 	if len(winners) == 0 {
-		return strings.Join(append(lines, "", "❌ Ninguém acertou 😂"), "\n"), mentions
+		return quote + "\n\n❌ Ninguém acertou 😂", nil
 	}
 	slices.SortFunc(winners, func(a, b types.JID) int { return strings.Compare(a.User, b.User) })
-	lines = append(lines, "", "✅ Acertaram: "+joinMentions(winners))
-	return strings.Join(lines, "\n"), append(mentions, winners...)
+	return quote + "\n\n✅ Acertaram: " + joinMentions(winners), winners
 }
 
-func (s *messageStore) randomQuotes(ctx context.Context, chat types.JID, limit int) (quotes []storedQuote, err error) {
+func (s *messageStore) randomQuotes(ctx context.Context, chat types.JID, phrase string, limit int) (quotes []storedQuote, err error) {
+	pattern, minLength := quoteFilter(phrase)
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT remetente, remetente_alt, texto, enviada_em FROM mensagens
-		 WHERE chat = ? AND enviada_em >= ?
-		   AND texto NOT LIKE '!%' AND length(texto) >= ?
+		`SELECT m.remetente, m.remetente_alt, m.texto, m.enviada_em,
+		        (SELECT COUNT(DISTINCT r.quem_riu) FROM risadas r WHERE r.chat = m.chat AND r.mensagem_alvo = m.id)
+		 FROM mensagens m
+		 WHERE m.chat = ? AND m.enviada_em >= ?
+		   AND m.texto NOT LIKE '!%' AND length(m.texto) >= ?
+		   AND m.texto LIKE ? ESCAPE '\'
 		 ORDER BY RANDOM() LIMIT ?`,
-		chat.String(), windowStart(), minQuoteLength, limit,
+		chat.String(), windowStart(), minLength, pattern, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -190,11 +234,19 @@ func (s *messageStore) randomQuotes(ctx context.Context, chat types.JID, limit i
 			q      storedQuote
 			sentAt int64
 		)
-		if err := rows.Scan(&q.sender, &q.senderAlt, &q.text, &sentAt); err != nil {
+		if err := rows.Scan(&q.sender, &q.senderAlt, &q.text, &sentAt, &q.laughs); err != nil {
 			return nil, err
 		}
 		q.sentAt = time.Unix(sentAt, 0)
 		quotes = append(quotes, q)
 	}
 	return quotes, rows.Err()
+}
+
+func quoteFilter(phrase string) (string, int) {
+	if phrase == "" {
+		return "%", minQuoteLength
+	}
+	escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(phrase)
+	return "%" + escaped + "%", 1
 }

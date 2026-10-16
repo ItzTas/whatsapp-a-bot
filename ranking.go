@@ -68,7 +68,7 @@ func rankingPeriodFrom(text string) rankingPeriod {
 		"hoje":   {"últimas 24 horas", 24 * time.Hour},
 		"semana": {"últimos 7 dias", 7 * 24 * time.Hour},
 		"mes":    {"últimos 30 dias", 30 * 24 * time.Hour},
-		"tudo":   {"últimos 90 dias", messageWindow},
+		"tudo":   {messageWindowLabel, messageWindow},
 	}
 	for _, word := range normalizedWords(text) {
 		if p, ok := periods[word]; ok {
@@ -130,20 +130,28 @@ func (b *bot) rankMembers(participants []types.GroupParticipant, counts []sender
 }
 
 func rankingText(period rankingPeriod, top, all []rankedMember) string {
-	medals := []string{"🥇", "🥈", "🥉"}
-	lines := []string{fmt.Sprintf("🏆 *Quem mais falou* nos %s", period.label), ""}
-	for i, m := range top {
-		position := fmt.Sprintf("%d.", i+1)
-		if i < len(medals) {
-			position = medals[i]
-		}
-		lines = append(lines, fmt.Sprintf("%s @%s: %s", position, m.jid.User, countLabel(m.messages, "mensagem", "mensagens")))
-	}
+	lines := slices.Concat(
+		[]string{fmt.Sprintf("🏆 *Quem mais falou* nos %s", period.label), ""},
+		rankingLines(top, "mensagem", "mensagens"),
+	)
 	total := 0
 	for _, m := range all {
 		total += m.messages
 	}
 	return strings.Join(append(lines, "", fmt.Sprintf("_%s no total_", countLabel(total, "mensagem", "mensagens"))), "\n")
+}
+
+func rankingLines(top []rankedMember, singular, plural string) []string {
+	medals := []string{"🥇", "🥈", "🥉"}
+	lines := make([]string, len(top))
+	for i, m := range top {
+		position := fmt.Sprintf("%d.", i+1)
+		if i < len(medals) {
+			position = medals[i]
+		}
+		lines[i] = fmt.Sprintf("%s @%s: %s", position, m.jid.User, countLabel(m.messages, singular, plural))
+	}
+	return lines
 }
 
 func (s *messageStore) countsBySender(ctx context.Context, chat types.JID, since int64) (counts []senderCount, err error) {

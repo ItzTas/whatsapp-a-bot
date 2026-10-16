@@ -47,18 +47,6 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, messages.Close()) }()
 
-	nicknames, err := openNicknameStore(ctx, messages.db)
-	if err != nil {
-		return err
-	}
-	marriages, err := openMarriageStore(ctx, messages.db)
-	if err != nil {
-		return err
-	}
-	adoptions, err := openAdoptionStore(ctx, messages.db)
-	if err != nil {
-		return err
-	}
 	assistant, err := newAssistantFromEnv()
 	if err != nil {
 		return fmt.Errorf("configurar IA: %w", err)
@@ -68,7 +56,10 @@ func run(ctx context.Context) (err error) {
 	defer endSession(nil)
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
-	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: nicknames, marriages: marriages, adoptions: adoptions, assistant: assistant}
+	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &nicknameStore{db: messages.db}, marriages: &marriageStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, datings: &datingStore{db: messages.db}, assistant: assistant, filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, owners: ownersFromEnv()}
+	if len(b.owners) == 0 {
+		client.Log.Warnf("BOT_DONO não definido: ninguém consegue usar !modo, !blacklist e !whitelist")
+	}
 	client.AddEventHandler(func(evt any) {
 		switch evt := evt.(type) {
 		case *events.Message:

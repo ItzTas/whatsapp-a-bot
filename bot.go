@@ -17,16 +17,21 @@ type bot struct {
 	client *whatsmeow.Client
 	gifs   map[string][]gif
 
-	bmcRounds       sync.Map
-	vddAnswered     sync.Map
-	quemfalouRounds sync.Map
-	forcaGames      sync.Map
-	revolvers       sync.Map
-	messages        *messageStore
-	nicknames       *nicknameStore
-	marriages       *marriageStore
-	adoptions       *adoptionStore
-	assistant       *assistant
+	bmcRounds        sync.Map
+	vddAnswered      sync.Map
+	quemfalouRounds  sync.Map
+	forcaGames       sync.Map
+	revolvers        sync.Map
+	laughStickerSent sync.Map
+	messages         *messageStore
+	nicknames        *nicknameStore
+	marriages        *marriageStore
+	adoptions        *adoptionStore
+	datings          *datingStore
+	assistant        *assistant
+	filters          *filterStore
+	modes            *modeStore
+	owners           []string
 }
 
 type command func(ctx context.Context, evt *events.Message) error
@@ -70,16 +75,6 @@ func (b *bot) commands() []botCommand {
 			run: b.casar,
 		},
 		{
-			name:     "divorciar",
-			category: romance,
-			help: []usage{
-				{"!divorciar @pessoa", "você se divorcia da pessoa marcada 💔"},
-				{"!divorciar @pessoa1 @pessoa2", "divorcia as duas pessoas marcadas"},
-				{"!divorciar", "você se divorcia de todo mundo com quem casou"},
-			},
-			run: b.divorciar,
-		},
-		{
 			name:     "adotar",
 			category: familia,
 			help:     []usage{{"!adotar @pessoa", "você adota a pessoa marcada como filho(a) 🍼"}},
@@ -105,6 +100,37 @@ func (b *bot) commands() []botCommand {
 			run: b.ship,
 		},
 		{
+			name:     "namoro",
+			aliases:  []string{"namorado", "namorada"},
+			category: romance,
+			help: []usage{
+				{"!namorado", "mostra o seu namorado. Se você não namora ninguém pelo !namorar, mostra quem dá o maior !ship com você 💑"},
+				{"!namorada", "igual ao !namorado, mas no feminino"},
+				{"!namoro @pessoa", "mostra com quem a pessoa marcada namora (os três comandos aceitam @pessoa)"},
+			},
+			run: b.namoro,
+		},
+		{
+			name:     "namorar",
+			category: romance,
+			help: []usage{
+				{"!namorar @pessoa", "começa a namorar a pessoa marcada 💘 (dá pra namorar mais de uma pessoa)"},
+				{"!namorar @pessoa1 @pessoa2", "faz as duas pessoas marcadas namorarem"},
+			},
+			run: b.namorar,
+		},
+		{
+			name:     "terminar",
+			aliases:  []string{"divorciar"},
+			category: romance,
+			help: []usage{
+				{"!terminar @pessoa", "você termina o namoro e o casamento com a pessoa marcada 💔"},
+				{"!terminar @pessoa1 @pessoa2", "termina o namoro e o casamento das duas pessoas marcadas"},
+				{"!terminar", "você termina com todo mundo que namora ou com quem casou (!divorciar faz o mesmo)"},
+			},
+			run: b.terminar,
+		},
+		{
 			name:     "almagemea",
 			aliases:  []string{"alma"},
 			category: romance,
@@ -118,6 +144,7 @@ func (b *bot) commands() []botCommand {
 			name:     "sexo",
 			category: romance,
 			help: []usage{
+				{"!sexo", "leva você e uma pessoa aleatória do grupo pro quarto 🔥"},
 				{"!sexo @pessoa", "leva você e a pessoa marcada pro quarto 🔥"},
 				{"!sexo @pessoa1 @pessoa2 @pessoa3...", "leva todo mundo que você marcar pro quarto 🔥"},
 				{"!sexo @todos", "leva o grupo inteiro pro quarto 🔥"},
@@ -141,6 +168,16 @@ func (b *bot) commands() []botCommand {
 				{"!trair @pessoa1 @pessoa2", "a primeira pessoa marcada trai com a segunda"},
 			},
 			run: b.trair,
+		},
+		{
+			name:     "fic",
+			category: romance,
+			help: []usage{
+				{"!fic", "escreve uma fic de amor entre você e uma pessoa aleatória do grupo 📖"},
+				{"!fic @pessoa", "escreve uma fic de amor entre você e a pessoa marcada"},
+				{"!fic @pessoa1 @pessoa2", "escreve uma fic de amor entre as duas pessoas marcadas"},
+			},
+			run: b.fic,
 		},
 		{
 			name:     "bmc",
@@ -184,8 +221,11 @@ func (b *bot) commands() []botCommand {
 		{
 			name:     "quemfalou",
 			category: jogos,
-			help:     []usage{{"!quemfalou", "o bot desenterra uma mensagem antiga e abre uma enquete pra adivinhar quem mandou 🕵️"}},
-			run:      b.quemfalou,
+			help: []usage{
+				{"!quemfalou", "o bot desenterra uma mensagem antiga e abre uma enquete pra adivinhar quem mandou 🕵️"},
+				{"!quemfalou <frase>", "em vez de sortear, usa uma mensagem que tenha essa frase"},
+			},
+			run: b.quemfalou,
 		},
 		{
 			name:     "forca",
@@ -245,7 +285,7 @@ func (b *bot) commands() []botCommand {
 				{"!ranking", "mostra quem mais mandou mensagem no grupo na última semana 🏆"},
 				{"!ranking hoje", "o ranking das últimas 24 horas"},
 				{"!ranking mês", "o ranking dos últimos 30 dias"},
-				{"!ranking tudo", "o ranking dos últimos 90 dias"},
+				{"!ranking tudo", "o ranking dos " + messageWindowLabel},
 			},
 			run: b.ranking,
 		},
@@ -257,6 +297,33 @@ func (b *bot) commands() []botCommand {
 				{"!palavra", "mostra as suas"},
 			},
 			run: b.palavra,
+		},
+		{
+			name:     "tu",
+			category: estatisticas,
+			help: []usage{
+				{"!tu", "mostra a sua ficha no grupo: nome, recado, ranking, palavra favorita, família e mais 🪪"},
+				{"!tu @pessoa", "mostra a ficha da pessoa marcada"},
+			},
+			run: b.tu,
+		},
+		{
+			name:     "palhaco",
+			aliases:  []string{"palhaço"},
+			category: estatisticas,
+			help: []usage{
+				{"!palhaço", "mostra quem mais fez o grupo rir na última semana, contando os kkkk, ksksks e hahaha que a pessoa arrancou 🤡"},
+				{"!palhaço hoje", "o ranking das últimas 24 horas (também tem mês e tudo)"},
+			},
+			run: b.palhaco,
+		},
+		{
+			name:     "kkk",
+			category: zoeira,
+			help: []usage{
+				{"!kkk", "responda uma mensagem com !kkk e o bot manda a figurinha dos Simpsons rindo em cima dela 😂"},
+			},
+			run: b.kkk,
 		},
 		{
 			name:     "chute",
@@ -337,6 +404,18 @@ func (b *bot) commands() []botCommand {
 }
 
 func (b *bot) handleMessage(ctx context.Context, evt *events.Message) {
+	name, isCommand := commandName(messageText(evt.Message))
+	if isCommand && b.runOwnerCommand(ctx, evt, name) {
+		return
+	}
+	allowed, err := b.allowed(ctx, evt)
+	if err != nil {
+		b.client.Log.Errorf("checar blacklist/whitelist: %v", err)
+		return
+	}
+	if !allowed {
+		return
+	}
 	if err := b.messages.record(ctx, evt); err != nil {
 		b.client.Log.Errorf("guardar mensagem: %v", err)
 	}
@@ -352,8 +431,8 @@ func (b *bot) handleMessage(ctx context.Context, evt *events.Message) {
 	if err := b.answerForca(ctx, evt); err != nil {
 		b.client.Log.Errorf("responder !forca: %v", err)
 	}
-	name, ok := commandName(messageText(evt.Message))
-	if !ok {
+	if !isCommand {
+		b.answerModes(ctx, evt)
 		return
 	}
 	commands := b.commands()

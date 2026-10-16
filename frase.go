@@ -2,19 +2,30 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-const minQuoteLength = 12
+const (
+	minQuoteLength     = 12
+	maxQuoteLength     = 300
+	minQuoteWords      = 3
+	maxQuoteCandidates = 40
+)
 
-var brazilTime = time.FixedZone("BRT", -3*60*60)
+var (
+	brazilTime = time.FixedZone("BRT", -3*60*60)
+	quoteNoise = regexp.MustCompile(`https?://\S+|www\.\S+|@\d+`)
+)
 
 type quote struct {
 	text   string
@@ -59,25 +70,65 @@ func brazilianDate(t time.Time) string {
 }
 
 func (s *messageStore) randomQuote(ctx context.Context, chat types.JID, users []string) (quote, bool, error) {
+	candidates, err := s.quoteCandidates(ctx, chat, users)
+	if err != nil {
+		return quote{}, false, err
+	}
+	if len(candidates) == 0 {
+		return quote{}, false, nil
+	}
+	if i := slices.IndexFunc(candidates, quote.worthQuoting); i >= 0 {
+		return candidates[i], true, nil
+	}
+	return candidates[0], true, nil
+}
+
+func (s *messageStore) quoteCandidates(ctx context.Context, chat types.JID, users []string) (candidates []quote, err error) {
 	first, second := users[0], users[len(users)-1]
-	var (
-		q      quote
-		sentAt int64
-	)
-	err := s.db.QueryRowContext(ctx,
+	rows, err := s.db.QueryContext(ctx,
 		`SELECT texto, enviada_em FROM mensagens
 		 WHERE chat = ? AND enviada_em >= ?
 		   AND (remetente IN (?, ?) OR remetente_alt IN (?, ?))
 		   AND texto NOT LIKE '!%' AND length(texto) >= ?
-		 ORDER BY RANDOM() LIMIT 1`,
-		chat.String(), windowStart(), first, second, first, second, minQuoteLength,
-	).Scan(&q.text, &sentAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return quote{}, false, nil
-	}
+		 ORDER BY RANDOM() LIMIT ?`,
+		chat.String(), windowStart(), first, second, first, second, minQuoteLength, maxQuoteCandidates,
+	)
 	if err != nil {
-		return quote{}, false, err
+		return nil, err
 	}
-	q.sentAt = time.Unix(sentAt, 0)
-	return q, true, nil
+	defer func() { err = errors.Join(err, rows.Close()) }()
+
+	for rows.Next() {
+		var (
+			q      quote
+			sentAt int64
+		)
+		if err := rows.Scan(&q.text, &sentAt); err != nil {
+			return nil, err
+		}
+		q.sentAt = time.Unix(sentAt, 0)
+		candidates = append(candidates, q)
+	}
+	return candidates, rows.Err()
+}
+
+func (q quote) worthQuoting() bool {
+	if utf8.RuneCountInString(q.text) > maxQuoteLength {
+		return false
+	}
+	return len(meaningfulWords(q.text)) >= minQuoteWords
+}
+
+func meaningfulWords(text string) []string {
+	filler := map[string]bool{
+		"oi": true, "ola": true, "opa": true, "eae": true, "eai": true, "salve": true,
+		"bom": true, "boa": true, "dia": true, "tarde": true, "noite": true,
+		"ok": true, "okay": true, "blz": true, "beleza": true, "sim": true, "nao": true,
+		"s": true, "n": true, "ss": true, "nn": true, "kk": true, "e": true, "ne": true,
+		"ta": true, "to": true, "vlw": true, "valeu": true, "obg": true,
+		"obrigado": true, "obrigada": true, "tmj": true,
+	}
+	stripped := quoteNoise.ReplaceAllString(foldLetters(text), " ")
+	words := strings.FieldsFunc(stripped, func(r rune) bool { return !unicode.IsLetter(r) })
+	return slices.DeleteFunc(words, func(w string) bool { return filler[w] || isLaughWord(w) })
 }

@@ -21,21 +21,6 @@ type nicknameStore struct {
 	db *sql.DB
 }
 
-func openNicknameStore(ctx context.Context, db *sql.DB) (*nicknameStore, error) {
-	schema := `
-		CREATE TABLE IF NOT EXISTS apelidos (
-			chat    TEXT NOT NULL,
-			usuario TEXT NOT NULL,
-			apelido TEXT NOT NULL,
-			PRIMARY KEY (chat, usuario)
-		);
-	`
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return nil, fmt.Errorf("criar tabela de apelidos: %w", err)
-	}
-	return &nicknameStore{db: db}, nil
-}
-
 func (s *nicknameStore) set(ctx context.Context, chat types.JID, users []string, nickname string) (err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -116,11 +101,10 @@ func nicknameFrom(text string) string {
 }
 
 func (b *bot) withNicknames(ctx context.Context, chat types.JID, text string) string {
-	nicknames, err := b.nicknames.inChat(ctx, chat)
-	if err != nil {
-		b.client.Log.Warnf("ler apelidos de %s: %v", chat, err)
-		return text
-	}
+	return tagNicknames(text, b.chatNicknames(ctx, chat))
+}
+
+func tagNicknames(text string, nicknames map[string]string) string {
 	return mentionTagPattern.ReplaceAllStringFunc(text, func(tag string) string {
 		nickname, ok := nicknames[strings.TrimPrefix(tag, "@")]
 		if !ok {

@@ -23,22 +23,6 @@ type marriage struct {
 	since   time.Time
 }
 
-func openMarriageStore(ctx context.Context, db *sql.DB) (*marriageStore, error) {
-	schema := `
-		CREATE TABLE IF NOT EXISTS casamentos (
-			chat       TEXT    NOT NULL,
-			conjuge1   TEXT    NOT NULL,
-			conjuge2   TEXT    NOT NULL,
-			casados_em INTEGER NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS casamentos_por_chat ON casamentos (chat);
-	`
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return nil, fmt.Errorf("criar tabela de casamentos: %w", err)
-	}
-	return &marriageStore{db: db}, nil
-}
-
 func (s *marriageStore) add(ctx context.Context, chat types.JID, spouses [2]types.JID, at time.Time) error {
 	_, err := s.db.ExecContext(ctx,
 		"INSERT INTO casamentos (chat, conjuge1, conjuge2, casados_em) VALUES (?, ?, ?, ?)",

@@ -41,24 +41,29 @@ func (b *bot) sexo(ctx context.Context, evt *events.Message) error {
 		"📵 %s desligaram o celular e desapareceram do mapa 🙈",
 		"🛋️ %s disseram que iam só descansar no sofá 😴",
 	}
+	news, err := b.cheatingNews(ctx, evt.Info.Chat, people)
+	if err != nil {
+		return fmt.Errorf("ler casamentos: %w", err)
+	}
 	scene := fmt.Sprintf(scenes[rand.IntN(len(scenes))], joinMentions(people))
 	tops, bottoms := splitRoles(people)
 	duration, verdict := sexoDuration()
-	caption := fmt.Sprintf("%s\n\n%s\n%s\n⏱️ Durou %s\n%s",
+	caption := fmt.Sprintf("%s\n\n%s\n%s\n⏱️ Durou %s\n%s%s",
 		scene,
 		roleLine("🍆", "Ativo", "Ativos", tops),
 		roleLine("🍑", "Passivo", "Passivos", bottoms),
 		formatDuration(duration),
 		verdict,
+		news.caption(),
 	)
 
 	video, err := b.uploadGIF(ctx, pickGIF(b.gifs["sexo"]))
 	if err != nil {
 		return fmt.Errorf("enviar gif: %w", err)
 	}
-	mentioned := make([]string, len(people))
-	for i, p := range people {
-		mentioned[i] = p.String()
+	mentioned := make([]string, 0, len(people)+len(news.betrayed))
+	for _, p := range slices.Concat(people, news.betrayed) {
+		mentioned = append(mentioned, p.String())
 	}
 	video.Caption = proto.String(b.withNicknames(ctx, evt.Info.Chat, caption))
 	video.ContextInfo = &waE2E.ContextInfo{MentionedJID: mentioned}
@@ -206,10 +211,28 @@ func (b *bot) sexoParticipants(ctx context.Context, evt *events.Message) ([]type
 		return b.groupMembers(ctx, evt.Info.Chat)
 	}
 	mentions := mentionedJIDs(evt.Message)
+	if len(mentions) == 0 {
+		return b.randomPartner(ctx, evt)
+	}
 	if len(mentions) == 1 {
 		return uniqueJIDs([]types.JID{evt.Info.Sender.ToNonAD(), mentions[0]}), nil
 	}
 	return uniqueJIDs(mentions), nil
+}
+
+func (b *bot) randomPartner(ctx context.Context, evt *events.Message) ([]types.JID, error) {
+	members, err := b.groupMembers(ctx, evt.Info.Chat)
+	if err != nil {
+		return nil, err
+	}
+	candidates := slices.DeleteFunc(members, func(m types.JID) bool {
+		return m.User == evt.Info.Sender.User || m.User == evt.Info.SenderAlt.User
+	})
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	partner := candidates[rand.IntN(len(candidates))]
+	return []types.JID{evt.Info.Sender.ToNonAD(), partner}, nil
 }
 
 func mentionsEveryone(msg *waE2E.Message) bool {

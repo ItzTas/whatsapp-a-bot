@@ -4,3 +4,4 @@ sessao.db-*
 /tmp
 mensagens.db
 mensagens.db-*
+.env

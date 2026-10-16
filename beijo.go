@@ -40,12 +40,18 @@ func (b *bot) beijo(ctx context.Context, evt *events.Message) error {
 		"👀 Os vizinhos tão comentando até agora",
 	}
 
+	news, err := b.cheatingNews(ctx, evt.Info.Chat, pair[:])
+	if err != nil {
+		return fmt.Errorf("ler casamentos: %w", err)
+	}
+
 	from, to := pair[0], pair[1]
-	caption := fmt.Sprintf("%s\n\n💋 Tipo: %s\n⭐ Nota do beijo: %d/10\n\n%s",
+	caption := fmt.Sprintf("%s\n\n💋 Tipo: %s\n⭐ Nota do beijo: %d/10\n\n%s%s",
 		fmt.Sprintf(cenas[rand.IntN(len(cenas))], from.User, to.User),
 		tipos[rand.IntN(len(tipos))],
 		rand.IntN(11),
 		reacoes[rand.IntN(len(reacoes))],
+		news.caption(),
 	)
-	return b.sendGIF(ctx, evt.Info.Chat, "beijo", caption, []types.JID{from, to})
+	return b.sendGIF(ctx, evt.Info.Chat, "beijo", caption, append([]types.JID{from, to}, news.betrayed...))
 }

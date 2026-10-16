@@ -50,6 +50,60 @@ func (b *bot) trair(ctx context.Context, evt *events.Message) error {
 	return err
 }
 
+type cheatingNews struct {
+	lines    []string
+	betrayed []types.JID
+}
+
+func (b *bot) cheatingNews(ctx context.Context, chat types.JID, people []types.JID) (cheatingNews, error) {
+	var (
+		marriages []marriage
+		datings   []dating
+		aliases   = make([][]string, len(people))
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(16)
+	g.Go(func() (err error) { marriages, err = b.marriages.inChat(gctx, chat); return err })
+	g.Go(func() (err error) { datings, err = b.datings.inChat(gctx, chat); return err })
+	for i, p := range people {
+		g.Go(func() error { aliases[i] = b.userAliases(gctx, p); return nil })
+	}
+	if err := g.Wait(); err != nil {
+		return cheatingNews{}, err
+	}
+
+	present := slices.Concat(aliases...)
+	var news cheatingNews
+	for i, p := range people {
+		relations := []struct {
+			verb     string
+			partners []types.JID
+		}{
+			{"é casado(a) com", otherPartners(marriagesOf(marriages, aliases[i]), aliases[i], nil)},
+			{"namora", datingPartnersOf(datings, aliases[i])},
+		}
+		for _, r := range relations {
+			betrayed := slices.DeleteFunc(r.partners, func(s types.JID) bool { return slices.Contains(present, s.User) })
+			if len(betrayed) == 0 {
+				continue
+			}
+			news.lines = append(news.lines, fmt.Sprintf("🐍 *Traição!* @%s %s %s", p.User, r.verb, joinMentions(betrayed)))
+			news.betrayed = append(news.betrayed, betrayed...)
+		}
+	}
+	news.betrayed = uniqueJIDs(news.betrayed)
+	return news, nil
+}
+
+func (n cheatingNews) caption() string {
+	if len(n.betrayed) == 0 {
+		return ""
+	}
+	betrayedTags := joinMentions(n.betrayed)
+	lines := slices.Concat(n.lines, betrayalOutcome(betrayedTags), []string{fmt.Sprintf("🦌 Chifres novos pra %s", betrayedTags)})
+	return "\n\n" + strings.Join(lines, "\n")
+}
+
 func betrayalText(cheater, lover types.JID, betrayed []types.JID) string {
 	locais := []string{
 		"no motel da esquina 🏨", "no banheiro da festa 🚽", "dentro do Uber 🚗", "na casa da sogra 🏠",

@@ -16,20 +16,51 @@ func (b *bot) chatNicknames(ctx context.Context, chat types.JID) map[string]stri
 }
 
 func (b *bot) displayName(ctx context.Context, person types.JID, nicknames map[string]string) string {
-	identities := []types.JID{person}
-	alt, err := b.client.Store.GetAltJID(ctx, person)
-	if err != nil {
-		b.client.Log.Warnf("resolver número alternativo de %s: %v", person, err)
+	identities := b.identities(ctx, person)
+	if nickname := nicknameOf(identities, nicknames); nickname != "" {
+		return nickname
 	}
-	if !alt.IsEmpty() {
-		identities = append(identities, alt)
+	if name := b.contactName(ctx, identities); name != "" {
+		return name
 	}
+	for _, id := range identities {
+		if id.Server == types.DefaultUserServer {
+			return "+" + id.User
+		}
+	}
+	return person.User
+}
 
+func (b *bot) fullName(ctx context.Context, person types.JID, nicknames map[string]string) string {
+	identities := b.identities(ctx, person)
+	nickname, name := nicknameOf(identities, nicknames), b.contactName(ctx, identities)
+	if nickname == "" || name == "" || nickname == name {
+		return cmp.Or(nickname, name)
+	}
+	return nickname + " · " + name
+}
+
+func nicknameOf(identities []types.JID, nicknames map[string]string) string {
 	for _, id := range identities {
 		if nickname, ok := nicknames[id.User]; ok {
 			return nickname
 		}
 	}
+	return ""
+}
+
+func (b *bot) identities(ctx context.Context, person types.JID) []types.JID {
+	alt, err := b.client.Store.GetAltJID(ctx, person)
+	if err != nil {
+		b.client.Log.Warnf("resolver número alternativo de %s: %v", person, err)
+	}
+	if alt.IsEmpty() {
+		return []types.JID{person}
+	}
+	return []types.JID{person, alt}
+}
+
+func (b *bot) contactName(ctx context.Context, identities []types.JID) string {
 	for _, id := range identities {
 		contact, err := b.client.Store.Contacts.GetContact(ctx, id)
 		if err != nil {
@@ -40,10 +71,5 @@ func (b *bot) displayName(ctx context.Context, person types.JID, nicknames map[s
 			return name
 		}
 	}
-	for _, id := range identities {
-		if id.Server == types.DefaultUserServer {
-			return "+" + id.User
-		}
-	}
-	return person.User
+	return ""
 }

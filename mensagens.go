@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	messageWindow     = 90 * 24 * time.Hour
-	maxStoredMessages = 50_000
-	pruneEvery        = 500
+	messageWindow      = 2 * 365 * 24 * time.Hour
+	messageWindowLabel = "últimos 2 anos"
+	maxStoredMessages  = 1_000_000
+	pruneEvery         = 500
 )
 
 type messageStore struct {
@@ -33,23 +34,8 @@ func openMessageStore(ctx context.Context, path string) (*messageStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	schema := `
-		CREATE TABLE IF NOT EXISTS mensagens (
-			chat          TEXT    NOT NULL,
-			id            TEXT    NOT NULL,
-			remetente     TEXT    NOT NULL,
-			remetente_alt TEXT    NOT NULL,
-			texto         TEXT    NOT NULL,
-			enviada_em    INTEGER NOT NULL,
-			PRIMARY KEY (chat, id)
-		);
-		CREATE INDEX IF NOT EXISTS mensagens_por_remetente ON mensagens (chat, remetente);
-		CREATE INDEX IF NOT EXISTS mensagens_por_remetente_alt ON mensagens (chat, remetente_alt);
-		CREATE INDEX IF NOT EXISTS mensagens_por_data ON mensagens (chat, enviada_em);
-		CREATE INDEX IF NOT EXISTS mensagens_por_idade ON mensagens (enviada_em);
-	`
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return nil, errors.Join(fmt.Errorf("criar tabela de mensagens: %w", err), db.Close())
+	if err := migrate(ctx, db); err != nil {
+		return nil, errors.Join(fmt.Errorf("migrar banco: %w", err), db.Close())
 	}
 	s := &messageStore{db: db}
 	if err := s.prune(ctx); err != nil {
@@ -74,6 +60,9 @@ func (s *messageStore) record(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
+	if err := s.recordLaugh(ctx, evt, text); err != nil {
+		return fmt.Errorf("guardar risada: %w", err)
+	}
 	if s.recorded.Add(1)%pruneEvery != 0 {
 		return nil
 	}
@@ -83,6 +72,9 @@ func (s *messageStore) record(ctx context.Context, evt *events.Message) error {
 func (s *messageStore) prune(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM mensagens WHERE enviada_em < ?", windowStart()); err != nil {
 		return fmt.Errorf("apagar mensagens antigas: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM risadas WHERE enviada_em < ?", windowStart()); err != nil {
+		return fmt.Errorf("apagar risadas antigas: %w", err)
 	}
 	_, err := s.db.ExecContext(ctx,
 		"DELETE FROM mensagens WHERE enviada_em < (SELECT enviada_em FROM mensagens ORDER BY enviada_em DESC LIMIT 1 OFFSET ?)",
@@ -141,6 +133,14 @@ func (b *bot) recordHistory(ctx context.Context, evt *events.HistorySync) {
 			msg, err := b.client.ParseWebMessage(chat, item.GetMessage())
 			if err != nil {
 				b.client.Log.Warnf("histórico: ler mensagem de %s: %v", chat, err)
+				continue
+			}
+			allowed, err := b.allowed(ctx, msg)
+			if err != nil {
+				b.client.Log.Errorf("histórico: checar blacklist/whitelist de %s: %v", chat, err)
+				continue
+			}
+			if !allowed {
 				continue
 			}
 			if err := b.messages.record(ctx, msg); err != nil {

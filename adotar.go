@@ -24,22 +24,6 @@ type adoption struct {
 	child  types.JID
 }
 
-func openAdoptionStore(ctx context.Context, db *sql.DB) (*adoptionStore, error) {
-	schema := `
-		CREATE TABLE IF NOT EXISTS adocoes (
-			chat       TEXT    NOT NULL,
-			pai        TEXT    NOT NULL,
-			filho      TEXT    NOT NULL,
-			adotado_em INTEGER NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS adocoes_por_chat ON adocoes (chat);
-	`
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return nil, fmt.Errorf("criar tabela de adoções: %w", err)
-	}
-	return &adoptionStore{db: db}, nil
-}
-
 func (s *adoptionStore) add(ctx context.Context, chat, parent, child types.JID, at time.Time) error {
 	_, err := s.db.ExecContext(ctx,
 		"INSERT INTO adocoes (chat, pai, filho, adotado_em) VALUES (?, ?, ?, ?)",

@@ -232,13 +232,17 @@ func (r *bmcRound) result(chosen []types.JID) string {
 }
 
 func (b *bot) sendMentions(ctx context.Context, chat types.JID, text string, mentions []types.JID) (types.MessageID, error) {
+	return b.sendRawMentions(ctx, chat, b.withNicknames(ctx, chat, text), mentions)
+}
+
+func (b *bot) sendRawMentions(ctx context.Context, chat types.JID, text string, mentions []types.JID) (types.MessageID, error) {
 	raw := make([]string, len(mentions))
 	for i, m := range mentions {
 		raw[i] = m.ToNonAD().String()
 	}
 	resp, err := b.client.SendMessage(ctx, chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text:        proto.String(b.withNicknames(ctx, chat, text)),
+			Text:        proto.String(text),
 			ContextInfo: &waE2E.ContextInfo{MentionedJID: raw},
 		},
 	})
