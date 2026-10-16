@@ -210,7 +210,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `divinePerks`. O `voteWeight` dela faz o voto contar como 3 na eleição do `!votar` (guardado na
   cédula, em `weights`) e no júri do `!processar` (lido na sentença). Espera de poder nova passa pelo `pace` da profissão de quem usa.
   Só ela usa o `!milagre <valor>` (`milagre.go`), que credita moedas novas (nada sai do saldo do
-  deus) pra cada membro atual do grupo, menos o próprio deus e o bot, até `miracleMax` por pessoa.
+  deus) pra cada membro atual do grupo, menos o próprio deus e o bot, até `miracleMax` por pessoa;
+  com gente marcada, só quem foi marcado recebe (`chosenMiracle`, sem o próprio deus).
   O `!milagre <item> [quantidade]` faz o mesmo com um item do `catalog` (`bestowItem`), até
   `creationMax` por pessoa; sem nome de item na mensagem, o número vira moeda.
   O `!castigo <valor>` (`castigo.go`) é o contrário: tira o valor (número, porcentagem, `metade`
@@ -227,9 +228,9 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   usa o `baseJail` e não um tempo próprio; o `arrestEvery` é a espera entre prisões
   (coluna `prisao_em`). A saída da cadeia fica em `preso_ate` na `carteiras`. Toda ida pra cadeia
   (`!prender`, `!denunciar`, X-9, pego no `!matar`, no `!sequestrar` e no `!assalto`) cobra uma
-  multa de `fineMinPercent` a `fineMaxPercent` por cento do saldo (`chargeFine`), e as moedas
-  somem; a `!fianca` é outra coisa, é o preço de sair antes. Caminho novo que mande alguém pra
-  cadeia precisa chamar o `chargeFine` também. Comando com
+  multa de `fineMinPercent` a `fineMaxPercent` por cento do saldo e corta `arrestEaseCut` por cento da espera do `!fugir` que faltava (`lockUp`,
+  via `easeEscape`), e as moedas somem; a `!fianca` é outra coisa, é o preço de sair antes. Caminho novo que mande alguém pra
+  cadeia precisa chamar o `lockUp` também. Comando com
   `barredInJail` no `commands()` é barrado no `handleMessage` enquanto quem mandou tá preso ou em
   cativeiro (hoje `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roubar`, `!furtar`,
   `!sequestrar`, `!venderrefem`, `!matar`, `!assalto` e `!libertar`).
@@ -299,7 +300,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   presidente tem imunidade: `!prender` e `!denunciar` recusam com o `immunityText`, a chance de ser
   pego no `!sequestrar` e no `!matar` vira zero, o `jailCrew` do `!assalto` pula ele, o `noSnitch`
   não vale pra ele e o `inaugurate` zera o `preso_ate` de quem toma posse. Caminho novo que mande
-  alguém pra cadeia precisa checar o `president` da profissão. Tudo some quando o `mandato_ate`
+  alguém pra cadeia precisa checar o `untouchable()` da profissão (presidente ou subornado). Tudo some quando o `mandato_ate`
   passa, porque toda leitura da presidência filtra por ele.
 - O `!decreto` (`decreto.go`) é só do presidente e lê três tabelas em código, cada decreto com os
   nomes que aceita e a coluna dele na `presidencias`: `percentDecrees` (um número guardado na
@@ -316,10 +317,14 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   tirado da chance de `!roubar`, `!furtar`, `!sequestrar`, `!matar` e `!assalto`). Quem não lê a
   profissão chama `b.wallets.decrees`: o `trabalho`/`salario` (`workCooldown`/`payFor`), o `pix`
   (taxa de quem recebe no `!transferir`, que vai pro presidente, a não ser que ele esteja
-  na transferência), a `fianca` (preço do `!fianca`) e os três do cassino, lidos no `placeBet`,
+  na transferência), o `iof` (porcentagem dos juros do `!poupar` cobrada no `redeem` e paga pro
+  presidente, a não ser que seja ele resgatando; o `!decreto imposto poupanca` cai nele porque o
+  `pickDecree` tenta antes as duas primeiras palavras juntas), a `fianca` (preço do `!fianca`) e
+  os três do cassino, lidos no `placeBet`,
   que só os jogos de cassino usam no lugar do `placeStake` (bolão, leilão e jokenpo continuam): o
   `bets` fecha o cassino, o `cassino` muda o lucro de quem ganha e o `apostas` cobra uma taxa em
-  cima de cada aposta, ganhe ou perca, que vai pro presidente (ele mesmo não paga). O `placeBet`
+  cima de cada aposta, ganhe ou perca, que vai pro presidente (ele mesmo não paga; o
+  `!decreto imposto aposta` cai nele pelo mesmo motivo do `iof`). O `placeBet`
   devolve um `wager` com o `boost` do decreto da hora da aposta, que fica guardado na aposta (e no
   save da rodada) e é aplicado no pagamento pelo `casinoPrize`, com o `prizeTag` na resposta, e
   com o `levy` da taxa, que o `settleBet` (ou o `holdBet`, nos jogos que seguram a aposta) desconta
@@ -376,6 +381,15 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `presidential()`, o imóvel (`housed`), o segurança do `!seguranca` (`escorted`, coluna
   `seguranca_ate`) e a maldição do `!zoar` (`hexed`). Efeito novo que mude `guard`, ganho ou
   bônus de alguém por fora da profissão entra nesse mesmo ponto.
+- O `!subornar pagar` (`suborno.go`) cobra `bribePercent` do saldo, com piso `bribeFloor`, e as
+  moedas somem. Em troca grava `propina_ate` na `carteiras` por `bribeHold` (pagar de novo soma o
+  tempo), e o `paidOff` marca `bribed` na profissão. Enquanto vale, o `untouchable()` (que junta
+  presidente e subornado) barra a cadeia como a imunidade do presidente: o `arrestShield` recusa o
+  `!prender` e o `!denunciar`, a chance de flagrante no `!sequestrar` e no `!matar` e a batida do
+  `!mercadonegro` viram zero e o `jailCrew` do `!assalto` pula a pessoa. O X-9 do `noSnitch`
+  continua valendo, porque quem entrega é a quadrilha. No `!processar`, o `trialBribes` lê a
+  propina dos dois lados na hora da sentença: se só um pagou, o `riggedVerdict` dá a vitória pra
+  ele sem olhar a enquete (nem o quórum); se os dois pagaram, o júri decide normalmente.
 - Os imóveis vivem em código (`estates` em `imovel.go`) e só o nível vai pra coluna `imovel` da
   `carteiras`. Sobe um nível por vez, pagando o preço cheio, e cada nível dá `guard`,
   `dailyBonus` e cobra IPTU (`tax`) no imposto diário. Nunca reordene a lista: o nível é o índice.
@@ -403,7 +417,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `blackMarketBuyback` por cento desse preço, e o `!vender` comum recusa item ilegal. Toda
   negociação passa pelo `walletStore.smuggle`: tira o que a pessoa dá, marca o `crime_em` e
   entrega a mercadoria, ou, com chance `raidOdds()` (zero pro presidente e pro deus), dá batida
-  (`jailSmuggler`): cadeia por `baseJail` ajustado, `chargeFine`, apreensão e solta o refém. Item
+  (`jailSmuggler`): cadeia por `baseJail` ajustado, `lockUp`, apreensão e solta o refém. Item
   ilegal nunca sai de caixa nem baú.
   - A arma funciona só de estar na mochila e só a mais cara conta (`bestWeapon`, lida em paralelo
     no `professionOf`). O `armed` soma o `arms` na profissão: `crime` no `robBonus`,
