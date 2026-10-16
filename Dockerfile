@@ -16,7 +16,12 @@ RUN CGO_ENABLED=1 go build \
       -o /out/whatsapp-a-bot . \
     && mkdir -p /out/data
 
-FROM gcr.io/distroless/static-debian13:nonroot
+FROM alpine:3.24
+
+# hadolint ignore=DL3018
+RUN apk add --no-cache ffmpeg gallery-dl yt-dlp \
+    && addgroup -S -g 65532 nonroot \
+    && adduser -S -D -H -u 65532 -G nonroot nonroot
 
 COPY --from=build /out/whatsapp-a-bot /usr/local/bin/whatsapp-a-bot
 COPY --from=build --chown=nonroot:nonroot /out/data /data
