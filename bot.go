@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -404,6 +405,15 @@ func (b *bot) commands() []botCommand {
 				{"!ia <pergunta>", "pergunta qualquer coisa pra IA, que lê as últimas mensagens do grupo pra entender o assunto"},
 			},
 			run: b.ia,
+		},
+		{
+			name:     "resumo",
+			category: inteligencia,
+			help: []usage{
+				{"!resumo", fmt.Sprintf("a IA lê as últimas %d mensagens e resume o que rolou na conversa 📝", summaryDefaultMessages)},
+				{"!resumo <quantidade>", fmt.Sprintf("resume essa quantidade de mensagens, de %d a %d", summaryMinMessages, summaryMaxMessages)},
+			},
+			run: b.resumo,
 		},
 		{
 			name:     "modos",

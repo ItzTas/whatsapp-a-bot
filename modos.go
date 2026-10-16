@@ -50,7 +50,7 @@ func chatModes() []chatMode {
 		{name: modeMeters, description: "libera os medidores, tipo !medidor, !gado e !gay"},
 		{name: modeStats, description: "libera as estatísticas, tipo !ranking, !palavra, !tu e !palhaço"},
 		{name: modeJokes, description: "libera a zoeira, tipo !kkk, !chute, !apelido e !frase"},
-		{name: modeAI, description: "libera o !ia"},
+		{name: modeAI, description: "libera o !ia e o !resumo"},
 		{name: modeWords, description: "o bot responde algumas palavras mesmo sem o !, tipo arrogante ou nojo"},
 		{name: modeLaughs, description: "o bot manda uma figurinha de risada quando alguém ri (kkkk, hahaha, rsrs...)"},
 		{name: modeUtilities, description: "o bot baixa e manda os vídeos, imagens e gifs dos links do Instagram, TikTok, X e outros, e libera o !baixar, o !figurinha e o !mp3"},
