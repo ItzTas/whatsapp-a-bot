@@ -16,7 +16,7 @@ import (
 
 const (
 	crimeWindow    = 2 * time.Hour
-	baseJail       = 15 * time.Minute
+	baseJail       = 10 * time.Minute
 	fineMinPercent = 1
 	fineMaxPercent = 3
 )
@@ -80,8 +80,8 @@ func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 	if copJob.jailTime == 0 && owed == nil {
 		return b.sendText(ctx, chat, "🚫 Só quem é da polícia ou o presidente pode prender: "+arrestingProfessions()+". Ou quem emprestou moedas com o !agiota pra alguém que passou do prazo")
 	}
-	if suspectJob.president {
-		_, err = b.sendMentions(ctx, chat, immunityText(suspect), []types.JID{suspect})
+	if shield := arrestShield(suspect, suspectJob); shield != "" {
+		_, err = b.sendMentions(ctx, chat, shield, []types.JID{suspect})
 		return err
 	}
 	sentence, every := copJob.sentence(suspectJob), copJob.arrestEvery
@@ -264,7 +264,7 @@ func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect a
 		if err != nil {
 			return err
 		}
-		if a.fine, err = chargeFine(ctx, tx, chat, suspect); err != nil {
+		if a.fine, err = lockUp(ctx, tx, chat, suspect, now); err != nil {
 			return err
 		}
 		if a.seized, err = seizeContraband(ctx, tx, chat, suspect); err != nil {
@@ -276,7 +276,10 @@ func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect a
 	return a, err
 }
 
-func chargeFine(ctx context.Context, tx *sql.Tx, chat types.JID, acc account) (int64, error) {
+func lockUp(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, now time.Time) (int64, error) {
+	if err := easeEscape(ctx, tx, chat, acc, now); err != nil {
+		return 0, err
+	}
 	return burnBalance(ctx, tx, chat, acc, fineMinPercent, fineMaxPercent, 1)
 }
 

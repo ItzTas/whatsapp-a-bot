@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +25,8 @@ const (
 	pricesDecreeSwing     = 30
 	pixDecreeMax          = 10
 	betTaxDecreeMax       = 10
-	interestDecreeMax   = 10
+	interestDecreeMax     = 10
+	savingsTaxDecreeMax   = 50
 	stockDecreeSwing      = 30
 	curfewPenalty         = 0.15
 	termOverText          = "🏛️ O mandato acabou bem agora, então o decreto não valeu. Só quem ganhar a próxima eleição (!votar) baixa decreto de novo"
@@ -115,6 +117,12 @@ var (
 		revoked: "a poupança volta aos juros normais",
 		syntax:  "!decreto juros 3", about: fmt.Sprintf("soma ou tira pontos dos juros do !poupar: o normal é %d%%, e 3 faz render %d%%", savingsRate, savingsRate+3),
 	}
+	savingsTaxDecree = percentDecree{
+		names: []string{"iof", "impostopoupanca", "impostojuros"}, column: "poupanca_imposto_pct", hi: savingsTaxDecreeMax,
+		raised:  "a poupança paga %d%% dos juros de imposto no resgate, e ele vai pro presidente",
+		revoked: "a poupança volta a render sem imposto",
+		syntax:  "!decreto iof 20", about: "cobra imposto em cima dos juros do !poupar na hora do resgate, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto poupanca também)",
+	}
 	pricesDecree = percentDecree{
 		names: []string{"loja", "precos", "inflacao"}, column: "loja_pct", lo: -pricesDecreeSwing, hi: pricesDecreeSwing,
 		raised: "os preços da !loja e do !vender sobem %d%%", lowered: "os preços da !loja e do !vender caem %d%%",
@@ -152,12 +160,12 @@ var (
 		syntax:  "!decreto cassino 20", about: "muda o lucro de quem ganha no !apostar, !cassino, !blackjack, !crash, !corrida e !roleta. Vale o decreto da hora da aposta",
 	}
 	betTaxDecree = percentDecree{
-		names: []string{"apostas", "aposta"}, column: "apostas_pct", hi: betTaxDecreeMax,
+		names: []string{"apostas", "aposta", "impostoaposta", "impostoapostas", "taxaaposta", "taxaapostas"}, column: "apostas_pct", hi: betTaxDecreeMax,
 		raised:  "toda aposta no cassino paga mais %d%% de taxa, ganhe ou perca, e ela vai pro presidente",
 		revoked: "as apostas do cassino voltam a não pagar taxa",
 		syntax:  "!decreto apostas 5", about: "cobra uma taxa em cima de cada aposta no !apostar, !cassino, !blackjack, !crash, !corrida e !roleta, ganhe ou perca, e ela vai pro bolso do presidente",
 	}
-	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, pricesDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, casinoDecree, betTaxDecree}
+	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, pricesDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, casinoDecree, betTaxDecree}
 
 	betsDecree = toggleDecree{
 		names: []string{"bets", "jogatina"}, column: "cassino_fechado", emoji: "🚫🎰",
@@ -370,7 +378,7 @@ func (b *bot) decreto(ctx context.Context, evt *events.Message) error {
 	if len(args) == 0 {
 		return b.sendText(ctx, chat, decreesMenu())
 	}
-	run, ok := b.decrees()[args[0]]
+	run, rest, ok := pickDecree(b.decrees(), args)
 	if !ok {
 		return b.sendText(ctx, chat, fmt.Sprintf("🤔 Não existe decreto chamado \"%s\". Os que existem:\n\n%s", args[0], decreesMenu()))
 	}
@@ -381,12 +389,22 @@ func (b *bot) decreto(ctx context.Context, evt *events.Message) error {
 		targets = append(targets, target)
 		people = append(people, target.jid)
 	}
-	text, err := run(ctx, decreeCall{chat: chat, p: p, args: args[1:], targets: targets, now: now})
+	text, err := run(ctx, decreeCall{chat: chat, p: p, args: rest, targets: targets, now: now})
 	if err != nil {
 		return err
 	}
 	_, err = b.sendMentions(ctx, chat, text, people)
 	return err
+}
+
+func pickDecree(runs map[string]decree, args []string) (decree, []string, bool) {
+	if len(args) > 1 {
+		if run, ok := runs[args[0]+args[1]]; ok {
+			return run, args[2:], true
+		}
+	}
+	run, ok := runs[args[0]]
+	return run, args[1:], ok
 }
 
 func (b *bot) decrees() map[string]decree {
@@ -422,26 +440,54 @@ func (b *bot) decrees() map[string]decree {
 	return runs
 }
 
-func decreeHelp() []usage {
+func percentDecreeHelp(revokeHint string) []usage {
 	var help []usage
 	for _, pd := range percentDecrees {
-		help = append(help, usage{pd.syntax, fmt.Sprintf("%s (%s, e 0 tira o decreto)", pd.about, pd.bounds())})
+		help = append(help, usage{pd.syntax, fmt.Sprintf("%s (%s%s)", pd.about, pd.bounds(), revokeHint)})
 	}
+	return help
+}
+
+func toggleDecreeHelp() []usage {
+	var help []usage
 	for _, td := range toggleDecrees {
 		help = append(help, usage{td.syntax, td.about})
 	}
+	return help
+}
+
+func onceDecreeHelp() []usage {
+	var help []usage
 	for _, od := range onceDecrees {
 		help = append(help, usage{od.syntax, od.about + ", " + od.times()})
 	}
 	return help
 }
 
+func decreeHelp() []usage {
+	return slices.Concat(percentDecreeHelp(", e 0 tira o decreto"), toggleDecreeHelp(), onceDecreeHelp())
+}
+
 func decreesMenu() string {
-	lines := []string{"📜 *Decretos do presidente*"}
-	for _, u := range decreeHelp() {
-		lines = append(lines, u.syntax+": "+u.description)
+	sections := []struct {
+		title string
+		hint  string
+		help  []usage
+	}{
+		{"📊 POR PORCENTAGEM", "Ficam valendo até o fim do mandato. Manda 0 pra tirar o decreto", percentDecreeHelp("")},
+		{"🔀 LIGA E DESLIGA", "Manda o mesmo decreto de novo pra desligar", toggleDecreeHelp()},
+		{"⚡ DE UMA VEZ", "Têm efeito na hora e gastam um uso do mandato", onceDecreeHelp()},
 	}
-	return strings.Join(append(lines, "_Os decretos caem quando o mandato acaba_"), "\n")
+	var sb strings.Builder
+	sb.WriteString("📜 *DECRETOS DO PRESIDENTE*")
+	for _, s := range sections {
+		fmt.Fprintf(&sb, "\n\n━━━━━━━━━━━━━━\n*%s*\n━━━━━━━━━━━━━━\n_%s_", s.title, s.hint)
+		for _, u := range s.help {
+			fmt.Fprintf(&sb, "\n\n▸ `%s`\n     _%s_", u.syntax, u.description)
+		}
+	}
+	sb.WriteString("\n\n_Os decretos caem quando o mandato acaba_")
+	return sb.String()
 }
 
 func decreePercent(args []string, lo, hi int64) (int64, string) {

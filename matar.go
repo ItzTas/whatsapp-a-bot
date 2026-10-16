@@ -14,7 +14,7 @@ import (
 
 const (
 	killCaughtChance = 0.5
-	deathHold        = 10 * time.Minute
+	deathHold        = 7 * time.Minute
 )
 
 var killCooldown = cooldown{column: "assassinato_em", every: 90 * time.Minute}
@@ -61,7 +61,7 @@ func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 		caught:  victimJob.killCaughtOdds(),
 		jail:    profession{jailTime: baseJail}.sentence(killerJob),
 	}
-	if killerJob.president {
+	if killerJob.untouchable() {
 		odds.caught = 0
 	}
 	if owed != nil {
@@ -228,7 +228,7 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim a
 		if err != nil {
 			return err
 		}
-		k.fine, err = chargeFine(ctx, tx, chat, killer)
+		k.fine, err = lockUp(ctx, tx, chat, killer, now)
 		return err
 	})
 	return k, err

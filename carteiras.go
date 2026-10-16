@@ -142,6 +142,7 @@ type standing struct {
 	president  bool
 	estate     int
 	guarded    bool
+	bribed     bool
 	cursed     bool
 	drug       string
 }
@@ -151,12 +152,12 @@ func (s *walletStore) standing(ctx context.Context, chat types.JID, acc account)
 	err = s.db.QueryRowContext(ctx,
 		`SELECT c.profissao,
 		        EXISTS (SELECT 1 FROM presidencias p WHERE p.chat = c.chat AND p.pessoa = c.pessoa AND p.mandato_ate > ?),
-		        c.imovel, c.seguranca_ate > ?,
+		        c.imovel, c.seguranca_ate > ?, c.propina_ate > ?,
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END
 		 FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?`,
-		now, now, curseKind, now, now, chat.String(), acc.key,
-	).Scan(&st.profession, &st.president, &st.estate, &st.guarded, &st.cursed, &st.drug)
+		now, now, now, curseKind, now, now, chat.String(), acc.key,
+	).Scan(&st.profession, &st.president, &st.estate, &st.guarded, &st.bribed, &st.cursed, &st.drug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return standing{}, nil
 	}
@@ -352,7 +353,7 @@ func (s *walletStore) deposit(ctx context.Context, chat types.JID, acc account, 
 	})
 }
 
-func (s *walletStore) redeem(ctx context.Context, chat types.JID, acc account, now time.Time) (sv savings, err error) {
+func (s *walletStore) redeem(ctx context.Context, chat types.JID, acc account, now time.Time, levy pixLevy) (sv savings, tax int64, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		err := tx.QueryRowContext(ctx,
 			"DELETE FROM poupancas WHERE chat = ? AND pessoa = ? AND vence_em <= ? RETURNING valor, juros",
@@ -367,13 +368,21 @@ func (s *walletStore) redeem(ctx context.Context, chat types.JID, acc account, n
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}
+		tax = levy.cut(sv.interest)
 		_, err = tx.ExecContext(ctx,
 			"UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?",
-			sv.amount+sv.interest, chat.String(), acc.key,
+			sv.amount+sv.interest-tax, chat.String(), acc.key,
 		)
+		if err != nil || tax == 0 {
+			return err
+		}
+		if err := openWallet(ctx, tx, chat, levy.president); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", tax, chat.String(), levy.president.key)
 		return err
 	})
-	return sv, err
+	return sv, tax, err
 }
 
 func (s *walletStore) inTx(ctx context.Context, fn func(tx *sql.Tx) error) (err error) {

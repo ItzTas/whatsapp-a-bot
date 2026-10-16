@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 
 	"go.mau.fi/whatsmeow/types"
@@ -44,6 +45,10 @@ func (b *bot) milagre(ctx context.Context, evt *events.Message) error {
 		return b.sendText(ctx, chat, "🚫 Só deus faz milagre. Você, no máximo, faz um !pix")
 	}
 
+	marked := mentionedJIDs(evt.Message)
+	if len(marked) > 0 {
+		return b.chosenMiracle(ctx, chat, god, godAcc, gift, marked)
+	}
 	believers := b.believers(ctx, group, godAcc)
 	if len(believers) == 0 {
 		return b.sendText(ctx, chat, "⚡ Não tem ninguém no grupo pra receber o milagre além de você")
@@ -53,6 +58,19 @@ func (b *bot) milagre(ctx context.Context, evt *events.Message) error {
 	}
 	_, err := b.sendMentions(ctx, chat, fmt.Sprintf("⚡ *Milagre!* @%s fez chover %s pra cada um, e %s receberam a bênção 🌧️🙏",
 		god.User, gift.label, countLabel(len(believers), "pessoa", "pessoas")), []types.JID{god})
+	return err
+}
+
+func (b *bot) chosenMiracle(ctx context.Context, chat, god types.JID, godAcc account, gift miracleGift, marked []types.JID) error {
+	chosen := slices.DeleteFunc(b.accountsOf(ctx, marked), func(acc account) bool { return acc.key == godAcc.key })
+	if len(chosen) == 0 {
+		return b.sendText(ctx, chat, "⚡ Milagre pra si mesmo não rola, deus. Pra isso tem o !criar")
+	}
+	if err := gift.bestow(ctx, b.wallets, chat, chosen); err != nil {
+		return fmt.Errorf("milagre: %w", err)
+	}
+	_, err := b.sendMentions(ctx, chat, fmt.Sprintf("⚡ *Milagre!* @%s fez chover %s pra %s 🌧️🙏",
+		god.User, gift.label, mentionList(chosen)), append([]types.JID{god}, accountJIDs(chosen)...))
 	return err
 }
 

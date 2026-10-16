@@ -182,6 +182,7 @@ type profession struct {
 	divine    bool
 	estate    int
 	escort    bool
+	bribed    bool
 	cursed    bool
 	weapon    string
 	drug      string
@@ -468,7 +469,7 @@ func (b *bot) professionOf(ctx context.Context, chat types.JID, acc account) (pr
 		job = job.presidential()
 	}
 	job.decrees = decreed
-	return job.housed(st.estate).escorted(st.guarded).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).tooled(passive).charmed(held), nil
+	return job.housed(st.estate).escorted(st.guarded).paidOff(st.bribed).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).tooled(passive).charmed(held), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target account) (attackerJob, targetJob profession, err error) {

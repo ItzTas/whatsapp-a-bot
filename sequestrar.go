@@ -18,10 +18,10 @@ const (
 	kidnapChance       = 0.35
 	kidnapCaughtChance = 0.35
 	copVictimCaught    = 0.3
-	hostageHold        = 30 * time.Minute
+	hostageHold        = 20 * time.Minute
 	hostagePriceFactor = 4
 	hostageSaleWait    = 3 * time.Minute
-	soldHostageHold    = 10 * time.Minute
+	soldHostageHold    = 7 * time.Minute
 )
 
 var kidnapCooldown = cooldown{column: "sequestro_em", every: 45 * time.Minute}
@@ -86,7 +86,7 @@ func (b *bot) sequestrar(ctx context.Context, evt *events.Message) error {
 		caught:  victimJob.caughtOdds(),
 		jail:    profession{jailTime: baseJail}.sentence(kidnapperJob),
 	}
-	if kidnapperJob.president || odds.lawful {
+	if kidnapperJob.untouchable() || odds.lawful {
 		odds.caught = 0
 	}
 	k, err := b.wallets.kidnap(ctx, chat, kidnapperAcc, victimAcc, kidnapperJob.kidnapCooldown(), kidnapperJob.abuse(kidnapAbuse), odds, time.Now())
@@ -404,7 +404,7 @@ func (s *walletStore) kidnap(ctx context.Context, chat types.JID, kidnapper, vic
 		if err != nil {
 			return err
 		}
-		k.jailFine, err = chargeFine(ctx, tx, chat, kidnapper)
+		k.jailFine, err = lockUp(ctx, tx, chat, kidnapper, now)
 		return err
 	})
 	return k, err

@@ -804,7 +804,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"fuga", "escapar"},
 			category: economia,
 			help: []usage{
-				{"!fugir", fmt.Sprintf("tenta fugir da cadeia ou do cativeiro 🏃 Na cadeia a chance normal é de %d%%, e a profissão muda ela (piloto de fuga, mágico e chaveiro escapam fácil, e a polícia presa fica marcada). Se der certo sai na hora, mas fuga é crime e a polícia pode !prender de novo. Se der errado ganha mais %s de cadeia. No cativeiro a chance normal é de %d%%, e aqui a polícia, o segurança, o mágico e o chaveiro se dão bem (veja !profissao). Fugir de sequestro não é crime, mas se der errado fica mais %s amarrado(a). Dá pra tentar a cada %s", percent(escapeChance), formatWait(escapePenalty), percent(breakoutChance), formatWait(breakoutPenalty), formatWait(escapeCooldown.every))},
+				{"!fugir", fmt.Sprintf("tenta fugir da cadeia ou do cativeiro 🏃 Na cadeia a chance normal é de %d%%, e a profissão muda ela (piloto de fuga, mágico e chaveiro escapam fácil, e a polícia presa fica marcada). Se der certo sai na hora, mas fuga é crime e a polícia pode !prender de novo. Se der errado ganha mais %s de cadeia. No cativeiro a chance normal é de %d%%, e aqui a polícia, o segurança, o mágico e o chaveiro se dão bem (veja !profissao). Fugir de sequestro não é crime, mas se der errado fica mais %s amarrado(a). Dá pra tentar a cada %s, e cada nova prisão corta %d%% da espera que faltava", percent(escapeChance), formatWait(escapePenalty), percent(breakoutChance), formatWait(breakoutPenalty), formatWait(escapeCooldown.every), arrestEaseCut)},
 			},
 			run: b.fugir,
 		},
@@ -939,6 +939,7 @@ func (b *bot) commands() []botCommand {
 			help: []usage{
 				{"!milagre <valor>", fmt.Sprintf("só pra deus ⚡ faz chover moeda nova pra todo mundo do grupo: cada um ganha o valor (até %s), e nada sai do seu saldo", coins(miracleMax))},
 				{"!milagre <item> [quantidade]", fmt.Sprintf("só pra deus ✨ faz chover um item do !item pra todo mundo do grupo: cada um ganha a quantidade (até %d), criada do nada", creationMax)},
+				{"!milagre <valor ou item> @pessoa", "só pra deus 🎯 o mesmo milagre, mas só pra quem você marcar"},
 			},
 			run: b.milagre,
 		},
@@ -1093,6 +1094,16 @@ func (b *bot) commands() []botCommand {
 				{"!seguranca contratar", fmt.Sprintf("contrata um guarda-costas por %s: +%d%% de proteção contra !roubar, !sequestrar e !matar. Custa %d%% do saldo (mínimo de %s), e contratar de novo soma o tempo", formatWait(bodyguardHold), percent(bodyguardGuard), bodyguardPercent, coins(bodyguardFloor))},
 			},
 			run: b.seguranca,
+		},
+		{
+			name:     "subornar",
+			aliases:  []string{"suborno", "propina"},
+			category: economia,
+			help: []usage{
+				{"!subornar", "mostra se você tem as autoridades no bolso e quanto custa o envelope 💰"},
+				{"!subornar pagar", fmt.Sprintf("molha a mão das autoridades por %s: ninguém te prende (!prender, !denunciar, flagrante no !sequestrar, !matar, !assalto e batida no !mercadonegro) e o juiz decide a teu favor no !processar, a não ser que o outro lado também tenha pago. Custa %d%% do saldo (mínimo de %s), o dinheiro some e pagar de novo soma o tempo", formatWait(bribeHold), bribePercent, coins(bribeFloor))},
+			},
+			run: b.subornar,
 		},
 		{
 			name:     "imovel",

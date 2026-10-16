@@ -157,7 +157,7 @@ func blackMarketPayout(chat types.JID, it item, quantity int64, now time.Time) i
 }
 
 func (p profession) raidOdds() float64 {
-	if p.president || p.divine {
+	if p.untouchable() || p.divine {
 		return 0
 	}
 	return raidChance
@@ -439,7 +439,7 @@ func jailSmuggler(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, 
 	if err != nil {
 		return r, err
 	}
-	if r.fine, err = chargeFine(ctx, tx, chat, acc); err != nil {
+	if r.fine, err = lockUp(ctx, tx, chat, acc, now); err != nil {
 		return r, err
 	}
 	if r.seized, err = seizeContraband(ctx, tx, chat, acc); err != nil {

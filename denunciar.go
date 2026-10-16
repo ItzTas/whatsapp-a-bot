@@ -32,8 +32,8 @@ func (b *bot) denunciar(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
-	if suspectJob.president {
-		_, err = b.sendMentions(ctx, chat, immunityText(suspect), []types.JID{suspect})
+	if shield := arrestShield(suspect, suspectJob); shield != "" {
+		_, err = b.sendMentions(ctx, chat, shield, []types.JID{suspect})
 		return err
 	}
 	if reporterJob.noSnitch && !reporterJob.president {
@@ -117,7 +117,7 @@ func (s *walletStore) jailSnitch(ctx context.Context, chat types.JID, snitch acc
 		if _, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = ? WHERE chat = ? AND pessoa = ?", release.Unix(), chat.String(), snitch.key); err != nil {
 			return err
 		}
-		if fine, err = chargeFine(ctx, tx, chat, snitch); err != nil {
+		if fine, err = lockUp(ctx, tx, chat, snitch, now); err != nil {
 			return err
 		}
 		freed, err = freeHostage(ctx, tx, chat, snitch, now)

@@ -23,7 +23,15 @@ func (b *bot) poupar(ctx context.Context, evt *events.Message) error {
 	acc := b.account(ctx, person)
 	now := time.Now()
 
-	redeemed, err := b.wallets.redeem(ctx, chat, acc, now)
+	p, elected, err := b.wallets.presidency(ctx, chat, now)
+	if err != nil {
+		return fmt.Errorf("ler presidência: %w", err)
+	}
+	var levy pixLevy
+	if elected && acc.key != p.president.key {
+		levy = pixLevy{president: p.president, percent: p.decrees.level(savingsTaxDecree)}
+	}
+	redeemed, tax, err := b.wallets.redeem(ctx, chat, acc, now, levy)
 	if err != nil {
 		return fmt.Errorf("resgatar poupança: %w", err)
 	}
@@ -31,12 +39,23 @@ func (b *bot) poupar(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
+	people := []types.JID{person}
 	if redeemed.amount > 0 {
-		text = fmt.Sprintf("🏦 @%s resgatou a poupança: voltou %s, com %s de juros\n\n%s",
-			person.User, coins(redeemed.amount+redeemed.interest), coins(redeemed.interest), text)
+		text = fmt.Sprintf("🏦 @%s resgatou a poupança: voltou %s, com %s de juros%s\n\n%s",
+			person.User, coins(redeemed.amount+redeemed.interest-tax), coins(redeemed.interest-tax), savingsTaxText(tax, levy), text)
 	}
-	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
+	if tax > 0 {
+		people = append(people, levy.president.jid)
+	}
+	_, err = b.sendMentions(ctx, chat, text, people)
 	return err
+}
+
+func savingsTaxText(tax int64, levy pixLevy) string {
+	if tax == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (já tirando %s, %d%% dos juros, de imposto pro bolso de @%s, por decreto)", coins(tax), levy.percent, levy.president.jid.User)
 }
 
 func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account, now time.Time) (string, error) {
@@ -56,7 +75,7 @@ func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account
 	}
 	rate := max(int64(savingsRate)+job.interest+job.decrees.level(interestDecree), 0)
 	usage := fmt.Sprintf("🏦 Pra guardar moedas: !poupar 100 (ou metade, 10%%, tudo). Elas ficam travadas por %s e voltam com %d%% de juros, até %s por vez",
-		formatWait(savingsLock), rate, coins(savingsCap)) + job.decrees.note(interestDecree)
+		formatWait(savingsLock), rate, coins(savingsCap)) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree)
 	arg := firstPlainArg(messageText(evt.Message))
 	if arg == "" {
 		return usage, nil
@@ -92,7 +111,7 @@ func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account
 		return "", fmt.Errorf("guardar na poupança: %w", err)
 	}
 	return fmt.Sprintf("🔒 @%s guardou %s na poupança. Daqui a %s volta com %s de juros, é só mandar !poupar pra resgatar",
-		user, coins(deposit.amount), formatWait(savingsLock), coins(deposit.interest)) + job.decrees.note(interestDecree), nil
+		user, coins(deposit.amount), formatWait(savingsLock), coins(deposit.interest)) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree), nil
 }
 
 func lockedSavingsText(user string, sv savings, now time.Time) string {

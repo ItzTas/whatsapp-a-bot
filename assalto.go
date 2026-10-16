@@ -272,7 +272,7 @@ func payCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, 
 func jailCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, now time.Time) error {
 	for i := range robbers {
 		r := &robbers[i]
-		if r.job.president || rand.Float64() < r.job.escapeOdds() {
+		if r.job.untouchable() || rand.Float64() < r.job.escapeOdds() {
 			continue
 		}
 		r.caught = true
@@ -284,7 +284,7 @@ func jailCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber,
 		if err != nil {
 			return err
 		}
-		if r.fine, err = chargeFine(ctx, tx, chat, r.acc); err != nil {
+		if r.fine, err = lockUp(ctx, tx, chat, r.acc, now); err != nil {
 			return err
 		}
 	}
@@ -352,6 +352,9 @@ func (r robber) fate() string {
 	}
 	if r.job.president {
 		return fmt.Sprintf("⚖️ @%s foi pego, mas é presidente: mostrou a imunidade e saiu pela porta da frente", r.acc.jid.User)
+	}
+	if r.job.bribed {
+		return fmt.Sprintf("💰 @%s foi pego, mas o delegado tava no bolso: saiu pela porta da frente", r.acc.jid.User)
 	}
 	return fmt.Sprintf("🏃 @%s escapou pela janela do banheiro, mas a polícia ainda pode !prender nas próximas %s", r.acc.jid.User, formatWait(crimeWindow))
 }

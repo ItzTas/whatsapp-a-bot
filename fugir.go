@@ -13,12 +13,13 @@ import (
 
 const (
 	escapeChance    = 0.25
-	escapePenalty   = 10 * time.Minute
+	escapePenalty   = 7 * time.Minute
 	breakoutChance  = 0.2
-	breakoutPenalty = 10 * time.Minute
+	breakoutPenalty = 7 * time.Minute
+	arrestEaseCut   = 50
 )
 
-var escapeCooldown = cooldown{column: "fuga_em", every: 10 * time.Minute}
+var escapeCooldown = cooldown{column: "fuga_em", every: 5 * time.Minute}
 
 type escape struct {
 	free    bool
@@ -138,6 +139,15 @@ func (s *walletStore) escape(ctx context.Context, chat types.JID, acc account, o
 		return err
 	})
 	return e, err
+}
+
+func easeEscape(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, now time.Time) error {
+	ready := now.Add(-escapeCooldown.every).Unix()
+	_, err := tx.ExecContext(ctx,
+		"UPDATE carteiras SET fuga_em = fuga_em - (fuga_em - ?) * ? / 100 WHERE chat = ? AND pessoa = ? AND fuga_em > ?",
+		ready, arrestEaseCut, chat.String(), acc.key, ready,
+	)
+	return err
 }
 
 func breakJail(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, left time.Duration, chance float64, now time.Time) (bool, time.Duration, error) {
