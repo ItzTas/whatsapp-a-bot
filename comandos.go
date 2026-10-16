@@ -10,17 +10,31 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 )
 
 const commandsMenuLifetime = time.Minute
 
 func (b *bot) comandos(ctx context.Context, evt *events.Message) error {
-	commands := b.commands()
-	if b.isOwner(ctx, evt) {
+	chat := evt.Info.Chat
+	var (
+		active []string
+		owner  bool
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { active, err = b.modes.active(gctx, chat.ToNonAD()); return err })
+	g.Go(func() error { owner = b.isOwner(gctx, evt); return nil })
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	commands := slices.DeleteFunc(b.commands(), func(c botCommand) bool {
+		return c.category.mode != "" && !slices.Contains(active, c.category.mode)
+	})
+	if owner {
 		commands = slices.Concat(commands, b.ownerCommands())
 	}
-	chat := evt.Info.Chat
 	resp, err := b.client.SendMessage(ctx, chat, &waE2E.Message{Conversation: proto.String(commandsMenu(commands))})
 	if err != nil {
 		return err
@@ -44,10 +58,10 @@ func commandsMenu(commands []botCommand) string {
 	var categories []string
 	byCategory := map[string][]botCommand{}
 	for _, c := range commands {
-		if _, seen := byCategory[c.category]; !seen {
-			categories = append(categories, c.category)
+		if _, seen := byCategory[c.category.title]; !seen {
+			categories = append(categories, c.category.title)
 		}
-		byCategory[c.category] = append(byCategory[c.category], c)
+		byCategory[c.category.title] = append(byCategory[c.category.title], c)
 	}
 
 	var sb strings.Builder
@@ -61,6 +75,7 @@ func commandsMenu(commands []botCommand) string {
 			}
 		}
 	}
-	sb.WriteString("\n\n_Esse menu some em 1 minuto_ ⏳")
+	sb.WriteString("\n\n_Cada categoria só aparece quando o modo dela tá ligado nesta conversa (veja com !modos)_")
+	sb.WriteString("\n_Esse menu some em 1 minuto_ ⏳")
 	return sb.String()
 }

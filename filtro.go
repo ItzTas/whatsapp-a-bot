@@ -238,7 +238,7 @@ func (b *bot) runOwnerCommand(ctx context.Context, evt *events.Message, name str
 }
 
 func (b *bot) ownerCommands() []botCommand {
-	const dono = "🔒 Dono"
+	dono := category{title: "🔒 Dono"}
 	return []botCommand{
 		{
 			name:     "modo",
@@ -250,10 +250,14 @@ func (b *bot) ownerCommands() []botCommand {
 				{"!modo grupos whitelist", "o bot só funciona nos grupos da whitelist"},
 				{"!modo pessoas blacklist", "o bot ignora as pessoas da blacklist (whitelist funciona igual)"},
 				{"!modo grupos desligado", "desliga o filtro dos grupos, ou das pessoas com !modo pessoas desligado"},
+				{"!modo ativar diversao", "nesta conversa, libera de uma vez romance, família, jogos, medidores, estatísticas e zoeira"},
+				{"!modo ativar jogos", "libera só uma categoria (romance, familia, jogos, medidores, estatisticas, zoeira ou ia)"},
+				{"!modo ativar jogos zoeira ia", "liga vários modos numa mensagem só (desativar também aceita vários)"},
 				{"!modo ativar palavras", "nesta conversa, o bot responde algumas palavras mesmo sem o !, tipo arrogante ou nojo"},
-				{"!modo desativar palavras", "volta a responder só os comandos com !"},
-				{"!modo ativar risada", "nesta conversa, o bot manda uma figurinha de risada quando alguém ri (desativar funciona igual)"},
-				{"!modo ativar palavras <nome do grupo>", "ativa (ou desativa) o modo no grupo com esse nome, mandando de qualquer conversa"},
+				{"!modo ativar risada", "nesta conversa, o bot manda uma figurinha de risada quando alguém ri"},
+				{"!modo ativar utilidades", "nesta conversa, o bot baixa os vídeos, imagens e gifs dos links que mandarem e libera o !baixar e o !figurinha"},
+				{"!modo desativar jogos", "desliga o modo de novo (funciona com qualquer modo)"},
+				{"!modo ativar jogos -- <nome do grupo>", "ativa (ou desativa) os modos no grupo com esse nome, mandando de qualquer conversa"},
 			},
 			run: b.modo,
 		},
@@ -349,7 +353,7 @@ func (b *bot) showFilterModes(ctx context.Context, chat types.JID) error {
 	}
 	lines = append(lines, "", "_Pra mudar: !modo grupos whitelist, !modo pessoas desligado..._", "")
 	lines = append(lines, chatModeLines(chatActive)...)
-	lines = append(lines, "", "_Pra mudar: !modo ativar palavras, !modo desativar risada..._")
+	lines = append(lines, "", "_Pra mudar: !modo ativar diversao, !modo desativar jogos..._")
 	return b.sendText(ctx, chat, strings.Join(lines, "\n"))
 }
 

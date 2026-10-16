@@ -153,6 +153,7 @@ func (b *bot) sendSticker(ctx context.Context, chat types.JID, sticker []byte, r
 		FileLength:    proto.Uint64(up.FileLength),
 		Width:         proto.Uint32(512),
 		Height:        proto.Uint32(512),
+		IsAnimated:    proto.Bool(isAnimatedWebP(sticker)),
 		ContextInfo:   reply,
 	}})
 	return err

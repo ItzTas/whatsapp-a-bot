@@ -40,10 +40,15 @@ type usage struct {
 	description string
 }
 
+type category struct {
+	title string
+	mode  string
+}
+
 type botCommand struct {
 	name     string
 	aliases  []string
-	category string
+	category category
 	help     []usage
 	run      command
 }
@@ -53,15 +58,16 @@ func (c botCommand) matches(name string) bool {
 }
 
 func (b *bot) commands() []botCommand {
-	const (
-		romance      = "💞 Romance"
-		familia      = "👨‍👩‍👧 Família"
-		jogos        = "🎲 Jogos"
-		medidores    = "📊 Medidores"
-		estatisticas = "📈 Estatísticas"
-		zoeira       = "😂 Zoeira"
-		inteligencia = "🧠 IA"
-		ajuda        = "ℹ️ Ajuda"
+	var (
+		romance      = category{"💞 Romance", modeRomance}
+		familia      = category{"👨‍👩‍👧 Família", modeFamily}
+		jogos        = category{"🎲 Jogos", modeGames}
+		medidores    = category{"📊 Medidores", modeMeters}
+		estatisticas = category{"📈 Estatísticas", modeStats}
+		zoeira       = category{"😂 Zoeira", modeJokes}
+		inteligencia = category{"🧠 IA", modeAI}
+		utilidades   = category{"🛠️ Utilidades", modeUtilities}
+		ajuda        = category{"ℹ️ Ajuda", ""}
 	)
 	return []botCommand{
 		{
@@ -400,6 +406,31 @@ func (b *bot) commands() []botCommand {
 			run: b.ia,
 		},
 		{
+			name:     "modos",
+			category: ajuda,
+			help:     []usage{{"!modos", "mostra todos os modos e quais estão ligados nesta conversa 🧩"}},
+			run:      b.modos,
+		},
+		{
+			name:     "baixar",
+			aliases:  []string{"download", "dl"},
+			category: utilidades,
+			help: []usage{
+				{"!baixar <link>", "baixa o vídeo, a imagem ou o gif do link e manda aqui 📥 (links do Instagram, TikTok, X e outros nem precisam do comando, é só mandar)"},
+				{"!baixar", "responda uma mensagem que tenha link e o bot baixa o que tem nele"},
+			},
+			run: b.baixar,
+		},
+		{
+			name:     "figurinha",
+			aliases:  []string{"fig", "s", "sticker"},
+			category: utilidades,
+			help: []usage{
+				{"!figurinha", "mande uma foto, vídeo ou gif com !figurinha na legenda, ou responda um deles, e o bot transforma em figurinha 🖼️"},
+			},
+			run: b.figurinha,
+		},
+		{
 			name:     "comandos",
 			aliases:  []string{"menu"},
 			category: ajuda,
@@ -449,16 +480,31 @@ func (b *bot) handleMessage(ctx context.Context, evt *events.Message) {
 	if i < 0 {
 		return
 	}
+	on, err := b.categoryEnabled(ctx, evt.Info.Chat, commands[i].category)
+	if err != nil {
+		b.client.Log.Errorf("checar modo do comando !%s: %v", name, err)
+		return
+	}
+	if !on {
+		return
+	}
 	if err := commands[i].run(ctx, evt); err != nil {
 		b.client.Log.Errorf("comando !%s: %v", name, err)
 	}
 }
 
 func messageText(msg *waE2E.Message) string {
-	if text := msg.GetConversation(); text != "" {
-		return text
+	texts := []string{
+		msg.GetConversation(),
+		msg.GetExtendedTextMessage().GetText(),
+		msg.GetImageMessage().GetCaption(),
+		msg.GetVideoMessage().GetCaption(),
 	}
-	return msg.GetExtendedTextMessage().GetText()
+	i := slices.IndexFunc(texts, func(text string) bool { return text != "" })
+	if i < 0 {
+		return ""
+	}
+	return texts[i]
 }
 
 func commandName(text string) (string, bool) {
