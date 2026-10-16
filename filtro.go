@@ -255,7 +255,7 @@ func (b *bot) ownerCommands() []botCommand {
 				{"!modo ativar jogos zoeira ia", "liga vários modos numa mensagem só (desativar também aceita vários)"},
 				{"!modo ativar palavras", "nesta conversa, o bot responde algumas palavras mesmo sem o !, tipo arrogante ou nojo"},
 				{"!modo ativar risada", "nesta conversa, o bot manda uma figurinha de risada quando alguém ri"},
-				{"!modo ativar utilidades", "nesta conversa, o bot baixa os vídeos, imagens e gifs dos links que mandarem e libera o !baixar e o !figurinha"},
+				{"!modo ativar utilidades", "nesta conversa, o bot baixa os vídeos, imagens e gifs dos links que mandarem e libera o !baixar, o !figurinha e o !mp3"},
 				{"!modo desativar jogos", "desliga o modo de novo (funciona com qualquer modo)"},
 				{"!modo ativar jogos -- <nome do grupo>", "ativa (ou desativa) os modos no grupo com esse nome, mandando de qualquer conversa"},
 			},

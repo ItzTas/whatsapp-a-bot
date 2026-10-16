@@ -422,6 +422,16 @@ func (b *bot) commands() []botCommand {
 			run: b.baixar,
 		},
 		{
+			name:     "mp3",
+			aliases:  []string{"audio", "áudio"},
+			category: utilidades,
+			help: []usage{
+				{"!mp3 <link>", "baixa só o áudio do link em mp3 🎵"},
+				{"!mp3", "responda um vídeo, um áudio ou uma mensagem com link e o bot manda o áudio em mp3"},
+			},
+			run: b.mp3,
+		},
+		{
 			name:     "figurinha",
 			aliases:  []string{"fig", "s", "sticker"},
 			category: utilidades,

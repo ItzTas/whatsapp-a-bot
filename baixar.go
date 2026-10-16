@@ -173,15 +173,22 @@ func fetchDirect(ctx context.Context, dir, link string) (file string, err error)
 }
 
 func ytDlp(ctx context.Context, dir, link string) ([]string, error) {
-	err := runTool(ctx, "yt-dlp",
-		"--no-playlist", "--quiet", "--no-warnings",
-		"--max-filesize", fmt.Sprintf("%dM", mediaMaxMB),
-		"--match-filter", fmt.Sprintf("duration <=? %d", mediaMaxDuration),
-		"--format-sort", "vcodec:h264,res:720,acodec:aac,ext:mp4:m4a",
-		"--merge-output-format", "mp4",
-		"--paths", dir, "--output", "%(id)s.%(ext)s",
-		link,
+	return runYtDlp(ctx, dir, link, "--format-sort", "vcodec:h264,res:720,acodec:aac,ext:mp4:m4a", "--merge-output-format", "mp4")
+}
+
+func ytDlpAudio(ctx context.Context, dir, link string) ([]string, error) {
+	return runYtDlp(ctx, dir, link, "--extract-audio", "--audio-format", "mp3", "--audio-quality", mp3Quality)
+}
+
+func runYtDlp(ctx context.Context, dir, link string, format ...string) ([]string, error) {
+	args := slices.Concat(
+		[]string{"--no-playlist", "--quiet", "--no-warnings",
+			"--max-filesize", fmt.Sprintf("%dM", mediaMaxMB),
+			"--match-filter", fmt.Sprintf("duration <=? %d", mediaMaxDuration)},
+		format,
+		[]string{"--paths", dir, "--output", "%(id)s.%(ext)s", link},
 	)
+	err := runTool(ctx, "yt-dlp", args...)
 	files, listErr := downloadedFiles(dir)
 	return files, errors.Join(err, listErr)
 }
