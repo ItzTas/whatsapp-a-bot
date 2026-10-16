@@ -92,7 +92,7 @@ func (b *bot) transcribeMedia(ctx context.Context, media sizedMedia) (text strin
 	if err := os.WriteFile(in, data, 0o600); err != nil {
 		return "", err
 	}
-	err = runTool(ctx, "ffmpeg", "-y", "-loglevel", "error", "-i", in, "-t", strconv.Itoa(mediaMaxDuration),
+	err = runFFmpeg(ctx, "-y", "-loglevel", "error", "-i", in, "-t", strconv.Itoa(mediaMaxDuration),
 		"-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "32k", out)
 	if err != nil {
 		return "", err

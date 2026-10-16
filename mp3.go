@@ -83,7 +83,7 @@ func (b *bot) mediaAudio(media sizedMedia) audioSource {
 		if err := os.WriteFile(in, data, 0o600); err != nil {
 			return "", err
 		}
-		return out, runTool(ctx, "ffmpeg", "-y", "-loglevel", "error", "-i", in, "-vn", "-c:a", "libmp3lame", "-q:a", mp3Quality, out)
+		return out, runFFmpeg(ctx, "-y", "-loglevel", "error", "-i", in, "-vn", "-c:a", "libmp3lame", "-q:a", mp3Quality, out)
 	}
 }
 

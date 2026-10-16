@@ -53,7 +53,7 @@ func chatModes() []chatMode {
 		{name: modeJokes, description: "libera a zoeira, tipo !kkk, !chute, !apelido e !frase"},
 		{name: modeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !trabalhar, !apostar, !cassino, !roubar, !transferir e !ricos, e quem acerta o !quiz ganha moedas"},
 		{name: modeAI, description: "libera o !ia, o !resumo, o !roast, o !signo e o !quiz"},
-		{name: modeWords, description: "o bot responde algumas palavras mesmo sem o !, tipo arrogante ou nojo"},
+		{name: modeWords, description: "o bot responde algumas palavras mesmo sem o !, tipo arrogante, nojo, aura ou ego"},
 		{name: modeLaughs, description: "o bot manda uma figurinha de risada quando alguém ri (kkkk, hahaha, rsrs...)"},
 		{name: modeUtilities, description: "o bot baixa e manda os vídeos, imagens e gifs dos links do Instagram, TikTok, X e outros, e libera o !baixar, o !figurinha, o !mp3 e o !transcrever"},
 	}
@@ -153,6 +153,8 @@ func (b *bot) answerWords(ctx context.Context, evt *events.Message) error {
 	triggers := []wordTrigger{
 		{"arrog", b.arrogante},
 		{"noj", b.nojo},
+		{"aura", b.aura},
+		{"ego", b.ego},
 	}
 	words := strings.FieldsFunc(foldLetters(messageText(evt.Message)), func(r rune) bool { return !unicode.IsLetter(r) })
 	i := slices.IndexFunc(triggers, func(t wordTrigger) bool {

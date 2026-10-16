@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	filterGroups = "grupos"
-	filterPeople = "pessoas"
-	blacklist    = "blacklist"
-	whitelist    = "whitelist"
-	filterOff    = "desligado"
+	filterGroups  = "grupos"
+	filterPeople  = "pessoas"
+	blacklist     = "blacklist"
+	whitelist     = "whitelist"
+	filterOff     = "desligado"
+	filterDefault = whitelist
 )
 
 type filterStore struct {
@@ -56,16 +57,13 @@ func (s *filterStore) verdict(ctx context.Context, e filterEntry) (filterVerdict
 	first, second := e.keys()
 	var v filterVerdict
 	err := s.db.QueryRowContext(ctx,
-		`SELECT m.modo, EXISTS (
+		`SELECT COALESCE(m.modo, ?), EXISTS (
 		   SELECT 1 FROM filtro_listas l
-		   WHERE l.alvo = m.alvo AND l.lista = m.modo
+		   WHERE l.alvo = a.alvo AND l.lista = COALESCE(m.modo, ?)
 		     AND (l.id IN (?, ?) OR l.id_alt IN (?, ?))
-		 ) FROM filtro_modos m WHERE m.alvo = ?`,
-		first, second, first, second, e.target,
+		 ) FROM (SELECT ? AS alvo) a LEFT JOIN filtro_modos m ON m.alvo = a.alvo`,
+		filterDefault, filterDefault, first, second, first, second, e.target,
 	).Scan(&v.mode, &v.listed)
-	if errors.Is(err, sql.ErrNoRows) {
-		return filterVerdict{mode: filterOff}, nil
-	}
 	return v, err
 }
 
@@ -105,10 +103,6 @@ func (s *filterStore) remove(ctx context.Context, list string, e filterEntry) (b
 }
 
 func (s *filterStore) setMode(ctx context.Context, target, mode string) error {
-	if mode == filterOff {
-		_, err := s.db.ExecContext(ctx, "DELETE FROM filtro_modos WHERE alvo = ?", target)
-		return err
-	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO filtro_modos (alvo, modo) VALUES (?, ?)
 		 ON CONFLICT (alvo) DO UPDATE SET modo = excluded.modo`,
@@ -124,7 +118,7 @@ func (s *filterStore) modes(ctx context.Context) (modes map[string]string, err e
 	}
 	defer func() { err = errors.Join(err, rows.Close()) }()
 
-	modes = map[string]string{filterGroups: filterOff, filterPeople: filterOff}
+	modes = map[string]string{filterGroups: filterDefault, filterPeople: filterDefault}
 	for rows.Next() {
 		var target, mode string
 		if err := rows.Scan(&target, &mode); err != nil {

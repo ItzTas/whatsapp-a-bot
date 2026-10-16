@@ -13,11 +13,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-const (
-	stickerMaxSeconds       = "8"
-	animatedStickerMaxBytes = 500 << 10
-	stickerFrame            = "scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
-)
+const animatedStickerMaxBytes = 500 << 10
 
 var errStickerTooLarge = errors.New("figurinha animada passa de 500 KB mesmo na menor qualidade")
 
@@ -42,7 +38,7 @@ func (b *bot) figurinha(ctx context.Context, evt *events.Message) error {
 		return nil
 	}
 	b.client.Log.Warnf("fazer figurinha: %v", err)
-	return b.sendText(ctx, chat, "Não consegui fazer a figurinha 😕 Se for vídeo, tenta um mais curto")
+	return b.sendText(ctx, chat, "Não consegui fazer a figurinha 😕")
 }
 
 func stickerSource(msg *waE2E.Message) (source whatsmeow.DownloadableMessage, animated, found bool) {
@@ -70,10 +66,19 @@ func makeSticker(ctx context.Context, data []byte, animated bool) (sticker []byt
 		return nil, err
 	}
 	if !animated {
-		return encodeSticker(ctx, in, out, stickerFrame, "-frames:v", "1", "-quality", "80")
+		return encodeSticker(ctx, in, out, stickerFrame("512"), "-frames:v", "1", "-quality", "80")
 	}
-	for _, quality := range []string{"60", "35", "15"} {
-		sticker, err := encodeSticker(ctx, in, out, "fps=15,"+stickerFrame, "-t", stickerMaxSeconds, "-loop", "0", "-an", "-quality", quality)
+	attempts := []struct{ fps, seconds, quality, size string }{
+		{"15", "8", "60", "512"},
+		{"15", "8", "35", "512"},
+		{"12", "6", "30", "512"},
+		{"10", "5", "20", "448"},
+		{"8", "4", "10", "384"},
+		{"6", "3", "5", "320"},
+	}
+	for _, a := range attempts {
+		filter := fmt.Sprintf("fps=%s,%s", a.fps, stickerFrame(a.size))
+		sticker, err := encodeSticker(ctx, in, out, filter, "-t", a.seconds, "-loop", "0", "-an", "-quality", a.quality)
 		if err != nil || len(sticker) <= animatedStickerMaxBytes {
 			return sticker, err
 		}
@@ -81,9 +86,13 @@ func makeSticker(ctx context.Context, data []byte, animated bool) (sticker []byt
 	return nil, errStickerTooLarge
 }
 
+func stickerFrame(size string) string {
+	return fmt.Sprintf("scale=%[1]s:%[1]s:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0", size)
+}
+
 func encodeSticker(ctx context.Context, in, out, filter string, extra ...string) ([]byte, error) {
 	args := slices.Concat([]string{"-y", "-loglevel", "error", "-i", in, "-vf", filter, "-c:v", "libwebp"}, extra, []string{out})
-	if err := runTool(ctx, "ffmpeg", args...); err != nil {
+	if err := runFFmpeg(ctx, args...); err != nil {
 		return nil, err
 	}
 	return os.ReadFile(out)
@@ -124,7 +133,7 @@ func stickerMedia(ctx context.Context, sticker []byte) (m outgoing, err error) {
 		return animatedStickerMedia(ctx, in)
 	}
 	out := filepath.Join(dir, "figurinha.png")
-	if err := runTool(ctx, "ffmpeg", "-y", "-loglevel", "error", "-i", in, "-frames:v", "1", out); err != nil {
+	if err := runFFmpeg(ctx, "-y", "-loglevel", "error", "-i", in, "-frames:v", "1", out); err != nil {
 		return outgoing{}, err
 	}
 	return imageMedia(ctx, out)

@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -29,20 +30,41 @@ const (
 	mediaMaxItems    = 10
 	mediaMaxDuration = 600
 	browserUserAgent = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+
+	inlineVideoMaxBytes      = 64 << 20
+	requestedDownloadTimeout = 30 * time.Minute
 )
 
 var (
 	linkPattern      = regexp.MustCompile(`https?://[^\s<>"]+`)
 	errNoMedia       = errors.New("nenhuma mídia encontrada no link")
 	errMediaTooLarge = fmt.Errorf("mídia passa de %d MB", mediaMaxMB)
+
+	mediaLimits             = downloadLimits{maxMB: mediaMaxMB, maxDuration: mediaMaxDuration}
+	requestedDownloadLimits = downloadLimits{maxMB: 1900, maxDuration: 3 * 60 * 60}
 )
+
+type downloadLimits struct {
+	maxMB       int64
+	maxDuration int
+}
+
+func (l downloadLimits) maxBytes() int64 {
+	return l.maxMB << 20
+}
+
+func (l downloadLimits) tooLarge() error {
+	return fmt.Errorf("mídia passa de %d MB", l.maxMB)
+}
 
 type outgoing struct {
 	data      []byte
+	file      string
 	mimetype  string
 	thumbnail []byte
 	video     bool
 	gif       bool
+	document  bool
 }
 
 func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
@@ -56,12 +78,14 @@ func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
 	if link == "" {
 		return b.baixarFigurinha(ctx, evt, sticker)
 	}
-	err := b.withMediaJob(ctx, evt, func(ctx context.Context) error { return b.downloadAndSend(ctx, evt, link) })
+	err := b.withTimedMediaJob(ctx, evt, requestedDownloadTimeout, func(ctx context.Context) error {
+		return b.downloadAndSend(ctx, evt, link, requestedDownloadLimits)
+	})
 	if err == nil {
 		return nil
 	}
 	b.client.Log.Warnf("baixar %s: %v", link, err)
-	return b.sendText(ctx, chat, fmt.Sprintf("Não consegui baixar esse link 😕 Talvez o post seja privado, o site não funcione com o bot ou o arquivo passe de %d MB ou de %d minutos", mediaMaxMB, mediaMaxDuration/60))
+	return b.sendText(ctx, chat, fmt.Sprintf("Não consegui baixar esse link 😕 Talvez o post seja privado, o site não funcione com o bot ou o arquivo passe de %d MB ou de %d minutos", requestedDownloadLimits.maxMB, requestedDownloadLimits.maxDuration/60))
 }
 
 func (b *bot) answerLinks(ctx context.Context, evt *events.Message) error {
@@ -74,7 +98,7 @@ func (b *bot) answerLinks(ctx context.Context, evt *events.Message) error {
 	if err != nil || !on {
 		return err
 	}
-	return b.withMediaJob(ctx, evt, func(ctx context.Context) error { return b.downloadAndSend(ctx, evt, links[i]) })
+	return b.withMediaJob(ctx, evt, func(ctx context.Context) error { return b.downloadAndSend(ctx, evt, links[i], mediaLimits) })
 }
 
 func autoDownloadable(link string) bool {
@@ -95,14 +119,14 @@ func autoDownloadable(link string) bool {
 	return slices.ContainsFunc(sites, func(site string) bool { return host == site || strings.HasSuffix(host, "."+site) })
 }
 
-func (b *bot) downloadAndSend(ctx context.Context, evt *events.Message, link string) (err error) {
+func (b *bot) downloadAndSend(ctx context.Context, evt *events.Message, link string, limits downloadLimits) (err error) {
 	dir, err := os.MkdirTemp("", "baixar-*")
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, os.RemoveAll(dir)) }()
 
-	files, err := downloadMedia(ctx, dir, link)
+	files, err := downloadMedia(ctx, dir, link, limits)
 	if err != nil {
 		return err
 	}
@@ -127,14 +151,14 @@ func (b *bot) downloadAndSend(ctx context.Context, evt *events.Message, link str
 	return nil
 }
 
-func downloadMedia(ctx context.Context, dir, link string) ([]string, error) {
-	file, directErr := fetchDirect(ctx, dir, link)
+func downloadMedia(ctx context.Context, dir, link string, limits downloadLimits) ([]string, error) {
+	file, directErr := fetchDirect(ctx, dir, link, limits)
 	if file != "" {
 		return []string{file}, nil
 	}
 	errs := []error{directErr}
-	for i, download := range []func(ctx context.Context, dir, link string) ([]string, error){ytDlp, galleryDl} {
-		files, err := download(ctx, filepath.Join(dir, strconv.Itoa(i)), link)
+	for i, download := range []func(ctx context.Context, dir, link string, limits downloadLimits) ([]string, error){ytDlp, galleryDl} {
+		files, err := download(ctx, filepath.Join(dir, strconv.Itoa(i)), link, limits)
 		if len(files) > 0 {
 			return files, nil
 		}
@@ -143,7 +167,7 @@ func downloadMedia(ctx context.Context, dir, link string) ([]string, error) {
 	return nil, errors.Join(append(errs, errNoMedia)...)
 }
 
-func fetchDirect(ctx context.Context, dir, link string) (file string, err error) {
+func fetchDirect(ctx context.Context, dir, link string, limits downloadLimits) (file string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
 		return "", err
@@ -159,49 +183,64 @@ func fetchDirect(ctx context.Context, dir, link string) (file string, err error)
 	if resp.StatusCode != http.StatusOK || !slices.Contains([]string{"image", "video"}, family) {
 		return "", nil
 	}
-	if resp.ContentLength > mediaMaxBytes {
-		return "", errMediaTooLarge
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, mediaMaxBytes+1))
-	if err != nil {
-		return "", err
-	}
-	if len(data) > mediaMaxBytes {
-		return "", errMediaTooLarge
+	if resp.ContentLength > limits.maxBytes() {
+		return "", limits.tooLarge()
 	}
 	file = filepath.Join(dir, "link"+strings.ToLower(path.Ext(req.URL.Path)))
-	if err := os.WriteFile(file, data, 0o600); err != nil {
+	if err := writeLimited(file, resp.Body, limits); err != nil {
 		return "", err
 	}
 	return file, nil
 }
 
-func ytDlp(ctx context.Context, dir, link string) ([]string, error) {
-	return runYtDlp(ctx, dir, link, "--format-sort", "vcodec:h264,res:720,acodec:aac,ext:mp4:m4a", "--merge-output-format", "mp4")
+func writeLimited(file string, body io.Reader, limits downloadLimits) (err error) {
+	out, err := os.OpenFile(file, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, out.Close()) }()
+
+	written, err := io.Copy(out, io.LimitReader(body, limits.maxBytes()+1))
+	if err != nil {
+		return err
+	}
+	if written > limits.maxBytes() {
+		return limits.tooLarge()
+	}
+	return nil
+}
+
+func ytDlp(ctx context.Context, dir, link string, limits downloadLimits) ([]string, error) {
+	audioMaxMB := max(10, limits.maxMB/10)
+	fittingFormat := fmt.Sprintf("bv*[filesize<%dM]+ba[filesize<%dM]/b[filesize<%dM]/bv*+ba/b", limits.maxMB-audioMaxMB, audioMaxMB, limits.maxMB)
+	return runYtDlp(ctx, dir, link, limits,
+		"--format", fittingFormat,
+		"--format-sort", "vcodec:h264,acodec:aac,ext:mp4:m4a",
+		"--merge-output-format", "mp4")
 }
 
 func ytDlpAudio(ctx context.Context, dir, link string) ([]string, error) {
-	return runYtDlp(ctx, dir, link, "--extract-audio", "--audio-format", "mp3", "--audio-quality", mp3Quality)
+	return runYtDlp(ctx, dir, link, mediaLimits, "--extract-audio", "--audio-format", "mp3", "--audio-quality", mp3Quality)
 }
 
-func runYtDlp(ctx context.Context, dir, link string, format ...string) ([]string, error) {
+func runYtDlp(ctx context.Context, dir, link string, limits downloadLimits, format ...string) ([]string, error) {
 	args := slices.Concat(
 		[]string{"--no-playlist", "--quiet", "--no-warnings",
-			"--max-filesize", fmt.Sprintf("%dM", mediaMaxMB),
-			"--match-filter", fmt.Sprintf("duration <=? %d", mediaMaxDuration)},
+			"--max-filesize", fmt.Sprintf("%dM", limits.maxMB),
+			"--match-filter", fmt.Sprintf("duration <=? %d", limits.maxDuration)},
 		format,
 		[]string{"--paths", dir, "--output", "%(id)s.%(ext)s", link},
 	)
-	err := runTool(ctx, "yt-dlp", args...)
+	err := runNiceTool(ctx, "yt-dlp", args...)
 	files, listErr := downloadedFiles(dir)
 	return files, errors.Join(err, listErr)
 }
 
-func galleryDl(ctx context.Context, dir, link string) ([]string, error) {
+func galleryDl(ctx context.Context, dir, link string, limits downloadLimits) ([]string, error) {
 	err := runTool(ctx, "gallery-dl",
 		"--quiet",
 		"--range", fmt.Sprintf("1-%d", mediaMaxItems),
-		"--filesize-max", fmt.Sprintf("%dM", mediaMaxMB),
+		"--filesize-max", fmt.Sprintf("%dM", limits.maxMB),
 		"--directory", dir,
 		link,
 	)
@@ -225,11 +264,11 @@ func downloadedFiles(dir string) ([]string, error) {
 }
 
 func prepareMedia(ctx context.Context, file string) (outgoing, bool, error) {
-	data, err := os.ReadFile(file)
+	header, err := readHeader(file)
 	if err != nil {
 		return outgoing{}, false, err
 	}
-	mimetype := fileMimetype(file, data)
+	mimetype := fileMimetype(file, header)
 	exact := map[string]func(context.Context, string) (outgoing, error){
 		"image/gif":  gifMedia,
 		"image/jpeg": imageMedia,
@@ -252,6 +291,15 @@ func prepareMedia(ctx context.Context, file string) (outgoing, bool, error) {
 	return m, true, err
 }
 
+func readHeader(file string) (header []byte, err error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { err = errors.Join(err, f.Close()) }()
+	return io.ReadAll(io.LimitReader(f, 512))
+}
+
 func fileMimetype(file string, data []byte) string {
 	sniffed := http.DetectContentType(data)
 	if sniffed != "application/octet-stream" {
@@ -271,7 +319,7 @@ func imageMedia(_ context.Context, file string) (outgoing, error) {
 
 func convertedImageMedia(ctx context.Context, file string) (outgoing, error) {
 	out := file + ".jpg"
-	if err := runTool(ctx, "ffmpeg", "-y", "-loglevel", "error", "-i", file, "-frames:v", "1", out); err != nil {
+	if err := runFFmpeg(ctx, "-y", "-loglevel", "error", "-i", file, "-frames:v", "1", out); err != nil {
 		return outgoing{}, err
 	}
 	return imageMedia(ctx, out)
@@ -303,27 +351,66 @@ func encodeMP4(ctx context.Context, in, out string, extra ...string) error {
 		extra,
 		[]string{out},
 	)
-	return runTool(ctx, "ffmpeg", args...)
+	return runFFmpeg(ctx, args...)
 }
 
 func videoMedia(ctx context.Context, file string) (outgoing, error) {
 	thumb := file + ".jpg"
-	if err := runTool(ctx, "ffmpeg", "-y", "-loglevel", "error", "-i", file, "-frames:v", "1", "-vf", "scale=320:-2", thumb); err != nil {
-		return outgoing{}, err
-	}
-	data, err := os.ReadFile(file)
-	if err != nil {
+	if err := runFFmpeg(ctx, "-y", "-loglevel", "error", "-i", file, "-frames:v", "1", "-vf", "scale=320:-2", thumb); err != nil {
 		return outgoing{}, err
 	}
 	thumbnail, err := os.ReadFile(thumb)
+	if err != nil {
+		return outgoing{}, err
+	}
+	info, err := os.Stat(file)
+	if err != nil {
+		return outgoing{}, err
+	}
+	if info.Size() > inlineVideoMaxBytes {
+		return outgoing{file: file, mimetype: "video/mp4", thumbnail: thumbnail, document: true}, nil
+	}
+	data, err := os.ReadFile(file)
 	return outgoing{data: data, mimetype: "video/mp4", thumbnail: thumbnail, video: true}, err
 }
 
 func (b *bot) sendMedia(ctx context.Context, chat types.JID, m outgoing, reply *waE2E.ContextInfo) error {
+	if m.document {
+		return b.sendDocument(ctx, chat, m, reply)
+	}
 	if m.video {
 		return b.sendVideo(ctx, chat, m, reply)
 	}
 	return b.sendImage(ctx, chat, m, reply)
+}
+
+func (b *bot) uploadFile(ctx context.Context, file string, mediaType whatsmeow.MediaType) (up whatsmeow.UploadResponse, err error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return up, err
+	}
+	defer func() { err = errors.Join(err, f.Close()) }()
+	return b.client.UploadReader(ctx, f, nil, mediaType)
+}
+
+func (b *bot) sendDocument(ctx context.Context, chat types.JID, m outgoing, reply *waE2E.ContextInfo) error {
+	up, err := b.uploadFile(ctx, m.file, whatsmeow.MediaDocument)
+	if err != nil {
+		return fmt.Errorf("enviar documento: %w", err)
+	}
+	_, err = b.client.SendMessage(ctx, chat, &waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{
+		URL:           proto.String(up.URL),
+		DirectPath:    proto.String(up.DirectPath),
+		MediaKey:      up.MediaKey,
+		Mimetype:      proto.String(m.mimetype),
+		FileEncSHA256: up.FileEncSHA256,
+		FileSHA256:    up.FileSHA256,
+		FileLength:    proto.Uint64(up.FileLength),
+		FileName:      proto.String(filepath.Base(m.file)),
+		JPEGThumbnail: m.thumbnail,
+		ContextInfo:   reply,
+	}})
+	return err
 }
 
 func (b *bot) sendImage(ctx context.Context, chat types.JID, m outgoing, reply *waE2E.ContextInfo) error {

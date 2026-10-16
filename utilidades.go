@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,20 +18,34 @@ import (
 const (
 	mediaJobTimeout = 3 * time.Minute
 	toolOutputLimit = 500
+	toolNiceness    = "10"
 )
 
-var mediaJobs = make(chan struct{}, 2)
+var (
+	mediaJobs     = make(chan struct{}, 2)
+	ffmpegThreads = strconv.Itoa(max(1, runtime.NumCPU()/2))
+)
 
 func (b *bot) withMediaJob(ctx context.Context, evt *events.Message, job func(ctx context.Context) error) error {
+	return b.withTimedMediaJob(ctx, evt, mediaJobTimeout, job)
+}
+
+func (b *bot) withTimedMediaJob(ctx context.Context, evt *events.Message, timeout time.Duration, job func(ctx context.Context) error) (err error) {
 	b.react(ctx, evt, "⏳")
-	defer b.react(context.WithoutCancel(ctx), evt, "")
+	defer func() {
+		finalReaction := "❌"
+		if err == nil {
+			finalReaction = "✅"
+		}
+		b.react(context.WithoutCancel(ctx), evt, finalReaction)
+	}()
 	select {
 	case mediaJobs <- struct{}{}:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 	defer func() { <-mediaJobs }()
-	ctx, cancel := context.WithTimeout(ctx, mediaJobTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return job(ctx)
 }
@@ -49,7 +66,24 @@ func replyTo(evt *events.Message) *waE2E.ContextInfo {
 }
 
 func runTool(ctx context.Context, name string, args ...string) error {
-	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	return runCommand(name, exec.CommandContext(ctx, name, args...))
+}
+
+func runNiceTool(ctx context.Context, name string, args ...string) error {
+	return runCommand(name, exec.CommandContext(ctx, "nice", slices.Concat([]string{"-n", toolNiceness, name}, args)...))
+}
+
+func runFFmpeg(ctx context.Context, args ...string) error {
+	options, output := args[:len(args)-1], args[len(args)-1]
+	return runNiceTool(ctx, "ffmpeg", slices.Concat(
+		[]string{"-filter_threads", ffmpegThreads, "-threads", ffmpegThreads},
+		options,
+		[]string{"-threads", ffmpegThreads, output},
+	)...)
+}
+
+func runCommand(name string, cmd *exec.Cmd) error {
+	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil
 	}
