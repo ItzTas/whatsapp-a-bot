@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
@@ -31,17 +28,9 @@ type storedQuote struct {
 }
 
 type quemfalouRound struct {
-	author     types.JID
-	q          quote
-	answerHash [sha256.Size]byte
-
-	mu    sync.Mutex
-	votes map[string]quemfalouVote
-}
-
-type quemfalouVote struct {
-	voter   types.JID
-	correct bool
+	*pollAnswer
+	author types.JID
+	q      quote
 }
 
 func (b *bot) quemfalou(ctx context.Context, evt *events.Message) error {
@@ -89,12 +78,7 @@ func (b *bot) quemfalou(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 
-	round := &quemfalouRound{
-		author:     author,
-		q:          picked.quote,
-		answerHash: sha256.Sum256([]byte(answer)),
-		votes:      map[string]quemfalouVote{},
-	}
+	round := &quemfalouRound{pollAnswer: newPollAnswer(answer), author: author, q: picked.quote}
 	b.quemfalouRounds.Store(resp.ID, round)
 	go b.revealQuemfalou(ctx, chat, resp.ID, round)
 	return nil
@@ -138,34 +122,6 @@ func quemfalouOptions(owners memberOwners, author types.JID) []types.JID {
 	return options
 }
 
-func (b *bot) answerQuemfalou(ctx context.Context, evt *events.Message) error {
-	update := evt.Message.GetPollUpdateMessage()
-	if update == nil {
-		return nil
-	}
-	value, ok := b.quemfalouRounds.Load(update.GetPollCreationMessageKey().GetID())
-	if !ok {
-		return nil
-	}
-	vote, err := b.client.DecryptPollVote(ctx, evt)
-	if err != nil {
-		return fmt.Errorf("ler voto: %w", err)
-	}
-	value.(*quemfalouRound).vote(evt.Info.Sender.ToNonAD(), vote.GetSelectedOptions())
-	return nil
-}
-
-func (r *quemfalouRound) vote(voter types.JID, selected [][]byte) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if len(selected) == 0 {
-		delete(r.votes, voter.User)
-		return
-	}
-	correct := slices.ContainsFunc(selected, func(h []byte) bool { return bytes.Equal(h, r.answerHash[:]) })
-	r.votes[voter.User] = quemfalouVote{voter: voter, correct: correct}
-}
-
 func (b *bot) revealQuemfalou(ctx context.Context, chat types.JID, pollID types.MessageID, round *quemfalouRound) {
 	select {
 	case <-ctx.Done():
@@ -181,9 +137,6 @@ func (b *bot) revealQuemfalou(ctx context.Context, chat types.JID, pollID types.
 }
 
 func (r *quemfalouRound) reveal(authorName string, nicknames map[string]string) (string, []types.JID) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	author := "@" + r.author.User
 	if authorName != "" {
 		author = fmt.Sprintf("%s (%s)", author, authorName)
@@ -195,20 +148,13 @@ func (r *quemfalouRound) reveal(authorName string, nicknames map[string]string) 
 
 func (r *quemfalouRound) outcome() (string, []types.JID) {
 	quote := quoteBlock(r.q.text)
-	if len(r.votes) == 0 {
+	voted, winners := r.result()
+	if !voted {
 		return quote, nil
-	}
-
-	var winners []types.JID
-	for _, v := range r.votes {
-		if v.correct {
-			winners = append(winners, v.voter)
-		}
 	}
 	if len(winners) == 0 {
 		return quote + "\n\n❌ Ninguém acertou 😂", nil
 	}
-	slices.SortFunc(winners, func(a, b types.JID) int { return strings.Compare(a.User, b.User) })
 	return quote + "\n\n✅ Acertaram: " + joinMentions(winners), winners
 }
 

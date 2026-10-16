@@ -21,6 +21,7 @@ type bot struct {
 	bmcRounds        sync.Map
 	vddAnswered      sync.Map
 	quemfalouRounds  sync.Map
+	quizRounds       sync.Map
 	forcaGames       sync.Map
 	revolvers        sync.Map
 	laughStickerSent sync.Map
@@ -29,8 +30,10 @@ type bot struct {
 	relationships    *relationshipStore
 	adoptions        *adoptionStore
 	assistant        *assistant
+	transcriber      *transcriber
 	filters          *filterStore
 	modes            *modeStore
+	wallets          *walletStore
 	owners           []string
 }
 
@@ -68,6 +71,7 @@ func (b *bot) commands() []botCommand {
 		zoeira       = category{"😂 Zoeira", modeJokes}
 		inteligencia = category{"🧠 IA", modeAI}
 		utilidades   = category{"🛠️ Utilidades", modeUtilities}
+		economia     = category{"💰 Economia", modeEconomy}
 		ajuda        = category{"ℹ️ Ajuda", ""}
 	)
 	return []botCommand{
@@ -399,12 +403,107 @@ func (b *bot) commands() []botCommand {
 			run: b.frase,
 		},
 		{
+			name:     "saldo",
+			aliases:  []string{"carteira", "banco"},
+			category: economia,
+			help: []usage{
+				{"!saldo", "mostra quantas moedas você tem e sua posição no grupo 💰"},
+				{"!saldo @pessoa", "mostra o saldo da pessoa marcada"},
+			},
+			run: b.saldo,
+		},
+		{
+			name:     "daily",
+			aliases:  []string{"diario", "diário"},
+			category: economia,
+			help:     []usage{{"!daily", fmt.Sprintf("pega de %d a %d moedas grátis, uma vez por dia 🎁", dailyMin, dailyMax)}},
+			run:      b.daily,
+		},
+		{
+			name:     "trabalhar",
+			aliases:  []string{"trabalho", "work"},
+			category: economia,
+			help:     []usage{{"!trabalhar", fmt.Sprintf("faz um bico e ganha de %d a %d moedas, uma vez por hora 💼", workMin, workMax)}},
+			run:      b.trabalhar,
+		},
+		{
+			name:     "apostar",
+			aliases:  []string{"aposta", "bet"},
+			category: economia,
+			help: []usage{
+				{"!apostar <valor>", "cara ou coroa: dobra a aposta ou perde tudo 🪙"},
+				{"!apostar tudo", "aposta todo o saldo (também aceita metade e porcentagem, tipo 10%)"},
+			},
+			run: b.apostar,
+		},
+		{
+			name:     "cassino",
+			aliases:  []string{"slot", "tigrinho"},
+			category: economia,
+			help: []usage{
+				{"!cassino <valor>", "gira o caça-níquel: par paga 2x, trinca 5x e 💎💎💎 paga 10x 🎰"},
+			},
+			run: b.cassino,
+		},
+		{
+			name:     "roubar",
+			aliases:  []string{"assaltar"},
+			category: economia,
+			help: []usage{
+				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de 10%% a 30%% do saldo dela, se der errado paga indenização. Uma vez a cada %d horas 🦹", int(robEvery.Hours()))},
+			},
+			run: b.roubar,
+		},
+		{
+			name:     "transferir",
+			aliases:  []string{"pagar", "pix"},
+			category: economia,
+			help: []usage{
+				{"!transferir @pessoa <valor>", "manda moedas suas pra pessoa marcada 💸"},
+			},
+			run: b.transferir,
+		},
+		{
+			name:     "ricos",
+			aliases:  []string{"forbes"},
+			category: economia,
+			help:     []usage{{"!ricos", "mostra os mais ricos do grupo 🏆"}},
+			run:      b.ricos,
+		},
+		{
 			name:     "ia",
 			category: inteligencia,
 			help: []usage{
 				{"!ia <pergunta>", "pergunta qualquer coisa pra IA, que lê as últimas mensagens do grupo pra entender o assunto"},
 			},
 			run: b.ia,
+		},
+		{
+			name:     "roast",
+			category: inteligencia,
+			help: []usage{
+				{"!roast @pessoa", "a IA lê as mensagens da pessoa e zoa ela sem dó 🔥"},
+				{"!roast", "a IA zoa você"},
+			},
+			run: b.roast,
+		},
+		{
+			name:     "signo",
+			category: inteligencia,
+			help: []usage{
+				{"!signo @pessoa", "a IA descobre o signo da pessoa pelo jeito que ela escreve, com ascendente e lua ♈"},
+				{"!signo", "descobre o seu"},
+			},
+			run: b.signo,
+		},
+		{
+			name:     "quiz",
+			category: inteligencia,
+			help: []usage{
+				{"!quiz", "a IA inventa uma pergunta de conhecimentos gerais e abre uma enquete pra ver quem acerta 🧠"},
+				{"!quiz <tema>", "a pergunta é sobre esse tema, tipo !quiz futebol"},
+			},
+			run: b.quiz,
 		},
 		{
 			name:     "resumo",
@@ -440,6 +539,15 @@ func (b *bot) commands() []botCommand {
 				{"!mp3", "responda um vídeo, um áudio ou uma mensagem com link e o bot manda o áudio em mp3"},
 			},
 			run: b.mp3,
+		},
+		{
+			name:     "transcrever",
+			aliases:  []string{"transcrição", "transcricao"},
+			category: utilidades,
+			help: []usage{
+				{"!transcrever", "responda um áudio ou um vídeo com !transcrever e o bot escreve o que foi falado 🎙️"},
+			},
+			run: b.transcrever,
 		},
 		{
 			name:     "figurinha",
@@ -485,8 +593,11 @@ func (b *bot) handleMessage(ctx context.Context, evt *events.Message) {
 	if err := b.answerVdd(ctx, evt); err != nil {
 		b.client.Log.Errorf("responder !vdd: %v", err)
 	}
-	if err := b.answerQuemfalou(ctx, evt); err != nil {
+	if err := b.answerPoll(ctx, evt, &b.quemfalouRounds); err != nil {
 		b.client.Log.Errorf("responder !quemfalou: %v", err)
+	}
+	if err := b.answerPoll(ctx, evt, &b.quizRounds); err != nil {
+		b.client.Log.Errorf("responder !quiz: %v", err)
 	}
 	if err := b.answerForca(ctx, evt); err != nil {
 		b.client.Log.Errorf("responder !forca: %v", err)

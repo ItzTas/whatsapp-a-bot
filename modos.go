@@ -26,6 +26,7 @@ const (
 	modeAI        = "ia"
 	modeFun       = "diversao"
 	modeUtilities = "utilidades"
+	modeEconomy   = "economia"
 )
 
 type chatMode struct {
@@ -43,17 +44,18 @@ func (m chatMode) members() []string {
 
 func chatModes() []chatMode {
 	return []chatMode{
-		{name: modeFun, description: "liga ou desliga de uma vez romance, familia, jogos, medidores, estatisticas e zoeira", includes: []string{modeRomance, modeFamily, modeGames, modeMeters, modeStats, modeJokes}},
+		{name: modeFun, description: "liga ou desliga de uma vez romance, familia, jogos, medidores, estatisticas, zoeira e economia", includes: []string{modeRomance, modeFamily, modeGames, modeMeters, modeStats, modeJokes, modeEconomy}},
 		{name: modeRomance, description: "libera os comandos de romance, tipo !casar, !namorar, !ship e !beijo"},
 		{name: modeFamily, description: "libera o !adotar e o !familia"},
 		{name: modeGames, description: "libera os jogos, tipo !bmc, !vdd, !forca e !roleta"},
 		{name: modeMeters, description: "libera os medidores, tipo !medidor, !gado e !gay"},
 		{name: modeStats, description: "libera as estatísticas, tipo !ranking, !palavra, !tu e !palhaço"},
 		{name: modeJokes, description: "libera a zoeira, tipo !kkk, !chute, !apelido e !frase"},
-		{name: modeAI, description: "libera o !ia e o !resumo"},
+		{name: modeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !trabalhar, !apostar, !cassino, !roubar, !transferir e !ricos, e quem acerta o !quiz ganha moedas"},
+		{name: modeAI, description: "libera o !ia, o !resumo, o !roast, o !signo e o !quiz"},
 		{name: modeWords, description: "o bot responde algumas palavras mesmo sem o !, tipo arrogante ou nojo"},
 		{name: modeLaughs, description: "o bot manda uma figurinha de risada quando alguém ri (kkkk, hahaha, rsrs...)"},
-		{name: modeUtilities, description: "o bot baixa e manda os vídeos, imagens e gifs dos links do Instagram, TikTok, X e outros, e libera o !baixar, o !figurinha e o !mp3"},
+		{name: modeUtilities, description: "o bot baixa e manda os vídeos, imagens e gifs dos links do Instagram, TikTok, X e outros, e libera o !baixar, o !figurinha, o !mp3 e o !transcrever"},
 	}
 }
 
