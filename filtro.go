@@ -74,13 +74,13 @@ func (s *filterStore) add(ctx context.Context, list string, e filterEntry) (bool
 		alt = second
 	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO filtro_listas (alvo, lista, id, id_alt)
-		 SELECT ?, ?, ?, ?
+		`INSERT INTO filtro_listas (alvo, lista, id, id_alt, nome)
+		 SELECT ?, ?, ?, ?, ?
 		 WHERE NOT EXISTS (
 		   SELECT 1 FROM filtro_listas
 		   WHERE alvo = ? AND lista = ? AND (id IN (?, ?) OR id_alt IN (?, ?))
 		 )`,
-		e.target, list, first, alt, e.target, list, first, second, first, second,
+		e.target, list, first, alt, e.name, e.target, list, first, second, first, second,
 	)
 	if err != nil {
 		return false, err
@@ -148,24 +148,32 @@ func (s *filterStore) counts(ctx context.Context) (counts map[[2]string]int, err
 	return counts, rows.Err()
 }
 
-func (s *filterStore) listed(ctx context.Context, list string) (entries map[string][]types.JID, err error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT alvo, id FROM filtro_listas WHERE lista = ? ORDER BY rowid", list)
+func (s *filterStore) rename(ctx context.Context, id types.JID, name string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE filtro_listas SET nome = ? WHERE alvo = ? AND id = ? AND nome != ?",
+		name, filterGroups, id.String(), name,
+	)
+	return err
+}
+
+func (s *filterStore) listed(ctx context.Context, list string) (entries map[string][]filterEntry, err error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT alvo, id, nome FROM filtro_listas WHERE lista = ? ORDER BY rowid", list)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { err = errors.Join(err, rows.Close()) }()
 
-	entries = map[string][]types.JID{}
+	entries = map[string][]filterEntry{}
 	for rows.Next() {
-		var target, id string
-		if err := rows.Scan(&target, &id); err != nil {
+		var target, id, name string
+		if err := rows.Scan(&target, &id, &name); err != nil {
 			return nil, err
 		}
 		jid, err := types.ParseJID(id)
 		if err != nil {
 			return nil, fmt.Errorf("id %q inválido na %s: %w", id, list, err)
 		}
-		entries[target] = append(entries[target], jid)
+		entries[target] = append(entries[target], filterEntry{target: target, ids: []types.JID{jid}, name: name})
 	}
 	return entries, rows.Err()
 }
@@ -478,9 +486,20 @@ func (b *bot) filterEntries(ctx context.Context, evt *events.Message, args []str
 
 	chat := evt.Info.Chat.ToNonAD()
 	if chat.Server == types.GroupServer {
-		return []filterEntry{{target: filterGroups, ids: []types.JID{chat}}}, "", nil
+		return []filterEntry{b.currentGroupEntry(ctx, chat)}, "", nil
 	}
 	return []filterEntry{{target: filterPeople, ids: b.identities(ctx, chat)}}, "", nil
+}
+
+func (b *bot) currentGroupEntry(ctx context.Context, chat types.JID) filterEntry {
+	entry := filterEntry{target: filterGroups, ids: []types.JID{chat}}
+	info, err := b.client.GetGroupInfo(ctx, chat)
+	if err != nil {
+		b.client.Log.Warnf("ler nome do grupo %s: %v", chat, err)
+		return entry
+	}
+	entry.name = info.Name
+	return entry
 }
 
 func (b *bot) groupByName(ctx context.Context, name string) ([]filterEntry, string, error) {
@@ -520,7 +539,7 @@ func (b *bot) groupByName(ctx context.Context, name string) ([]filterEntry, stri
 
 func (b *bot) showFilterList(ctx context.Context, chat types.JID, list string) error {
 	var (
-		entries map[string][]types.JID
+		entries map[string][]filterEntry
 		modes   map[string]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
@@ -534,10 +553,11 @@ func (b *bot) showFilterList(ctx context.Context, chat types.JID, list string) e
 	if err != nil {
 		return err
 	}
-	people := entries[filterPeople]
+	people := make([]types.JID, len(entries[filterPeople]))
 	personTags := make([]string, len(people))
-	for i, person := range people {
-		personTags[i] = "@" + person.User
+	for i, person := range entries[filterPeople] {
+		people[i] = person.ids[0]
+		personTags[i] = "@" + people[i].User
 	}
 
 	titles := map[string]string{blacklist: "🚫 *Blacklist*", whitelist: "✅ *Whitelist*"}
@@ -567,21 +587,35 @@ func (b *bot) showFilterList(ctx context.Context, chat types.JID, list string) e
 	return err
 }
 
-func (b *bot) groupNames(ctx context.Context, groups []types.JID) ([]string, error) {
+func (b *bot) groupNames(ctx context.Context, groups []filterEntry) ([]string, error) {
 	names := make([]string, len(groups))
 	var g errgroup.Group
 	g.SetLimit(5)
 	for i, group := range groups {
 		g.Go(func() error {
-			info, err := b.client.GetGroupInfo(ctx, group)
-			if err != nil {
-				b.client.Log.Warnf("ler nome do grupo %s: %v", group, err)
-				names[i] = group.User
-				return nil
-			}
-			names[i] = info.Name
+			names[i] = b.listedGroupName(ctx, group)
 			return nil
 		})
 	}
 	return names, g.Wait()
+}
+
+func (b *bot) listedGroupName(ctx context.Context, group filterEntry) string {
+	jid := group.ids[0]
+	info, err := b.client.GetGroupInfo(ctx, jid)
+	if err != nil {
+		b.client.Log.Warnf("ler nome do grupo %s: %v", jid, err)
+		return savedGroupName(group)
+	}
+	if err := b.filters.rename(ctx, jid, info.Name); err != nil {
+		b.client.Log.Warnf("salvar nome do grupo %s: %v", jid, err)
+	}
+	return info.Name
+}
+
+func savedGroupName(group filterEntry) string {
+	if group.name == "" {
+		return group.ids[0].User
+	}
+	return group.name + " _(nome salvo, não consegui ler o grupo agora)_"
 }
