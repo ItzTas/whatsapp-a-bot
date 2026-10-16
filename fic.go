@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"strings"
+	"sync"
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -14,6 +15,35 @@ type loveStory struct {
 	title    string
 	genre    string
 	chapters []string
+}
+
+type ficDeck struct {
+	mu    sync.Mutex
+	order []int
+}
+
+func (d *ficDeck) draw(size int) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.order) == 0 {
+		d.order = rand.Perm(size)
+	}
+	last := len(d.order) - 1
+	next := d.order[last]
+	d.order = d.order[:last]
+	return next
+}
+
+func pickOne[T any](items []T) T {
+	return items[rand.IntN(len(items))]
+}
+
+func pickSome[T any](items []T, n int) []T {
+	picked := make([]T, 0, n)
+	for _, i := range rand.Perm(len(items))[:min(n, len(items))] {
+		picked = append(picked, items[i])
+	}
+	return picked
 }
 
 func (b *bot) fic(ctx context.Context, evt *events.Message) error {
@@ -28,8 +58,7 @@ func (b *bot) fic(ctx context.Context, evt *events.Message) error {
 		pair[0], pair[1] = pair[1], pair[0]
 	}
 
-	stories := loveStories()
-	story := stories[rand.IntN(len(stories))]
+	story := b.pickLoveStory(evt.Info.Chat)
 	_, err = b.sendMentions(ctx, evt.Info.Chat, story.render(pair[0], pair[1]), pair)
 	return err
 }
@@ -46,158 +75,196 @@ func (b *bot) ficPair(ctx context.Context, evt *events.Message) ([]types.JID, er
 	return pair[:], nil
 }
 
-func (s loveStory) render(a, b types.JID) string {
-	cast := strings.NewReplacer("{a}", "@"+a.User, "{b}", "@"+b.User)
-	reactions := []string{
-		"😭 Os leitores choraram e pediram segunda temporada",
-		"🔥 Virou trending no Wattpad em 2 horas",
-		"🫣 A mãe de alguém leu e agora quer conversar",
-		"📚 Já tem editora querendo publicar",
-		"💀 Os leitores ainda não superaram",
-		"🍿 A Netflix já comprou os direitos",
-		"✍️ A autora sumiu e nunca postou o epílogo",
-		"💌 O grupo inteiro agora shippa esse casal",
+func (b *bot) pickLoveStory(chat types.JID) loveStory {
+	if rand.IntN(2) == 0 {
+		return generatedLoveStory()
 	}
+	stories := loveStories()
+	deck, _ := b.ficDecks.LoadOrStore(chat, &ficDeck{})
+	return stories[deck.(*ficDeck).draw(len(stories))]
+}
+
+func generatedLoveStory() loveStory {
+	pieces := loveStoryPieces()
+	chapters := []string{pickOne(pieces.openings)}
+	chapters = append(chapters, pickSome(pieces.middles, rand.IntN(2)+1)...)
+	chapters = append(chapters, pickOne(pieces.crises), pickOne(pieces.endings))
+	return loveStory{
+		title:    pickOne(pieces.titles),
+		genre:    pickOne(pieces.genres),
+		chapters: chapters,
+	}
+}
+
+func (s loveStory) render(a, b types.JID) string {
+	extras := loveStoryExtras()
+	cast := strings.NewReplacer(append([]string{"{a}", "@" + a.User, "{b}", "@" + b.User}, ficProps()...)...)
 
 	lines := []string{
 		fmt.Sprintf("📖 *%s*", s.title),
 		fmt.Sprintf("_%s_", s.genre),
-		cast.Replace("✍️ Estrelando {a} e {b}"),
+		pickOne(extras.credits),
+		"🏷️ " + strings.Join(pickSome(extras.tags, rand.IntN(3)+2), " "),
 	}
 	for i, chapter := range s.chapters {
-		lines = append(lines, "", fmt.Sprintf("*Capítulo %d*", i+1), cast.Replace(chapter))
+		lines = append(lines, "", fmt.Sprintf("*Capítulo %d*", i+1), chapter)
 	}
-	lines = append(lines,
-		"",
-		"*FIM* 💞",
-		"",
-		fmt.Sprintf("⭐ Nota dos leitores: %d/10", rand.IntN(5)+6),
-		reactions[rand.IntN(len(reactions))],
-	)
-	return strings.Join(lines, "\n")
+	lines = append(lines, "", pickOne(extras.endings))
+	if rand.IntN(3) == 0 {
+		lines = append(lines, "", "*Cena pós-créditos* 🎬", pickOne(extras.postCredits))
+	}
+	lines = append(lines, "", ficRating())
+	lines = append(lines, pickSome(extras.reactions, rand.IntN(2)+1)...)
+	return cast.Replace(strings.Join(lines, "\n"))
 }
 
-func loveStories() []loveStory {
-	return []loveStory{
+func ficRating() string {
+	if rand.IntN(6) > 0 {
+		return fmt.Sprintf("⭐ Nota dos leitores: %d/10", rand.IntN(5)+6)
+	}
+	return pickOne([]string{
+		"⭐ Nota dos leitores: 11/10, quebrou a escala",
+		"⭐ Nota dos leitores: 2/10, mas todo mundo leu três vezes",
+		"⭐ Nota dos leitores: indefinida, o site caiu de tanto acesso",
+		"⭐ Nota dos leitores: 10/10 e uma denúncia por excesso de clichê",
+		"⭐ Nota dos leitores: 4/10, o capítulo 2 dividiu o fandom",
+	})
+}
+
+func ficProps() []string {
+	props := []struct {
+		keys    []string
+		options [][]string
+	}{
 		{
-			title: "Inimigos no Mesmo Grupo",
-			genre: "Enemies to lovers 😤➡️😍",
-			chapters: []string{
-				"{a} e {b} brigavam todo dia no grupo. Bastava um mandar áudio que o outro respondia \"ninguém vai ouvir isso\".",
-				"Até que um dia o grupo ficou em silêncio e só os dois estavam online às 3 da manhã. A briga virou conversa, a conversa virou desabafo.",
-				"No dia seguinte {b} mandou figurinha de coração sem querer. Ou era o que {b} dizia.",
-				"Hoje os dois ainda brigam no grupo, mas agora no privado se chamam de \"meu bem\". Todo mundo sabe. Ninguém fala nada.",
+			keys: []string{"{no lugar}"},
+			options: [][]string{
+				{"na fila do pão"}, {"na fila do INSS"}, {"na academia"}, {"num show de pagode"},
+				{"na rodoviária"}, {"numa lan house"}, {"na festa junina da escola"}, {"na biblioteca"},
+				{"no churrasco da firma"}, {"na aula de zumba"}, {"na feira de domingo"}, {"no lava-jato"},
+				{"no posto de gasolina"}, {"no cursinho"}, {"no karaokê"}, {"no casamento de um primo"},
+				{"no ônibus das 6h40"}, {"na praia lotada"}, {"na sala de espera do dentista"},
+				{"na reunião de condomínio"}, {"no velório de um tio distante"}, {"na fila do caixa eletrônico"},
 			},
 		},
 		{
-			title: "O Café da Esquina",
-			genre: "Romance clichê ☕",
-			chapters: []string{
-				"Toda manhã {a} pedia o mesmo café na mesma padaria. E toda manhã {b}, o atendente, errava o nome no copo.",
-				"\"Hoje eu acertei\", disse {b} um dia, entregando o copo. Embaixo do nome tinha um número de telefone.",
-				"{a} demorou três dias pra criar coragem de mandar \"oi\". {b} respondeu em 4 segundos.",
-				"Um ano depois, a padaria pendurou uma foto dos dois na parede. O café continua ruim. O amor, não.",
+			keys: []string{"{uma comida}", "{a comida}"},
+			options: [][]string{
+				{"uma coxinha", "a coxinha"}, {"um pastel de feira", "o pastel de feira"}, {"um miojo", "o miojo"},
+				{"um pão de queijo", "o pão de queijo"}, {"um açaí", "o açaí"},
+				{"uma pizza de calabresa", "a pizza de calabresa"}, {"um brigadeiro", "o brigadeiro"},
+				{"uma pamonha", "a pamonha"}, {"uma esfirra", "a esfirra"},
+				{"um cachorro-quente prensado", "o cachorro-quente prensado"}, {"uma tapioca", "a tapioca"},
+				{"um x-tudo", "o x-tudo"}, {"um bolo de pote", "o bolo de pote"}, {"um churros", "o churros"},
+				{"um yakisoba", "o yakisoba"}, {"uma marmita de feijoada", "a marmita de feijoada"},
 			},
 		},
 		{
-			title: "Amor em Tempos de Wi-Fi Ruim",
-			genre: "Romance à distância 📶",
-			chapters: []string{
-				"{a} morava num estado, {b} em outro. Se conheceram numa partida online em que os dois perderam feio.",
-				"As chamadas de vídeo travavam sempre na pior hora. {a} já tinha visto {b} congelado de boca aberta umas quarenta vezes.",
-				"Um dia {b} sumiu por dois dias. {a} achou que tinha levado um vácuo. Na verdade, {b} tava num ônibus de 30 horas.",
-				"A campainha tocou. Era {b}, com uma mala e um carregador de celular de presente. \"Pra você nunca mais cair na chamada.\"",
+			keys: []string{"{um objeto}", "{o objeto}"},
+			options: [][]string{
+				{"um guarda-chuva", "o guarda-chuva"}, {"um fone com um lado só funcionando", "o fone"},
+				{"um carregador de celular", "o carregador"}, {"um moletom velho", "o moletom"},
+				{"um boné", "o boné"}, {"um chinelo", "o chinelo"}, {"um pen drive", "o pen drive"},
+				{"uma marmita", "a marmita"}, {"um caderno cheio de rabiscos", "o caderno"},
+				{"uma pulseirinha de miçanga", "a pulseirinha"}, {"um isqueiro", "o isqueiro"},
+				{"um ursinho de pelúcia", "o ursinho"},
 			},
 		},
 		{
-			title: "A Princesa e o Plebeu",
-			genre: "Romance de época 👑",
-			chapters: []string{
-				"No reino de Grupolândia, {a} era da realeza e {b} um simples vendedor de pão de queijo na praça.",
-				"Todo dia {a} fugia do castelo disfarçado só pra comprar um pão de queijo. O pão era ruim. A desculpa era ótima.",
-				"O rei descobriu e proibiu o romance. {b} foi banido para o reino vizinho, o temido Grupo da Família.",
-				"{a} abdicou do trono, atravessou o reino a cavalo e disse: \"prefiro pão de queijo com você do que caviar sem você\". O povo aplaudiu.",
+			keys: []string{"{uma musica}"},
+			options: [][]string{
+				{"um pagode dos anos 90"}, {"um sertanejo de sofrência"}, {"um funk de 2012"},
+				{"uma música do Roberto Carlos"}, {"um forró de vaquejada"}, {"um K-pop que só os dois conheciam"},
+				{"um brega romântico"}, {"um arrocha"}, {"uma balada de rock dos anos 80"},
+				{"aquela música de abertura de novela"}, {"um piseiro"},
 			},
 		},
 		{
-			title: "Colegas de Quarto",
-			genre: "Slow burn 🐢🔥",
-			chapters: []string{
-				"{a} e {b} dividiam apartamento só por causa do aluguel. Regra número um: nada de sentimentos.",
-				"Regra número dois, criada depois: ninguém usa a caneca do outro. {a} usou. {b} fingiu ficar bravo, mas guardou a caneca lavada com um bilhete.",
-				"Numa noite de tempestade a luz acabou. Os dois ficaram no sofá conversando até amanhecer, dividindo o mesmo cobertor \"por economia\".",
-				"Seis meses depois, desistiram do segundo quarto. Viraram um escritório. E a regra número um foi oficialmente revogada.",
+			keys: []string{"{apelido}"},
+			options: [][]string{
+				{"mozão"}, {"bb"}, {"chuchu"}, {"dengo"}, {"vida"}, {"pitico"}, {"xuxuzinho"},
+				{"amorzinho"}, {"bebê"}, {"momo"}, {"meu bem"}, {"docinho"},
 			},
 		},
-		{
-			title: "O Feitiço Errado",
-			genre: "Fantasia ✨",
-			chapters: []string{
-				"{a} era aprendiz de bruxaria e tentou fazer uma poção pra passar na prova. Errou um ingrediente.",
-				"A poção virou um feitiço do amor e caiu, por acidente, no copo de {b}, o bruxo mais metido da escola.",
-				"{b} passou a seguir {a} pra todo lado recitando poesia ruim. {a} passou uma semana procurando o antídoto.",
-				"Quando finalmente acharam a cura, {b} tomou, ficou em silêncio e disse: \"o feitiço passou faz três dias. Eu só continuei\".",
-			},
+	}
+
+	var pairs []string
+	for _, prop := range props {
+		option := pickOne(prop.options)
+		for i, key := range prop.keys {
+			pairs = append(pairs, key, option[i])
+		}
+	}
+	return pairs
+}
+
+type storyExtras struct {
+	credits     []string
+	tags        []string
+	endings     []string
+	postCredits []string
+	reactions   []string
+}
+
+func loveStoryExtras() storyExtras {
+	return storyExtras{
+		credits: []string{
+			"✍️ Estrelando {a} e {b}",
+			"💞 Um romance entre {a} e {b}",
+			"🎬 Com {a} e {b} nos papéis principais",
+			"✍️ Baseada em fatos reais sobre {a} e {b}",
+			"📝 Escrita às 4 da manhã sobre {a} e {b}",
+			"🕯️ Uma história de amor entre {a} e {b}, que ninguém pediu",
+			"📚 Com {a} e {b}, do autor de \"Amor no Grupo\" e \"Amor no Grupo 2\"",
 		},
-		{
-			title: "Amor no Apocalipse",
-			genre: "Ação e sobrevivência 🧟",
-			chapters: []string{
-				"O mundo acabou numa terça-feira. {a} se escondeu num supermercado e deu de cara com {b}, armado com uma baguete.",
-				"Decidiram sobreviver juntos. {b} cuidava da comida, {a} da estratégia. Os zumbis cuidavam de atrapalhar.",
-				"Encurralados num telhado, {a} disse: \"se a gente não sair dessa, eu queria te falar uma coisa\". O helicóptero chegou antes.",
-				"Na base dos sobreviventes, {b} cobrou: \"e aquela coisa?\". {a} respondeu com um beijo. O apocalipse nunca foi tão romântico.",
-			},
+		tags: []string{
+			"#clichê", "#slowburn", "#fofinho", "#angst", "#finalfeliz", "#dramalhão",
+			"#vergonhaalheia", "#crack", "#ciúmes", "#casamento", "#amizadecolorida",
+			"#inimigosamantes", "#sóumacama", "#segundachance", "#amornogrupo", "#plottwist",
+			"#chorei", "#morri", "#otp", "#shippo",
 		},
-		{
-			title: "Match às 2 da Manhã",
-			genre: "Comédia romântica 📱",
-			chapters: []string{
-				"{a} deu like em {b} no aplicativo achando que tava rolando pra passar. Deu match.",
-				"A primeira mensagem de {b} foi \"você também tem cara de quem come pizza fria no café da manhã\". Era verdade.",
-				"O primeiro encontro foi um desastre: chuva, restaurante fechado, guarda-chuva quebrado. Acabaram comendo cachorro-quente na marquise.",
-				"Até hoje discutem quem deu like primeiro. O aplicativo foi desinstalado no dia seguinte. Pelos dois.",
-			},
+		endings: []string{
+			"*FIM* 💞",
+			"*FIM* 💍",
+			"*FIM?* 👀",
+			"*Continua na próxima temporada...* 📺",
+			"*FIM* (por enquanto) 😏",
+			"*E viveram felizes pra sempre* ✨",
+			"*FIM* 🥹",
 		},
-		{
-			title: "O Último Verão",
-			genre: "Drama de chorar 😭",
-			chapters: []string{
-				"Era o último verão antes de {a} se mudar pra longe. {b} sabia, mas fingia que não.",
-				"Passaram as férias juntos: praia, sorvete derretendo, pôr do sol que nenhum dos dois conseguia fotografar direito.",
-				"Na véspera da viagem, {b} entregou uma carta e pediu pra {a} só abrir no avião. {a} abriu no ônibus pro aeroporto.",
-				"Dentro da carta só tinha uma frase: \"eu vou junto\". {b} tava sentado no banco de trás, com uma mochila e um sorriso.",
-			},
+		postCredits: []string{
+			"Anos depois, {a} achou {o objeto} guardado numa caixa. {b} tinha guardado tudo desde o primeiro dia.",
+			"Plot twist: {b} sabia que ia dar certo desde o começo. Tinha consultado o horóscopo.",
+			"Até hoje ninguém sabe quem deu o primeiro passo. {a} jura que foi {b}. {b} jura que foi {a}.",
+			"Um gato aparece na janela. É o terceiro gato do casal. Ninguém sabe de onde ele veio.",
+			"O grupo ainda manda \"e aí, casal?\" toda vez que {a} ou {b} aparece online.",
+			"Dizem que, numa noite de lua cheia, quem passa {no lugar} ainda ouve os dois discutindo quem ama mais.",
+			"Em 2047, a história dos dois virou novela das nove. {a} reclamou do ator escolhido pra fazer {b}.",
+			"Segunda temporada confirmada: {b} esqueceu o aniversário de namoro. De novo.",
+			"{a} ainda chama {b} de {apelido} em público. O grupo pediu pra parar. Não parou.",
+			"Revelação final: quem narrou essa história toda era {o objeto}.",
+			"{b} encontra um caderno antigo de {a}. Na última página: \"um dia eu caso com {b}\". Data: 2009.",
+			"Um ano depois, os dois voltam {no lugar} e dividem {uma comida}, igualzinho ao primeiro dia.",
 		},
-		{
-			title: "Detetives do Coração",
-			genre: "Mistério 🕵️",
-			chapters: []string{
-				"Alguém estava roubando os biscoitos da firma. {a} e {b}, os dois mais fofoqueiros do escritório, foram investigar.",
-				"Fizeram tocaia, montaram um mural com barbante vermelho e trocaram mais olhares do que pistas.",
-				"Descobriram que o ladrão era o chefe. Mas a maior descoberta foi outra: nenhum dos dois queria que o caso acabasse.",
-				"Abriram uma agência de detetives juntos. Nunca resolveram outro caso. Mas almoçam juntos todo dia.",
-			},
-		},
-		{
-			title: "Rivais de Campeonato",
-			genre: "Esportes ⚽",
-			chapters: []string{
-				"{a} era capitão de um time, {b} do time rival. A final do campeonato do bairro estava marcada.",
-				"Nos treinos, um espionava o outro. Nas espionagens, acabavam conversando na arquibancada até escurecer.",
-				"Na final, {b} perdeu um pênalti. Dizem que foi sem querer. Dizem que {b} olhou pra {a} antes de chutar.",
-				"{a} levantou a taça e, no meio da festa, foi até {b} e entregou a medalha. \"Metade é sua\". O bairro todo gritou.",
-			},
-		},
-		{
-			title: "Viagem no Tempo",
-			genre: "Ficção científica 🚀",
-			chapters: []string{
-				"{a} inventou uma máquina do tempo na garagem e, no primeiro teste, foi parar em 1985. Quem estava lá era {b}.",
-				"{b} ajudou {a} a consertar a máquina, entre fitas cassete e um walkman que não parava de enrolar.",
-				"Quando a máquina ficou pronta, {a} hesitou. Voltar pro presente significava deixar {b} pra trás.",
-				"{a} voltou. E no presente encontrou {b}, com 40 anos a mais, esperando no mesmo lugar: \"demorou, hein\".",
-			},
+		reactions: []string{
+			"😭 Os leitores choraram e pediram segunda temporada",
+			"🔥 Virou trending no Wattpad em 2 horas",
+			"🫣 A mãe de alguém leu e agora quer conversar",
+			"📚 Já tem editora querendo publicar",
+			"💀 Os leitores ainda não superaram",
+			"🍿 A Netflix já comprou os direitos",
+			"✍️ A autora sumiu e nunca postou o epílogo",
+			"💌 O grupo inteiro agora shippa esse casal",
+			"🧾 Os dois negam tudo, mas não pediram pra apagar",
+			"📸 Já tem fanart circulando no grupo",
+			"🗳️ 87% dos leitores votaram pelo casamento",
+			"🚨 A fic foi denunciada por ser realista demais",
+			"🎤 Virou peça de teatro na escola do bairro",
+			"🧑‍⚖️ O advogado de um dos dois entrou em contato",
+			"🫠 Um leitor desmaiou no capítulo 3",
+			"📱 Printaram e mandaram no grupo da família",
+			"👵 A vó leu e já tá perguntando dos bisnetos",
+			"🤐 Alguém no grupo sabe que é verdade e tá quieto",
 		},
 	}
 }

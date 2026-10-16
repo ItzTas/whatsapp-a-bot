@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,14 +10,48 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+const maxToolRounds = 6
+
 type chatModel interface {
-	reply(ctx context.Context, system, prompt string, maxTokens int) (string, error)
+	reply(ctx context.Context, system, prompt string, maxTokens int, tools []chatTool) (string, error)
+}
+
+type chatTool struct {
+	name        string
+	description string
+	properties  map[string]any
+	required    []string
+	run         func(ctx context.Context, input json.RawMessage) (string, error)
+}
+
+func callTool(ctx context.Context, tools []chatTool, name string, input json.RawMessage) string {
+	i := slices.IndexFunc(tools, func(t chatTool) bool { return t.name == name })
+	if i < 0 {
+		return fmt.Sprintf("erro: a ferramenta %q não existe", name)
+	}
+	out, err := tools[i].run(ctx, input)
+	if err != nil {
+		return "erro: " + err.Error()
+	}
+	return out
+}
+
+func toolSchema(t chatTool) map[string]any {
+	return map[string]any{"type": "object", "properties": toolProperties(t), "required": t.required}
+}
+
+func toolProperties(t chatTool) map[string]any {
+	if t.properties == nil {
+		return map[string]any{}
+	}
+	return t.properties
 }
 
 type modelSettings struct {
@@ -67,26 +102,65 @@ func newAnthropicModel(s modelSettings) (chatModel, error) {
 	return anthropicModel{client: anthropic.NewClient(opts...), model: s.model}, nil
 }
 
-func (m anthropicModel) reply(ctx context.Context, system, prompt string, maxTokens int) (string, error) {
-	resp, err := m.client.Messages.New(ctx, anthropic.MessageNewParams{
+func (m anthropicModel) reply(ctx context.Context, system, prompt string, maxTokens int, tools []chatTool) (string, error) {
+	params := anthropic.MessageNewParams{
 		Model:     m.model,
 		MaxTokens: int64(maxTokens),
 		System:    []anthropic.TextBlockParam{{Text: system}},
 		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(prompt))},
-	})
-	if err != nil {
-		return "", err
+		Tools:     anthropicTools(tools),
 	}
-	if resp.StopReason == anthropic.StopReasonRefusal {
-		return "", fmt.Errorf("modelo recusou responder (%s)", resp.StopDetails.Category)
+	for round := range maxToolRounds {
+		if round == maxToolRounds-1 && len(tools) > 0 {
+			params.ToolChoice = anthropic.ToolChoiceUnionParam{OfNone: &anthropic.ToolChoiceNoneParam{}}
+		}
+		resp, err := m.client.Messages.New(ctx, params)
+		if err != nil {
+			return "", err
+		}
+		if resp.StopReason == anthropic.StopReasonRefusal {
+			return "", fmt.Errorf("modelo recusou responder (%s)", resp.StopDetails.Category)
+		}
+		if resp.StopReason != anthropic.StopReasonToolUse {
+			return anthropicText(resp), nil
+		}
+		params.Messages = append(params.Messages, resp.ToParam(), anthropic.NewUserMessage(m.runTools(ctx, resp, tools)...))
 	}
+	return "", errors.New("o modelo não parou de chamar ferramentas")
+}
+
+func (m anthropicModel) runTools(ctx context.Context, resp *anthropic.Message, tools []chatTool) []anthropic.ContentBlockParamUnion {
+	var results []anthropic.ContentBlockParamUnion
+	for _, block := range resp.Content {
+		use, ok := block.AsAny().(anthropic.ToolUseBlock)
+		if !ok {
+			continue
+		}
+		results = append(results, anthropic.NewToolResultBlock(use.ID, callTool(ctx, tools, use.Name, use.Input), false))
+	}
+	return results
+}
+
+func anthropicText(resp *anthropic.Message) string {
 	var sb strings.Builder
 	for _, block := range resp.Content {
 		if text, ok := block.AsAny().(anthropic.TextBlock); ok {
 			sb.WriteString(text.Text)
 		}
 	}
-	return strings.TrimSpace(sb.String()), nil
+	return strings.TrimSpace(sb.String())
+}
+
+func anthropicTools(tools []chatTool) []anthropic.ToolUnionParam {
+	params := make([]anthropic.ToolUnionParam, 0, len(tools))
+	for _, t := range tools {
+		params = append(params, anthropic.ToolUnionParam{OfTool: &anthropic.ToolParam{
+			Name:        t.name,
+			Description: anthropic.String(t.description),
+			InputSchema: anthropic.ToolInputSchemaParam{Properties: toolProperties(t), Required: t.required},
+		}})
+	}
+	return params
 }
 
 type openAIModel struct {
@@ -96,8 +170,30 @@ type openAIModel struct {
 }
 
 type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content"`
+	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+}
+
+type openAIToolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
+}
+
+func (c openAIToolCall) input() json.RawMessage {
+	var encoded string
+	if err := json.Unmarshal(c.Function.Arguments, &encoded); err == nil {
+		return json.RawMessage(cmp.Or(encoded, "{}"))
+	}
+	if len(c.Function.Arguments) == 0 {
+		return json.RawMessage("{}")
+	}
+	return c.Function.Arguments
 }
 
 func newOpenAIModel(s modelSettings) (chatModel, error) {
@@ -107,18 +203,40 @@ func newOpenAIModel(s modelSettings) (chatModel, error) {
 	return openAIModel{endpoint: strings.TrimSuffix(s.url, "/") + "/chat/completions", key: s.key, model: s.model}, nil
 }
 
-func (m openAIModel) reply(ctx context.Context, system, prompt string, maxTokens int) (answer string, err error) {
-	body, err := json.Marshal(map[string]any{
-		"model":      m.model,
-		"max_tokens": maxTokens,
-		"messages":   []openAIMessage{{Role: "system", Content: system}, {Role: "user", Content: prompt}},
-	})
+func (m openAIModel) reply(ctx context.Context, system, prompt string, maxTokens int, tools []chatTool) (string, error) {
+	messages := []openAIMessage{{Role: "system", Content: system}, {Role: "user", Content: prompt}}
+	for round := range maxToolRounds {
+		offered := tools
+		if round == maxToolRounds-1 {
+			offered = nil
+		}
+		msg, err := m.complete(ctx, messages, maxTokens, offered)
+		if err != nil {
+			return "", err
+		}
+		if len(msg.ToolCalls) == 0 {
+			return strings.TrimSpace(msg.Content), nil
+		}
+		messages = append(messages, msg)
+		for _, call := range msg.ToolCalls {
+			messages = append(messages, openAIMessage{Role: "tool", ToolCallID: call.ID, Content: callTool(ctx, tools, call.Function.Name, call.input())})
+		}
+	}
+	return "", errors.New("o modelo não parou de chamar ferramentas")
+}
+
+func (m openAIModel) complete(ctx context.Context, messages []openAIMessage, maxTokens int, tools []chatTool) (msg openAIMessage, err error) {
+	request := map[string]any{"model": m.model, "max_tokens": maxTokens, "messages": messages}
+	if len(tools) > 0 {
+		request["tools"] = openAITools(tools)
+	}
+	body, err := json.Marshal(request)
 	if err != nil {
-		return "", err
+		return msg, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.endpoint, bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return msg, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if m.key != "" {
@@ -127,13 +245,13 @@ func (m openAIModel) reply(ctx context.Context, system, prompt string, maxTokens
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return msg, err
 	}
 	defer func() { err = errors.Join(err, resp.Body.Close()) }()
 
 	if resp.StatusCode != http.StatusOK {
 		detail, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return "", errors.Join(fmt.Errorf("%s: %s", resp.Status, bytes.TrimSpace(detail)), readErr)
+		return msg, errors.Join(fmt.Errorf("%s: %s", resp.Status, bytes.TrimSpace(detail)), readErr)
 	}
 	var out struct {
 		Choices []struct {
@@ -141,10 +259,21 @@ func (m openAIModel) reply(ctx context.Context, system, prompt string, maxTokens
 		} `json:"choices"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", fmt.Errorf("ler resposta: %w", err)
+		return msg, fmt.Errorf("ler resposta: %w", err)
 	}
 	if len(out.Choices) == 0 {
-		return "", errors.New("resposta sem choices")
+		return msg, errors.New("resposta sem choices")
 	}
-	return strings.TrimSpace(out.Choices[0].Message.Content), nil
+	return out.Choices[0].Message, nil
+}
+
+func openAITools(tools []chatTool) []map[string]any {
+	specs := make([]map[string]any, 0, len(tools))
+	for _, t := range tools {
+		specs = append(specs, map[string]any{
+			"type":     "function",
+			"function": map[string]any{"name": t.name, "description": t.description, "parameters": toolSchema(t)},
+		})
+	}
+	return specs
 }

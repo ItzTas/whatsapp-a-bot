@@ -14,28 +14,38 @@ import (
 )
 
 type profile struct {
-	person    types.JID
-	name      string
-	about     string
-	role      string
-	texts     []string
-	firstSeen time.Time
-	position  int
-	ranked    int
-	spouses   []types.JID
-	parents   []types.JID
-	children  []types.JID
+	person     types.JID
+	name       string
+	about      string
+	role       string
+	texts      []string
+	firstSeen  time.Time
+	hours      hourlyCounts
+	partners   []rankedMember
+	laughLine  string
+	position   int
+	ranked     int
+	economy    bool
+	balance    int64
+	wealthRank int
+	spouses    []types.JID
+	parents    []types.JID
+	children   []types.JID
 }
 
 func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := firstMentionOrSender(evt).ToNonAD()
 	p := profile{person: person}
+	inGroup := chat.Server == types.GroupServer
+	since, until := windowStart(), time.Now().Unix()
 
 	var (
 		identities []types.JID
 		group      *types.GroupInfo
 		counts     []senderCount
+		laughs     []senderCount
+		partners   []senderCount
 		marriages  []relationship
 		adoptions  []adoption
 	)
@@ -47,14 +57,33 @@ func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 		h.Go(func() error { p.name = b.contactName(hctx, identities); return nil })
 		h.Go(func() (err error) { p.texts, err = b.messages.texts(hctx, chat, aliases); return err })
 		h.Go(func() (err error) { p.firstSeen, err = b.messages.firstMessageAt(hctx, chat, aliases); return err })
+		h.Go(func() (err error) {
+			p.hours, err = b.messages.hourlyCounts(hctx, chat, aliases, since, until)
+			return err
+		})
+		if inGroup {
+			h.Go(func() (err error) {
+				partners, err = b.messages.chatPartners(hctx, chat, aliases, since, until)
+				return err
+			})
+		}
 		return h.Wait()
 	})
 	g.Go(func() error { p.about = b.about(gctx, person); return nil })
+	g.Go(func() (err error) {
+		p.economy = b.economyOn(gctx, chat)
+		if !p.economy {
+			return nil
+		}
+		p.balance, p.wealthRank, err = b.wallets.balance(gctx, chat, b.account(gctx, person))
+		return err
+	})
 	g.Go(func() (err error) { marriages, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
 	g.Go(func() (err error) { adoptions, err = b.adoptions.inChat(gctx, chat); return err })
-	if chat.Server == types.GroupServer {
+	if inGroup {
 		g.Go(func() (err error) { group, err = b.client.GetGroupInfo(gctx, chat); return err })
-		g.Go(func() (err error) { counts, err = b.messages.countsBySender(gctx, chat, windowStart()); return err })
+		g.Go(func() (err error) { counts, err = b.messages.countsBySender(gctx, chat, since); return err })
+		g.Go(func() (err error) { laughs, err = b.messages.laughsByTarget(gctx, chat, since); return err })
 	}
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("montar ficha: %w", err)
@@ -72,6 +101,10 @@ func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 		ranked := b.rankMembers(group.Participants, counts)
 		p.position = slices.IndexFunc(ranked, func(m rankedMember) bool { return slices.Contains(aliases, m.jid.User) }) + 1
 		p.ranked = len(ranked)
+		p.laughLine = retroLaughLine(b.rankMembers(group.Participants, laughs), func(m rankedMember) bool { return slices.Contains(aliases, m.jid.User) })
+		p.partners = slices.DeleteFunc(b.rankMembers(group.Participants, partners), func(m rankedMember) bool {
+			return slices.Contains(aliases, m.jid.User)
+		})
 	}
 
 	text, mentions := p.card()
@@ -126,6 +159,20 @@ func (p profile) card() (string, []types.JID) {
 	if words := favoriteWords(slices.DeleteFunc(slices.Clone(p.texts), isCommand)); len(words) > 0 {
 		lines = append(lines, fmt.Sprintf("🔤 Palavra favorita: *%s* (%dx)", words[0].word, words[0].count))
 	}
+	if p.hours.total() > 0 {
+		lines = append(lines, fmt.Sprintf("⏰ Horário favorito: *%s*", hourlyRange(p.hours.peak())))
+	}
+	var partner []types.JID
+	if len(p.partners) > 0 {
+		partner = []types.JID{p.partners[0].jid}
+		lines = append(lines, fmt.Sprintf("👯 Parceria de papo: @%s", p.partners[0].jid.User))
+	}
+	if p.laughLine != "" {
+		lines = append(lines, p.laughLine)
+	}
+	if p.economy {
+		lines = append(lines, p.walletLine())
+	}
 
 	lines = append(lines, "", p.spousesLine())
 	if len(p.parents) > 0 {
@@ -135,8 +182,15 @@ func (p profile) card() (string, []types.JID) {
 		lines = append(lines, "👶 Filhos: "+joinMentions(p.children))
 	}
 
-	mentions := slices.Concat([]types.JID{p.person}, p.spouses, p.parents, p.children)
+	mentions := slices.Concat([]types.JID{p.person}, partner, p.spouses, p.parents, p.children)
 	return strings.Join(lines, "\n"), uniqueJIDs(mentions)
+}
+
+func (p profile) walletLine() string {
+	if p.balance == 0 {
+		return "🪹 Liso, sem nenhuma moeda"
+	}
+	return fmt.Sprintf("%s (%dº mais rico do grupo)", coins(p.balance), p.wealthRank)
 }
 
 func (p profile) spousesLine() string {

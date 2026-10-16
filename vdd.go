@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -161,6 +162,10 @@ func (b *bot) isOwnUser(raw string) bool {
 
 func sentByUser(info types.MessageInfo, user string) bool {
 	return info.Sender.User == user || info.SenderAlt.User == user
+}
+
+func sentByAny(info types.MessageInfo, users []string) bool {
+	return slices.ContainsFunc(users, func(user string) bool { return sentByUser(info, user) })
 }
 
 func vddChoice(text string) (vddOption, bool) {

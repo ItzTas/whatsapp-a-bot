@@ -60,7 +60,9 @@ func (l downloadLimits) tooLarge() error {
 type outgoing struct {
 	data      []byte
 	file      string
+	name      string
 	mimetype  string
+	caption   string
 	thumbnail []byte
 	video     bool
 	gif       bool
@@ -71,9 +73,12 @@ func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat
 	quoted := evt.Message.GetExtendedTextMessage().GetContextInfo().GetQuotedMessage()
 	link := cmp.Or(linkPattern.FindString(messageText(evt.Message)), linkPattern.FindString(messageText(quoted)))
+	if people := mentionedJIDs(evt.Message); link == "" && len(people) > 0 {
+		return b.baixarFotoPerfil(ctx, evt, people[0])
+	}
 	sticker := quoted.GetStickerMessage()
 	if link == "" && sticker == nil {
-		return b.sendText(ctx, chat, "Manda o link junto, tipo !baixar https://... Ou responde com !baixar uma mensagem que tenha link ou uma figurinha")
+		return b.sendText(ctx, chat, "Manda o link junto, tipo !baixar https://... Ou responde com !baixar uma mensagem que tenha link ou uma figurinha, ou marca alguém pra baixar a foto de perfil")
 	}
 	if link == "" {
 		return b.baixarFigurinha(ctx, evt, sticker)
@@ -88,13 +93,49 @@ func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
 	return b.sendText(ctx, chat, fmt.Sprintf("Não consegui baixar esse link 😕 Talvez o post seja privado, o site não funcione com o bot ou o arquivo passe de %d MB ou de %d minutos", requestedDownloadLimits.maxMB, requestedDownloadLimits.maxDuration/60))
 }
 
+func (b *bot) baixarFotoPerfil(ctx context.Context, evt *events.Message, person types.JID) error {
+	chat := evt.Info.Chat
+	err := b.sendProfilePicture(ctx, evt, person)
+	if err == nil {
+		return nil
+	}
+	known := map[error]string{
+		whatsmeow.ErrProfilePictureNotSet:       "Essa pessoa nem tem foto de perfil 🤷",
+		whatsmeow.ErrProfilePictureUnauthorized: "Essa pessoa escondeu a foto de perfil, não consigo ver 🙈",
+	}
+	for cause, text := range known {
+		if errors.Is(err, cause) {
+			return b.sendText(ctx, chat, text)
+		}
+	}
+	b.client.Log.Warnf("baixar foto de perfil de %s: %v", person, err)
+	return b.sendText(ctx, chat, "Não consegui baixar a foto de perfil dessa pessoa 😕")
+}
+
+func (b *bot) sendProfilePicture(ctx context.Context, evt *events.Message, person types.JID) error {
+	chat := evt.Info.Chat
+	params := &whatsmeow.GetProfilePictureParams{}
+	if chat.Server == types.GroupServer {
+		params.CommonGID = chat
+	}
+	info, err := b.client.GetProfilePictureInfo(ctx, person.ToNonAD(), params)
+	if err != nil {
+		return err
+	}
+	data, err := httpGet(ctx, info.URL, mediaMaxBytes)
+	if err != nil {
+		return err
+	}
+	return b.sendImage(ctx, chat, outgoing{data: data, mimetype: http.DetectContentType(data)}, replyTo(evt))
+}
+
 func (b *bot) answerLinks(ctx context.Context, evt *events.Message) error {
 	links := linkPattern.FindAllString(messageText(evt.Message), -1)
 	i := slices.IndexFunc(links, autoDownloadable)
 	if i < 0 {
 		return nil
 	}
-	on, err := b.modes.enabled(ctx, evt.Info.Chat.ToNonAD(), modeUtilities)
+	on, err := b.chatModeOn(ctx, evt.Info.Chat, modeAutoDownload)
 	if err != nil || !on {
 		return err
 	}
@@ -220,7 +261,8 @@ func ytDlp(ctx context.Context, dir, link string, limits downloadLimits) ([]stri
 }
 
 func ytDlpAudio(ctx context.Context, dir, link string) ([]string, error) {
-	return runYtDlp(ctx, dir, link, mediaLimits, "--extract-audio", "--audio-format", "mp3", "--audio-quality", mp3Quality)
+	return runYtDlp(ctx, dir, link, mediaLimits, "--extract-audio", "--audio-format", "mp3", "--audio-quality", mp3Quality,
+		"--write-info-json", "--write-thumbnail")
 }
 
 func runYtDlp(ctx context.Context, dir, link string, limits downloadLimits, format ...string) ([]string, error) {
@@ -406,7 +448,7 @@ func (b *bot) sendDocument(ctx context.Context, chat types.JID, m outgoing, repl
 		FileEncSHA256: up.FileEncSHA256,
 		FileSHA256:    up.FileSHA256,
 		FileLength:    proto.Uint64(up.FileLength),
-		FileName:      proto.String(filepath.Base(m.file)),
+		FileName:      proto.String(cmp.Or(m.name, filepath.Base(m.file))),
 		JPEGThumbnail: m.thumbnail,
 		ContextInfo:   reply,
 	}})
@@ -418,7 +460,7 @@ func (b *bot) sendImage(ctx context.Context, chat types.JID, m outgoing, reply *
 	if err != nil {
 		return fmt.Errorf("enviar imagem: %w", err)
 	}
-	_, err = b.client.SendMessage(ctx, chat, &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
+	image := &waE2E.ImageMessage{
 		URL:           proto.String(up.URL),
 		DirectPath:    proto.String(up.DirectPath),
 		MediaKey:      up.MediaKey,
@@ -427,7 +469,11 @@ func (b *bot) sendImage(ctx context.Context, chat types.JID, m outgoing, reply *
 		FileSHA256:    up.FileSHA256,
 		FileLength:    proto.Uint64(up.FileLength),
 		ContextInfo:   reply,
-	}})
+	}
+	if m.caption != "" {
+		image.Caption = proto.String(m.caption)
+	}
+	_, err = b.client.SendMessage(ctx, chat, &waE2E.Message{ImageMessage: image})
 	return err
 }
 

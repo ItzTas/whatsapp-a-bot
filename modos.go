@@ -15,24 +15,33 @@ import (
 )
 
 const (
-	modeWords     = "palavras"
-	modeLaughs    = "risada"
-	modeRomance   = "romance"
-	modeFamily    = "familia"
-	modeGames     = "jogos"
-	modeMeters    = "medidores"
-	modeStats     = "estatisticas"
-	modeJokes     = "zoeira"
-	modeAI        = "ia"
-	modeFun       = "diversao"
-	modeUtilities = "utilidades"
-	modeEconomy   = "economia"
+	modeWords        = "palavras"
+	modeLaughs       = "risada"
+	modeRomance      = "romance"
+	modeFamily       = "familia"
+	modeGames        = "jogos"
+	modeMeters       = "medidores"
+	modeStats        = "estatisticas"
+	modeJokes        = "zoeira"
+	modeAI           = "ia"
+	modeFun          = "diversao"
+	modeUtilities    = "utilidades"
+	modeEconomy      = "economia"
+	modeModeration   = "moderacao"
+	modeAIUnlimited  = "iasemlimite"
+	modeAIMeddling   = "iaenxerida"
+	modeAIInvent     = "iainventa"
+	modeAutoDownload = "baixarlinks"
+	modeConsent      = "consentimento"
+	modeAll          = "tudo"
 )
 
 type chatMode struct {
 	name        string
 	description string
 	includes    []string
+	submodes    []chatMode
+	parent      string
 }
 
 func (m chatMode) members() []string {
@@ -43,20 +52,60 @@ func (m chatMode) members() []string {
 }
 
 func chatModes() []chatMode {
-	return []chatMode{
+	modes := []chatMode{
 		{name: modeFun, description: "liga ou desliga de uma vez romance, familia, jogos, medidores, estatisticas, zoeira e economia", includes: []string{modeRomance, modeFamily, modeGames, modeMeters, modeStats, modeJokes, modeEconomy}},
-		{name: modeRomance, description: "libera os comandos de romance, tipo !casar, !namorar, !ship e !beijo"},
-		{name: modeFamily, description: "libera o !adotar e o !familia"},
-		{name: modeGames, description: "libera os jogos, tipo !bmc, !vdd, !forca e !roleta"},
-		{name: modeMeters, description: "libera os medidores, tipo !medidor, !gado e !gay"},
-		{name: modeStats, description: "libera as estatísticas, tipo !ranking, !palavra, !tu e !palhaço"},
+		{name: modeRomance, description: "libera os comandos de romance, tipo !casar, !namorar, !trair, !traircom, !amante, !ship, !beijo, !abraço e !cafune", submodes: []chatMode{
+			{name: modeConsent, description: "o !casar e o !namorar viram pedido, que a pessoa marcada responde com !aceitar ou !recusar, e só quem tá na relação pode !terminar. Com a economia ligada, quem pede casamento paga a festa e pode oferecer dote (no namoro, um presente), o casal ganha uma !conjunta e quem pede divórcio paga pensão"},
+		}},
+		{name: modeFamily, description: "libera o !adotar, o !engravidar e o !familia"},
+		{name: modeGames, description: "libera os jogos, tipo !bmc, !vdd, !forca, !termo, !velha, !roleta, !quiz, !completa, !batata, !stop, !impostor, !jokenpo, !2verdades1mentira e !bandeira"},
+		{name: modeMeters, description: "libera os medidores, tipo !medidor, !gado, !gay, !rankinggay e !euanime"},
+		{name: modeStats, description: "libera as estatísticas, tipo !ranking, !palavra, !tu, !palhaço, !retrospectiva, !primeiramsg e !horário"},
 		{name: modeJokes, description: "libera a zoeira, tipo !kkk, !chute, !apelido e !frase"},
-		{name: modeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !trabalhar, !apostar, !cassino, !roubar, !transferir e !ricos, e quem acerta o !quiz ganha moedas"},
-		{name: modeAI, description: "libera o !ia, o !resumo, o !roast, o !signo e o !quiz"},
-		{name: modeWords, description: "o bot responde algumas palavras mesmo sem o !, tipo arrogante, nojo, aura ou ego"},
+		{name: modeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !trabalhar, !profissao, !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !assalto, !sequestrar, !venderrefem, !matar, !reviver, !prender, !fugir, !denunciar, !processar, !votar, !presidente, !decreto, !impeachment, !transferir, !poupar, !conjunta, !agiota, !acoes, !loteria, !bolao, !ricos, !imposto, !fianca, !hospital, !resgate, !seguranca, !imovel, !titulo, !doar, !zoar, !abencoar e !amaldicoar, e os itens: !mochila, !item, !loja, !petshop, !luxo, !mercadonegro, !comprar, !vender, !aceitar, !recusar, !leilao, !lance, !dar, !usar, !pescar, !minerar, !vasculhar, !cacar e !furtar. Com ele, quem acerta o !quiz, o !quemfalou, a !forca, o !termo, o !completa, o !emoji, a !bandeira ou a mentira do !2verdades1mentira ou vence o !stop ou o !impostor ganha moedas (se pelo menos 2 pessoas jogarem), o !roleta e o !jokenpo @pessoa aceitam aposta, o !tu mostra o saldo, quem casou pelo pedido do consentimento e pede divórcio paga pensão, quem é pego no !trair ou no !traircom paga indenização e quem é preso no !prender ou num !assalto que deu errado fica sem apostar, roubar, furtar, sequestrar e assaltar até sair da cadeia, quem é sequestrado fica igual até sair do cativeiro ou conseguir !fugir, quem morre no !matar ou de overdose fica sem nenhum comando de economia até ressuscitar ou alguém !reviver, e quem pega moedas com o !agiota e passa do prazo pode ser morto, preso, sequestrado ou processado por quem emprestou"},
+		{name: modeAI, description: "libera o !ia, o !resumo, o !roast, o !signo, o !quemsou, o !quizia, o !emoji, o !processaria, o !cancelar, o !fofoca e o !ficia", submodes: []chatMode{
+			{name: modeAIUnlimited, description: "a IA para de contar quantas perguntas cada um fez na hora e responde sem pausa entre uma pergunta e outra"},
+			{name: modeAIMeddling, description: "libera o !perseguir, que faz a IA responder toda mensagem da pessoa marcada"},
+			{name: modeAIInvent, description: "a IA responde quando alguém manda um comando que não existe, como se ele existisse"},
+		}},
+		{name: modeModeration, description: "libera pros admins o !ban, o !promover, o !rebaixar, o !mutar e o !desmutar (o bot também precisa ser admin), o !algemar, o !desalgemar, o !advertir (na 3ª advertência a pessoa é banida), o !perdoar e o !boasvindas, e pra todo mundo o !advertencias. O bot passa a apagar as mensagens de quem tá mutado, reagir com 🔒 nas de quem tá algemado e dar boas-vindas a quem entra no grupo"},
+		{name: modeWords, description: "o bot responde algumas palavras mesmo sem o !, tipo arrogante, nojo, aura, ego ou chorar"},
 		{name: modeLaughs, description: "o bot manda uma figurinha de risada quando alguém ri (kkkk, hahaha, rsrs...)"},
-		{name: modeUtilities, description: "o bot baixa e manda os vídeos, imagens e gifs dos links do Instagram, TikTok, X e outros, e libera o !baixar, o !figurinha, o !mp3 e o !transcrever"},
+		{name: modeUtilities, description: "libera o !baixar, o !figurinha, o !mp3, o !musica, o !som, o !transcrever, o !lembrete, o !buscar, o !aniversario (com parabéns automáticos no dia), o !cotacao, o !clima e o !ocr", submodes: []chatMode{
+			{name: modeAutoDownload, description: "o bot baixa sozinho e manda os vídeos, imagens e gifs dos links do Instagram, TikTok, X e outros, sem precisar do !baixar"},
+		}},
 	}
+	var all, submodes []string
+	for _, m := range modes {
+		if len(m.includes) == 0 {
+			all = append(all, m.name)
+		}
+		for _, sub := range m.submodes {
+			submodes = append(submodes, sub.name)
+		}
+	}
+	return append([]chatMode{{name: modeAll, description: "liga ou desliga de uma vez todos os modos, menos os submodos (" + strings.Join(submodes, ", ") + ")", includes: all}}, modes...)
+}
+
+func flatChatModes() []chatMode {
+	var flat []chatMode
+	for _, m := range chatModes() {
+		flat = append(flat, m)
+		for _, sub := range m.submodes {
+			sub.parent = m.name
+			flat = append(flat, sub)
+		}
+	}
+	return flat
+}
+
+func modeActive(active []string, mode string) bool {
+	modes := flatChatModes()
+	i := slices.IndexFunc(modes, func(m chatMode) bool { return m.name == mode })
+	if i < 0 || modes[i].parent == "" {
+		return slices.Contains(active, mode)
+	}
+	return allActive(active, []string{mode, modes[i].parent})
 }
 
 type modeStore struct {
@@ -128,11 +177,19 @@ func (b *bot) categoryEnabled(ctx context.Context, chat types.JID, c category) (
 	if c.mode == "" {
 		return true, nil
 	}
-	return b.modes.enabled(ctx, chat.ToNonAD(), c.mode)
+	return b.chatModeOn(ctx, chat, c.mode)
+}
+
+func (b *bot) chatModeOn(ctx context.Context, chat types.JID, mode string) (bool, error) {
+	active, err := b.modes.active(ctx, chat.ToNonAD())
+	if err != nil {
+		return false, err
+	}
+	return modeActive(active, mode), nil
 }
 
 func (b *bot) answerModes(ctx context.Context, evt *events.Message) {
-	answers := map[string]command{modeWords: b.answerWords, modeLaughs: b.answerLaugh, modeUtilities: b.answerLinks}
+	answers := map[string]command{modeWords: b.answerWords, modeLaughs: b.answerLaugh, modeAutoDownload: b.answerLinks, modeAIMeddling: b.answerPersecuted}
 	var wg sync.WaitGroup
 	for mode, answer := range answers {
 		wg.Go(func() {
@@ -155,6 +212,7 @@ func (b *bot) answerWords(ctx context.Context, evt *events.Message) error {
 		{"noj", b.nojo},
 		{"aura", b.aura},
 		{"ego", b.ego},
+		{"chor", b.chorar},
 	}
 	words := strings.FieldsFunc(foldLetters(messageText(evt.Message)), func(r rune) bool { return !unicode.IsLetter(r) })
 	i := slices.IndexFunc(triggers, func(t wordTrigger) bool {
@@ -172,7 +230,7 @@ func (b *bot) answerWords(ctx context.Context, evt *events.Message) error {
 
 func (b *bot) toggleChatMode(ctx context.Context, evt *events.Message, on bool, args []string) error {
 	chat := evt.Info.Chat
-	modes := chatModes()
+	modes := flatChatModes()
 	byName := make(map[string]chatMode, len(modes))
 	names := make([]string, len(modes))
 	for i, m := range modes {
@@ -183,7 +241,7 @@ func (b *bot) toggleChatMode(ctx context.Context, evt *events.Message, on bool, 
 
 	modesText, groupName, toGroup := strings.Cut(strings.ReplaceAll(strings.Join(args, " "), ",", " "), "--")
 	groupName = strings.TrimSpace(groupName)
-	requested := strings.Fields(modesText)
+	requested := strings.Fields(foldLetters(modesText))
 	if len(requested) == 0 || (toGroup && groupName == "") {
 		return b.sendText(ctx, chat, usageText)
 	}
@@ -224,7 +282,31 @@ func (b *bot) toggleChatMode(ctx context.Context, evt *events.Message, on bool, 
 		modeChanged := slices.ContainsFunc(m.members(), func(name string) bool { return slices.Contains(changed, name) })
 		lines[i] = fmt.Sprintf(results[[2]bool{on, modeChanged}], m.name, place, m.description)
 	}
-	return b.sendText(ctx, chat, strings.Join(lines, "\n"))
+	if !on {
+		return b.sendText(ctx, chat, strings.Join(lines, "\n"))
+	}
+	warnings, err := b.parentWarnings(ctx, target, selected)
+	if err != nil {
+		return err
+	}
+	return b.sendText(ctx, chat, strings.Join(append(lines, warnings...), "\n"))
+}
+
+func (b *bot) parentWarnings(ctx context.Context, target types.JID, selected []chatMode) ([]string, error) {
+	if !slices.ContainsFunc(selected, func(m chatMode) bool { return m.parent != "" }) {
+		return nil, nil
+	}
+	active, err := b.modes.active(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	var warnings []string
+	for _, m := range selected {
+		if m.parent != "" && !slices.Contains(active, m.parent) {
+			warnings = append(warnings, fmt.Sprintf("⚠️ O *%s* é um submodo do *%s* e só funciona quando o *%s* também tá ativado.", m.name, m.parent, m.parent))
+		}
+	}
+	return warnings, nil
 }
 
 func (b *bot) modeTarget(ctx context.Context, chat types.JID, groupName string, toGroup bool) (target types.JID, place, problem string, err error) {
@@ -251,13 +333,19 @@ func (b *bot) modos(ctx context.Context, evt *events.Message) error {
 func chatModeLines(active []string) []string {
 	lines := []string{"🧩 *Modos desta conversa*"}
 	for _, m := range chatModes() {
-		status := "desligado"
-		if allActive(active, m.members()) {
-			status = "ligado"
+		lines = append(lines, fmt.Sprintf("• %s: *%s* (%s)", m.name, modeStatus(active, m), m.description))
+		for _, sub := range m.submodes {
+			lines = append(lines, fmt.Sprintf("    ↳ %s: *%s* (%s)", sub.name, modeStatus(active, sub), sub.description))
 		}
-		lines = append(lines, fmt.Sprintf("• %s: *%s* (%s)", m.name, status, m.description))
 	}
 	return lines
+}
+
+func modeStatus(active []string, m chatMode) string {
+	if allActive(active, m.members()) {
+		return "ligado"
+	}
+	return "desligado"
 }
 
 func allActive(active, modes []string) bool {

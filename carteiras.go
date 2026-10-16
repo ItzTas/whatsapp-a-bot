@@ -9,7 +9,10 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-var errNoFunds = errors.New("saldo insuficiente")
+var (
+	errNoFunds       = errors.New("saldo insuficiente")
+	errSavingsActive = errors.New("poupança já ativa")
+)
 
 type walletStore struct {
 	db *sql.DB
@@ -23,6 +26,7 @@ type account struct {
 type wallet struct {
 	owner   types.JID
 	balance int64
+	title   string
 }
 
 type cooldown struct {
@@ -30,11 +34,25 @@ type cooldown struct {
 	every  time.Duration
 }
 
+type savings struct {
+	amount   int64
+	interest int64
+	due      time.Time
+}
+
 type robbery struct {
 	wait    time.Duration
+	abuse   powerAbuse
 	poor    bool
+	alarmed bool
 	success bool
 	amount  int64
+}
+
+type workday struct {
+	wait  time.Duration
+	paid  int64
+	abuse powerAbuse
 }
 
 func (s *walletStore) balance(ctx context.Context, chat types.JID, acc account) (balance int64, rank int, err error) {
@@ -51,7 +69,7 @@ func (s *walletStore) balance(ctx context.Context, chat types.JID, acc account) 
 
 func (s *walletStore) richest(ctx context.Context, chat types.JID, limit int) (wallets []wallet, err error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT jid, saldo FROM carteiras WHERE chat = ? AND saldo > 0 ORDER BY saldo DESC LIMIT ?",
+		"SELECT jid, saldo, titulo FROM carteiras WHERE chat = ? AND saldo > 0 ORDER BY saldo DESC LIMIT ?",
 		chat.String(), limit,
 	)
 	if err != nil {
@@ -64,7 +82,7 @@ func (s *walletStore) richest(ctx context.Context, chat types.JID, limit int) (w
 			w     wallet
 			owner string
 		)
-		if err := rows.Scan(&owner, &w.balance); err != nil {
+		if err := rows.Scan(&owner, &w.balance, &w.title); err != nil {
 			return nil, err
 		}
 		if w.owner, err = types.ParseJID(owner); err != nil {
@@ -92,6 +110,88 @@ func (s *walletStore) claim(ctx context.Context, chat types.JID, acc account, cd
 		_, err = tx.ExecContext(ctx,
 			"UPDATE carteiras SET saldo = saldo + ?, "+cd.column+" = ? WHERE chat = ? AND pessoa = ?",
 			amount, now.Unix(), chat.String(), acc.key,
+		)
+		return err
+	})
+	return wait, err
+}
+
+func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd cooldown, abuse abuser, amount int64, find string, now time.Time) (w workday, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		if w.wait, w.abuse, err = stampOrAbuse(ctx, tx, chat, acc, cd, abuse, now); err != nil || w.wait > 0 {
+			return err
+		}
+		var balance int64
+		err = tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.key).Scan(&balance)
+		if err != nil {
+			return err
+		}
+		w.paid = max(amount, -balance)
+		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", w.paid, chat.String(), acc.key)
+		if err != nil || find == "" {
+			return err
+		}
+		return addItems(ctx, tx, chat, acc, find, 1)
+	})
+	return w, err
+}
+
+type standing struct {
+	profession string
+	president  bool
+	estate     int
+	guarded    bool
+	cursed     bool
+	drug       string
+}
+
+func (s *walletStore) standing(ctx context.Context, chat types.JID, acc account) (st standing, err error) {
+	now := time.Now().Unix()
+	err = s.db.QueryRowContext(ctx,
+		`SELECT c.profissao,
+		        EXISTS (SELECT 1 FROM presidencias p WHERE p.chat = c.chat AND p.pessoa = c.pessoa AND p.mandato_ate > ?),
+		        c.imovel, c.seguranca_ate > ?,
+		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
+		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END
+		 FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?`,
+		now, now, curseKind, now, now, chat.String(), acc.key,
+	).Scan(&st.profession, &st.president, &st.estate, &st.guarded, &st.cursed, &st.drug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return standing{}, nil
+	}
+	return st, err
+}
+
+func (s *walletStore) spend(ctx context.Context, chat types.JID, acc account, amount int64, then func(tx *sql.Tx) error) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := openWallet(ctx, tx, chat, acc); err != nil {
+			return err
+		}
+		if err := debitBalance(ctx, tx, chat, acc, amount); err != nil {
+			return err
+		}
+		return then(tx)
+	})
+}
+
+func (s *walletStore) changeProfession(ctx context.Context, chat types.JID, acc account, name string, every time.Duration, now time.Time) (wait time.Duration, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := openWallet(ctx, tx, chat, acc); err != nil {
+			return err
+		}
+		var last int64
+		err := tx.QueryRowContext(ctx, "SELECT profissao_em FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.key).Scan(&last)
+		if err != nil {
+			return err
+		}
+		if next := time.Unix(last, 0).Add(every); now.Before(next) {
+			wait = next.Sub(now)
+			return nil
+		}
+		_, err = tx.ExecContext(ctx,
+			"UPDATE carteiras SET profissao = ?, profissao_em = ? WHERE chat = ? AND pessoa = ?",
+			name, now.Unix(), chat.String(), acc.key,
 		)
 		return err
 	})
@@ -133,7 +233,34 @@ func (s *walletStore) credit(ctx context.Context, chat types.JID, accounts []acc
 	})
 }
 
-func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim account, every time.Duration, now time.Time, minVictim int64,
+func (s *walletStore) payShare(ctx context.Context, chat types.JID, payer account, payees []account, percent int64) (each int64, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		var balance int64
+		err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), payer.key).Scan(&balance)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		each = balance * percent / 100 / int64(len(payees))
+		if each == 0 {
+			return nil
+		}
+		for _, payee := range payees {
+			if err := openWallet(ctx, tx, chat, payee); err != nil {
+				return err
+			}
+			if err := moveCoins(ctx, tx, chat, payer, payee, each); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return each, err
+}
+
+func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim account, cd cooldown, abuse abuser, now time.Time, minVictim int64,
 	outcome func(thiefBalance, victimBalance int64) (success bool, amount int64)) (r robbery, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		for _, acc := range []account{thief, victim} {
@@ -141,16 +268,8 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim acc
 				return err
 			}
 		}
-		var lastRobbery, thiefBalance, victimBalance int64
-		err := tx.QueryRowContext(ctx, "SELECT roubo_em, saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), thief.key).Scan(&lastRobbery, &thiefBalance)
-		if err != nil {
-			return err
-		}
-		if next := time.Unix(lastRobbery, 0).Add(every); now.Before(next) {
-			r.wait = next.Sub(now)
-			return nil
-		}
-		err = tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), victim.key).Scan(&victimBalance)
+		var thiefBalance, victimBalance int64
+		err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), victim.key).Scan(&victimBalance)
 		if err != nil {
 			return err
 		}
@@ -158,17 +277,103 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim acc
 			r.poor = true
 			return nil
 		}
-
-		r.success, r.amount = outcome(thiefBalance, victimBalance)
-		if _, err := tx.ExecContext(ctx, "UPDATE carteiras SET roubo_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), chat.String(), thief.key); err != nil {
+		if r.wait, r.abuse, err = stampOrAbuse(ctx, tx, chat, thief, cd, abuse, now); err != nil || r.wait > 0 {
 			return err
 		}
+		if err := markCrime(ctx, tx, chat, thief, now); err != nil {
+			return err
+		}
+		err = tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), thief.key).Scan(&thiefBalance)
+		if err != nil {
+			return err
+		}
+		err = takeItems(ctx, tx, chat, victim, alarmItemID, 1)
+		if err == nil {
+			r.alarmed = true
+			return nil
+		}
+		if !errors.Is(err, errNoItems) {
+			return err
+		}
+
+		r.success, r.amount = outcome(thiefBalance, victimBalance)
 		if r.success {
 			return moveCoins(ctx, tx, chat, victim, thief, r.amount)
 		}
 		return moveCoins(ctx, tx, chat, thief, victim, r.amount)
 	})
 	return r, err
+}
+
+func (s *walletStore) savings(ctx context.Context, chat types.JID, acc account) (sv savings, found bool, err error) {
+	var due int64
+	err = s.db.QueryRowContext(ctx,
+		"SELECT valor, juros, vence_em FROM poupancas WHERE chat = ? AND pessoa = ?",
+		chat.String(), acc.key,
+	).Scan(&sv.amount, &sv.interest, &due)
+	if errors.Is(err, sql.ErrNoRows) {
+		return savings{}, false, nil
+	}
+	sv.due = time.Unix(due, 0)
+	return sv, err == nil, err
+}
+
+func (s *walletStore) deposit(ctx context.Context, chat types.JID, acc account, sv savings) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			"INSERT INTO poupancas (chat, pessoa, valor, juros, vence_em) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+			chat.String(), acc.key, sv.amount, sv.interest, sv.due.Unix(),
+		)
+		if err != nil {
+			return err
+		}
+		inserted, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if inserted == 0 {
+			return errSavingsActive
+		}
+		res, err = tx.ExecContext(ctx,
+			"UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ? AND saldo >= ?",
+			sv.amount, chat.String(), acc.key, sv.amount,
+		)
+		if err != nil {
+			return err
+		}
+		debited, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if debited == 0 {
+			return errNoFunds
+		}
+		return nil
+	})
+}
+
+func (s *walletStore) redeem(ctx context.Context, chat types.JID, acc account, now time.Time) (sv savings, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx,
+			"DELETE FROM poupancas WHERE chat = ? AND pessoa = ? AND vence_em <= ? RETURNING valor, juros",
+			chat.String(), acc.key, now.Unix(),
+		).Scan(&sv.amount, &sv.interest)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := openWallet(ctx, tx, chat, acc); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx,
+			"UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?",
+			sv.amount+sv.interest, chat.String(), acc.key,
+		)
+		return err
+	})
+	return sv, err
 }
 
 func (s *walletStore) inTx(ctx context.Context, fn func(tx *sql.Tx) error) (err error) {
@@ -197,20 +402,27 @@ func openWallet(ctx context.Context, tx *sql.Tx, chat types.JID, acc account) er
 }
 
 func moveCoins(ctx context.Context, tx *sql.Tx, chat types.JID, from, to account, amount int64) error {
+	if err := debitBalance(ctx, tx, chat, from, amount); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", amount, chat.String(), to.key)
+	return err
+}
+
+func debitBalance(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, amount int64) error {
 	res, err := tx.ExecContext(ctx,
 		"UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ? AND saldo >= ?",
-		amount, chat.String(), from.key, amount,
+		amount, chat.String(), acc.key, amount,
 	)
 	if err != nil {
 		return err
 	}
-	moved, err := res.RowsAffected()
+	debited, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
-	if moved == 0 {
+	if debited == 0 {
 		return errNoFunds
 	}
-	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", amount, chat.String(), to.key)
-	return err
+	return nil
 }

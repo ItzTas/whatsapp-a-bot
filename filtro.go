@@ -210,12 +210,11 @@ func (b *bot) isOwner(ctx context.Context, evt *events.Message) bool {
 	})
 }
 
-func (b *bot) filterChecks(ctx context.Context, evt *events.Message) []filterEntry {
-	chat := evt.Info.Chat.ToNonAD()
+func (b *bot) filterChecks(ctx context.Context, chat types.JID, sender []types.JID) []filterEntry {
 	if chat.Server == types.DefaultUserServer || chat.Server == types.HiddenUserServer {
 		return []filterEntry{{target: filterPeople, ids: b.identities(ctx, chat)}}
 	}
-	checks := []filterEntry{{target: filterPeople, ids: b.senderIdentities(ctx, evt)}}
+	checks := []filterEntry{{target: filterPeople, ids: sender}}
 	if chat.Server == types.GroupServer {
 		checks = append(checks, filterEntry{target: filterGroups, ids: []types.JID{chat}})
 	}
@@ -223,7 +222,11 @@ func (b *bot) filterChecks(ctx context.Context, evt *events.Message) []filterEnt
 }
 
 func (b *bot) allowed(ctx context.Context, evt *events.Message) (bool, error) {
-	checks := b.filterChecks(ctx, evt)
+	return b.allowedIn(ctx, evt.Info.Chat.ToNonAD(), b.senderIdentities(ctx, evt))
+}
+
+func (b *bot) allowedIn(ctx context.Context, chat types.JID, sender []types.JID) (bool, error) {
+	checks := b.filterChecks(ctx, chat, sender)
 	verdicts := make([]filterVerdict, len(checks))
 	g, gctx := errgroup.WithContext(ctx)
 	for i, e := range checks {
@@ -270,12 +273,20 @@ func (b *bot) ownerCommands() []botCommand {
 				{"!modo pessoas blacklist", "o bot ignora as pessoas da blacklist"},
 				{"!modo pessoas whitelist", "o bot só responde as pessoas da whitelist. Se os grupos também estiverem em whitelist, basta o grupo ou a pessoa estar na lista"},
 				{"!modo grupos desligado", "desliga o filtro dos grupos, ou das pessoas com !modo pessoas desligado"},
+				{"!modo ativar tudo", "nesta conversa, liga todos os modos de uma vez (com !modo desativar tudo desliga todos)"},
 				{"!modo ativar diversao", "nesta conversa, libera de uma vez romance, família, jogos, medidores, estatísticas, zoeira e economia"},
 				{"!modo ativar jogos", "libera só uma categoria (romance, familia, jogos, medidores, estatisticas, zoeira, economia ou ia)"},
 				{"!modo ativar jogos zoeira ia", "liga vários modos numa mensagem só (desativar também aceita vários)"},
-				{"!modo ativar palavras", "nesta conversa, o bot responde algumas palavras mesmo sem o !, tipo arrogante ou nojo"},
+				{"!modo ativar palavras", "nesta conversa, o bot responde algumas palavras mesmo sem o !, tipo arrogante, nojo ou chorar"},
 				{"!modo ativar risada", "nesta conversa, o bot manda uma figurinha de risada quando alguém ri"},
-				{"!modo ativar utilidades", "nesta conversa, o bot baixa os vídeos, imagens e gifs dos links que mandarem e libera o !baixar, o !figurinha, o !mp3 e o !transcrever"},
+				{"!modo ativar utilidades", "nesta conversa, libera o !baixar, o !figurinha, o !mp3, o !musica, o !som, o !transcrever, o !lembrete, o !buscar, o !aniversario, o !cotacao, o !clima e o !ocr"},
+				{"!modo ativar iasemlimite", "submodo do ia: nesta conversa, a IA para de contar as perguntas por hora de cada um e responde sem pausa entre uma pergunta e outra"},
+				{"!modo ativar iaenxerida", "submodo do ia: nesta conversa, libera o !perseguir, que faz a IA responder toda mensagem da pessoa marcada"},
+				{"!modo ativar iainventa", "submodo do ia: nesta conversa, a IA responde os comandos que não existem como se existissem"},
+				{"!modo ativar consentimento", "submodo do romance: nesta conversa, o !casar e o !namorar viram pedido, respondido com !aceitar ou !recusar. Com a economia ligada, o casamento tem festa, dote, conta conjunta e pensão no divórcio"},
+				{"!modo ativar baixarlinks", "submodo do utilidades: nesta conversa, o bot baixa sozinho os vídeos, imagens e gifs dos links que mandarem"},
+				{"!modo ativar ia iaenxerida", "os submodos só funcionam com o modo de cima ligado, e o tudo não liga nenhum deles"},
+				{"!modo ativar moderacao", "nesta conversa, os admins podem usar o !ban, o !promover, o !rebaixar, o !mutar, o !desmutar, o !algemar, o !desalgemar, o !advertir, o !perdoar e o !boasvindas (todo mundo pode ver o !advertencias), e o bot apaga as mensagens de quem tá mutado, reage com 🔒 nas de quem tá algemado e manda a mensagem de boas-vindas quando alguém entra"},
 				{"!modo desativar jogos", "desliga o modo de novo (funciona com qualquer modo)"},
 				{"!modo ativar jogos -- <nome do grupo>", "ativa (ou desativa) os modos no grupo com esse nome, mandando de qualquer conversa"},
 			},
@@ -304,6 +315,15 @@ func (b *bot) ownerCommands() []botCommand {
 				{"!whitelist ver", "mostra quem tá na whitelist"},
 			},
 			run: b.whitelist,
+		},
+		{
+			name:     "economia",
+			category: dono,
+			help: []usage{
+				{"!economia resetar intervalos", "zera a espera de todos os comandos da economia (daily, trabalhar, roubar, pescar, prender, fugir...) pra todo mundo desta conversa, solta quem tá preso, de refém ou morto e limpa a ficha de crime. O dinheiro, a mochila e o resto ficam como tão"},
+				{"!economia resetar intervalos @pessoa", "zera os intervalos só das pessoas marcadas"},
+			},
+			run: b.economia,
 		},
 	}
 }

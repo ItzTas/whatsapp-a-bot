@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand/v2"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -16,11 +18,27 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const bmcOptionCount = 3
+const (
+	bmcKind        = "bmc"
+	bmcOptionCount = 3
+	bmcTimeout     = 24 * time.Hour
+)
 
 type bmcRound struct {
 	target  types.JID
 	options []types.GroupParticipant
+	expires time.Time
+}
+
+type bmcSnapshot struct {
+	Target  types.JID           `json:"target"`
+	Options []bmcOptionSnapshot `json:"options"`
+}
+
+type bmcOptionSnapshot struct {
+	JID         types.JID `json:"jid"`
+	LID         types.JID `json:"lid"`
+	PhoneNumber types.JID `json:"phone_number"`
 }
 
 type bmcAction struct {
@@ -62,7 +80,34 @@ func (b *bot) bmc(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
+	round.expires = time.Now().Add(bmcTimeout)
+	b.keepGame(ctx, bmcKind, id, round.snapshot(), round.expires)
 	b.bmcRounds.Store(id, round)
+	return nil
+}
+
+func (r *bmcRound) snapshot() bmcSnapshot {
+	snapshot := bmcSnapshot{Target: r.target}
+	for _, p := range r.options {
+		snapshot.Options = append(snapshot.Options, bmcOptionSnapshot{JID: p.JID, LID: p.LID, PhoneNumber: p.PhoneNumber})
+	}
+	return snapshot
+}
+
+func (b *bot) restoreBmc(ctx context.Context, saved savedGame) error {
+	var snapshot bmcSnapshot
+	if err := json.Unmarshal(saved.state, &snapshot); err != nil {
+		return fmt.Errorf("ler bmc salvo: %w", err)
+	}
+	if time.Now().After(saved.expires) {
+		b.dropGame(ctx, bmcKind, saved.key)
+		return nil
+	}
+	round := &bmcRound{target: snapshot.Target, expires: saved.expires}
+	for _, p := range snapshot.Options {
+		round.options = append(round.options, types.GroupParticipant{JID: p.JID, LID: p.LID, PhoneNumber: p.PhoneNumber})
+	}
+	b.bmcRounds.LoadOrStore(saved.key, round)
 	return nil
 }
 
@@ -76,6 +121,12 @@ func (b *bot) answerBmc(ctx context.Context, evt *events.Message) error {
 		return nil
 	}
 	round := value.(*bmcRound)
+	if time.Now().After(round.expires) {
+		if b.bmcRounds.CompareAndDelete(questionID, round) {
+			b.dropGame(ctx, bmcKind, questionID)
+		}
+		return nil
+	}
 	if !sentBy(evt.Info, round.target) {
 		return nil
 	}
@@ -89,6 +140,7 @@ func (b *bot) answerBmc(ctx context.Context, evt *events.Message) error {
 	if !b.bmcRounds.CompareAndDelete(questionID, round) {
 		return nil
 	}
+	b.dropGame(ctx, bmcKind, questionID)
 
 	reactions := []string{"😂", "👀", "🔥", "😳", "💀", "🫣"}
 	reaction := b.client.BuildReaction(chat, evt.Info.Sender, evt.Info.ID, reactions[rand.IntN(len(reactions))])
@@ -236,15 +288,19 @@ func (b *bot) sendMentions(ctx context.Context, chat types.JID, text string, men
 }
 
 func (b *bot) sendRawMentions(ctx context.Context, chat types.JID, text string, mentions []types.JID) (types.MessageID, error) {
+	resp, err := b.client.SendMessage(ctx, chat, mentionMessage(text, mentions))
+	return resp.ID, err
+}
+
+func mentionMessage(text string, mentions []types.JID) *waE2E.Message {
 	raw := make([]string, len(mentions))
 	for i, m := range mentions {
 		raw[i] = m.ToNonAD().String()
 	}
-	resp, err := b.client.SendMessage(ctx, chat, &waE2E.Message{
+	return &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        proto.String(text),
 			ContextInfo: &waE2E.ContextInfo{MentionedJID: raw},
 		},
-	})
-	return resp.ID, err
+	}
 }

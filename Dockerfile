@@ -19,7 +19,7 @@ RUN CGO_ENABLED=1 go build \
 FROM alpine:3.24
 
 # hadolint ignore=DL3018
-RUN apk add --no-cache ffmpeg gallery-dl imagemagick imagemagick-webp yt-dlp \
+RUN apk add --no-cache ffmpeg gallery-dl imagemagick imagemagick-webp tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-por yt-dlp \
     && addgroup -S -g 65532 nonroot \
     && adduser -S -D -H -u 65532 -G nonroot nonroot
 

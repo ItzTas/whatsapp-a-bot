@@ -76,12 +76,26 @@ func (s *messageStore) prune(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, "DELETE FROM risadas WHERE enviada_em < ?", windowStart()); err != nil {
 		return fmt.Errorf("apagar risadas antigas: %w", err)
 	}
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM ia_respostas WHERE enviada_em < ?", windowStart()); err != nil {
+		return fmt.Errorf("apagar respostas antigas da IA: %w", err)
+	}
 	_, err := s.db.ExecContext(ctx,
 		"DELETE FROM mensagens WHERE enviada_em < (SELECT enviada_em FROM mensagens ORDER BY enviada_em DESC LIMIT 1 OFFSET ?)",
 		maxStoredMessages,
 	)
 	if err != nil {
 		return fmt.Errorf("apagar mensagens além do limite: %w", err)
+	}
+	usedBy := map[string]string{"quemfalou_usadas": "!quemfalou", "completa_usadas": "!completa"}
+	for table, command := range usedBy {
+		_, err := s.db.ExecContext(ctx, fmt.Sprintf(
+			`DELETE FROM %[1]s
+			 WHERE NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.chat = %[1]s.chat AND m.id = %[1]s.mensagem)`,
+			table,
+		))
+		if err != nil {
+			return fmt.Errorf("apagar mensagens usadas no %s que já sumiram: %w", command, err)
+		}
 	}
 	return nil
 }

@@ -93,6 +93,19 @@ func containsAnyUser(jids []types.JID, users []string) bool {
 	return slices.ContainsFunc(jids, func(j types.JID) bool { return slices.Contains(users, j.User) })
 }
 
+func adoptiveBond(adoptions []adoption, couple [2]types.JID, aliases [2][]string) (child, parent types.JID, ok bool) {
+	for i := range couple {
+		if containsAnyUser(childrenOf(adoptions, aliases[i]), aliases[1-i]) {
+			return couple[1-i], couple[i], true
+		}
+	}
+	return types.JID{}, types.JID{}, false
+}
+
+func adoptiveBondText(child, parent types.JID, action string) string {
+	return fmt.Sprintf("🚫 @%s é filho(a) adotivo(a) de @%s, não dá pra %s 😳", child.User, parent.User, action)
+}
+
 func (b *bot) adotar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	mentions := mentionedJIDs(evt.Message)
@@ -102,12 +115,15 @@ func (b *bot) adotar(ctx context.Context, evt *events.Message) error {
 	parent, child := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
 
 	var (
-		marriages []relationship
-		adoptions []adoption
-		aliases   [2][]string
+		relationships []relationship
+		adoptions     []adoption
+		aliases       [2][]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { marriages, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
+	g.Go(func() (err error) {
+		relationships, err = b.relationships.inChat(gctx, chat, kindMarriage, kindDating, kindLover)
+		return err
+	})
 	g.Go(func() (err error) { adoptions, err = b.adoptions.inChat(gctx, chat); return err })
 	for i, p := range []types.JID{parent, child} {
 		g.Go(func() error { aliases[i] = b.userAliases(gctx, p); return nil })
@@ -116,7 +132,7 @@ func (b *bot) adotar(ctx context.Context, evt *events.Message) error {
 		return fmt.Errorf("ler família: %w", err)
 	}
 
-	if refusal, refused := adoptionRefusal(adoptions, aliases[0], aliases[1]); refused {
+	if refusal, refused := adoptionRefusal(adoptions, relationships, aliases[0], aliases[1]); refused {
 		_, err := b.sendMentions(ctx, chat, fmt.Sprintf(refusal, child.User), []types.JID{child})
 		return err
 	}
@@ -124,13 +140,13 @@ func (b *bot) adotar(ctx context.Context, evt *events.Message) error {
 		return fmt.Errorf("guardar adoção: %w", err)
 	}
 
-	spouses := otherPartners(marriages, aliases[0], nil)
-	text := adoptionText(parent, child, spouses, aliases[1])
+	spouses := otherPartners(ofKind(relationships, kindMarriage), aliases[0], nil)
+	text := adoptionText(parent, child, spouses)
 	_, err := b.sendMentions(ctx, chat, text, append([]types.JID{parent, child}, spouses...))
 	return err
 }
 
-func adoptionRefusal(adoptions []adoption, parent, child []string) (string, bool) {
+func adoptionRefusal(adoptions []adoption, relationships []relationship, parent, child []string) (string, bool) {
 	refusals := []struct {
 		applies bool
 		text    string
@@ -138,6 +154,7 @@ func adoptionRefusal(adoptions []adoption, parent, child []string) (string, bool
 		{slices.ContainsFunc(parent, func(u string) bool { return slices.Contains(child, u) }), "Ninguém pode se adotar, @%s 🤨"},
 		{containsAnyUser(childrenOf(adoptions, parent), child), "@%s já é seu filho(a) 👶"},
 		{containsAnyUser(parentsOf(adoptions, parent), child), "@%s é seu pai/mãe, não dá pra adotar 🤯"},
+		{containsAnyUser(otherPartners(relationships, parent, nil), child), "@%s namora, é casado(a) ou é amante de você, não dá pra adotar 😳"},
 	}
 	for _, r := range refusals {
 		if r.applies {
@@ -147,7 +164,7 @@ func adoptionRefusal(adoptions []adoption, parent, child []string) (string, bool
 	return "", false
 }
 
-func adoptionText(parent, child types.JID, spouses []types.JID, childAliases []string) string {
+func adoptionText(parent, child types.JID, spouses []types.JID) string {
 	boasVindas := []string{
 		"🧸 Já ganhou um quarto com papel de parede de dinossauro",
 		"🍼 Mamadeira e fralda já tão na mochila",
@@ -164,12 +181,8 @@ func adoptionText(parent, child types.JID, spouses []types.JID, childAliases []s
 		"",
 		boasVindas[rand.IntN(len(boasVindas))],
 	}
-	if containsAnyUser(spouses, childAliases) {
-		lines = append(lines, fmt.Sprintf("⚠️ Peraí... @%s também é seu cônjuge 😳", child.User))
-	}
-	coParents := slices.DeleteFunc(slices.Clone(spouses), func(s types.JID) bool { return slices.Contains(childAliases, s.User) })
-	if len(coParents) > 0 {
-		lines = append(lines, fmt.Sprintf("💍 %s agora também tem que ajudar a criar", joinMentions(coParents)))
+	if len(spouses) > 0 {
+		lines = append(lines, fmt.Sprintf("💍 %s agora também tem que ajudar a criar", joinMentions(spouses)))
 	}
 	return strings.Join(lines, "\n")
 }

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
@@ -27,6 +29,10 @@ func main() {
 }
 
 func run(ctx context.Context) (err error) {
+	if err := godotenv.Load(); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("ler .env: %w", err)
+	}
+
 	gifs, err := loadGIFs()
 	if err != nil {
 		return fmt.Errorf("carregar gifs: %w", err)
@@ -56,7 +62,7 @@ func run(ctx context.Context) (err error) {
 	defer endSession(nil)
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
-	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &nicknameStore{db: messages.db}, relationships: &relationshipStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, assistant: assistant, transcriber: transcriberFromEnv(), filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, wallets: &walletStore{db: messages.db}, owners: ownersFromEnv()}
+	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &labelStore{db: messages.db, table: "apelidos", column: "apelido"}, names: &labelStore{db: messages.db, table: "nomes", column: "nome"}, relationships: &relationshipStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, assistant: assistant, transcriber: transcriberFromEnv(), filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, wallets: &walletStore{db: messages.db}, quizzes: &quizStore{db: messages.db}, mutes: &restrictionStore{db: messages.db, table: "mutados"}, handcuffs: &restrictionStore{db: messages.db, table: "algemados"}, persecuted: &restrictionStore{db: messages.db, table: "perseguidos"}, reminders: &reminderStore{db: messages.db}, birthdays: &birthdayStore{db: messages.db}, warnings: &warningStore{db: messages.db}, welcomes: &welcomeStore{db: messages.db}, memories: &memoryStore{db: messages.db}, games: &gameStore{db: messages.db}, gamesReady: make(chan struct{}), owners: ownersFromEnv()}
 	if len(b.owners) == 0 {
 		client.Log.Warnf("BOT_DONO não definido: ninguém consegue usar !modo, !blacklist e !whitelist")
 	}
@@ -64,6 +70,8 @@ func run(ctx context.Context) (err error) {
 		switch evt := evt.(type) {
 		case *events.Message:
 			go b.handleMessage(sessionCtx, evt)
+		case *events.GroupInfo:
+			go b.welcome(sessionCtx, evt)
 		case *events.HistorySync:
 			go b.recordHistory(sessionCtx, evt)
 		case *events.LoggedOut:
@@ -75,6 +83,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	defer client.Disconnect()
+	go b.restoreGames(sessionCtx)
+	go b.runLottery(sessionCtx)
+	go b.runReminders(sessionCtx)
+	go b.runBirthdays(sessionCtx)
+	go b.runTaxes(sessionCtx)
 
 	<-sessionCtx.Done()
 	if ctx.Err() != nil {

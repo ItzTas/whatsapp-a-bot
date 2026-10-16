@@ -20,6 +20,7 @@ func marriageLength(d time.Duration) string {
 
 type weddingNews struct {
 	renewal  bool
+	marriage relationship
 	lines    []string
 	mentions []types.JID
 }
@@ -39,8 +40,9 @@ func (b *bot) weddingNews(ctx context.Context, chat types.JID, couple [2]types.J
 	}
 
 	var news weddingNews
-	if slices.ContainsFunc(all, func(m relationship) bool { return m.joins(aliases[0], aliases[1]) }) {
+	if i := slices.IndexFunc(all, func(m relationship) bool { return m.joins(aliases[0], aliases[1]) }); i >= 0 {
 		news.renewal = true
+		news.marriage = all[i]
 		news.lines = append(news.lines, "💒 Os dois já eram casados, então só renovaram os votos")
 	}
 	for i, p := range couple {

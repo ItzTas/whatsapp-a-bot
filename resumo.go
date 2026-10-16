@@ -30,11 +30,11 @@ func (b *bot) resumo(ctx context.Context, evt *events.Message) error {
 	}
 
 	size := summarySize(questionFrom(messageText(evt.Message)))
-	stopTyping := b.typing(ctx, chat)
-	summary, err := b.assistant.ask(ctx, evt.Info.Sender.User, func(int) string {
-		return b.iaPrompt(ctx, evt, summaryRequest, size)
+	stopThinking := b.thinking(ctx, evt)
+	summary, err := b.assistant.ask(ctx, b.iaAsker(ctx, chat, evt.Info.Sender.User), func(int) string {
+		return b.iaPrompt(ctx, evt, summaryRequest, "", size)
 	})
-	stopTyping()
+	stopThinking()
 	if err != nil {
 		b.client.Log.Warnf("!resumo: %v", err)
 		summary = iaFailure(err)

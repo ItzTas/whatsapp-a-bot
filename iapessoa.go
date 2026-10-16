@@ -22,10 +22,28 @@ func (b *bot) askAboutPerson(ctx context.Context, evt *events.Message, command s
 	}
 
 	person := firstMentionOrSender(evt)
-	var (
-		name  string
-		texts []string
-	)
+	name, texts, err := b.personTexts(ctx, chat, person)
+	if err != nil {
+		return err
+	}
+	if len(texts) == 0 {
+		_, err = b.sendMentions(ctx, chat, fmt.Sprintf("Ainda não vi nenhuma mensagem de @%s aqui pra analisar 🤷", person.User), []types.JID{person})
+		return err
+	}
+
+	stopThinking := b.thinking(ctx, evt)
+	answer, err := b.assistant.ask(ctx, b.iaAsker(ctx, chat, evt.Info.Sender.User), func(contextSize int) string {
+		return personPrompt(name, texts[:min(contextSize, len(texts))], request(name))
+	})
+	stopThinking()
+	if err != nil {
+		b.client.Log.Warnf("!%s: %v", command, err)
+		answer = iaFailure(err)
+	}
+	return b.replyTo(ctx, evt, answer)
+}
+
+func (b *bot) personTexts(ctx context.Context, chat, person types.JID) (name string, texts []string, err error) {
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		name = b.displayName(gctx, person, b.chatNicknames(gctx, chat))
@@ -36,26 +54,11 @@ func (b *bot) askAboutPerson(ctx context.Context, evt *events.Message, command s
 		return err
 	})
 	if err := g.Wait(); err != nil {
-		return fmt.Errorf("ler mensagens de %s: %w", person, err)
+		return "", nil, fmt.Errorf("ler mensagens de %s: %w", person, err)
 	}
-
 	texts = slices.DeleteFunc(texts, isCommand)
-	if len(texts) == 0 {
-		_, err := b.sendMentions(ctx, chat, fmt.Sprintf("Ainda não vi nenhuma mensagem de @%s aqui pra analisar 🤷", person.User), []types.JID{person})
-		return err
-	}
 	rand.Shuffle(len(texts), func(i, j int) { texts[i], texts[j] = texts[j], texts[i] })
-
-	stopTyping := b.typing(ctx, chat)
-	answer, err := b.assistant.ask(ctx, evt.Info.Sender.User, func(contextSize int) string {
-		return personPrompt(name, texts[:min(contextSize, len(texts))], request(name))
-	})
-	stopTyping()
-	if err != nil {
-		b.client.Log.Warnf("!%s: %v", command, err)
-		answer = iaFailure(err)
-	}
-	return b.replyTo(ctx, evt, answer)
+	return name, texts, nil
 }
 
 func personPrompt(name string, texts []string, request string) string {

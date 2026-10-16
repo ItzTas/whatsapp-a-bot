@@ -6,6 +6,8 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -16,38 +18,108 @@ func (b *bot) trair(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	pair, ok := coupleFrom(evt.Info.Sender, mentionedJIDs(evt.Message))
 	if !ok {
-		return b.sendText(ctx, chat, "Marca com quem vai ser a traição: !trair @pessoa ou !trair @pessoa1 @pessoa2")
+		return b.sendText(ctx, chat, "Marca quem vai ser traído(a): !trair @pessoa ou !trair @pessoa1 @pessoa2")
+	}
+	cheater, betrayed := pair[0], pair[1]
+
+	var (
+		aliases [2][]string
+		wg      sync.WaitGroup
+	)
+	for i, p := range pair {
+		wg.Go(func() { aliases[i] = b.userAliases(ctx, p) })
+	}
+	wg.Wait()
+
+	if slices.ContainsFunc(aliases[0], func(a string) bool { return slices.Contains(aliases[1], a) }) {
+		return b.sendText(ctx, chat, "Trair a si mesmo(a) não dá 🪞 Marca outra pessoa")
+	}
+
+	accomplices := []string{
+		"com o(a) ex", "com um match do Tinder", "com o(a) vizinho(a)", "com o(a) melhor amigo(a)",
+		"com o(a) personal trainer", "com o motoboy do iFood", "com o(a) colega de trabalho", "com o(a) crush da escola",
+	}
+	deed := fmt.Sprintf("@%s traiu @%s %s %s", cheater.User, betrayed.User, accomplices[rand.IntN(len(accomplices))], randomCheatingPlace())
+	caught := rand.IntN(2) == 0
+	text := betrayalText(deed, []types.JID{betrayed}, caught)
+	if caught && sentByAny(evt.Info, aliases[0]) {
+		text = appendLine(text, b.charge(ctx, chat, cheater, []types.JID{betrayed}, cheatingFinePercent, "⚖️ Indenização"))
+	}
+	return b.sendGIF(ctx, chat, "trair", text, pair[:])
+}
+
+func (b *bot) traircom(ctx context.Context, evt *events.Message) error {
+	chat := evt.Info.Chat.ToNonAD()
+	pair, ok := coupleFrom(evt.Info.Sender, mentionedJIDs(evt.Message))
+	if !ok {
+		return b.sendText(ctx, chat, "Marca com quem vai ser a traição: !traircom @pessoa ou !traircom @pessoa1 @pessoa2")
 	}
 	cheater, lover := pair[0], pair[1]
 
 	var (
-		all     []relationship
-		aliases [2][]string
+		all       []relationship
+		adoptions []adoption
+		aliases   [2][]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { all, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
+	g.Go(func() (err error) {
+		all, err = b.relationships.inChat(gctx, chat, kindMarriage, kindDating, kindLover)
+		return err
+	})
+	g.Go(func() (err error) { adoptions, err = b.adoptions.inChat(gctx, chat); return err })
 	for i, p := range pair {
 		g.Go(func() error { aliases[i] = b.userAliases(gctx, p); return nil })
 	}
 	if err := g.Wait(); err != nil {
-		return fmt.Errorf("ler casamentos: %w", err)
+		return fmt.Errorf("ler relacionamentos: %w", err)
 	}
 
-	spouses := otherPartners(all, aliases[0], nil)
-	if len(spouses) == 0 {
-		text := fmt.Sprintf("💅 @%s nem é casado(a), então ficar com @%s não é traição, é só pegação 😏", cheater.User, lover.User)
+	if slices.ContainsFunc(aliases[0], func(a string) bool { return slices.Contains(aliases[1], a) }) {
+		return b.sendText(ctx, chat, "Trair consigo mesmo(a) não vale 🪞 Marca outra pessoa")
+	}
+	if child, parent, ok := adoptiveBond(adoptions, pair, aliases); ok {
+		_, err := b.sendMentions(ctx, chat, adoptiveBondText(child, parent, "virar amante"), pair[:])
+		return err
+	}
+	partners := otherPartners(slices.Concat(ofKind(all, kindMarriage), ofKind(all, kindDating)), aliases[0], nil)
+	if len(partners) == 0 {
+		text := fmt.Sprintf("💅 @%s nem namora nem é casado(a), então ficar com @%s não é traição, é só pegação 😏", cheater.User, lover.User)
 		_, err := b.sendMentions(ctx, chat, text, pair[:])
 		return err
 	}
-	betrayed := slices.DeleteFunc(spouses, func(s types.JID) bool { return slices.Contains(aliases[1], s.User) })
+	betrayed := slices.DeleteFunc(partners, func(s types.JID) bool { return slices.Contains(aliases[1], s.User) })
 	if len(betrayed) == 0 {
-		text := fmt.Sprintf("🤨 @%s tentou trair @%s... com @%s mesmo. Isso tem nome: casamento 💍", cheater.User, lover.User, lover.User)
+		text := fmt.Sprintf("🤨 @%s tentou trair @%s... com @%s mesmo. Isso tem nome: relacionamento sério 💍", cheater.User, lover.User, lover.User)
 		_, err := b.sendMentions(ctx, chat, text, pair[:])
 		return err
 	}
 
-	_, err := b.sendMentions(ctx, chat, betrayalText(cheater, lover, betrayed), append(pair[:], betrayed...))
-	return err
+	affair, err := b.startAffair(ctx, chat, all, pair, aliases, time.Now())
+	if err != nil {
+		return fmt.Errorf("salvar amantes: %w", err)
+	}
+	caught := rand.IntN(2) == 0
+	deed := fmt.Sprintf("@%s traiu %s com @%s %s", cheater.User, joinMentions(betrayed), lover.User, randomCheatingPlace())
+	text := appendLine(betrayalText(deed, betrayed, caught), affair)
+	if caught && sentByAny(evt.Info, aliases[0]) {
+		text = appendLine(text, b.charge(ctx, chat, cheater, betrayed, cheatingFinePercent, "⚖️ Indenização"))
+	}
+	return b.sendGIF(ctx, chat, "trair", text, append(pair[:], betrayed...))
+}
+
+func (b *bot) startAffair(ctx context.Context, chat types.JID, all []relationship, pair [2]types.JID, aliases [2][]string, now time.Time) (string, error) {
+	together := func(r relationship) bool { return r.joins(aliases[0], aliases[1]) }
+	lovers := ofKind(all, kindLover)
+	if i := slices.IndexFunc(lovers, together); i >= 0 {
+		return fmt.Sprintf("💋 O caso de @%s e @%s já dura %s", pair[0].User, pair[1].User, marriageLength(now.Sub(lovers[i].since))), nil
+	}
+	if slices.ContainsFunc(all, together) {
+		return "", nil
+	}
+	if err := b.relationships.add(ctx, chat, kindLover, pair, now, false); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("💋 Agora @%s e @%s são amantes", pair[0].User, pair[1].User), nil
 }
 
 type cheatingNews struct {
@@ -101,36 +173,34 @@ func (n cheatingNews) caption() string {
 		return ""
 	}
 	betrayedTags := joinMentions(n.betrayed)
-	lines := slices.Concat(n.lines, betrayalOutcome(betrayedTags), []string{fmt.Sprintf("🦌 Chifres novos pra %s", betrayedTags)})
+	lines := slices.Concat(n.lines, betrayalOutcome(betrayedTags, rand.IntN(2) == 0), []string{fmt.Sprintf("🦌 Chifres novos pra %s", betrayedTags)})
 	return "\n\n" + strings.Join(lines, "\n")
 }
 
-func betrayalText(cheater, lover types.JID, betrayed []types.JID) string {
-	locais := []string{
+func randomCheatingPlace() string {
+	places := []string{
 		"no motel da esquina 🏨", "no banheiro da festa 🚽", "dentro do Uber 🚗", "na casa da sogra 🏠",
 		"no churrasco da firma 🍖", "atrás da igreja ⛪", "no provador da Renner 👗", "na fila do show 🎤",
 	}
+	return places[rand.IntN(len(places))]
+}
 
+func betrayalText(deed string, betrayed []types.JID, caught bool) string {
 	betrayedTags := joinMentions(betrayed)
-	lines := []string{
-		"🐍 *Traição*",
-		"",
-		fmt.Sprintf("@%s traiu %s com @%s %s", cheater.User, betrayedTags, lover.User, locais[rand.IntN(len(locais))]),
-		"",
-	}
-	lines = append(lines, betrayalOutcome(betrayedTags)...)
+	lines := []string{"🐍 *Traição*", "", deed, ""}
+	lines = append(lines, betrayalOutcome(betrayedTags, caught)...)
 	lines = append(lines, "", fmt.Sprintf("🦌 Chifres novos pra %s", betrayedTags))
 	return strings.Join(lines, "\n")
 }
 
-func betrayalOutcome(betrayedTags string) []string {
+func betrayalOutcome(betrayedTags string, caught bool) []string {
 	disfarces := []string{
 		"🤫 Ninguém ficou sabendo... por enquanto",
 		"😇 Voltou pra casa com cara de santo(a)",
 		"🧼 Apagou as conversas e limpou o histórico",
 		"🙈 Disse que tava na casa de um amigo",
 	}
-	if rand.IntN(2) == 0 {
+	if !caught {
 		return []string{disfarces[rand.IntN(len(disfarces))]}
 	}
 

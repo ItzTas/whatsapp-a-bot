@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"sync"
+	"unicode"
 	"unicode/utf8"
 
 	"go.mau.fi/whatsmeow/types"
@@ -68,8 +70,22 @@ func quemQuestion(text string) (string, bool) {
 	if len(fields) < 2 {
 		return quemPerguntas[rand.IntN(len(quemPerguntas))], true
 	}
-	question := "Quem " + strings.TrimRight(strings.Join(fields[1:], " "), "?") + "?"
+	question := quemPrefixed(strings.TrimRight(strings.Join(fields[1:], " "), "?") + "?")
 	return question, utf8.RuneCountInString(question) <= maxQuemQuestionLen
+}
+
+func quemPrefixed(question string) string {
+	interrogatives := []string{"quem", "qual", "quais", "que", "o que", "como", "onde", "quando", "quanto", "quantos", "quantas", "por que", "porque", "cade"}
+	folded := foldLetters(question)
+	asksAlready := slices.ContainsFunc(interrogatives, func(word string) bool {
+		rest, found := strings.CutPrefix(folded, word)
+		return found && (rest == "" || !unicode.IsLetter([]rune(rest)[0]))
+	})
+	if !asksAlready {
+		return "Quem " + question
+	}
+	first, size := utf8.DecodeRuneInString(question)
+	return string(unicode.ToUpper(first)) + question[size:]
 }
 
 func (b *bot) pollNames(ctx context.Context, chat types.JID, people []types.JID) []string {

@@ -3,16 +3,69 @@ package main
 import (
 	"cmp"
 	"context"
+	"maps"
+	"sync"
 
 	"go.mau.fi/whatsmeow/types"
 )
 
 func (b *bot) chatNicknames(ctx context.Context, chat types.JID) map[string]string {
+	var names, nicknames map[string]string
+	var wg sync.WaitGroup
+	wg.Go(func() { names = b.chatNames(ctx, chat) })
+	wg.Go(func() { nicknames = b.chatOnlyNicknames(ctx, chat) })
+	wg.Wait()
+	labels := map[string]string{}
+	maps.Copy(labels, names)
+	maps.Copy(labels, nicknames)
+	return labels
+}
+
+func (b *bot) chatOnlyNicknames(ctx context.Context, chat types.JID) map[string]string {
 	nicknames, err := b.nicknames.inChat(ctx, chat)
 	if err != nil {
 		b.client.Log.Warnf("ler apelidos de %s: %v", chat, err)
 	}
 	return nicknames
+}
+
+type personNames struct {
+	nickname string
+	name     string
+	whatsapp string
+	number   string
+}
+
+func (p personNames) label() string {
+	return cmp.Or(p.nickname, p.name, p.whatsapp, p.number)
+}
+
+func (b *bot) personNamesIn(ctx context.Context, chat, person types.JID) personNames {
+	var (
+		names, nicknames map[string]string
+		identities       []types.JID
+		whatsapp         string
+	)
+	var wg sync.WaitGroup
+	wg.Go(func() { names = b.chatNames(ctx, chat) })
+	wg.Go(func() { nicknames = b.chatOnlyNicknames(ctx, chat) })
+	wg.Go(func() {
+		identities = b.identities(ctx, person)
+		whatsapp = b.contactName(ctx, identities)
+	})
+	wg.Wait()
+	number := person.User
+	for _, id := range identities {
+		if id.Server == types.DefaultUserServer {
+			number = "+" + id.User
+		}
+	}
+	return personNames{
+		nickname: nicknameOf(identities, nicknames),
+		name:     nicknameOf(identities, names),
+		whatsapp: whatsapp,
+		number:   number,
+	}
 }
 
 func (b *bot) displayName(ctx context.Context, person types.JID, nicknames map[string]string) string {

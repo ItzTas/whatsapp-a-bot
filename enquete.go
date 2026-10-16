@@ -29,8 +29,37 @@ type pollVote struct {
 	correct bool
 }
 
+type storedPoll struct {
+	Hash  []byte       `json:"hash"`
+	Votes []storedVote `json:"votes"`
+}
+
+type storedVote struct {
+	Voter   types.JID `json:"voter"`
+	Correct bool      `json:"correct"`
+}
+
 func newPollAnswer(answer string) *pollAnswer {
 	return &pollAnswer{hash: sha256.Sum256([]byte(answer)), votes: map[string]pollVote{}}
+}
+
+func restorePollAnswer(stored storedPoll) *pollAnswer {
+	p := &pollAnswer{votes: map[string]pollVote{}}
+	copy(p.hash[:], stored.Hash)
+	for _, v := range stored.Votes {
+		p.votes[v.Voter.User] = pollVote{voter: v.Voter, correct: v.Correct}
+	}
+	return p
+}
+
+func (p *pollAnswer) stored() storedPoll {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	stored := storedPoll{Hash: p.hash[:]}
+	for _, v := range p.votes {
+		stored.Votes = append(stored.Votes, storedVote{Voter: v.voter, Correct: v.correct})
+	}
+	return stored
 }
 
 func (p *pollAnswer) vote(voter types.JID, selected [][]byte) {
@@ -54,6 +83,22 @@ func (p *pollAnswer) result() (voted bool, winners []types.JID) {
 	}
 	slices.SortFunc(winners, func(a, b types.JID) int { return strings.Compare(a.User, b.User) })
 	return len(p.votes) > 0, winners
+}
+
+func (p *pollAnswer) ballots() []pollVote {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ballots := make([]pollVote, 0, len(p.votes))
+	for _, v := range p.votes {
+		ballots = append(ballots, v)
+	}
+	return ballots
+}
+
+func (p *pollAnswer) voters() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.votes)
 }
 
 func (b *bot) answerPoll(ctx context.Context, evt *events.Message, rounds *sync.Map) error {

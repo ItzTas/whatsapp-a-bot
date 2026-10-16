@@ -17,11 +17,13 @@ const maxNicknameLength = 40
 
 var mentionTagPattern = regexp.MustCompile(`@\d+`)
 
-type nicknameStore struct {
-	db *sql.DB
+type labelStore struct {
+	db     *sql.DB
+	table  string
+	column string
 }
 
-func (s *nicknameStore) set(ctx context.Context, chat types.JID, users []string, nickname string) (err error) {
+func (s *labelStore) set(ctx context.Context, chat types.JID, users []string, label string) (err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -33,9 +35,9 @@ func (s *nicknameStore) set(ctx context.Context, chat types.JID, users []string,
 	}()
 	for _, user := range users {
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO apelidos (chat, usuario, apelido) VALUES (?, ?, ?)
-			 ON CONFLICT (chat, usuario) DO UPDATE SET apelido = excluded.apelido`,
-			chat.ToNonAD().String(), user, nickname,
+			fmt.Sprintf(`INSERT INTO %[1]s (chat, usuario, %[2]s) VALUES (?, ?, ?)
+			 ON CONFLICT (chat, usuario) DO UPDATE SET %[2]s = excluded.%[2]s`, s.table, s.column),
+			chat.ToNonAD().String(), user, label,
 		)
 		if err != nil {
 			return err
@@ -44,35 +46,43 @@ func (s *nicknameStore) set(ctx context.Context, chat types.JID, users []string,
 	return tx.Commit()
 }
 
-func (s *nicknameStore) remove(ctx context.Context, chat types.JID, users []string) error {
+func (s *labelStore) remove(ctx context.Context, chat types.JID, users []string) error {
 	first, second := users[0], users[len(users)-1]
 	_, err := s.db.ExecContext(ctx,
-		"DELETE FROM apelidos WHERE chat = ? AND usuario IN (?, ?)",
+		fmt.Sprintf("DELETE FROM %s WHERE chat = ? AND usuario IN (?, ?)", s.table),
 		chat.ToNonAD().String(), first, second,
 	)
 	return err
 }
 
-func (s *nicknameStore) inChat(ctx context.Context, chat types.JID) (nicknames map[string]string, err error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT usuario, apelido FROM apelidos WHERE chat = ?", chat.ToNonAD().String())
+func (s *labelStore) inChat(ctx context.Context, chat types.JID) (labels map[string]string, err error) {
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf("SELECT usuario, %s FROM %s WHERE chat = ?", s.column, s.table), chat.ToNonAD().String())
 	if err != nil {
 		return nil, err
 	}
 	defer func() { err = errors.Join(err, rows.Close()) }()
 
-	nicknames = map[string]string{}
+	labels = map[string]string{}
 	for rows.Next() {
-		var user, nickname string
-		if err := rows.Scan(&user, &nickname); err != nil {
+		var user, label string
+		if err := rows.Scan(&user, &label); err != nil {
 			return nil, err
 		}
-		nicknames[user] = nickname
+		labels[user] = label
 	}
-	return nicknames, rows.Err()
+	return labels, rows.Err()
 }
 
 func (b *bot) apelido(ctx context.Context, evt *events.Message) error {
 	target := firstMentionOrSender(evt)
+	locked, err := b.nicknameLocked(ctx, evt.Info.Chat, evt.Info.Sender, target)
+	if err != nil {
+		return fmt.Errorf("checar apelido trancado: %w", err)
+	}
+	if locked != "" {
+		_, err := b.sendMentions(ctx, evt.Info.Chat, locked, []types.JID{target})
+		return err
+	}
 	nickname := nicknameFrom(messageText(evt.Message))
 	if nickname == "" {
 		return b.removeNickname(ctx, evt.Info.Chat, target)
@@ -83,7 +93,7 @@ func (b *bot) apelido(ctx context.Context, evt *events.Message) error {
 	if err := b.nicknames.set(ctx, evt.Info.Chat, b.userAliases(ctx, target), nickname); err != nil {
 		return fmt.Errorf("salvar apelido: %w", err)
 	}
-	_, err := b.sendMentions(ctx, evt.Info.Chat, fmt.Sprintf("🏷️ Apelido salvo! Agora é @%s", target.User), []types.JID{target})
+	_, err = b.sendMentions(ctx, evt.Info.Chat, fmt.Sprintf("🏷️ Apelido salvo! Agora é @%s", target.User), []types.JID{target})
 	return err
 }
 

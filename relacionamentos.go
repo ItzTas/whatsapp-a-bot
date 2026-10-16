@@ -16,6 +16,7 @@ type relationshipKind string
 const (
 	kindDating   relationshipKind = "namoro"
 	kindMarriage relationshipKind = "casamento"
+	kindLover    relationshipKind = "amante"
 )
 
 type relationshipStore struct {
@@ -23,17 +24,23 @@ type relationshipStore struct {
 }
 
 type relationship struct {
-	id       int64
-	kind     relationshipKind
-	partners [2]types.JID
-	since    time.Time
+	id        int64
+	kind      relationshipKind
+	partners  [2]types.JID
+	since     time.Time
+	consented bool
 }
 
-func (s *relationshipStore) add(ctx context.Context, chat types.JID, kind relationshipKind, couple [2]types.JID, at time.Time) error {
+func (s *relationshipStore) add(ctx context.Context, chat types.JID, kind relationshipKind, couple [2]types.JID, at time.Time, consented bool) error {
 	_, err := s.db.ExecContext(ctx,
-		"INSERT INTO relacionamentos (chat, tipo, pessoa1, pessoa2, desde) VALUES (?, ?, ?, ?, ?)",
-		chat.ToNonAD().String(), string(kind), couple[0].ToNonAD().String(), couple[1].ToNonAD().String(), at.Unix(),
+		"INSERT INTO relacionamentos (chat, tipo, pessoa1, pessoa2, desde, consentido) VALUES (?, ?, ?, ?, ?, ?)",
+		chat.ToNonAD().String(), string(kind), couple[0].ToNonAD().String(), couple[1].ToNonAD().String(), at.Unix(), consented,
 	)
+	return err
+}
+
+func (s *relationshipStore) confirm(ctx context.Context, r relationship) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE relacionamentos SET consentido = 1 WHERE rowid = ?", r.id)
 	return err
 }
 
@@ -52,7 +59,7 @@ func (s *relationshipStore) inChat(ctx context.Context, chat types.JID, kinds ..
 		args = append(args, string(k))
 	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT rowid, tipo, pessoa1, pessoa2, desde FROM relacionamentos WHERE chat = ? AND tipo IN ("+sqlPlaceholders(len(kinds))+") ORDER BY desde",
+		"SELECT rowid, tipo, pessoa1, pessoa2, desde, consentido FROM relacionamentos WHERE chat = ? AND tipo IN ("+sqlPlaceholders(len(kinds))+") ORDER BY desde",
 		args...,
 	)
 	if err != nil {
@@ -66,7 +73,7 @@ func (s *relationshipStore) inChat(ctx context.Context, chat types.JID, kinds ..
 			first, second string
 			since         int64
 		)
-		if err := rows.Scan(&r.id, &r.kind, &first, &second, &since); err != nil {
+		if err := rows.Scan(&r.id, &r.kind, &first, &second, &since, &r.consented); err != nil {
 			return nil, err
 		}
 		if r.partners[0], err = types.ParseJID(first); err != nil {
@@ -109,6 +116,10 @@ func relationshipsOf(relationships []relationship, aliases []string) []relations
 
 func ofKind(relationships []relationship, kind relationshipKind) []relationship {
 	return slices.DeleteFunc(slices.Clone(relationships), func(r relationship) bool { return r.kind != kind })
+}
+
+func consentedOnly(relationships []relationship) []relationship {
+	return slices.DeleteFunc(slices.Clone(relationships), func(r relationship) bool { return !r.consented })
 }
 
 func otherPartners(relationships []relationship, self, exclude []string) []types.JID {
