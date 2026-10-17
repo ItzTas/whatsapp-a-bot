@@ -72,7 +72,7 @@ func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account
 	}
 	rate := max(int64(savingsRate)+job.interest+job.decrees.level(interestDecree), 0)
 	usage := fmt.Sprintf("🏦 Pra guardar moedas: !poupar 100 (ou metade, 10%%, tudo). Elas ficam travadas por %s e voltam com %d%% de juros, até %s por vez",
-		formatWait(savingsLock), rate, coins(savingsCap)) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree)
+		formatWait(savingsLock), rate, coins(job.savingsLimit())) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree)
 	arg := firstPlainArg(messageText(evt.Message))
 	if arg == "" {
 		return usage, nil
@@ -91,7 +91,7 @@ func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account
 	if amount > balance {
 		return "Você só tem " + coins(balance), nil
 	}
-	amount = min(amount, savingsCap)
+	amount = min(amount, job.savingsLimit())
 	if amount < savingsMin {
 		return "O mínimo pra poupar é " + coins(savingsMin), nil
 	}

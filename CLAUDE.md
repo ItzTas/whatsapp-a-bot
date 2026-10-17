@@ -298,6 +298,12 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   espera `fuga_em`. Dar certo apaga a linha de `sequestros` sem marcar crime; falhar soma
   `breakoutPenalty` ao `ate`. Se a pessoa tá presa e em cativeiro ao mesmo tempo, a cadeia vem
   primeiro.
+  - O `!fugir @pessoa` (`helpEscape`/`walletStore.rescue`) é tentar tirar outra pessoa, com as
+    chances da profissão de quem ajuda e a espera `fuga_em` dela; quem tá preso ou em cativeiro
+    não ajuda ninguém. Na cadeia, dar certo zera o `preso_ate` e marca o `crime_em` dos dois
+    (`bustOut`); dar errado marca o `crime_em` de quem ajudou e tem `rescueCaught` de chance de ele
+    ir preso na hora, por `baseJail` ajustado pelo `jailFactor`, com `lockUp` (zero pra quem é
+    `untouchable()`). No cativeiro, dar certo apaga a linha de `sequestros` e falhar não tem castigo.
 - O `!libertar` (`libertar.go`) é o `!fugir` feito por outra pessoa: só funciona pra profissão
   com `releaseChance` (juiz, advogado, delegado), em quem tá preso ou em cativeiro (a cadeia vem
   primeiro), uma tentativa a cada `releaseCooldown` (coluna `libertacao_em`). Dar certo zera o

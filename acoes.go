@@ -67,6 +67,7 @@ type stockTrade struct {
 	cents  int64
 	gross  int64
 	fee    int64
+	bonus  int64
 	cost   int64
 }
 
@@ -147,6 +148,16 @@ func stockFee(gross int64, job profession) int64 {
 		return 0
 	}
 	return max(gross*stockFeePercent/100, 1)
+}
+
+func (t stockTrade) withProfitBonus(soldCost int64, job profession) stockTrade {
+	profit := t.cost - soldCost
+	if profit <= 0 || job.stockProfit <= 0 {
+		return t
+	}
+	t.bonus = profit * job.stockProfit / 100
+	t.cost += t.bonus
+	return t
 }
 
 func stockBuyTrade(shares, cents int64, job profession) stockTrade {
@@ -357,7 +368,7 @@ func (b *bot) sellStock(ctx context.Context, chat types.JID, acc account, args [
 	}
 	return fmt.Sprintf("💰 @%s vendeu %s %s da %s %s a %s cada\n💸 Recebeu %s%s\n%s",
 		acc.jid.User, thousands(t.shares), pluralWord(t.shares, "ação", "ações"), q.company.emoji, q.company.ticker, stockCents(t.cents),
-		coins(t.cost), stockFeeNote(t.fee), stockResultLine(t.cost-sold)), nil
+		coins(t.cost), stockFeeNote(t.fee)+stockBonusNote(t.bonus), stockResultLine(t.cost-sold)), nil
 }
 
 func stockFeeNote(fee int64) string {
@@ -365,6 +376,13 @@ func stockFeeNote(fee int64) string {
 		return ""
 	}
 	return fmt.Sprintf(" (%s de corretagem)", coins(fee))
+}
+
+func stockBonusNote(bonus int64) string {
+	if bonus == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (com %s de lucro extra)", coins(bonus))
 }
 
 func stockResultLine(profit int64) string {
@@ -519,6 +537,7 @@ func (s *walletStore) sellStock(ctx context.Context, chat types.JID, acc account
 		}
 		t = stockSellTrade(shares, q.cents, job)
 		soldCost = cost * shares / held
+		t = t.withProfitBonus(soldCost, job)
 		if err := storeStockPosition(ctx, tx, chat, acc, company.ticker, held-shares, cost-soldCost); err != nil {
 			return err
 		}

@@ -817,6 +817,7 @@ func (b *bot) commands() []botCommand {
 			category: economia,
 			help: []usage{
 				{"!fugir", fmt.Sprintf("tenta fugir da cadeia ou do cativeiro 🏃 Na cadeia a chance normal é de %d%%, e a profissão muda ela (piloto de fuga, mágico e chaveiro escapam fácil, e a polícia presa fica marcada). Se der certo sai na hora, mas fuga é crime e a polícia pode !prender de novo. Se der errado ganha mais %s de cadeia. No cativeiro a chance normal é de %d%%, e aqui a polícia, o segurança, o mágico e o chaveiro se dão bem (veja !profissao). Fugir de sequestro não é crime, mas se der errado fica mais %s amarrado(a). Dá pra tentar a cada %s, e cada nova prisão corta %d%% da espera que faltava", percent(escapeChance), formatWait(escapePenalty), percent(breakoutChance), formatWait(breakoutPenalty), formatWait(escapeCooldown.every), arrestEaseCut)},
+				{"!fugir @pessoa", fmt.Sprintf("tenta tirar a pessoa marcada da cadeia ou do cativeiro 🪚 A chance é a mesma do !fugir, mas quem conta é a sua profissão. Tirar alguém da cadeia é crime: se der certo, a polícia pode !prender os dois, e se der errado você tem %d%% de chance de ser pego(a) na hora e ir pra cadeia (com multa). Tirar do cativeiro não é crime e não dá cadeia. Usa a mesma espera do seu !fugir, e quem tá preso ou em cativeiro não consegue ajudar ninguém", percent(rescueCaught))},
 			},
 			run: b.fugir,
 		},

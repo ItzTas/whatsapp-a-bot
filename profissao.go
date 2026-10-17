@@ -208,6 +208,8 @@ type profession struct {
 	salePercent   int64
 	discount      int64
 	interest      int64
+	savingsRoom   int64
+	stockProfit   int64
 	dailyBonus    int64
 	cashback      int64
 	betJinx       float64
@@ -437,6 +439,7 @@ func (p profession) perks() []string {
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},
 		{p.interest > 0, fmt.Sprintf("🏦 A poupança rende %d%% em vez de %d%%", savingsRate+p.interest, savingsRate)},
+		{p.savingsRoom > 0, fmt.Sprintf("🐷 Guarda até %s por vez na poupança (o normal é %s)", coins(p.savingsLimit()), coins(savingsCap))},
 		{p.dailyBonus > 0, fmt.Sprintf("🎁 O !daily rende +%d%%", p.dailyBonus)},
 		{p.cashback > 0, fmt.Sprintf("🧾 Recebe %d%% de volta quando perde no !apostar e no !cassino", p.cashback)},
 		{p.betJinx > 0, fmt.Sprintf("🐈‍⬛ %d%% das vitórias no !apostar e no !cassino viram derrota", percent(p.betJinx))},
@@ -448,6 +451,7 @@ func (p profession) perks() []string {
 		{p.voteWeight > 1, fmt.Sprintf("🗳️ Seu voto conta como %d no !votar, no !impeachment e no júri do !processar", p.voteWeight)},
 		{p.trialEvery > 0, fmt.Sprintf("⏳ Abre um !processar a cada %s (o normal é %s)", formatWait(p.trialEvery), formatWait(trialEvery))},
 		{p.freeBrokerage, fmt.Sprintf("📈 Não paga a corretagem de %d%% no !acoes", stockFeePercent)},
+		{p.stockProfit > 0, fmt.Sprintf("💹 O lucro na venda do !acoes rende %d%% a mais", p.stockProfit)},
 	}
 	var lines []string
 	for _, perk := range perks {
@@ -460,6 +464,10 @@ func (p profession) perks() []string {
 	lines = append(lines, contrabandPerks(p)...)
 	lines = append(lines, luxuryPerks(p)...)
 	return append(lines, charmPerks(p)...)
+}
+
+func (p profession) savingsLimit() int64 {
+	return savingsCap + p.savingsRoom
 }
 
 func (p profession) ballotWeight() int {

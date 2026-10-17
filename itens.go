@@ -158,7 +158,12 @@ var catalog = []item{
 			return p
 		}}},
 	{id: "santo-graal", name: "Santo Graal", emoji: "🏺", rarity: relic, value: 30_000, aliases: []string{"graal", "calice sagrado"},
-		flex: &flex{effect: "a poupança rende 5 pontos a mais", apply: func(p profession) profession { p.interest += 5; return p }}},
+		flex: &flex{effect: "a poupança rende 5 pontos a mais e guarda 5.000 a mais por vez, e o lucro na venda do !acoes rende 25% a mais", apply: func(p profession) profession {
+			p.interest += 5
+			p.savingsRoom += 5_000
+			p.stockProfit += 25
+			return p
+		}}},
 	{id: "relicario", name: "Relicário perdido", emoji: "🗝️", rarity: legendary, value: 10_000, aliases: []string{"relicario", "caixa de reliquias", "caixa especial"},
 		loot: []int{0, 0, 30, 50, 20}, relicOdds: 0.10, use: "🗝️ @%s girou a chave enferrujada do relicário perdido e um vento gelado saiu lá de dentro"},
 	{id: "bussola-do-relicario", name: "Bússola do relicário", emoji: "🧭", rarity: epic, value: 2_500, aliases: []string{"bussola", "bussola encantada"},
