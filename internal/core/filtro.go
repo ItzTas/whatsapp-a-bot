@@ -286,7 +286,7 @@ func (b *Bot) filterCommands() []Command {
 				{"!modo ativar consentimento", "submodo do romance: nesta conversa, o !casar e o !namorar viram pedido, respondido com !aceitar ou !recusar. Com a economia ligada, o casamento tem festa, dote, conta conjunta e pensão no divórcio"},
 				{"!modo ativar baixarlinks", "submodo do utilidades: nesta conversa, o bot baixa sozinho os vídeos, imagens e gifs dos links que mandarem"},
 				{"!modo ativar ia iaenxerida", "os submodos só funcionam com o modo de cima ligado, e o tudo não liga nenhum deles"},
-				{"!modo ativar moderacao", "nesta conversa, os admins podem usar o !ban, o !promover, o !rebaixar, o !mutar, o !desmutar, o !advertir, o !perdoar e o !boasvindas (todo mundo pode ver o !advertencias), e o bot apaga as mensagens de quem tá mutado e manda a mensagem de boas-vindas quando alguém entra"},
+				{"!modo ativar moderacao", "nesta conversa, os admins podem usar o !ban, o !promover, o !rebaixar, o !mutar, o !desmutar, o !advertir, o !perdoar, o !boasvindas, o !fixar e o !desfixar (todo mundo pode ver o !advertencias), e o bot apaga as mensagens de quem tá mutado e manda a mensagem de boas-vindas quando alguém entra"},
 				{"!modo ativar cidadedorme", "nesta conversa, liga o Cidade Dorme. Ele é exclusivo: pausa todos os outros modos, menos moderacao e utilidades, e quando desliga eles voltam. Ligar um modo que não convive com ele desliga ele"},
 				{"!modo desativar jogos", "desliga o modo de novo (funciona com qualquer modo)"},
 				{"!modo ativar jogos -- <nome do grupo>", "ativa (ou desativa) os modos no grupo com esse nome, mandando de qualquer conversa"},
@@ -517,6 +517,14 @@ func (b *Bot) currentGroupEntry(ctx context.Context, chat types.JID) filterEntry
 }
 
 func (b *Bot) groupByName(ctx context.Context, name string) ([]filterEntry, string, error) {
+	group, problem, err := b.GroupNamed(ctx, name)
+	if err != nil || problem != "" {
+		return nil, problem, err
+	}
+	return []filterEntry{{target: filterGroups, ids: []types.JID{group.JID}, name: group.Name}}, "", nil
+}
+
+func (b *Bot) GroupNamed(ctx context.Context, name string) (*types.GroupInfo, string, error) {
 	groups, err := b.Client.GetJoinedGroups(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("listar grupos: %w", err)
@@ -538,7 +546,7 @@ func (b *Bot) groupByName(ctx context.Context, name string) ([]filterEntry, stri
 		matches = partial
 	}
 	if len(matches) == 1 {
-		return []filterEntry{{target: filterGroups, ids: []types.JID{matches[0].JID}, name: matches[0].Name}}, "", nil
+		return matches[0], "", nil
 	}
 	if len(matches) == 0 {
 		return nil, fmt.Sprintf("Não achei nenhum grupo com \"%s\" no nome.", name), nil

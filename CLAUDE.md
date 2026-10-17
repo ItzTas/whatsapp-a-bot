@@ -90,11 +90,13 @@ dependências e chama o `Register` de cada um nesta ordem: `romance`, `games`, `
 (`internal/core/ganchos.go`) rodam na ordem em que foram registrados. Cada `events.Message` vira
 uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta ordem:
 
-1. O interceptador da moderação (`AddInterceptor`, que apaga a mensagem de quem tá mutado), os
+1. Os interceptadores da moderação (`AddInterceptor`: o que apaga a mensagem de quem tá mutado e o
+   `forgetUnpinned`, que esquece a mensagem fixada que alguém desfixou na mão), os
    comandos de dono (`AddOwnerCommands`: o `filterCommands` do `core` e o `!economia`) e o
    `answerPrivate` (`privado.go`) rodam primeiro e **ignoram o filtro**. No privado, quem tem uma
    resposta pendente (`b.AwaitPrivate`, usado pelo `!jokenpo @pessoa`, pelo
-   `!2verdades1mentira` e pela noite do `!cidadedorme`) tem a mensagem tratada pelo jogo. Mensagem
+   `!2verdades1mentira`, pelo chute do espião no `!espiao` e pela noite do `!cidadedorme`) tem a
+   mensagem tratada pelo jogo. Mensagem
    com `!` só vai pro pedido se ele ficou com aquele comando
    (`b.AwaitPrivate(ids, answer, "matar")`); senão segue o caminho normal. As outras mensagens
    privadas continuam passando pelo filtro.
@@ -105,13 +107,15 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
    da `jokes` vem antes do `reactToAilments` da `economy`. O `AddAfterMessage` (o
    `announcePayouts`) roda no fim, com `defer`.
 4. Os observadores (`AddObserver`) recebem a mensagem como possível resposta dos jogos em
-   andamento: `answerBmc`, `answerVdd`, `AnswerPoll`, `answerImpostor`, `answerForca`,
-   `answerTermo`, `answerGuess`, `answerVelha` e `answerBatata` na `games`, e o tribunal,
-   `answerBlackjack` e `answerCrash` na `economy`. `AnswerPoll` conta os votos das enquetes do
-   `!quemfalou`, `!quiz`, `!impostor`, `!processar`/`!processaria` (`trialPolls`) e
-   `!2verdades1mentira` (`mentiraPolls`). `answerGuess` (`internal/games/adivinha.go`) atende os
-   jogos de "quem mandar a resposta primeiro ganha", como o `!completa`, o `!emoji` e o
-   `!bandeira`.
+   andamento: `answerBmc`, `answerVdd`, `AnswerPoll`, `answerImpostor`, `answerEspiao`,
+   `answerForca`, `answerTermo`, `answerGuess`, `answerVelha` e `answerBatata` na `games`, e o
+   tribunal, `answerBlackjack` e `answerCrash` na `economy`. `AnswerPoll` conta os votos das
+   enquetes do `!quemfalou`, `!quiz`, `!impostor`, `!espiao`, `!processar`/`!processaria`
+   (`trialPolls`) e `!2verdades1mentira` (`mentiraPolls`). `answerGuess`
+   (`internal/games/adivinha.go`) atende os jogos de "quem mandar a resposta primeiro ganha",
+   como o `!completa`, o `!emoji` e o `!bandeira`. O `!impostor` e o `!espiao` dividem a sala
+   de jogadores e a enquete que só conta voto de quem joga (`roomPlayer` e `roomBallot`, em
+   `internal/games/sala.go`).
 5. Sem `!`: as respostas passivas (`AddPassive`) disparam em paralelo as reações automáticas
    (palavras, risada, links e a IA enxerida). Com `!`: os filtros de comando (`AddCommandFilter`)
    podem ficar com a mensagem; senão o comando é procurado nos `AddCommands` de todos os módulos, o
@@ -123,7 +127,7 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
    pedido pendente, a mensagem segue pro comando da economia.
 
 As tarefas em segundo plano (`runLottery`, `runReminders`, `runBirthdays`, `runTaxes`,
-`runAuctions` e `runLoanSeizures`) entram pelo `AddJob` e começam no `StartJobs`, depois de
+`runAuctions`, `runLoanSeizures` e `runPins`) entram pelo `AddJob` e começam no `StartJobs`, depois de
 conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderação).
 
 ### Comandos, categorias e modos
@@ -170,6 +174,9 @@ conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderaç
   pendurado no `bot` dele (o `walletStore` é da `economy`, o `quizStore` da `games`). O que mais
   de um módulo usa fica no `core.Bot` (`Relationships`, `Adoptions`, `Nicknames`, `Names` e
   `Modes`).
+- As tabelas da economia são por economia, não por grupo: grupos ligados com `!economia vincular`
+  dividem as mesmas linhas, e o `ledgerDB` da `economy` troca o `chat` pelo grupo principal em
+  toda consulta (skill `economia-base`).
 - Estado efêmero de jogos (rodadas de `!bmc`, `!quiz`, `!forca`...) fica em campos `sync.Map` do
   `bot` do módulo e se perde ao reiniciar. Jogos que seguram moedas no meio da rodada (`!blackjack`,
   `!crash`, `!corrida`, `!jokenpo @pessoa`) descontam a aposta na hora em que ela é feita e pagam no

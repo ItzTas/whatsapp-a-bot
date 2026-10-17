@@ -80,7 +80,10 @@ func run(ctx context.Context) (err error) {
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
 	b := core.New(client, gifs, messages, assistant)
-	econ := economy.New(b)
+	econ, err := economy.New(ctx, b)
+	if err != nil {
+		return err
+	}
 	rom := romance.New(b, econ)
 	gms := games.New(b, econ)
 	intelligence := ai.New(b, econ, gms, rom)
