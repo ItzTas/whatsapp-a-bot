@@ -14,23 +14,21 @@ import (
 )
 
 type profile struct {
-	person     types.JID
-	name       string
-	about      string
-	role       string
-	texts      []string
-	firstSeen  time.Time
-	hours      hourlyCounts
-	partners   []rankedMember
-	laughLine  string
-	position   int
-	ranked     int
-	economy    bool
-	balance    int64
-	wealthRank int
-	spouses    []types.JID
-	parents    []types.JID
-	children   []types.JID
+	person    types.JID
+	name      string
+	about     string
+	role      string
+	texts     []string
+	firstSeen time.Time
+	hours     hourlyCounts
+	partners  []rankedMember
+	laughLine string
+	position  int
+	ranked    int
+	economy   *economyProfile
+	spouses   []types.JID
+	parents   []types.JID
+	children  []types.JID
 }
 
 func (b *bot) tu(ctx context.Context, evt *events.Message) error {
@@ -70,12 +68,12 @@ func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 		return h.Wait()
 	})
 	g.Go(func() error { p.about = b.about(gctx, person); return nil })
-	g.Go(func() (err error) {
-		p.economy = b.economyOn(gctx, chat)
-		if !p.economy {
+	g.Go(func() error {
+		if !b.economyOn(gctx, chat) {
 			return nil
 		}
-		p.balance, p.wealthRank, err = b.wallets.balance(gctx, chat, b.account(gctx, person))
+		e, err := b.economyProfile(gctx, chat, person)
+		p.economy = &e
 		return err
 	})
 	g.Go(func() (err error) { marriages, err = b.relationships.inChat(gctx, chat, kindMarriage); return err })
@@ -170,8 +168,8 @@ func (p profile) card() (string, []types.JID) {
 	if p.laughLine != "" {
 		lines = append(lines, p.laughLine)
 	}
-	if p.economy {
-		lines = append(lines, p.walletLine())
+	if p.economy != nil {
+		lines = append(lines, p.economy.lines()...)
 	}
 
 	lines = append(lines, "", p.spousesLine())
@@ -184,13 +182,6 @@ func (p profile) card() (string, []types.JID) {
 
 	mentions := slices.Concat([]types.JID{p.person}, partner, p.spouses, p.parents, p.children)
 	return strings.Join(lines, "\n"), uniqueJIDs(mentions)
-}
-
-func (p profile) walletLine() string {
-	if p.balance == 0 {
-		return "🪹 Liso, sem nenhuma moeda"
-	}
-	return fmt.Sprintf("%s (%dº mais rico do grupo)", coins(p.balance), p.wealthRank)
 }
 
 func (p profile) spousesLine() string {

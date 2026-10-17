@@ -124,6 +124,9 @@ func (b *bot) usar(ctx context.Context, evt *events.Message) error {
 	if it.bless != "" {
 		return b.savorLuxury(ctx, evt, it)
 	}
+	if it.hex != "" {
+		return b.hurlCurse(ctx, evt, it)
+	}
 	text := fmt.Sprintf(it.use, person.User)
 	if it.keep {
 		_, err = b.sendMentions(ctx, chat, text, []types.JID{person})

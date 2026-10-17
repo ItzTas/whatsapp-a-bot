@@ -27,8 +27,14 @@ const godHintText = "\n\n_⚡ Como dono do bot, você pode virar deus quando qui
 func (p profession) pace(cd cooldown) cooldown {
 	if p.divine {
 		cd.every = 0
+		return cd
 	}
+	cd.every = p.hasted(cd.every)
 	return cd
+}
+
+func (p profession) hasted(every time.Duration) time.Duration {
+	return every * time.Duration(max(100+p.haste, 0)) / 100
 }
 
 func (b *bot) summonsGod(ctx context.Context, evt *events.Message, query string) bool {

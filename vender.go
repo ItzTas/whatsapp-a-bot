@@ -255,10 +255,20 @@ func (b *bot) offerItem(ctx context.Context, evt *events.Message, buyer types.JI
 	}
 	time.AfterFunc(offerWindow, func() { b.expireOffer(ctx, key, offer) })
 
-	text := fmt.Sprintf("🤝 @%s quer vender %s pra @%s por %s\n_No mercado sairia por %s_\n\n@%s, manda !aceitar pra comprar ou !recusar pra dispensar. A proposta vale por %s",
-		seller.User, quantityLabel(it, quantity), buyer.User, coins(price), coins(marketPayout(it.value, quantity)), buyer.User, formatWait(offerWindow))
+	text := fmt.Sprintf("🤝 @%s quer vender %s pra @%s por %s\n_%s, e no mercado sairia por %s_\n\n@%s, manda !aceitar pra comprar ou !recusar pra dispensar. A proposta vale por %s",
+		seller.User, quantityLabel(it, quantity), buyer.User, coins(price), storePriceNote(it, quantity), coins(marketPayout(it.value, quantity)), buyer.User, formatWait(offerWindow))
 	_, err = b.sendMentions(ctx, chat, text, []types.JID{seller, buyer})
 	return err
+}
+
+func storePriceNote(it item, quantity int64) string {
+	if it.shop {
+		return fmt.Sprintf("Na %s custa %s", it.store(), coins(it.value*quantity))
+	}
+	if luxuryGoods(it) {
+		return fmt.Sprintf("Na !luxo custa %s", coins(luxuryPrice(it)*quantity))
+	}
+	return "A loja não vende"
 }
 
 func (b *bot) expireOffer(ctx context.Context, key string, o *itemOffer) {

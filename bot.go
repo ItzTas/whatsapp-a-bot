@@ -51,6 +51,7 @@ type bot struct {
 	trialChats       sync.Map
 	trialPolls       sync.Map
 	heistCrews       sync.Map
+	gangs            sync.Map
 	hostageSales     sync.Map
 	elections        sync.Map
 	impeachments     sync.Map
@@ -542,6 +543,7 @@ func (b *bot) commands() []botCommand {
 			help: []usage{
 				{"!tu", "mostra a sua ficha no grupo: nome, recado, ranking, palavra favorita, família e mais 🪪"},
 				{"!tu @pessoa", "mostra a ficha da pessoa marcada"},
+				{"!tu (com a economia ligada)", "a ficha também traz saldo, profissão, poupança, ações, mochila, dívidas, recompensa, cadeia e o resto da economia 💼"},
 			},
 			run: b.tu,
 		},
@@ -791,11 +793,21 @@ func (b *bot) commands() []botCommand {
 			barredInJail: true,
 		},
 		{
+			name:     "quadrilha",
+			aliases:  []string{"gangue", "bonde"},
+			category: economia,
+			help: []usage{
+				{"!quadrilha @pessoa", fmt.Sprintf("junta uma quadrilha de até %d pra roubar a pessoa marcada 🦹 Quem manda primeiro abre, e o resto tem %s pra mandar !quadrilha e entrar. Com %d sai na hora, e se o tempo acabar com pelo menos %d a quadrilha parte pra cima assim mesmo. A chance começa igual à do !roubar, soma o bônus de roubo da profissão de cada um e mais %d%% por pessoa a mais, e cai com a proteção da vítima. Se der certo, a quadrilha leva de %d%% a %d%% do saldo da vítima e divide igual. Se der errado, cada um paga indenização pra vítima. Usa a mesma espera do !roubar, marca o crime de todo mundo (dá pra !prender e !denunciar) e o 🚨 alarme da vítima protege igual", gangSize, formatWait(gangWindow), gangSize, gangMin, percent(gangHelp), gangLootMin, gangLootMax)},
+			},
+			run:          b.quadrilha,
+			barredInJail: true,
+		},
+		{
 			name:     "prender",
 			aliases:  []string{"prisao", "cadeia"},
 			category: economia,
 			help: []usage{
-				{"!prender @pessoa", "prende a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou negociou no !mercadonegro nas últimas " + formatWait(crimeWindow) + " 🚔 Cada crime só rende uma prisão, e se ela tiver um refém no cativeiro ele é libertado. Enquanto tá na cadeia ela não pode !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !furtar, !sequestrar nem !assalto. Só a polícia prende (" + arrestingProfessions() + "), e a cadeia é de " + formatWait(baseJail) + ". A profissão de quem é preso aumenta ou diminui esse tempo (bandido pega mais, advogado pega menos, veja !profissao). Quem tá preso pode tentar !fugir, ou um juiz, advogado ou delegado pode tentar !libertar. Quem emprestou moedas com o !agiota pode prender quem passou do prazo sem pagar, mesmo sem ser da polícia e sem crime nenhum"},
+				{"!prender @pessoa", "prende a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou numa !quadrilha ou negociou no !mercadonegro nas últimas " + formatWait(crimeWindow) + " 🚔 Cada crime só rende uma prisão, e se ela tiver um refém no cativeiro ele é libertado. Enquanto tá na cadeia ela não pode !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !furtar, !sequestrar, !assalto nem !quadrilha. Só a polícia prende (" + arrestingProfessions() + "), e a cadeia é de " + formatWait(baseJail) + ". A profissão de quem é preso aumenta ou diminui esse tempo (bandido pega mais, advogado pega menos, veja !profissao). Quem tá preso pode tentar !fugir, ou um juiz, advogado ou delegado pode tentar !libertar. Quem emprestou moedas com o !agiota pode prender quem passou do prazo sem pagar, mesmo sem ser da polícia e sem crime nenhum"},
 			},
 			run: b.prender,
 		},
@@ -823,7 +835,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"denuncia", "dedurar", "x9"},
 			category: economia,
 			help: []usage{
-				{"!denunciar @pessoa", fmt.Sprintf("liga pro 190 e dedura a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou negociou no !mercadonegro nas últimas %s 📞 Qualquer um pode denunciar, mas a polícia só acredita em %d%% das vezes, e a profissão muda isso (detetive, promotor e porteiro são levados a sério, golpista e cartomante quase nunca, veja !profissao). Se colar, a pessoa pega %s de cadeia (mais ou menos conforme a profissão dela) e solta o refém se tiver um. Bandido não pode denunciar: se tentar, a quadrilha entrega ele e quem vai preso é ele. Dá pra denunciar a cada %s", formatWait(crimeWindow), percent(reportChance), formatWait(baseJail), formatWait(reportCooldown.every))},
+				{"!denunciar @pessoa", fmt.Sprintf("liga pro 190 e dedura a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou numa !quadrilha ou negociou no !mercadonegro nas últimas %s 📞 Qualquer um pode denunciar, mas a polícia só acredita em %d%% das vezes, e a profissão muda isso (detetive, promotor e porteiro são levados a sério, golpista e cartomante quase nunca, veja !profissao). Se colar, a pessoa pega %s de cadeia (mais ou menos conforme a profissão dela) e solta o refém se tiver um. Bandido não pode denunciar: se tentar, a quadrilha entrega ele e quem vai preso é ele. Dá pra denunciar a cada %s", formatWait(crimeWindow), percent(reportChance), formatWait(baseJail), formatWait(reportCooldown.every))},
 			},
 			run: b.denunciar,
 		},
@@ -907,10 +919,22 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"assassinar", "apagar"},
 			category: economia,
 			help: []usage{
-				{"!matar @pessoa", fmt.Sprintf("tenta apagar a pessoa marcada 🔪 Só algumas profissões matam, cada uma com a sua chance: %s, e a proteção da vítima tira um pouco. Se der certo ela fica %s morta, sem poder usar nenhum comando de economia (a não ser que alguém consiga !reviver), e se tiver um refém no cativeiro ele fica livre. Se der errado você tem %d%% de chance de ir preso na hora por %s (bem mais se a vítima for da polícia, e a profissão muda o tempo). Matar ou tentar é crime: a polícia pode !prender e qualquer um pode !denunciar. Dá pra tentar a cada %s. Quem emprestou moedas com o !agiota pode matar quem passou do prazo sem pagar, mesmo sem ser dessas profissões, com pelo menos %d%% de chance, sem ser crime e sem ir preso", killingProfessions(), formatWait(deathHold), percent(killCaughtChance), formatWait(baseJail), formatWait(killCooldown.every), percent(debtKillChance))},
+				{"!matar @pessoa", fmt.Sprintf("tenta apagar a pessoa marcada 🔪 Só algumas profissões matam, cada uma com a sua chance: %s, e a proteção da vítima tira um pouco. Se der certo ela fica %s morta, sem poder usar nenhum comando de economia (a não ser que alguém consiga !reviver), e se tiver um refém no cativeiro ele fica livre. Se tiver !recompensa na cabeça dela, ela é toda sua. Se der errado você tem %d%% de chance de ir preso na hora por %s (bem mais se a vítima for da polícia, e a profissão muda o tempo). Matar ou tentar é crime: a polícia pode !prender e qualquer um pode !denunciar. Dá pra tentar a cada %s. Quem emprestou moedas com o !agiota pode matar quem passou do prazo sem pagar, mesmo sem ser dessas profissões, com pelo menos %d%% de chance, sem ser crime e sem ir preso", killingProfessions(), formatWait(deathHold), percent(killCaughtChance), formatWait(baseJail), formatWait(killCooldown.every), percent(debtKillChance))},
 			},
 			run:          b.matar,
 			barredInJail: true,
+		},
+		{
+			name:     "recompensa",
+			aliases:  []string{"procurado", "procurados", "premio"},
+			category: economia,
+			help: []usage{
+				{"!recompensa @pessoa <valor>", "bota moedas na cabeça da pessoa 🎯 O valor sai do teu saldo na hora e soma com o que os outros já botaram. Quem conseguir !matar ela leva tudo (também aceita metade, 10% ou tudo)"},
+				{"!recompensa @pessoa", "mostra quanto vale a cabeça da pessoa"},
+				{"!recompensa retirar @pessoa", "tira a recompensa que você botou na pessoa e devolve as moedas"},
+				{"!recompensa", fmt.Sprintf("mostra as %d cabeças mais valiosas da conversa", bountyBoardSize)},
+			},
+			run: b.recompensa,
 		},
 		{
 			name:     "reviver",
@@ -927,7 +951,7 @@ func (b *bot) commands() []botCommand {
 			category: economia,
 			help: []usage{
 				{"!abencoar", "mostra todas as bênçãos, quem pode dar cada uma e as que tão em você agora 🙏"},
-				{"!abencoar @pessoa <bênção>", fmt.Sprintf("dá uma bênção pra pessoa por um tempo: mais ganho, mais proteção, mais sorte, mais chance de fugir... A Purificação tira na hora as maldições dela. Só as profissões de fé e feitiçaria abençoam, cada uma com as suas (%s), e ninguém se abençoa sozinho. Dá pra lançar uma bênção ou maldição a cada %s", mysticProfessions(), formatWait(charmCooldown.every))},
+				{"!abencoar @pessoa <bênção>", fmt.Sprintf("dá uma bênção pra pessoa por um tempo: mais ganho, mais proteção, mais sorte, mais chance de fugir... A Purificação tira na hora as maldições dela. Só as profissões de fé e feitiçaria abençoam, cada uma com as suas (%s), e ninguém se abençoa sozinho, a não ser gastando um item de bênção no !usar (veja no !item encantos). Dá pra lançar uma bênção ou maldição a cada %s", mysticProfessions(), formatWait(charmCooldown.every))},
 			},
 			run: b.abencoar,
 		},
@@ -937,7 +961,7 @@ func (b *bot) commands() []botCommand {
 			category: economia,
 			help: []usage{
 				{"!amaldicoar", "mostra todas as maldições, quem pode jogar cada uma e as que tão em você agora 🕯️"},
-				{"!amaldicoar @pessoa <maldição>", fmt.Sprintf("joga uma maldição na pessoa por um tempo: ganha menos, fica mais fácil de roubar, perde sorte no crime, fica mais tempo preso... Cada profissão de fé e feitiçaria tem as suas e a sua chance de pegar, e quando falha a praga tem %d%% de chance de voltar pra quem jogou. Quem tá amaldiçoado se livra com uma !abencoar @pessoa purificacao", percent(hexBackfire))},
+				{"!amaldicoar @pessoa <maldição>", fmt.Sprintf("joga uma maldição na pessoa por um tempo: ganha menos, fica mais fácil de roubar, perde sorte no crime, fica mais tempo preso... Cada profissão de fé e feitiçaria tem as suas e a sua chance de pegar, e quando falha a praga tem %d%% de chance de voltar pra quem jogou. Quem não tem a profissão pode jogar com item, no !usar <item> @pessoa (veja no !item encantos), com %d%% de chance de pegar. Quem tá amaldiçoado se livra com uma !abencoar @pessoa purificacao ou com um !usar sal grosso", percent(hexBackfire), percent(itemHexChance))},
 			},
 			run: b.amaldicoar,
 		},
@@ -1286,7 +1310,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"abrir", "comer", "beber", "tomar"},
 			category: economia,
 			help: []usage{
-				{"!usar <item>", "usa um item: come, bebe, abre caixa, raspa raspadinha... cada um faz uma coisa (veja no !item <nome>) ✨ Dá pra mandar !comer, !beber ou !abrir também"},
+				{"!usar <item>", "usa um item: come, bebe, abre caixa, raspa raspadinha... cada um faz uma coisa (veja no !item <nome>) ✨ Item de bênção (trevo, terço, olho grego...) abençoa quem usa, e item de maldição se joga em alguém, tipo !usar gato preto @pessoa. Dá pra mandar !comer, !beber ou !abrir também"},
 			},
 			run: b.usar,
 		},
@@ -1332,7 +1356,7 @@ func (b *bot) commands() []botCommand {
 			category: economia,
 			help: []usage{
 				{"!furtar @pessoa", fmt.Sprintf("tenta furtar um item aleatório da mochila da pessoa marcada 🥷 Quanto mais raro, mais difícil, e se der errado você paga indenização. Uma vez a cada %s, e a profissão de cada um muda a espera e a chance", formatWait(theftCooldown.every))},
-				{"!furtar @pessoa <item>", "tenta furtar um item específico, com menos chance de dar certo. Quem tem 🔒 cadeado na mochila tá protegido"},
+				{"!furtar @pessoa <item>", "tenta furtar um item específico, com menos chance de dar certo. Quem tem 🔒 cadeado na mochila tá protegido, e relíquia nunca pode ser furtada"},
 			},
 			run:          b.furtar,
 			barredInJail: true,

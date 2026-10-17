@@ -63,6 +63,7 @@ func (b *bot) gameRestorers() map[string]gameRestorer {
 		proposalKind:     b.restoreProposal,
 		hostageSaleKind:  b.restoreHostageSale,
 		heistKind:        b.restoreHeist,
+		gangKind:         b.restoreGang,
 		trialKind:        b.restoreTrial,
 		electionKind:     b.restoreElection,
 		impeachmentKind:  b.restoreImpeachment,

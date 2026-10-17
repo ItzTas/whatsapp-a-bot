@@ -1899,7 +1899,7 @@ var professions = []profession{
 		aliases: []string{"mae de santo", "pai de santo", "macumbeira", "macumbeiro", "ialorixa", "babalorixa"},
 		min:     100, max: 200, every: 20 * time.Minute,
 		faith: faith{
-			blessings: []string{"protecao", "sorte", "purificacao"}, curses: []string{"olhogordo", "azar", "encosto"}, hexChance: 0.7,
+			blessings: []string{"protecao", "sorte", "purificacao"}, curses: []string{"olhogordo", "azar", "encosto", "lerdeza"}, hexChance: 0.7,
 			blessRite: "acendeu uma vela branca pra", curseRite: "fez um despacho na encruzilhada pra",
 		},
 		tasks: []string{
@@ -1915,7 +1915,7 @@ var professions = []profession{
 			"errou a poção e o cliente ficou três dias com soluço", "a vassoura quebrou no meio do voo",
 		},
 		faith: faith{
-			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto"}, hexChance: 0.75,
+			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto", "lerdeza"}, hexChance: 0.75,
 			blessRite: "fez uma poção da sorte pra", curseRite: "mexeu o caldeirão pensando em",
 		},
 		tasks: []string{
@@ -1941,7 +1941,7 @@ var professions = []profession{
 		name: "xamã", emoji: "🪶", title: "é xamã", area: areaFe, aliases: []string{"xama", "paje", "druida"},
 		min: 100, max: 190, every: 22 * time.Minute, breakoutBonus: 0.15,
 		faith: faith{
-			blessings: []string{"libertacao", "fartura", "sorte"}, curses: []string{"jejum", "encosto"}, hexChance: 0.6,
+			blessings: []string{"libertacao", "fartura", "sorte", "pressa"}, curses: []string{"jejum", "encosto"}, hexChance: 0.6,
 			blessRite: "fez uma roda de tambor por", curseRite: "invocou os espíritos da floresta contra",
 		},
 		tasks: []string{
@@ -1970,7 +1970,7 @@ var professions = []profession{
 		name: "monge", emoji: "📿", title: "é monge", area: areaFe, aliases: []string{"monja", "budista"},
 		min: 50, max: 110, every: 12 * time.Minute, interest: 2, jailFactor: -30,
 		faith: faith{
-			blessings: []string{"justica", "libertacao", "protecao"}, curses: []string{"jejum"}, hexChance: 0.45,
+			blessings: []string{"justica", "libertacao", "protecao", "pressa"}, curses: []string{"jejum"}, hexChance: 0.45,
 			blessRite: "meditou três horas por", curseRite: "impôs um voto de jejum a",
 		},
 		tasks: []string{

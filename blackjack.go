@@ -422,7 +422,7 @@ func (h *blackjackHand) report(note string) blackjackReport {
 	if h.doubled {
 		stake += " (dobrou)"
 	}
-	dealer := h.dealer[0].String() + " 🂠"
+	dealer := strings.TrimSpace(strings.Repeat("🂠 ", len(h.dealer)))
 	if h.over {
 		dealer = showCards(h.dealer) + " (" + h.score(h.dealer) + ")"
 	}

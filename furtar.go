@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
@@ -38,6 +39,9 @@ func (b *bot) furtar(ctx context.Context, evt *events.Message) error {
 		}
 		wanted = matches[0]
 	}
+	if wanted.rarity == relic {
+		return b.sendText(ctx, chat, fmt.Sprintf("🏛️ %s é relíquia, e relíquia não se furta. Escolhe outro item da mochila", wanted.label()))
+	}
 	thiefJob, victimJob, err := b.rivalProfessions(ctx, chat, thiefAcc, victimAcc)
 	if err != nil {
 		return err
@@ -60,6 +64,7 @@ func theftChoice(wanted item, bonus float64) func(loot []stack) (item, bool) {
 		}
 	}
 	return func(loot []stack) (item, bool) {
+		loot = slices.DeleteFunc(slices.Clone(loot), func(s stack) bool { return s.item.rarity == relic })
 		if len(loot) == 0 {
 			return item{}, false
 		}
@@ -73,7 +78,7 @@ func theftText(t theft, wanted item, thief, victim types.JID) string {
 		return fmt.Sprintf("🎒 @%s não tem %s na mochila pra furtar", victim.User, wanted.label())
 	}
 	if t.empty {
-		return fmt.Sprintf("🎒 A mochila de @%s tá vazia, não tem nem poeira pra furtar", victim.User)
+		return fmt.Sprintf("🎒 A mochila de @%s não tem nada que dê pra furtar (relíquia não conta)", victim.User)
 	}
 	if t.wait > 0 {
 		return fmt.Sprintf("🚓 @%s ainda tá sendo procurado pelo último furto. Espera %s pra tentar de novo", thief.User, formatWait(t.wait))

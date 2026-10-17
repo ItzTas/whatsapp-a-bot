@@ -44,6 +44,7 @@ var fishing = activity{
 		{"celular-afogado", 40}, {"piranha", 35}, {"agua-viva", 30}, {"atum", 25}, {"arraia", 20},
 		{"garrafa-com-mensagem", 12}, {"dourado", 10}, {"peixe-espada", 7}, {"tridente", 1},
 		{"dente-de-megalodonte", 1}, {"boto-cor-de-rosa", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
+		{"chave-de-sao-pedro", 3},
 	},
 	found: []string{
 		"🎣 @%[1]s jogou a linha e fisgou %[2]s",
@@ -73,6 +74,7 @@ var mining = activity{
 		{"meteorito", 2}, {"areia", 110}, {"granito", 100}, {"quartzo", 70}, {"ouro-de-tolo", 60}, {"topazio", 35},
 		{"geodo", 30}, {"opala", 12}, {"jade", 12}, {"petroleo", 10}, {"urna", 8}, {"uranio", 3},
 		{"diamante-rosa", 1}, {"idolo-de-ouro", 1}, {"pedra-filosofal", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
+		{"moeda-amaldicoada", 10}, {"ampulheta", 6}, {"machado-de-xango", 2},
 	},
 	found: []string{
 		"⛏️ @%[1]s cavou fundo na mina e achou %[2]s",
@@ -107,6 +109,8 @@ var scavenging = activity{
 		{"maquina-de-escrever", 12}, {"notebook-positivo", 10}, {"game-boy", 8}, {"lata-de-ninho", 15},
 		{"brinco-de-ouro", 5}, {"carta-holografica", 4}, {"cofre-esquecido", 2}, {"bilhete-premiado", 1},
 		{"mala-de-dinheiro", 1}, {"taca-jules-rimet", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
+		{"espelho-quebrado", 25}, {"despertador-quebrado", 30}, {"marmita-estragada", 30}, {"olho-de-sogra", 15},
+		{"moeda-amaldicoada", 5}, {"pacto-com-o-capeta", 2},
 	},
 	found: []string{
 		"🗑️ @%[1]s revirou o lixão e achou %[2]s",
@@ -137,6 +141,7 @@ var bugging = activity{
 		{"favo-de-mel", 30}, {"escorpiao", 30}, {"caranguejeira", 20}, {"besouro-rinoceronte", 12},
 		{"casulo-de-seda", 12}, {"borboleta-azul", 10}, {"abelha-rainha", 5}, {"mosquito-no-ambar", 4},
 		{"escaravelho-de-ouro", 1}, {"fada", 1}, {"grilo-falante", 1}, {"saci-na-garrafa", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
+		{"arruda", 50}, {"semente-de-roma", 30},
 	},
 	found: []string{
 		"🦋 @%[1]s correu no mato com a rede e pegou %[2]s",
@@ -304,7 +309,7 @@ func lureCompasses(loot []drop, factor int) []drop {
 }
 
 func (p profession) forage(a activity) activity {
-	a.cooldown.every = a.cooldown.every * time.Duration(100-p.gatherFaster) / 100
+	a.cooldown.every = p.hasted(a.cooldown.every * time.Duration(100-p.gatherFaster) / 100)
 	if p.compassLure > 0 {
 		a.loot = lureCompasses(a.loot, p.compassLure)
 	}

@@ -28,6 +28,7 @@ type killing struct {
 	jail    time.Duration
 	freed   types.JID
 	fine    int64
+	bounty  int64
 }
 
 type killOdds struct {
@@ -152,6 +153,9 @@ func deathCaption(k killing, killer, victim types.JID) string {
 	if !k.freed.IsEmpty() {
 		lines = append(lines, fmt.Sprintf("🔓 O refém de @%s aproveitou o velório pra fugir: @%s tá livre!", victim.User, k.freed.User))
 	}
+	if k.bounty > 0 {
+		lines = append(lines, fmt.Sprintf("🎯 Tinha recompensa na cabeça de @%s: @%s embolsou %s", victim.User, killer.User, coins(k.bounty)))
+	}
 	if k.lawful {
 		return strings.Join(lines, "\n")
 	}
@@ -214,7 +218,10 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim a
 			if err != nil {
 				return err
 			}
-			k.freed, err = freeHostage(ctx, tx, chat, victim, now)
+			if k.freed, err = freeHostage(ctx, tx, chat, victim, now); err != nil {
+				return err
+			}
+			k.bounty, err = claimBounty(ctx, tx, chat, victim, killer)
 			return err
 		}
 		if rand.Float64() >= odds.caught {

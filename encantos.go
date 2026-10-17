@@ -14,9 +14,14 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-const hexBackfire = 0.25
+const (
+	hexBackfire   = 0.25
+	itemHexChance = 0.5
+)
 
 var charmCooldown = cooldown{column: "encanto_em", every: 40 * time.Minute}
+
+const hasteCommands = "!pescar, !minerar, !vasculhar, !catar, !roubar, !furtar, !quadrilha, !sequestrar, !matar, !prender, !denunciar, !processar, !reviver, !libertar, !abencoar e !amaldicoar"
 
 var errCharmIdle = errors.New("não tinha maldição pra tirar")
 
@@ -32,33 +37,33 @@ type charm struct {
 }
 
 var charms = []charm{
-	{id: "prosperidade", name: "Prosperidade", emoji: "💰", hold: 3 * time.Hour, aliases: []string{"dinheiro", "riqueza", "grana"},
+	{id: "prosperidade", name: "Prosperidade", emoji: "💰", hold: 6 * time.Hour, aliases: []string{"dinheiro", "riqueza", "grana"},
 		effect: "o !trabalhar paga 50% a mais",
 		apply: func(p profession) profession {
 			p.min, p.max = p.min*3/2, p.max*3/2
 			return p
 		}},
-	{id: "protecao", name: "Proteção", emoji: "🛡️", hold: 3 * time.Hour, aliases: []string{"escudo", "corpo fechado"},
+	{id: "protecao", name: "Proteção", emoji: "🛡️", hold: 6 * time.Hour, aliases: []string{"escudo", "corpo fechado"},
 		effect: "quem tenta !roubar, !furtar, !sequestrar ou !matar a pessoa tem 25% menos chance",
 		apply: func(p profession) profession {
 			p.guard += 0.25
 			return p
 		}},
-	{id: "sorte", name: "Sorte", emoji: "🍀", hold: 3 * time.Hour, aliases: []string{"trevo", "boa sorte"},
+	{id: "sorte", name: "Sorte", emoji: "🍀", hold: 6 * time.Hour, aliases: []string{"trevo", "boa sorte"},
 		effect: "20% de chance de ganhar em dobro no !trabalhar (não soma com a da profissão nem com a da bolsa, vale a maior) e 20% de volta quando perde no !apostar e no !cassino",
 		apply: func(p profession) profession {
 			p.doubleChance = max(p.doubleChance, 0.2)
 			p.cashback += 20
 			return p
 		}},
-	{id: "fartura", name: "Fartura", emoji: "🍞", hold: 12 * time.Hour, aliases: []string{"abundancia", "pao"},
+	{id: "fartura", name: "Fartura", emoji: "🍞", hold: 24 * time.Hour, aliases: []string{"abundancia", "pao"},
 		effect: "o !daily rende 50% a mais e a poupança rende 2 pontos a mais",
 		apply: func(p profession) profession {
 			p.dailyBonus += 50
 			p.interest += 2
 			return p
 		}},
-	{id: "libertacao", name: "Libertação", emoji: "🕊️", hold: 3 * time.Hour, aliases: []string{"liberdade", "pomba"},
+	{id: "libertacao", name: "Libertação", emoji: "🕊️", hold: 6 * time.Hour, aliases: []string{"liberdade", "pomba"},
 		effect: "+25% de chance no !fugir da cadeia e do cativeiro, e 30% menos tempo quando vai preso",
 		apply: func(p profession) profession {
 			p.escapeBonus += 0.25
@@ -66,28 +71,35 @@ var charms = []charm{
 			p.jailFactor -= 30
 			return p
 		}},
-	{id: "justica", name: "Justiça divina", emoji: "⚖️", hold: 6 * time.Hour, aliases: []string{"justica divina", "juizo"},
+	{id: "justica", name: "Justiça divina", emoji: "⚖️", hold: 12 * time.Hour, aliases: []string{"justica divina", "juizo"},
 		effect: "conta como 2 votos a mais pro lado da pessoa no júri do !processar",
 		apply: func(p profession) profession {
 			p.trialEdge += 2
 			return p
 		}},
+	{id: "pressa", name: "Pressa", emoji: "⏩", hold: 3 * time.Hour, aliases: []string{"tempo", "rapidez", "agilidade", "ampulheta"},
+		effect: "espera 30% menos no !trabalhar e no " + hasteCommands,
+		apply: func(p profession) profession {
+			p.every = p.every * 70 / 100
+			p.haste -= 30
+			return p
+		}},
 	{id: "purificacao", name: "Purificação", emoji: "🧂", aliases: []string{"descarrego", "limpeza", "limpar", "exorcismo"},
 		effect: "tira na hora toda maldição da pessoa, até a praga do !zoar"},
 
-	{id: "miseria", name: "Miséria", emoji: "💸", curse: true, hold: 2 * time.Hour, aliases: []string{"pobreza", "falencia"},
+	{id: "miseria", name: "Miséria", emoji: "💸", curse: true, hold: 4 * time.Hour, aliases: []string{"pobreza", "falencia"},
 		effect: "o !trabalhar paga 40% menos",
 		apply: func(p profession) profession {
 			p.min, p.max = p.min*60/100, p.max*60/100
 			return p
 		}},
-	{id: "olhogordo", name: "Olho gordo", emoji: "🧿", curse: true, hold: 2 * time.Hour, aliases: []string{"mau olhado", "quebranto", "inveja"},
+	{id: "olhogordo", name: "Olho gordo", emoji: "🧿", curse: true, hold: 4 * time.Hour, aliases: []string{"mau olhado", "quebranto", "inveja"},
 		effect: "quem tenta !roubar, !furtar, !sequestrar ou !matar a pessoa tem 25% mais chance",
 		apply: func(p profession) profession {
 			p.guard -= 0.25
 			return p
 		}},
-	{id: "azar", name: "Azar", emoji: "🐈‍⬛", curse: true, hold: 2 * time.Hour, aliases: []string{"urucubaca", "zica", "gato preto"},
+	{id: "azar", name: "Azar", emoji: "🐈‍⬛", curse: true, hold: 4 * time.Hour, aliases: []string{"urucubaca", "zica", "gato preto"},
 		effect: "-20% de chance no !roubar, no !furtar, no !sequestrar e no !assalto, 20% das vitórias no !apostar e no !cassino viram derrota e o !trabalhar nunca paga em dobro",
 		apply: func(p profession) profession {
 			p.robBonus -= 0.2
@@ -98,14 +110,14 @@ var charms = []charm{
 			p.noDouble = true
 			return p
 		}},
-	{id: "jejum", name: "Jejum", emoji: "🍽️", curse: true, hold: 12 * time.Hour, aliases: []string{"fome", "seca"},
+	{id: "jejum", name: "Jejum", emoji: "🍽️", curse: true, hold: 24 * time.Hour, aliases: []string{"fome", "seca"},
 		effect: "o !daily rende metade e a poupança rende 2 pontos a menos",
 		apply: func(p profession) profession {
 			p.dailyBonus -= 50
 			p.interest -= 2
 			return p
 		}},
-	{id: "encosto", name: "Encosto", emoji: "👻", curse: true, hold: 2 * time.Hour, aliases: []string{"assombracao", "espirito"},
+	{id: "encosto", name: "Encosto", emoji: "👻", curse: true, hold: 4 * time.Hour, aliases: []string{"assombracao", "espirito"},
 		effect: "fica 50% mais tempo na cadeia e tem 25% menos chance no !fugir da cadeia e do cativeiro",
 		apply: func(p profession) profession {
 			p.jailFactor += 50
@@ -113,7 +125,14 @@ var charms = []charm{
 			p.breakoutBonus -= 0.25
 			return p
 		}},
-	{id: "excomunhao", name: "Excomunhão", emoji: "📛", curse: true, hold: 6 * time.Hour, aliases: []string{"excomungar", "heresia"},
+	{id: "lerdeza", name: "Lerdeza", emoji: "🐌", curse: true, hold: 2 * time.Hour, aliases: []string{"tempo", "lentidao", "atraso", "preguica", "relogio parado"},
+		effect: "espera 50% mais no !trabalhar e no " + hasteCommands,
+		apply: func(p profession) profession {
+			p.every = p.every * 3 / 2
+			p.haste += 50
+			return p
+		}},
+	{id: "excomunhao", name: "Excomunhão", emoji: "📛", curse: true, hold: 12 * time.Hour, aliases: []string{"excomungar", "heresia"},
 		effect: "o júri do !processar ganha 2 votos contra a pessoa",
 		apply: func(p profession) profession {
 			p.trialEdge -= 2
@@ -286,6 +305,21 @@ func faithPerks(p profession) []string {
 	return lines
 }
 
+func itemsCarrying(c charm) string {
+	var names []string
+	for _, it := range catalog {
+		if it.bless == c.id || it.hex == c.id {
+			names = append(names, it.emoji+" "+it.name)
+		}
+	}
+	return joinWithAnd(names)
+}
+
+func cureText() string {
+	c, _ := charmByID("purificacao")
+	return fmt.Sprintf("_Pra se livrar: pede uma Purificação pra %s (!abencoar @pessoa purificacao) ou usa %s_", purifiers(), itemsCarrying(c))
+}
+
 func castersOf(c charm) string {
 	var names []string
 	for _, p := range professions {
@@ -328,9 +362,6 @@ func (b *bot) castCharm(ctx context.Context, evt *events.Message, curse bool) er
 	}
 	target := mentions[0].ToNonAD()
 	targetAcc := b.account(ctx, target)
-	if targetAcc.key == casterAcc.key {
-		return b.sendText(ctx, chat, selfCharmText(curse))
-	}
 	available := job.castable(curse)
 	if len(available) == 0 {
 		return b.sendText(ctx, chat, noFaithText(curse))
@@ -363,13 +394,6 @@ func pickCharm(query string, available []charm, curse bool) (charm, bool) {
 	}
 	c, ok := findCharm(query, curse)
 	return c, ok && slices.ContainsFunc(available, func(a charm) bool { return a.id == c.id })
-}
-
-func selfCharmText(curse bool) string {
-	if curse {
-		return "Se amaldiçoar? Isso aí já é caso de terapia 🫂"
-	}
-	return "🙅 Santo de casa não faz milagre: ninguém consegue se abençoar sozinho. Pede pra outra pessoa"
 }
 
 func noFaithText(curse bool) string {
@@ -413,6 +437,9 @@ func (b *bot) charmMenu(ctx context.Context, chat types.JID, acc account, job pr
 			continue
 		}
 		lines = append(lines, "", c.summary(), "Quem tem: "+castersOf(c))
+		if items := itemsCarrying(c); items != "" {
+			lines = append(lines, "Vem no item: "+items)
+		}
 	}
 	lines = append(lines, "", ownCharmsText(job, curse, command))
 	if len(held) > 0 {
@@ -456,7 +483,7 @@ func spellText(s spell, job profession, c charm, caster, target types.JID) strin
 		return head + fmt.Sprintf(" e deu %s por %s 😇\n%s", c.label(), formatWait(c.hold), c.effect)
 	}
 	if s.hit {
-		return head + fmt.Sprintf(" e jogou %s por %s 😈\n%s\n_Pra se livrar: pede uma Purificação pra %s (!abencoar @pessoa purificacao)_", c.label(), formatWait(c.hold), c.effect, purifiers())
+		return head + fmt.Sprintf(" e jogou %s por %s 😈\n%s\n%s", c.label(), formatWait(c.hold), c.effect, cureText())
 	}
 	if s.backfire {
 		return head + fmt.Sprintf(", mas a praga voltou! 🔁 Quem ficou com %s por %s foi @%s\n%s", c.label(), formatWait(c.hold), caster.User, c.effect)
@@ -475,16 +502,67 @@ func (s *walletStore) cast(ctx context.Context, o charmOrder) (sp spell, err err
 		if o.charm.purges() {
 			return purgeCurses(ctx, tx, o.chat, o.target, o.now)
 		}
-		sp.hit = rand.Float64() < o.odds
-		sp.backfire = !sp.hit && rand.Float64() < hexBackfire
-		if !sp.hit && !sp.backfire {
-			return nil
+		sp, err = landCharm(ctx, tx, o.chat, o.caster, o.target, o.charm, o.odds, o.now)
+		return err
+	})
+	return sp, err
+}
+
+func landCharm(ctx context.Context, tx *sql.Tx, chat types.JID, caster, target account, c charm, odds float64, now time.Time) (spell, error) {
+	sp := spell{hit: rand.Float64() < odds}
+	sp.backfire = !sp.hit && rand.Float64() < hexBackfire
+	if !sp.hit && !sp.backfire {
+		return sp, nil
+	}
+	bearer := target
+	if sp.backfire {
+		bearer = caster
+	}
+	return sp, grantCharm(ctx, tx, chat, bearer, caster, c, now)
+}
+
+func (b *bot) hurlCurse(ctx context.Context, evt *events.Message, it item) error {
+	chat := evt.Info.Chat.ToNonAD()
+	thrower := evt.Info.Sender.ToNonAD()
+	c, _ := charmByID(it.hex)
+	mentions := mentionedJIDs(evt.Message)
+	if len(mentions) == 0 {
+		return b.sendText(ctx, chat, fmt.Sprintf("%s é pra jogar em alguém: !usar %s @pessoa\nQuem pegar fica com %s", it.label(), strings.ToLower(it.name), c.summary()))
+	}
+	target := mentions[0].ToNonAD()
+	throwerAcc, targetAcc := b.account(ctx, thrower), b.account(ctx, target)
+	sp, err := b.wallets.hurl(ctx, chat, throwerAcc, targetAcc, it, c, time.Now())
+	if errors.Is(err, errNoItems) {
+		return b.sendText(ctx, chat, fmt.Sprintf("Não tem mais %s na sua mochila 🎒", it.label()))
+	}
+	if err != nil {
+		return fmt.Errorf("jogar %s: %w", it.id, err)
+	}
+	_, err = b.sendMentions(ctx, chat, hurlText(sp, it, c, thrower, target), []types.JID{thrower, target})
+	return err
+}
+
+func hurlText(sp spell, it item, c charm, thrower, target types.JID) string {
+	head := fmt.Sprintf(it.use, thrower.User, target.User)
+	if sp.hit {
+		return head + fmt.Sprintf("\n\n😈 Pegou! @%s ficou com %s por %s\n%s\n%s", target.User, c.label(), formatWait(c.hold), c.effect, cureText())
+	}
+	if sp.backfire {
+		return head + fmt.Sprintf("\n\n🔁 Mas a praga voltou! Quem ficou com %s por %s foi @%s\n%s", c.label(), formatWait(c.hold), thrower.User, c.effect)
+	}
+	return head + fmt.Sprintf("\n\n😮‍💨 Mas a praga não pegou. Tinha %d%% de chance", percent(itemHexChance))
+}
+
+func (s *walletStore) hurl(ctx context.Context, chat types.JID, thrower, target account, it item, c charm, now time.Time) (sp spell, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := takeItems(ctx, tx, chat, thrower, it.id, 1); err != nil {
+			return err
 		}
-		bearer := o.target
-		if sp.backfire {
-			bearer = o.caster
+		if err := openWallet(ctx, tx, chat, target); err != nil {
+			return err
 		}
-		return grantCharm(ctx, tx, o.chat, bearer, o.caster, o.charm, o.now)
+		sp, err = landCharm(ctx, tx, chat, thrower, target, c, itemHexChance, now)
+		return err
 	})
 	return sp, err
 }

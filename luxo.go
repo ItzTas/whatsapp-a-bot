@@ -167,23 +167,42 @@ func (b *bot) savorLuxury(ctx context.Context, evt *events.Message, it item) err
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
 	c, _ := charmByID(it.bless)
-	err := b.wallets.savor(ctx, chat, b.account(ctx, person), it, c, time.Now())
+	idle, err := b.wallets.savor(ctx, chat, b.account(ctx, person), it, c, time.Now())
 	if errors.Is(err, errNoItems) {
 		return b.sendText(ctx, chat, fmt.Sprintf("Não tem mais %s na sua mochila 🎒", it.label()))
 	}
 	if err != nil {
-		return fmt.Errorf("usar item de luxo: %w", err)
+		return fmt.Errorf("usar item de bênção: %w", err)
 	}
-	text := fmt.Sprintf(it.use, person.User) + fmt.Sprintf("\n\n😇 Ficou com %s por %s\n%s", c.label(), formatWait(c.hold), c.effect)
-	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
+	outcome := blessedText(c)
+	if idle {
+		outcome = "\n\n😌 Não tinha maldição nenhuma pra tirar, mas o item foi gasto do mesmo jeito"
+	}
+	_, err = b.sendMentions(ctx, chat, fmt.Sprintf(it.use, person.User)+outcome, []types.JID{person})
 	return err
 }
 
-func (s *walletStore) savor(ctx context.Context, chat types.JID, acc account, it item, c charm, now time.Time) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+func blessedText(c charm) string {
+	if c.purges() {
+		return "\n\n✨ Toda maldição saiu do corpo, até a praga do !zoar"
+	}
+	return fmt.Sprintf("\n\n😇 Ficou com %s por %s\n%s", c.label(), formatWait(c.hold), c.effect)
+}
+
+func (s *walletStore) savor(ctx context.Context, chat types.JID, acc account, it item, c charm, now time.Time) (idle bool, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
 			return err
 		}
-		return grantCharm(ctx, tx, chat, acc, acc, c, now)
+		if !c.purges() {
+			return grantCharm(ctx, tx, chat, acc, acc, c, now)
+		}
+		err := purgeCurses(ctx, tx, chat, acc, now)
+		if errors.Is(err, errCharmIdle) {
+			idle = true
+			return nil
+		}
+		return err
 	})
+	return idle, err
 }

@@ -47,7 +47,7 @@ var areas = [...]area{
 	areaTransporte: {"transporte", "Transporte", "🚚",
 		[]string{"gps", "multa", "carteira-perdida", "guarda-chuva", "celular-afogado", "fone", "mala", "gorjeta"}},
 	areaComida: {"comida", "Comida", "🍳",
-		[]string{"panela-de-ferro", "vale-refeicao", "gorjeta", "coxinha", "pastel", "pudim", "picanha", "marmita"}},
+		[]string{"panela-de-ferro", "vale-refeicao", "gorjeta", "coxinha", "pastel", "pudim", "picanha", "marmita", "pao-de-santo-antonio"}},
 	areaEscritorio: {"escritorio", "Escritório", "💻",
 		[]string{"teclado-mecanico", "grampeador", "pendrive", "vale-refeicao", "cabo-usb", "cafe", "notebook-positivo"}},
 	areaSaude: {"saude", "Saúde", "🏥",
@@ -55,7 +55,7 @@ var areas = [...]area{
 	areaArte: {"arte", "Arte e mídia", "🎭",
 		[]string{"ring-light", "ingresso-de-camarote", "autografo", "fita-k7", "disco-de-vinil", "oculos-juliet", "pandeiro"}},
 	areaCampo: {"campo", "Campo e natureza", "🌾",
-		[]string{"chapeu-de-palha", "saco-de-laranja", "favo-de-mel", "trevo", "isca", "sal-grosso", "pamonha"}},
+		[]string{"chapeu-de-palha", "saco-de-laranja", "favo-de-mel", "trevo", "isca", "sal-grosso", "pamonha", "arruda", "semente-de-roma"}},
 	areaComercio: {"comercio", "Comércio", "🛍️",
 		[]string{"maquininha", "mercadoria-encalhada", "cupom-vencido", "rolex-do-paraguai", "perfume", "nota-de-tres", "cd-pirata"}},
 	areaSeguranca: {"lei", "Lei e segurança", "🚔",
@@ -65,7 +65,8 @@ var areas = [...]area{
 	areaServicos: {"servicos", "Serviços", "🧹",
 		[]string{"kit-de-limpeza", "gorjeta", "brinco-de-ouro", "anel-de-latinha", "tampinha", "pilha-usada", "carteira-perdida"}},
 	areaFe: {"fe", "Fé e feitiçaria", "🙏",
-		[]string{"vela-de-sete-dias", "agua-benta", "terco", "olho-grego", "sal-grosso", "espada-de-sao-jorge", "quartzo"}},
+		[]string{"vela-de-sete-dias", "agua-benta", "terco", "olho-grego", "sal-grosso", "espada-de-sao-jorge", "quartzo",
+			"arruda", "fita-do-bonfim", "defumador", "pao-de-santo-antonio"}},
 }
 
 type peak struct {
@@ -200,6 +201,7 @@ type profession struct {
 
 	craft        craft
 	gatherFaster int64
+	haste        int64
 	compassLure  int
 	faith        faith
 
@@ -428,6 +430,8 @@ func (p profession) perks() []string {
 		{p.noSnitch, fmt.Sprintf("🐀 Não pode !denunciar: bandido que vira X-9 é entregue pela quadrilha e pega %s de cadeia", formatWait(p.snitchSentence()))},
 		{p.craft.activity != "", p.craft.describe()},
 		{p.gatherFaster > 0, fmt.Sprintf("⏱️ Espera %d%% menos no %s", p.gatherFaster, extractionCommands())},
+		{p.haste < 0, fmt.Sprintf("⏩ Espera %d%% menos no %s", -p.haste, hasteCommands)},
+		{p.haste > 0, fmt.Sprintf("🐌 Espera %d%% mais no %s", p.haste, hasteCommands)},
 		{p.compassLure > 0, fmt.Sprintf("🧭 Acha a Bússola do relicário %dx mais fácil no %s", p.compassLure, extractionCommands())},
 		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
