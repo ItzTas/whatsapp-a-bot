@@ -1,6 +1,6 @@
 ---
 name: tarefas-agendadas
-description: "Rotinas que rodam sozinhas e moderação (!loteria/runLottery, !lembrete/runReminders, !aniversario/runBirthdays, !advertir e boas-vindas b.welcome). Carregue antes de mexer em algum desses ou ao criar uma rotina nova em segundo plano."
+description: "Rotinas que rodam sozinhas e moderação (!loteria/runLottery, !lembrete/runReminders, !aniversario/runBirthdays, !advertir e boas-vindas b.welcome, !fixar/!desfixar e runPins). Carregue antes de mexer em algum desses ou ao criar uma rotina nova em segundo plano."
 user-invocable: false
 ---
 
@@ -9,7 +9,8 @@ user-invocable: false
 Coisas que o bot faz sozinho, fora do fluxo de uma mensagem.
 
 - A `!loteria` é a exceção: os bilhetes ficam no banco e o sorteio diário roda em
-  `runLottery`, que começa pelo `StartJobs` depois de conectar.
+  `runLottery`, que começa pelo `StartJobs` depois de conectar. O resultado sai pelo `announce`
+  da economia: em todo grupo vinculado com o modo `economia` ligado (skill `economia-base`).
 - Os `!lembrete` também ficam no banco (`lembretes`, com quem criou em `criador`/`criador_alt`)
   e saem pelo `runReminders`, iniciado junto do `runLottery`. Cada lembrete guarda o `proximo`
   envio e é reagendado antes de ser mandado; se o bot ficou fora do ar por mais de
@@ -27,3 +28,14 @@ Coisas que o bot faz sozinho, fora do fluxo de uma mensagem.
   boas-vindas ficam em `boas_vindas` (uma por grupo) e saem do `b.welcome`, ligado ao
   `*events.GroupInfo` pelo `AddGroupInfo`: ele junta as entradas de um grupo por `welcomeDelay` numa
   mensagem só e respeita o modo `moderacao` e o `AllowedIn` de quem entrou.
+- O `!fixar` (`internal/moderation/fixar.go`, só admin ou o dono do bot) manda um
+  `PinInChatMessage` com a duração em `MessageContextInfo.MessageAddOnDurationInSecs`. O WhatsApp só
+  aceita 24h, 7 dias ou 30 dias (`whatsappPinLength`), então o bot fixa pelo menor prazo que cobre o
+  tempo pedido e guarda a mensagem em `mensagens_fixadas` (`ate` = fim, 0 = pra sempre;
+  `renovar_em` = próxima ação). O `runPins`, a cada `core.ReminderTick`, pega o que venceu o
+  `renovar_em`: se passou do `ate`, desfixa e apaga a linha; senão refixa e reagenda
+  (`pin.scheduled`, que renova `pinRenewMargin` antes do WhatsApp soltar e põe o `renovar_em` no
+  `ate` quando o fim cai antes disso). Refixar recusado pelo WhatsApp apaga a linha; erro de rede
+  tenta de novo em `pinRetry`. Sem responder nada, `!fixar <texto>` manda o texto e fixa a mensagem
+  do bot. O `!desfixar` e o interceptador `forgetUnpinned` (alguém desfixou na mão) tiram a linha.
+  Se no grupo só admin mexe nas configurações (`IsLocked`), o bot precisa ser admin.

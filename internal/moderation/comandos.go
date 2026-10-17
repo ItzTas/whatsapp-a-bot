@@ -99,5 +99,24 @@ func (b *bot) moderationCommands() []core.Command {
 			},
 			Run: b.boasvindas,
 		},
+		{
+			Name:     "fixar",
+			Aliases:  []string{"pin", "fixa"},
+			Category: core.ModerationCategory,
+			Help: []core.Usage{
+				{"!fixar", "responda uma mensagem com !fixar e o bot fixa ela no grupo por 7 dias 📌 (só admin ou o dono do bot; se no grupo só admin mexe nas configurações, o bot também precisa ser admin)"},
+				{"!fixar <tempo>", fmt.Sprintf("fixa pelo tempo que você escolher, tipo !fixar 30min, !fixar 2h, !fixar 3d ou !fixar 2sem (até %d dias). Quando o tempo acaba, o bot desfixa sozinho", int(pinMax.Hours()/24))},
+				{"!fixar sempre", "fixa pra sempre. O WhatsApp só deixa fixar por até 30 dias, então o bot refixa sozinho antes de vencer"},
+				{"!fixar <tempo> <texto>", "sem responder nada, o bot manda o texto e fixa a própria mensagem, tipo !fixar 1d reunião hoje às 20h"},
+			},
+			Run: b.fixar,
+		},
+		{
+			Name:     "desfixar",
+			Aliases:  []string{"unpin", "desfixa"},
+			Category: core.ModerationCategory,
+			Help:     []core.Usage{{"!desfixar", "responda a mensagem fixada com !desfixar e o bot desfixa ela (e para de refixar, se tava fixada pra sempre) 📌"}},
+			Run:      b.desfixar,
+		},
 	}
 }
