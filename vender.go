@@ -59,10 +59,23 @@ func (b *bot) vender(ctx context.Context, evt *events.Message) error {
 	if mentions := mentionedJIDs(evt.Message); len(mentions) > 0 {
 		return b.offerItem(ctx, evt, mentions[0].ToNonAD())
 	}
-	if numbers, ok := parseItemNumbers(messageText(evt.Message)); ok {
+	text := messageText(evt.Message)
+	if numbers, ok := parseItemNumbers(text); ok {
 		return b.sellNumbered(ctx, evt, numbers)
 	}
+	if kind, ok := parseCategorySale(text); ok {
+		return b.sellCategory(ctx, evt, kind)
+	}
 	return b.sellToMarket(ctx, evt)
+}
+
+func parseCategorySale(text string) (string, bool) {
+	keywords := map[string]bool{"tipo": true, "categoria": true}
+	fields := strings.Fields(strings.ToLower(text))
+	if len(fields) < 2 || !keywords[fields[1]] {
+		return "", false
+	}
+	return strings.Join(fields[2:], " "), true
 }
 
 func parseItemNumbers(text string) ([]int, bool) {
@@ -86,6 +99,66 @@ func parseItemNumbers(text string) ([]int, bool) {
 }
 
 func (b *bot) sellNumbered(ctx context.Context, evt *events.Message, numbers []int) error {
+	pick := func(held []stack, percent int64) ([]marketSale, []string) {
+		var (
+			sales    []marketSale
+			problems []string
+		)
+		seen := map[int]bool{}
+		for _, n := range numbers {
+			if seen[n] {
+				continue
+			}
+			seen[n] = true
+			sale, problem := numberedSale(n, held, percent)
+			if problem != "" {
+				problems = append(problems, problem)
+				continue
+			}
+			sales = append(sales, sale)
+		}
+		return sales, problems
+	}
+	return b.sellBatch(ctx, evt, pick, "_Os números ficam do lado de cada item na !mochila_")
+}
+
+func (b *bot) sellCategory(ctx context.Context, evt *events.Message, kind string) error {
+	c, ok := categoryNamed(kind)
+	if !ok {
+		names := make([]string, len(itemCategories))
+		for i, category := range itemCategories {
+			names[i] = category.heading()
+		}
+		return b.sendText(ctx, evt.Info.Chat.ToNonAD(), "Qual tipo? Manda assim: !vender tipo pesca\n\nOs tipos são os mesmos da !mochila:\n"+strings.Join(names, "\n"))
+	}
+	pick := func(held []stack, percent int64) ([]marketSale, []string) {
+		return categorySales(c, held, percent)
+	}
+	return b.sellBatch(ctx, evt, pick, "_Os tipos são os mesmos da !mochila, e o !item <tipo> mostra o que cai em cada um_")
+}
+
+func categorySales(c int, held []stack, percent int64) ([]marketSale, []string) {
+	var (
+		sales    []marketSale
+		problems []string
+	)
+	for _, s := range held {
+		if s.item.category() != c {
+			continue
+		}
+		if s.item.illegal {
+			problems = append(problems, fmt.Sprintf("#%d %s o mercado não compra, só o !mercadonegro vender", s.item.number(), s.item.label()))
+			continue
+		}
+		sales = append(sales, marketSale{item: s.item, quantity: s.quantity, payout: marketPayoutAt(s.item.value, s.quantity, percent)})
+	}
+	if len(sales)+len(problems) == 0 {
+		problems = append(problems, "Você não tem nada de "+itemCategories[c].heading()+" na mochila")
+	}
+	return sales, problems
+}
+
+func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick func(held []stack, percent int64) ([]marketSale, []string), hint string) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.account(ctx, person)
@@ -100,25 +173,9 @@ func (b *bot) sellNumbered(ctx context.Context, evt *events.Message, numbers []i
 		return fmt.Errorf("preparar venda em lote: %w", err)
 	}
 
-	var (
-		sales    []marketSale
-		problems []string
-	)
-	seen := map[int]bool{}
-	for _, n := range numbers {
-		if seen[n] {
-			continue
-		}
-		seen[n] = true
-		sale, problem := numberedSale(n, held, job.marketPercent())
-		if problem != "" {
-			problems = append(problems, problem)
-			continue
-		}
-		sales = append(sales, sale)
-	}
+	sales, problems := pick(held, job.marketPercent())
 	if len(sales) == 0 {
-		return b.sendText(ctx, chat, "Nada foi vendido 🤷\n"+strings.Join(problems, "\n")+"\n\n_Os números ficam do lado de cada item na !mochila_")
+		return b.sendText(ctx, chat, "Nada foi vendido 🤷\n"+strings.Join(problems, "\n")+"\n\n"+hint)
 	}
 
 	balance, err := b.wallets.sellItems(ctx, chat, acc, sales)
@@ -171,7 +228,7 @@ func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 	acc := b.account(ctx, person)
 	q := parseItemQuery(messageText(evt.Message))
 	if q.name == "" {
-		return b.sendText(ctx, chat, fmt.Sprintf("Diz o que quer vender: !vender todynho (ou !vender todynho 3, ou tudo). Pra vender vários de uma vez, usa os números da !mochila com #: !vender #12 #40 #87. O mercado paga %d%% do valor, e com !vender @pessoa todynho 50 você vende pra alguém do grupo pelo preço que quiser", marketSalePercent))
+		return b.sendText(ctx, chat, fmt.Sprintf("Diz o que quer vender: !vender todynho (ou !vender todynho 3, ou tudo). Pra vender vários de uma vez, usa os números da !mochila com #: !vender #12 #40 #87, ou vende um tipo inteiro: !vender tipo pesca. O mercado paga %d%% do valor, e com !vender @pessoa todynho 50 você vende pra alguém do grupo pelo preço que quiser", marketSalePercent))
 	}
 	it, have, problem, err := b.heldItem(ctx, chat, acc, q.name)
 	if err != nil {

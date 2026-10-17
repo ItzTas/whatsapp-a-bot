@@ -208,23 +208,35 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `passives` lê qualquer item com `flex`), mas nunca levam `keep`: o `luxuryGoods` põe na `!luxo`
   todo épico ou acima com `keep` que não é da loja.
 - As ferramentas de extração que não são relíquia (rara, épica e lendária de `!pescar`,
-  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje **75 minutos**. O tempo é o
-  `value` dividido pelo líquido por hora: o valor médio do melhor item entre `luck + 1` sorteios
-  do `loot` montado pelo `equip`, menos `breaks` vezes o `value` (o custo de quebra), vezes os
-  usos por hora da espera. O ajuste é nos atributos do `gear` (`luck`, `fewerJunk`, `moreRare`,
-  `faster`), não no preço. Ferramenta nova ou mudança no `loot` de uma atividade precisa
-  recalibrar as ferramentas dela pra esse tempo. As ferramentas base (Vara de pesca, Picareta e
-  Rede de insetos) ficam de fora e se pagam em uns 30 minutos. Como o `loot` da mina vale mais,
-  as picaretas têm um `luck` a menos que a vara e a rede da mesma raridade.
+  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje **100 minutos**, contando o que a
+  pessoa recebe vendendo no `!vender`, não o valor cheio dos itens. O tempo é o `value` da
+  ferramenta dividido pelo líquido por hora: o valor médio do melhor item entre `luck + 1`
+  sorteios do `loot` montado pelo `equip`, vezes `marketSalePercent` (sem o `salePercent` de
+  profissão), menos `breaks` vezes o `value` cheio da ferramenta (a reposição sai pelo preço da
+  loja), vezes os usos por hora da espera. O ajuste é nos atributos do `gear` (`luck`,
+  `fewerJunk`, `moreRare`), não no preço nem na espera: o `faster` é o mesmo pra toda ferramenta
+  de extração da mesma raridade, hoje 0 na rara (10 minutos, igual à base), 40 na épica (6), 50
+  na lendária (5) e 80 na relíquia (2). Ferramenta nova ou mudança no `loot` de uma
+  atividade precisa recalibrar as ferramentas dela pra esse tempo. As ferramentas base (Vara de
+  pesca, Picareta e Rede de insetos) ficam de fora e se pagam em uns 60 minutos. Como o `loot`
+  da mina vale mais, as picaretas têm um `luck` a menos que a vara e a rede da mesma raridade.
+  As relíquias de extração que fazem o papel da ferramenta (Vara de Iemanjá, Picareta de Serra
+  Pelada, Rede do Curupira e o Saco do Homem do Saco, que é acessório porque o `!vasculhar` não
+  tem ferramenta base) seguem a mesma conta com outro tempo, hoje **45 minutos**, usando o `value`
+  delas como preço; como nunca quebram, não têm custo de quebra. A Vela do Negrinho do Pastoreio
+  fica de fora, porque só soma em cima da ferramenta que a pessoa já tem.
 - O tipo de cada item (`itemCategories` em `itens.go`) não é um campo: é a primeira regra da lista
   que bate com os campos do item (`pet`, `arms`, `heist`, `gift`, o loot das `activities`...), e o
   que não bate em nada vira `Raridades`. O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
   agrupam por ele (`categoryGroups`), com a raridade na bolinha da linha. Item novo cai no tipo
   sozinho; tipo novo é só entrar na lista, na posição certa, porque a ordem decide o empate.
+  O `!vender tipo <tipo>` (ou `categoria`) vende tudo o que a pessoa tem daquele tipo, menos os
+  ilegais, pelo mesmo `sellBatch` do `!vender #12`. A palavra `tipo` é obrigatória porque vários
+  nomes de tipo já acham item sozinhos (`!vender pesca` vende a Vara de pesca).
 - O número de cada item (`#12`) é a posição dele no `catalog` (`item.number()`/`itemByNumber`), não
   vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
   todos com `#`, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
-  (`sellNumbered` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
+  (`sellNumbered` → `sellBatch` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
   todos os que vêm depois dele.
 - As profissões também vivem em código (`professions` em `profissoes.go`, separadas por área) e
   só o `name` vai pra coluna `profissao` da `carteiras`. Nunca renomeie um `name` existente: quem

@@ -54,6 +54,14 @@ func (s *restrictionStore) remove(ctx context.Context, chat types.JID, ids []typ
 	return n > 0, err
 }
 
+func (s *restrictionStore) clear(ctx context.Context, chat types.JID) (int64, error) {
+	res, err := s.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE chat = ?", s.table), chat.String())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (s *restrictionStore) has(ctx context.Context, chat types.JID, ids []types.JID) (bool, error) {
 	first, second := identityKeys(ids)
 	var found bool
@@ -236,6 +244,10 @@ func (b *bot) memberIdentities(ctx context.Context, group *types.GroupInfo, pers
 	if !found {
 		return ids
 	}
+	return participantIdentities(p)
+}
+
+func participantIdentities(p types.GroupParticipant) []types.JID {
 	return uniqueJIDs(withoutEmptyJIDs([]types.JID{p.JID, p.LID, p.PhoneNumber}))
 }
 
@@ -339,6 +351,9 @@ func (a participantAction) resultLine(r types.GroupParticipant) string {
 }
 
 func (b *bot) mutar(ctx context.Context, evt *events.Message) error {
+	if mentionsEveryone(evt.Message) {
+		return b.muteEveryone(ctx, evt)
+	}
 	return b.changeRestrictions(ctx, evt, "mutar", true, false, b.mutes.add, map[bool]string{
 		true:  "🔇 @%s foi mutado(a): toda mensagem que mandar vai ser apagada",
 		false: "@%s já tava mutado(a)",
@@ -346,10 +361,61 @@ func (b *bot) mutar(ctx context.Context, evt *events.Message) error {
 }
 
 func (b *bot) desmutar(ctx context.Context, evt *events.Message) error {
+	if mentionsEveryone(evt.Message) {
+		return b.unmuteEveryone(ctx, evt)
+	}
 	return b.changeRestrictions(ctx, evt, "desmutar", false, false, b.mutes.remove, map[bool]string{
 		true:  "🔊 @%s foi desmutado(a) e já pode falar de novo",
 		false: "@%s nem tava mutado(a)",
 	})
+}
+
+func (b *bot) muteEveryone(ctx context.Context, evt *events.Message) error {
+	m, problem, err := b.moderateGroup(ctx, evt, "mutar", false)
+	if err != nil {
+		return err
+	}
+	if problem == "" && !b.botIsAdmin(m.group) {
+		problem = "Eu preciso ser admin do grupo pra mutar alguém 😅"
+	}
+	if problem != "" {
+		return b.sendText(ctx, evt.Info.Chat, problem)
+	}
+	muted := 0
+	for _, p := range m.group.Participants {
+		if isGroupAdmin(p) {
+			continue
+		}
+		changed, err := b.mutes.add(ctx, m.chat, participantIdentities(p))
+		if err != nil {
+			return err
+		}
+		if changed {
+			muted++
+		}
+	}
+	if muted == 0 {
+		return b.sendText(ctx, m.chat, "Todo mundo que não é admin já tava mutado 🤷")
+	}
+	return b.sendText(ctx, m.chat, fmt.Sprintf("🔇 %s: toda mensagem de quem não é admin vai ser apagada (os admins ficaram de fora)", countLabel(muted, "pessoa mutada", "pessoas mutadas")))
+}
+
+func (b *bot) unmuteEveryone(ctx context.Context, evt *events.Message) error {
+	m, problem, err := b.moderateGroup(ctx, evt, "desmutar", false)
+	if err != nil {
+		return err
+	}
+	if problem != "" {
+		return b.sendText(ctx, evt.Info.Chat, problem)
+	}
+	unmuted, err := b.mutes.clear(ctx, m.chat)
+	if err != nil {
+		return err
+	}
+	if unmuted == 0 {
+		return b.sendText(ctx, m.chat, "Ninguém tava mutado no grupo 🤷")
+	}
+	return b.sendText(ctx, m.chat, fmt.Sprintf("🔊 %s: todo mundo já pode falar de novo", countLabel(int(unmuted), "pessoa desmutada", "pessoas desmutadas")))
 }
 
 func (b *bot) algemar(ctx context.Context, evt *events.Message) error {

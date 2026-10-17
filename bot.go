@@ -1259,6 +1259,7 @@ func (b *bot) commands() []botCommand {
 			help: []usage{
 				{"!vender <item> [quantidade]", fmt.Sprintf("vende pro mercado na hora, mas ele só paga %d%% do valor 💸 (também aceita tudo)", marketSalePercent)},
 				{"!vender #<número> [#número...]", "vende tudo o que você tem de cada item pelos números da !mochila, sempre com #, tipo !vender #12 #40 #87"},
+				{"!vender tipo <tipo>", "vende tudo o que você tem de um tipo da !mochila, tipo !vender tipo pesca (os ilegais ficam de fora)"},
 				{"!vender @pessoa <item> <preço>", fmt.Sprintf("oferece o item pra pessoa marcada pelo preço que você quiser, e ela tem %s pra responder com !aceitar ou !recusar 🤝", formatWait(offerWindow))},
 				{"!vender @pessoa <item> <quantidade> <preço>", "vende vários de uma vez, com o preço sendo o total"},
 			},
@@ -1510,6 +1511,8 @@ func (b *bot) commands() []botCommand {
 			category: moderacao,
 			help: []usage{
 				{"!mutar @pessoa", "muta a pessoa marcada: o bot apaga toda mensagem que ela mandar no grupo 🔇 (só admin, e o bot também precisa ser admin)"},
+				{"!mutar @pessoa1 @pessoa2...", "muta todo mundo que foi marcado de uma vez"},
+				{"!mutar @todos", "muta o grupo inteiro, menos os admins"},
 				{"!mutar", "responda uma mensagem com !mutar e o bot muta quem mandou ela"},
 			},
 			run: b.mutar,
@@ -1518,8 +1521,11 @@ func (b *bot) commands() []botCommand {
 			name:     "desmutar",
 			aliases:  []string{"unmute"},
 			category: moderacao,
-			help:     []usage{{"!desmutar @pessoa", "desmuta a pessoa e o bot para de apagar as mensagens dela 🔊 (só admin)"}},
-			run:      b.desmutar,
+			help: []usage{
+				{"!desmutar @pessoa", "desmuta a pessoa e o bot para de apagar as mensagens dela 🔊 (dá pra marcar várias de uma vez; só admin)"},
+				{"!desmutar @todos", "desmuta todo mundo que tá mutado no grupo"},
+			},
+			run: b.desmutar,
 		},
 		{
 			name:     "algemar",
