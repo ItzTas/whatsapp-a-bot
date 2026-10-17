@@ -199,17 +199,17 @@ type Profession struct {
 	reviveChance float64
 	soulPact     bool
 
-	president  bool
-	divine     bool
-	estate     int
-	escort     bool
-	bribed     bool
-	cursed     bool
-	weapon     string
-	drug       string
-	charms     []string
-	luxuries   []string
-	titleID    string
+	president   bool
+	divine      bool
+	estate      int
+	escort      bool
+	bribed      bool
+	cursed      bool
+	weapon      string
+	drug        string
+	charms      []string
+	luxuries    []string
+	titleID     string
 	church      string
 	doctrineID  string
 	templeLevel int

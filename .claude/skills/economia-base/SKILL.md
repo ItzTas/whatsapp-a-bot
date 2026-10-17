@@ -1,6 +1,6 @@
 ---
 name: economia-base
-description: "Base da economia do bot (carteiras, chave canônica b.Account, profissões em profissoes.go/profissao.go, ProfessionOf/standing, deus.go, oficio.go e o !trabalhar, ralos de dinheiro, walletStore.spend, !economia resetar intervalos). Carregue antes de mexer em qualquer comando ou arquivo da economia, junto da skill economia-* do assunto."
+description: "Base da economia do bot (carteiras, chave canônica b.Account, profissões em profissoes.go/profissao.go, ProfessionOf/standing, deus.go, oficio.go e o !trabalhar, ralos de dinheiro, walletStore.spend, !economia resetar intervalos, vínculo de economia entre grupos com !economia vincular, ledgerDB e ledgers em vinculos.go). Carregue antes de mexer em qualquer comando ou arquivo da economia, junto da skill economia-* do assunto."
 user-invocable: false
 ---
 
@@ -64,3 +64,21 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `presidential()`, o imóvel (`housed`), o segurança do `!seguranca` (`escorted`, coluna
   `seguranca_ate`) e a maldição do `!zoar` (`hexed`). Efeito novo que mude `guard`, ganho ou
   bônus de alguém por fora da profissão entra nesse mesmo ponto.
+- Grupos podem dividir uma economia só (`vinculos.go`, tabela `economia_vinculos` com `chat` e
+  `economia`). O `!economia vincular <nome do grupo>` (dono, achado pelo `b.GroupNamed` do `core`)
+  faz a conversa atual usar a economia do outro grupo, e quem já usava a economia dela vai junto.
+  O `!economia desvincular` volta pra economia própria e o `!economia vinculos` lista os grupos. O
+  vínculo aponta sempre pro grupo principal, que nunca tá vinculado a ninguém, então a troca é
+  idempotente. O que o grupo tinha antes de vincular fica congelado com o `chat` dele.
+- A troca acontece no banco, num lugar só: o `walletStore.db` é um `ledgerDB` e as transações são
+  `ledgerTx`, que trocam todo argumento que for JID de grupo (string `...@g.us` ou `types.JID`)
+  pelo grupo principal da economia (`ledgers.of`, um cache carregado no `New`). Por isso consulta
+  nova da economia só precisa passar pelo `s.db` ou pelo `tx` de sempre, e nunca deve abrir o
+  `b.Messages.DB` direto. Chave que não é SQL e precisa ser igual em toda a economia usa o
+  `ledgers.of(chat)` (as sementes do `dailyRand` e do `auctionRotation`, que decidem loja, luxo,
+  mercado negro e leilão do dia). O estado em memória dos jogos (`sync.Map` de eleição, tribunal,
+  crash...) continua por grupo, e o `!milagre`/`!castigo` sem marcação pegam só quem tá no grupo
+  atual.
+- As rotinas da economia (`runTaxes`, `runLottery`, `runAuctions`, `runLoanSeizures`) pulam as
+  linhas de grupo congelado (`ledgers.linked`) e anunciam com o `announce`: manda em todo grupo da
+  economia que tá com o modo `economia` ligado e onde quem aparece no aviso passa no `AllowedIn`.

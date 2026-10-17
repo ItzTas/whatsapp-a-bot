@@ -93,12 +93,12 @@ func (s *walletStore) Health(ctx context.Context, chat types.JID, acc core.Accou
 	return readHealth(ctx, s.db, chat, acc, now)
 }
 
-func setHealth(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, health int64, now time.Time) error {
+func setHealth(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, health int64, now time.Time) error {
 	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saude = ?, saude_em = ? WHERE chat = ? AND pessoa = ?", health, now.Unix(), chat.String(), acc.Key)
 	return err
 }
 
-func hurt(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, w wound, now time.Time) (inj injury, err error) {
+func hurt(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, w wound, now time.Time) (inj injury, err error) {
 	inj.wound = w
 	if w.damage == 0 {
 		return inj, nil
@@ -115,11 +115,11 @@ func hurt(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, w w
 	return inj, err
 }
 
-func die(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, now time.Time) (death, error) {
+func die(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) (death, error) {
 	return bury(ctx, tx, chat, acc, plainFuneral, now)
 }
 
-func bury(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, f funeral, now time.Time) (d death, err error) {
+func bury(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, f funeral, now time.Time) (d death, err error) {
 	revenant, err := holdsItem(ctx, tx, chat, acc, ciprianoItem)
 	if err != nil {
 		return d, err
@@ -196,7 +196,7 @@ func hazardPerk(h hazard, safety int64) string {
 }
 
 func (s *walletStore) heal(ctx context.Context, chat types.JID, acc core.Account, it item, now time.Time) (health int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}

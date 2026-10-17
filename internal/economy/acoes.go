@@ -397,14 +397,14 @@ func stockResultLine(profit int64) string {
 }
 
 func (s *walletStore) stockMarket(ctx context.Context, chat types.JID, now time.Time) (quotes []stockQuote, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		quotes, err = refreshStocks(ctx, tx, chat, now)
 		return err
 	})
 	return quotes, err
 }
 
-func refreshStocks(ctx context.Context, tx *sql.Tx, chat types.JID, now time.Time) ([]stockQuote, error) {
+func refreshStocks(ctx context.Context, tx *ledgerTx, chat types.JID, now time.Time) ([]stockQuote, error) {
 	stored, err := readStockRows(ctx, tx, chat)
 	if err != nil {
 		return nil, err
@@ -424,7 +424,7 @@ func refreshStocks(ctx context.Context, tx *sql.Tx, chat types.JID, now time.Tim
 	return quotes, nil
 }
 
-func readStockRows(ctx context.Context, tx *sql.Tx, chat types.JID) (stored map[string]stockRow, err error) {
+func readStockRows(ctx context.Context, tx *ledgerTx, chat types.JID) (stored map[string]stockRow, err error) {
 	rows, err := tx.QueryContext(ctx, "SELECT empresa, centavos, abertura, dia, atualizado_em FROM acoes_precos WHERE chat = ?", chat.String())
 	if err != nil {
 		return nil, err
@@ -445,7 +445,7 @@ func readStockRows(ctx context.Context, tx *sql.Tx, chat types.JID) (stored map[
 	return stored, rows.Err()
 }
 
-func saveStockRow(ctx context.Context, tx *sql.Tx, chat types.JID, ticker string, old, next stockRow, found bool) error {
+func saveStockRow(ctx context.Context, tx *ledgerTx, chat types.JID, ticker string, old, next stockRow, found bool) error {
 	if !found {
 		_, err := tx.ExecContext(ctx,
 			"INSERT INTO acoes_precos (chat, empresa, centavos, abertura, dia, atualizado_em) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
@@ -483,7 +483,7 @@ func (s *walletStore) stockPositions(ctx context.Context, chat types.JID, acc co
 	return positions, rows.Err()
 }
 
-func quoteOf(ctx context.Context, tx *sql.Tx, chat types.JID, company stockCompany, now time.Time) (stockQuote, error) {
+func quoteOf(ctx context.Context, tx *ledgerTx, chat types.JID, company stockCompany, now time.Time) (stockQuote, error) {
 	quotes, err := refreshStocks(ctx, tx, chat, now)
 	if err != nil {
 		return stockQuote{}, err
@@ -493,7 +493,7 @@ func quoteOf(ctx context.Context, tx *sql.Tx, chat types.JID, company stockCompa
 }
 
 func (s *walletStore) buyStock(ctx context.Context, chat types.JID, acc core.Account, company stockCompany, shares int64, job Profession, now time.Time) (t stockTrade, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		q, err := quoteOf(ctx, tx, chat, company, now)
 		if err != nil {
 			return err
@@ -513,7 +513,7 @@ func (s *walletStore) buyStock(ctx context.Context, chat types.JID, acc core.Acc
 }
 
 func (s *walletStore) sellStock(ctx context.Context, chat types.JID, acc core.Account, company stockCompany, arg string, job Profession, now time.Time) (t stockTrade, soldCost int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var held, cost int64
 		err := tx.QueryRowContext(ctx,
 			"SELECT quantidade, custo FROM acoes_posicoes WHERE chat = ? AND pessoa = ? AND empresa = ?",
@@ -551,7 +551,7 @@ func (s *walletStore) sellStock(ctx context.Context, chat types.JID, acc core.Ac
 	return t, soldCost, err
 }
 
-func storeStockPosition(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, ticker string, shares, cost int64) error {
+func storeStockPosition(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, ticker string, shares, cost int64) error {
 	if shares == 0 {
 		_, err := tx.ExecContext(ctx, "DELETE FROM acoes_posicoes WHERE chat = ? AND pessoa = ? AND empresa = ?", chat.String(), acc.Key, ticker)
 		return err

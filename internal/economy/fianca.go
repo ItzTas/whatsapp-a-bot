@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -74,7 +73,7 @@ func (b *bot) buyExit(ctx context.Context, evt *events.Message, ex exit) error {
 	}
 	price := ex.price(balance, left)
 	tax := ex.levy.cut(price)
-	err = b.Wallets.spend(ctx, chat, payerAcc, price+tax, func(tx *sql.Tx) error {
+	err = b.Wallets.spend(ctx, chat, payerAcc, price+tax, func(tx *ledgerTx) error {
 		if err := releaseHeld(ctx, tx, ex.release, chat, heldAcc, now); err != nil {
 			return err
 		}
@@ -116,7 +115,7 @@ func exitTaxText(tax int64, levy PixLevy) string {
 	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da fiança foram %s, por decreto", Coins(tax), levy.percent, levy.pocket())
 }
 
-func releaseHeld(ctx context.Context, tx *sql.Tx, statement string, chat types.JID, acc core.Account, now time.Time) error {
+func releaseHeld(ctx context.Context, tx *ledgerTx, statement string, chat types.JID, acc core.Account, now time.Time) error {
 	res, err := tx.ExecContext(ctx, statement, chat.String(), acc.Key, now.Unix())
 	if err != nil {
 		return err

@@ -241,11 +241,7 @@ func (b *bot) seizeOverdueLoans(ctx context.Context, now time.Time) {
 
 func (b *bot) seizeLoan(ctx context.Context, s loanSeizure, now time.Time) error {
 	left, seized, err := b.Wallets.seizeLoan(ctx, s.chat, s.acc, now)
-	if err != nil || seized == 0 || !b.EconomyOn(ctx, s.chat) {
-		return err
-	}
-	allowed, err := b.AllowedIn(ctx, s.chat, []types.JID{s.acc.JID})
-	if err != nil || !allowed {
+	if err != nil || seized == 0 {
 		return err
 	}
 	text := fmt.Sprintf("🔨 O banco penhorou %s do saldo de @%s pelo empréstimo atrasado e a dívida tá quitada 🤝", Coins(seized), s.acc.JID.User)
@@ -253,12 +249,11 @@ func (b *bot) seizeLoan(ctx context.Context, s loanSeizure, now time.Time) error
 		text = fmt.Sprintf("🔨 O banco penhorou %s do saldo de @%s pelo empréstimo atrasado. Ainda falta %s, e a próxima penhora vem em %s",
 			Coins(seized), s.acc.JID.User, Coins(left.amount), core.FormatWait(loanSeizeEvery))
 	}
-	_, err = b.SendMentions(ctx, s.chat, text, []types.JID{s.acc.JID})
-	return err
+	return b.announce(ctx, s.chat, text, s.acc.JID)
 }
 
 func (s *walletStore) borrow(ctx context.Context, d debt) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO emprestimos (chat, pessoa, jid, divida, juros, juros_atraso, desde, vence_em, penhora_em)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
@@ -296,7 +291,7 @@ func (s *walletStore) loanOf(ctx context.Context, chat types.JID, acc core.Accou
 }
 
 func (s *walletStore) repayLoan(ctx context.Context, chat types.JID, acc core.Account, amount int64, now time.Time) (left debt, paid int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) (err error) {
 		left, paid, err = settleLoan(ctx, tx, chat, acc, amount, now)
 		return err
 	})
@@ -324,13 +319,16 @@ func (s *walletStore) dueSeizures(ctx context.Context, now time.Time) (due []loa
 		if l.acc.JID, err = types.ParseJID(jid); err != nil {
 			return nil, err
 		}
+		if ledgers.linked(l.chat) {
+			continue
+		}
 		due = append(due, l)
 	}
 	return due, rows.Err()
 }
 
 func (s *walletStore) seizeLoan(ctx context.Context, chat types.JID, acc core.Account, now time.Time) (left debt, seized int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			"UPDATE emprestimos SET penhora_em = ? WHERE chat = ? AND pessoa = ? AND penhora_em <= ?",
 			now.Add(loanSeizeEvery).Unix(), chat.String(), acc.Key, now.Unix(),
@@ -356,7 +354,7 @@ func (s *walletStore) seizeLoan(ctx context.Context, chat types.JID, acc core.Ac
 	return left, seized, err
 }
 
-func settleLoan(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, amount int64, now time.Time) (debt, int64, error) {
+func settleLoan(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, amount int64, now time.Time) (debt, int64, error) {
 	row := tx.QueryRowContext(ctx, loanColumns+" WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key)
 	d, err := scanLoan(row, chat)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -393,7 +391,7 @@ func scanLoan(row interface{ Scan(dest ...any) error }, chat types.JID) (debt, e
 	return d, nil
 }
 
-func storeLoan(ctx context.Context, tx *sql.Tx, d debt) error {
+func storeLoan(ctx context.Context, tx *ledgerTx, d debt) error {
 	if d.amount <= 0 {
 		_, err := tx.ExecContext(ctx, "DELETE FROM emprestimos WHERE chat = ? AND pessoa = ?", d.chat.String(), d.debtor.Key)
 		return err

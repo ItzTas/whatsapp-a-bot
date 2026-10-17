@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -46,5 +45,5 @@ func (b *bot) criar(ctx context.Context, evt *events.Message) error {
 }
 
 func (s *walletStore) conjureItem(ctx context.Context, chat types.JID, acc core.Account, id string, quantity int64) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error { return addItems(ctx, tx, chat, acc, id, quantity) })
+	return s.inTx(ctx, func(tx *ledgerTx) error { return addItems(ctx, tx, chat, acc, id, quantity) })
 }

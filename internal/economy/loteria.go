@@ -189,7 +189,7 @@ func (b *bot) runDraw(ctx context.Context, pending pendingLottery, now time.Time
 		return err
 	}
 	text, featured := lotteryResult(d, drawLabel(next, now))
-	if _, err := b.SendMentions(ctx, pending.chat, text, []types.JID{featured}); err != nil {
+	if err := b.announce(ctx, pending.chat, text, featured); err != nil {
 		return fmt.Errorf("anunciar o resultado (as moedas já foram pagas): %w", err)
 	}
 	return nil
@@ -249,7 +249,7 @@ func chance(part, total int64) string {
 }
 
 func (s *walletStore) buyTickets(ctx context.Context, chat types.JID, acc core.Account, draw time.Time, count int64) (p ticketPurchase, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		cost := count * lotteryTicketPrice
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
@@ -331,6 +331,9 @@ func (s *walletStore) dueLotteries(ctx context.Context, now time.Time) (due []pe
 		if err != nil {
 			return nil, err
 		}
+		if ledgers.linked(jid) {
+			continue
+		}
 		due = append(due, pendingLottery{chat: jid, at: time.Unix(at, 0)})
 	}
 	return due, rows.Err()
@@ -338,7 +341,7 @@ func (s *walletStore) dueLotteries(ctx context.Context, now time.Time) (due []pe
 
 func (s *walletStore) drawLottery(ctx context.Context, pending pendingLottery, next time.Time) (d lotteryDraw, err error) {
 	chat := pending.chat.String()
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		tickets, err := takeLotteryTickets(ctx, tx, pending)
 		if err != nil || len(tickets) == 0 {
 			return err
@@ -373,7 +376,7 @@ func (s *walletStore) drawLottery(ctx context.Context, pending pendingLottery, n
 	return d, err
 }
 
-func takeLotteryTickets(ctx context.Context, tx *sql.Tx, pending pendingLottery) (tickets []lotteryTicket, err error) {
+func takeLotteryTickets(ctx context.Context, tx *ledgerTx, pending pendingLottery) (tickets []lotteryTicket, err error) {
 	rows, err := tx.QueryContext(ctx,
 		"DELETE FROM loteria_bilhetes WHERE chat = ? AND sorteio = ? RETURNING pessoa, jid, quantidade",
 		pending.chat.String(), pending.at.Unix(),

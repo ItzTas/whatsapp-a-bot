@@ -86,7 +86,7 @@ func loadStacks(ctx context.Context, q core.RowsQuerier, table string, chat type
 
 func (s *walletStore) buyItem(ctx context.Context, chat types.JID, acc core.Account, it item, quantity, cost int64, levy PixLevy) (balance int64, err error) {
 	tax := levy.cut(cost)
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
 			cost+tax, chat.String(), acc.Key, cost+tax,
@@ -114,7 +114,7 @@ type marketSale struct {
 }
 
 func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc core.Account, sales []marketSale) (sold []marketSale, balance int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		sold = make([]marketSale, len(sales))
 		var payout int64
 		for i, sale := range sales {
@@ -138,7 +138,7 @@ func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc core.Ac
 }
 
 func (s *walletStore) giveItem(ctx context.Context, chat types.JID, from, to core.Account, id string, quantity int64) (grades []grade, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) (err error) {
 		grades, err = moveItems(ctx, tx, chat, from, to, id, quantity)
 		return err
 	})
@@ -146,7 +146,7 @@ func (s *walletStore) giveItem(ctx context.Context, chat types.JID, from, to cor
 }
 
 func (s *walletStore) tradeItem(ctx context.Context, o *itemOffer) (grades []grade, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) (err error) {
 		if grades, err = moveItems(ctx, tx, o.chat, o.seller, o.buyer, o.item.id, o.quantity); err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func (s *walletStore) tradeItem(ctx context.Context, o *itemOffer) (grades []gra
 	return grades, err
 }
 
-func moveItems(ctx context.Context, tx *sql.Tx, chat types.JID, from, to core.Account, id string, quantity int64) ([]grade, error) {
+func moveItems(ctx context.Context, tx *ledgerTx, chat types.JID, from, to core.Account, id string, quantity int64) ([]grade, error) {
 	grades, err := takeGrades(ctx, tx, chat, from, id, quantity)
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func moveItems(ctx context.Context, tx *sql.Tx, chat types.JID, from, to core.Ac
 }
 
 func (s *walletStore) consumeItem(ctx context.Context, chat types.JID, acc core.Account, it item, e itemEffect, now time.Time) (wait time.Duration, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if it.limit != nil {
 			limitWait, err := stampCooldown(ctx, tx, chat, acc, it.limit.cooldown, now)
 			if err != nil {
@@ -206,7 +206,7 @@ func (s *walletStore) consumeItem(ctx context.Context, chat types.JID, acc core.
 }
 
 func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Account, a activity, now time.Time) (g gathering, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		bag, err := loadInventory(ctx, tx, chat, acc)
 		if err != nil {
 			return err
@@ -259,7 +259,7 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Accou
 	return g, err
 }
 
-func wearTool(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id string) (uses int64, err error) {
+func wearTool(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string) (uses int64, err error) {
 	err = tx.QueryRowContext(ctx,
 		"UPDATE inventarios SET usos = usos + 1 WHERE chat = ? AND pessoa = ? AND item = ? RETURNING usos",
 		chat.String(), acc.Key, id,
@@ -269,7 +269,7 @@ func wearTool(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account,
 
 func (s *walletStore) stealItem(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, now time.Time,
 	choose func(loot []stack) (target item, success bool)) (t theft, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		loot, err := loadInventory(ctx, tx, chat, victim)
 		if err != nil {
 			return err
@@ -307,7 +307,7 @@ func (s *walletStore) stealItem(ctx context.Context, chat types.JID, thief, vict
 	return t, err
 }
 
-func payTheftFine(ctx context.Context, tx *sql.Tx, chat types.JID, thief, victim core.Account, t *theft) error {
+func payTheftFine(ctx context.Context, tx *ledgerTx, chat types.JID, thief, victim core.Account, t *theft) error {
 	var balance int64
 	err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), thief.Key).Scan(&balance)
 	if err != nil {
@@ -323,7 +323,7 @@ func payTheftFine(ctx context.Context, tx *sql.Tx, chat types.JID, thief, victim
 	return moveCoins(ctx, tx, chat, thief, victim, t.fine)
 }
 
-func stampCooldown(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, cd cooldown, now time.Time) (time.Duration, error) {
+func stampCooldown(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, cd cooldown, now time.Time) (time.Duration, error) {
 	if err := openWallet(ctx, tx, chat, acc); err != nil {
 		return 0, err
 	}
@@ -339,15 +339,15 @@ func stampCooldown(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Acc
 	return 0, err
 }
 
-func addItems(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id string, quantity int64) error {
+func addItems(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string, quantity int64) error {
 	return addGrades(ctx, tx, chat, acc, id, []grade{{normalQuality, quantity}})
 }
 
-func addGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id string, grades []grade) error {
+func addGrades(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string, grades []grade) error {
 	return addGradesTo(ctx, tx, backpackTable, chat, acc, id, grades)
 }
 
-func addGradesTo(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc core.Account, id string, grades []grade) error {
+func addGradesTo(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string, grades []grade) error {
 	for _, g := range grades {
 		_, err := tx.ExecContext(ctx,
 			"INSERT INTO "+table+` (chat, pessoa, item, qualidade, quantidade) VALUES (?, ?, ?, ?, ?)
@@ -361,12 +361,12 @@ func addGradesTo(ctx context.Context, tx *sql.Tx, table string, chat types.JID, 
 	return nil
 }
 
-func takeItems(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id string, quantity int64) error {
+func takeItems(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string, quantity int64) error {
 	_, err := takeGrades(ctx, tx, chat, acc, id, quantity)
 	return err
 }
 
-func spendItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id string) (bool, error) {
+func spendItem(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string) (bool, error) {
 	err := takeItems(ctx, tx, chat, acc, id, 1)
 	if errors.Is(err, errNoItems) {
 		return false, nil
@@ -374,11 +374,11 @@ func spendItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account
 	return err == nil, err
 }
 
-func takeGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
+func takeGrades(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
 	return takeGradesFrom(ctx, tx, backpackTable, chat, acc, id, quantity)
 }
 
-func takeGradesFrom(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
+func takeGradesFrom(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
 	held, err := gradesIn(ctx, tx, table, chat, acc, id)
 	if err != nil {
 		return nil, err
@@ -405,7 +405,7 @@ func takeGradesFrom(ctx context.Context, tx *sql.Tx, table string, chat types.JI
 	return taken, nil
 }
 
-func takeGrade(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc core.Account, id string, g grade, whole bool) error {
+func takeGrade(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string, g grade, whole bool) error {
 	if whole {
 		_, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE chat = ? AND pessoa = ? AND item = ? AND qualidade = ?",
 			chat.String(), acc.Key, id, g.quality)
@@ -418,7 +418,7 @@ func takeGrade(ctx context.Context, tx *sql.Tx, table string, chat types.JID, ac
 	return err
 }
 
-func holdsItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id string) (held bool, err error) {
+func holdsItem(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string) (held bool, err error) {
 	err = tx.QueryRowContext(ctx,
 		"SELECT EXISTS (SELECT 1 FROM inventarios WHERE chat = ? AND pessoa = ? AND item = ?)",
 		chat.String(), acc.Key, id,
@@ -426,7 +426,7 @@ func holdsItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account
 	return held, err
 }
 
-func gradesIn(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc core.Account, id string) (grades []grade, err error) {
+func gradesIn(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string) (grades []grade, err error) {
 	rows, err := tx.QueryContext(ctx,
 		"SELECT qualidade, quantidade FROM "+table+" WHERE chat = ? AND pessoa = ? AND item = ? ORDER BY qualidade",
 		chat.String(), acc.Key, id,

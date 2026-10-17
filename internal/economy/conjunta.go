@@ -175,7 +175,7 @@ func (s *walletStore) jointBalances(ctx context.Context, chat types.JID, acc cor
 
 func (s *walletStore) depositJoint(ctx context.Context, chat types.JID, from, spouse core.Account, amount int64) (balance int64, err error) {
 	first, second := jointPair(from, spouse)
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := debitBalance(ctx, tx, chat, from, amount); err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func (s *walletStore) depositJoint(ctx context.Context, chat types.JID, from, sp
 
 func (s *walletStore) withdrawJoint(ctx context.Context, chat types.JID, to, spouse core.Account, amount int64) (balance int64, err error) {
 	first, second := jointPair(to, spouse)
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		err := tx.QueryRowContext(ctx,
 			"UPDATE contas_conjuntas SET saldo = saldo - ? WHERE chat = ? AND pessoa1 = ? AND pessoa2 = ? AND saldo >= ? RETURNING saldo",
 			amount, chat.String(), first, second, amount,
@@ -213,7 +213,7 @@ func (s *walletStore) withdrawJoint(ctx context.Context, chat types.JID, to, spo
 
 func (s *walletStore) splitJoint(ctx context.Context, chat types.JID, one, other core.Account) (total int64, err error) {
 	first, second := jointPair(one, other)
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		err := tx.QueryRowContext(ctx,
 			"DELETE FROM contas_conjuntas WHERE chat = ? AND pessoa1 = ? AND pessoa2 = ? RETURNING saldo",
 			chat.String(), first, second,

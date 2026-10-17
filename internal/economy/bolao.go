@@ -438,7 +438,7 @@ func cutPoolWord(s string) (string, string) {
 }
 
 func (s *walletStore) openBetPool(ctx context.Context, chat types.JID, creator core.Account, question string, options []string, now time.Time) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			"INSERT INTO boloes (chat, criador, criador_jid, pergunta, criado_em) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
 			chat.String(), creator.Key, creator.JID.String(), question, now.Unix(),
@@ -468,7 +468,7 @@ func (s *walletStore) betPool(ctx context.Context, chat types.JID, acc core.Acco
 }
 
 func (s *walletStore) betOnPool(ctx context.Context, chat types.JID, acc core.Account, option, amount int64) (p betPool, balance int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		pool, found, err := loadBetPool(ctx, tx, chat, acc)
 		if err != nil {
 			return err
@@ -514,7 +514,7 @@ func (s *walletStore) closeBetPool(ctx context.Context, chat types.JID) error {
 }
 
 func (s *walletStore) settleBetPool(ctx context.Context, chat types.JID, winner int64) (r betPoolResult, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		pool, found, err := loadBetPool(ctx, tx, chat, core.Account{})
 		if err != nil {
 			return err
@@ -591,7 +591,7 @@ func loadBetPoolOptions(ctx context.Context, q betPoolQuerier, chat types.JID, a
 	return options, rows.Err()
 }
 
-func takeBetPoolBets(ctx context.Context, tx *sql.Tx, chat types.JID) (bets []betPoolBet, err error) {
+func takeBetPoolBets(ctx context.Context, tx *ledgerTx, chat types.JID) (bets []betPoolBet, err error) {
 	rows, err := tx.QueryContext(ctx, "DELETE FROM bolao_apostas WHERE chat = ? RETURNING pessoa, jid, opcao, valor", chat.String())
 	if err != nil {
 		return nil, err

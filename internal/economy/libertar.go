@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"math/rand/v2"
 	"time"
@@ -99,7 +98,7 @@ func releaseText(r release, job Profession, liberator, prisoner types.JID) strin
 }
 
 func (s *walletStore) release(ctx context.Context, chat types.JID, liberator, prisoner core.Account, chance, fineShare float64, cd cooldown, now time.Time) (r release, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, prisoner); err != nil {
 			return err
 		}
@@ -133,7 +132,7 @@ func (s *walletStore) release(ctx context.Context, chat types.JID, liberator, pr
 	return r, err
 }
 
-func setFree(ctx context.Context, tx *sql.Tx, chat types.JID, prisoner core.Account, captive bool) error {
+func setFree(ctx context.Context, tx *ledgerTx, chat types.JID, prisoner core.Account, captive bool) error {
 	query := map[bool]string{
 		false: "UPDATE carteiras SET preso_ate = 0 WHERE chat = ? AND pessoa = ?",
 		true:  "DELETE FROM sequestros WHERE chat = ? AND refem = ?",
@@ -142,7 +141,7 @@ func setFree(ctx context.Context, tx *sql.Tx, chat types.JID, prisoner core.Acco
 	return err
 }
 
-func burnBalance(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, minPercent, maxPercent int64, share float64) (int64, error) {
+func burnBalance(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, minPercent, maxPercent int64, share float64) (int64, error) {
 	var balance int64
 	err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key).Scan(&balance)
 	if err != nil {

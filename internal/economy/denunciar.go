@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -104,7 +103,7 @@ func reportEdgeText(job Profession) string {
 }
 
 func (s *walletStore) jailSnitch(ctx context.Context, chat types.JID, snitch core.Account, jail time.Duration, now time.Time) (left time.Duration, fine int64, freed types.JID, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, snitch); err != nil {
 			return err
 		}

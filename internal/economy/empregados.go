@@ -364,7 +364,7 @@ func (s *walletStore) estateLevel(ctx context.Context, chat types.JID, acc core.
 }
 
 func (s *walletStore) hireStaff(ctx context.Context, chat types.JID, acc core.Account, kind employee, now time.Time) (room int, err error) {
-	err = s.spend(ctx, chat, acc, kind.price, func(tx *sql.Tx) error {
+	err = s.spend(ctx, chat, acc, kind.price, func(tx *ledgerTx) error {
 		var level, used int
 		err := tx.QueryRowContext(ctx,
 			"SELECT imovel, (SELECT COUNT(*) FROM empregados e WHERE e.chat = c.chat AND e.pessoa = c.pessoa) FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?",
@@ -409,7 +409,7 @@ func (s *walletStore) fireStaff(ctx context.Context, chat types.JID, acc core.Ac
 
 func (s *walletStore) collectStaff(ctx context.Context, chat types.JID, acc core.Account, decreed decrees, now time.Time) (h harvest, err error) {
 	h.found = map[string][]grade{}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		crew, err := loadCrew(ctx, tx, chat, acc)
 		if err != nil {
 			return err
@@ -441,7 +441,7 @@ func (s *walletStore) collectStaff(ctx context.Context, chat types.JID, acc core
 	return h, err
 }
 
-func (h *harvest) work(ctx context.Context, tx *sql.Tx, hired hire, decreed decrees, now time.Time) error {
+func (h *harvest) work(ctx context.Context, tx *ledgerTx, hired hire, decreed decrees, now time.Time) error {
 	a := hired.kind.shift(decreed)
 	ready := hired.ready(a.cooldown.every, now)
 	if ready == 0 {

@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -140,21 +139,16 @@ func (b *bot) collectDueTaxes(ctx context.Context, now time.Time) {
 }
 
 func (b *bot) taxChat(ctx context.Context, chat types.JID, day string) error {
-	if !b.EconomyOn(ctx, chat) {
+	if len(b.economyGroups(ctx, chat)) == 0 {
 		return nil
 	}
 	r, err := b.Wallets.levyTaxes(ctx, chat, day)
 	if err != nil || !r.claimed || r.payers == 0 {
 		return err
 	}
-	allowed, err := b.AllowedIn(ctx, chat, []types.JID{r.top.acc.JID})
-	if err != nil || !allowed {
-		return err
-	}
 	text := fmt.Sprintf("🦁 *O Leão passou!*\n\n%d pessoa(s) pagaram %s de imposto sobre fortuna e IPTU hoje, e o dinheiro sumiu nos cofres públicos\n💸 Quem mais pagou foi @%s: %s\n\n_Manda !imposto pra ver as faixas_",
 		r.payers, Coins(r.total), r.top.acc.JID.User, Coins(r.top.paid))
-	_, err = b.SendMentions(ctx, chat, text, []types.JID{r.top.acc.JID})
-	return err
+	return b.announce(ctx, chat, text, r.top.acc.JID)
 }
 
 func (s *walletStore) untaxedChats(ctx context.Context, day string) (chats []types.JID, err error) {
@@ -177,13 +171,16 @@ func (s *walletStore) untaxedChats(ctx context.Context, day string) (chats []typ
 		if err != nil {
 			return nil, err
 		}
+		if ledgers.linked(chat) {
+			continue
+		}
 		chats = append(chats, chat)
 	}
 	return chats, rows.Err()
 }
 
 func (s *walletStore) levyTaxes(ctx context.Context, chat types.JID, day string) (r taxReport, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx, "INSERT INTO impostos (chat, dia) VALUES (?, ?) ON CONFLICT DO NOTHING", chat.String(), day)
 		if err != nil {
 			return err
@@ -214,7 +211,7 @@ func (s *walletStore) levyTaxes(ctx context.Context, chat types.JID, day string)
 	return r, err
 }
 
-func taxPayers(ctx context.Context, tx *sql.Tx, chat types.JID) (payers []taxPayer, err error) {
+func taxPayers(ctx context.Context, tx *ledgerTx, chat types.JID) (payers []taxPayer, err error) {
 	rows, err := tx.QueryContext(ctx, "SELECT pessoa, jid, saldo, imovel FROM carteiras WHERE chat = ? AND saldo > 0", chat.String())
 	if err != nil {
 		return nil, err

@@ -123,14 +123,14 @@ type powerAbuse struct {
 	left         int
 }
 
-type abuser func(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, now time.Time) (powerAbuse, error)
+type abuser func(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) (powerAbuse, error)
 
 func (p Profession) abuse(kind abuseKind) abuser {
 	own := slices.Contains(p.abuses, kind)
 	if !p.president && !own {
 		return nil
 	}
-	return func(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, now time.Time) (powerAbuse, error) {
+	return func(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) (powerAbuse, error) {
 		if p.president {
 			pa, err := presidentialAbuse(ctx, tx, chat, acc, kind, now)
 			if err != nil || pa.used {
@@ -234,7 +234,7 @@ func (b *bot) holdIfJailed(ctx context.Context, evt *events.Message) bool {
 }
 
 func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect core.Account, cd cooldown, abuse abuser, jail time.Duration, chance float64, collecting, copKeepsFine bool, now time.Time) (a arrest, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, suspect); err != nil {
 			return err
 		}
@@ -283,7 +283,7 @@ func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect c
 	return a, err
 }
 
-func lockUp(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, now time.Time) (int64, error) {
+func lockUp(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) (int64, error) {
 	if err := easeEscape(ctx, tx, chat, acc, now); err != nil {
 		return 0, err
 	}
@@ -304,7 +304,7 @@ func paidFineText(fine int64, payee types.JID) string {
 	return fmt.Sprintf("\n💸 E ainda pagou %s de multa pra @%s", Coins(fine), payee.User)
 }
 
-func stampOrAbuse(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, cd cooldown, abuse abuser, now time.Time) (time.Duration, powerAbuse, error) {
+func stampOrAbuse(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, cd cooldown, abuse abuser, now time.Time) (time.Duration, powerAbuse, error) {
 	wait, err := stampCooldown(ctx, tx, chat, acc, cd, now)
 	if err != nil || wait == 0 || abuse == nil {
 		return wait, powerAbuse{}, err
@@ -316,7 +316,7 @@ func stampOrAbuse(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Acco
 	return 0, pa, nil
 }
 
-func markCrime(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, now time.Time) error {
+func markCrime(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) error {
 	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET crime_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), chat.String(), acc.Key)
 	return err
 }

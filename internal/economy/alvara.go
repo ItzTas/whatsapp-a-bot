@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -51,7 +50,7 @@ func (s *walletStore) forgeRelease(ctx context.Context, chat types.JID, forger, 
 	if caught {
 		release = fmt.Sprintf("UPDATE carteiras SET preso_ate = preso_ate + %d WHERE chat = ? AND pessoa = ? AND preso_ate > ?", int64(escapePenalty.Seconds()))
 	}
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := takeItems(ctx, tx, chat, forger, forgedReleaseID, 1); err != nil {
 			return err
 		}

@@ -24,8 +24,8 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   `loadAuction` pega sempre a linha aberta mais antiga e só cai no de hoje quando não tem nenhuma.
   O `runAuctions`, iniciado junto do `runTaxes`, fecha as linhas vencidas com um
   `DELETE ... RETURNING` (então reiniciar não entrega duas vezes), põe o item na mochila de quem
-  ganhou com qualidade normal e anuncia na conversa (respeitando o modo `economia` e o `AllowedIn`
-  de quem ganhou). Ninguém recebe as moedas do lance vencedor: é ralo. Dia sem lance não deixa
+  ganhou com qualidade normal e anuncia com o `announce` (em todo grupo da economia com o modo
+  `economia` ligado, respeitando o `AllowedIn` de quem ganhou). Ninguém recebe as moedas do lance vencedor: é ralo. Dia sem lance não deixa
   rastro.
 - O `!bolao` fica no banco (`boloes`, `bolao_opcoes`, `bolao_apostas`): a aposta desconta na
   hora e o `!bolao resultado` divide o pote entre quem acertou, proporcional ao que apostou (a
@@ -60,8 +60,8 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   os imóveis com `payBonus` pegam mais. Com o prazo vencido, o `runLoanSeizures` (iniciado junto do
   `runAuctions`) penhora o saldo a cada `loanSeizeEvery`: o `seizeLoan` empurra o `penhora_em`
   antes de cobrar (então reiniciar não penhora duas vezes), tira até a dívida toda pelo
-  `settleLoan` (o mesmo miolo do `!emprestimo pagar`) e anuncia na conversa, respeitando o modo
-  `economia` e o `AllowedIn` de quem deve. Saldo zerado não gera aviso. O `!emprestimo` não tem
+  `settleLoan` (o mesmo miolo do `!emprestimo pagar`) e anuncia com o `announce`, em todo grupo da
+  economia com o modo `economia` ligado e respeitando o `AllowedIn` de quem deve. Saldo zerado não gera aviso. O `!emprestimo` não tem
   nada de cobrança na marra: quem empresta é o banco, então não libera `!matar`, `!prender` nem
   nada parecido.
 - As `!acoes` guardam o preço por conversa em `acoes_precos` (os saldos também são por conversa);
@@ -69,10 +69,10 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   posições ficam em `acoes_posicoes`. As empresas vivem em código (`stockCompanies` em
   `acoes.go`) e só o `ticker` vai pro banco: nunca renomeie um ticker existente.
 - O imposto (`imposto.go`) roda no `runTaxes`, iniciado junto do `runBirthdays`: a partir de
-  `taxHour` (BRT), cada conversa com o modo `economia` ligado é marcada na tabela `impostos`
+  `taxHour` (BRT), cada economia com o modo `economia` ligado em pelo menos um grupo é marcada na tabela `impostos`
   (`chat`, `dia`) antes de cobrar, então reiniciar não cobra duas vezes. Cobra as faixas marginais
-  de `taxBrackets` (`wealthTax`) mais o IPTU do imóvel, limitado ao saldo, e anuncia na conversa
-  (respeitando o `AllowedIn` de quem mais pagou). O `!transferir` e a venda do `!vender @pessoa`
+  de `taxBrackets` (`wealthTax`) mais o IPTU do imóvel, limitado ao saldo, e anuncia com o
+  `announce` (respeitando o `AllowedIn` de quem mais pagou). O `!transferir` e a venda do `!vender @pessoa`
   não têm taxa fixa; a única taxa de transferência é a do decreto `pix`.
 - Os imóveis vivem em código (`estates` em `imovel.go`) e só o nível vai pra coluna `imovel` da
   `carteiras`. Sobe um nível por vez, pagando o preço cheio, e cada nível dá `guard`,
@@ -88,6 +88,14 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   enxerga ele: não é furtado, não é apreendido, não entra nas vendas em lote e não dá efeito nenhum
   (passivas, arma, ferramenta) até voltar pra mochila. O nível do imóvel só sobe, então o espaço
   nunca encolhe embaixo de quem já guardou.
+  O `vault` de cada nível é quanto cabe de moeda no cofre de casa (`cofre.go`, coluna `cofre_casa`
+  da `carteiras`, que não é o `cofre` das `igrejas`): o `!imovel depositar` passa do `saldo` pro
+  cofre (cortando no espaço que sobra), o `!imovel sacar` faz o contrário e o `!imovel cofre`
+  mostra. As duas pontas passam pelo `shiftVault`, um `UPDATE` só condicionado ao saldo e ao
+  tamanho do cofre. É o mesmo princípio dos guardados: moeda no cofre não tá no `saldo`, então nada
+  que lê o `saldo` enxerga ela (`!roubar`, `!quadrilha`, multa da cadeia, enterro, `!castigo`,
+  imposto, penhora do `!emprestimo`, `!ricos`). Por isso os tamanhos são pequenos de propósito (uma
+  fração pequena do preço do imóvel): o cofre protege uma reserva, não a fortuna toda.
 - Os empregados (`empregados.go`) são fictícios e vivem em código (`staff`), e só o `id` vai pra
   coluna `tipo` da tabela `empregados`, uma linha por empregado contratado (cada um com o próprio
   `coletado_em`, então contratar outro do mesmo tipo não herda as horas dos antigos). Cada tipo

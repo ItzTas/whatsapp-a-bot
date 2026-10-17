@@ -161,7 +161,7 @@ func (s *walletStore) stashed(ctx context.Context, chat types.JID, acc core.Acco
 }
 
 func (s *walletStore) stash(ctx context.Context, chat types.JID, acc core.Account, id string, quantity int64) (st stashing, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var level int
 		err := tx.QueryRowContext(ctx,
 			"SELECT c.imovel, COALESCE((SELECT SUM(g.quantidade) FROM guardados g WHERE g.chat = c.chat AND g.pessoa = c.pessoa), 0) FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?",
@@ -191,14 +191,14 @@ func (s *walletStore) stash(ctx context.Context, chat types.JID, acc core.Accoun
 }
 
 func (s *walletStore) unstash(ctx context.Context, chat types.JID, acc core.Account, id string, quantity int64) (grades []grade, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) (err error) {
 		grades, err = shiftItems(ctx, tx, stashTable, backpackTable, chat, acc, id, quantity)
 		return err
 	})
 	return grades, err
 }
 
-func shiftItems(ctx context.Context, tx *sql.Tx, from, to string, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
+func shiftItems(ctx context.Context, tx *ledgerTx, from, to string, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
 	var wear int64
 	err := tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(usos), 0) FROM "+from+" WHERE chat = ? AND pessoa = ? AND item = ?",
 		chat.String(), acc.Key, id).Scan(&wear)

@@ -189,7 +189,7 @@ func (b *bot) prankOutdoor(ctx context.Context, evt *events.Message, o prankOrde
 	if utf8.RuneCountInString(ad) > outdoorMaxRunes {
 		return b.SendText(ctx, o.chat, fmt.Sprintf("Outdoor grande demais, o máximo é %d letras", outdoorMaxRunes))
 	}
-	err := b.Wallets.spend(ctx, o.chat, o.acc, o.price, func(*sql.Tx) error { return nil })
+	err := b.Wallets.spend(ctx, o.chat, o.acc, o.price, func(*ledgerTx) error { return nil })
 	if errors.Is(err, ErrNoFunds) {
 		return b.SendText(ctx, o.chat, fmt.Sprintf("O outdoor custa %s e você não tem tudo isso. Confere no !saldo", Coins(o.price)))
 	}
@@ -202,7 +202,7 @@ func (b *bot) prankOutdoor(ctx context.Context, evt *events.Message, o prankOrde
 }
 
 func (b *bot) prankCleanse(ctx context.Context, _ *events.Message, o prankOrder) error {
-	err := b.Wallets.spend(ctx, o.chat, o.acc, o.price, func(tx *sql.Tx) error {
+	err := b.Wallets.spend(ctx, o.chat, o.acc, o.price, func(tx *ledgerTx) error {
 		return releaseHeld(ctx, tx, "DELETE FROM zoeiras WHERE chat = ? AND alvo = ? AND ate > ?", o.chat, o.acc, o.now)
 	})
 	if errors.Is(err, errNotHeld) {
@@ -242,7 +242,7 @@ type prankAuthor struct {
 }
 
 func (s *walletStore) prank(ctx context.Context, o prankOrder, target core.Account, kind string, hold time.Duration) (until time.Time, err error) {
-	err = s.spend(ctx, o.chat, o.acc, o.price, func(tx *sql.Tx) error {
+	err = s.spend(ctx, o.chat, o.acc, o.price, func(tx *ledgerTx) error {
 		var end int64
 		err := tx.QueryRowContext(ctx,
 			`INSERT INTO zoeiras (chat, alvo, tipo, autor, ate) VALUES (?, ?, ?, ?, ?)

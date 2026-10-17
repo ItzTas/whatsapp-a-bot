@@ -363,7 +363,7 @@ func (p Profession) badge() string {
 	return p.emoji
 }
 
-func presidentialAbuse(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, kind abuseKind, now time.Time) (powerAbuse, error) {
+func presidentialAbuse(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, kind abuseKind, now time.Time) (powerAbuse, error) {
 	var used int
 	err := tx.QueryRowContext(ctx,
 		"UPDATE presidencias SET "+kind.charges+" = "+kind.charges+" + 1 WHERE chat = ? AND pessoa = ? AND mandato_ate > ? AND "+kind.charges+" < ? RETURNING "+kind.charges,
@@ -427,7 +427,7 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 }
 
 func (s *walletStore) inaugurate(ctx context.Context, chat types.JID, acc core.Account, votes int, now time.Time) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}

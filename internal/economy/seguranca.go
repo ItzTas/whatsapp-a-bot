@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -77,7 +76,7 @@ func (b *bot) bodyguardStatus(ctx context.Context, chat, person types.JID, acc c
 }
 
 func (s *walletStore) hireBodyguard(ctx context.Context, chat types.JID, acc core.Account, price int64, now time.Time) (until time.Time, err error) {
-	err = s.spend(ctx, chat, acc, price, func(tx *sql.Tx) error {
+	err = s.spend(ctx, chat, acc, price, func(tx *ledgerTx) error {
 		var end int64
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET seguranca_ate = MAX(seguranca_ate, ?) + ? WHERE chat = ? AND pessoa = ? RETURNING seguranca_ate",

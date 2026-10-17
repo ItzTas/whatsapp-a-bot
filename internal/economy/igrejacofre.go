@@ -301,7 +301,7 @@ func embezzleText(e embezzlement, job Profession, amount int64, person types.JID
 	return text + fmt.Sprintf("\n👑 E perdeu a liderança: agora quem lidera a *%s* é @%s, que tava há mais tempo na igreja", e.church, e.heir.User)
 }
 
-func flockOf(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account) (flock, error) {
+func flockOf(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (flock, error) {
 	var f flock
 	err := tx.QueryRowContext(ctx,
 		"SELECT i.id, i.nome, i.doutrina, i.lider, i.cofre, i.templo FROM carteiras c JOIN igrejas i ON i.id = c.igreja WHERE c.chat = ? AND c.pessoa = ?",
@@ -313,7 +313,7 @@ func flockOf(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account) 
 	return f, err
 }
 
-func ledFlock(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account) (flock, error) {
+func ledFlock(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (flock, error) {
 	f, err := flockOf(ctx, tx, chat, acc)
 	if err == nil && f.leader != acc.Key {
 		return f, errNotLeader
@@ -321,7 +321,7 @@ func ledFlock(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account)
 	return f, err
 }
 
-func drainCoffer(ctx context.Context, tx *sql.Tx, id, amount int64) error {
+func drainCoffer(ctx context.Context, tx *ledgerTx, id, amount int64) error {
 	res, err := tx.ExecContext(ctx, "UPDATE igrejas SET cofre = cofre - ? WHERE id = ? AND cofre >= ?", amount, id, amount)
 	if err != nil {
 		return err
@@ -336,7 +336,7 @@ func drainCoffer(ctx context.Context, tx *sql.Tx, id, amount int64) error {
 	return nil
 }
 
-func flockJIDs(ctx context.Context, tx *sql.Tx, chat types.JID, id int64, except string) (people []types.JID, err error) {
+func flockJIDs(ctx context.Context, tx *ledgerTx, chat types.JID, id int64, except string) (people []types.JID, err error) {
 	rows, err := tx.QueryContext(ctx, "SELECT jid FROM carteiras WHERE chat = ? AND igreja = ? AND pessoa <> ? ORDER BY igreja_desde", chat.String(), id, except)
 	if err != nil {
 		return nil, err
@@ -358,7 +358,7 @@ func flockJIDs(ctx context.Context, tx *sql.Tx, chat types.JID, id int64, except
 }
 
 func (s *walletStore) offer(ctx context.Context, chat types.JID, acc core.Account, amount int64) (f flock, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var err error
 		if f, err = flockOf(ctx, tx, chat, acc); err != nil {
 			return err
@@ -374,7 +374,7 @@ func (s *walletStore) offer(ctx context.Context, chat types.JID, acc core.Accoun
 }
 
 func (s *walletStore) rebuild(ctx context.Context, chat types.JID, acc core.Account) (r rebuild, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		f, err := ledFlock(ctx, tx, chat, acc)
 		if err != nil {
 			return err
@@ -394,7 +394,7 @@ func (s *walletStore) rebuild(ctx context.Context, chat types.JID, acc core.Acco
 }
 
 func (s *walletStore) miracle(ctx context.Context, chat types.JID, acc core.Account, amount int64) (m miracle, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		f, err := ledFlock(ctx, tx, chat, acc)
 		if err != nil {
 			return err
@@ -422,7 +422,7 @@ func (s *walletStore) miracle(ctx context.Context, chat types.JID, acc core.Acco
 }
 
 func (s *walletStore) embezzle(ctx context.Context, chat types.JID, acc core.Account, amount int64, odds embezzleOdds, cd cooldown, now time.Time) (e embezzlement, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		f, err := ledFlock(ctx, tx, chat, acc)
 		if err != nil {
 			return err
@@ -461,7 +461,7 @@ func (s *walletStore) embezzle(ctx context.Context, chat types.JID, acc core.Acc
 	return e, err
 }
 
-func pocketCoffer(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id, amount int64, now time.Time) error {
+func pocketCoffer(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id, amount int64, now time.Time) error {
 	if err := drainCoffer(ctx, tx, id, amount); err != nil {
 		return err
 	}
@@ -472,7 +472,7 @@ func pocketCoffer(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Acco
 	return markCrime(ctx, tx, chat, acc, now)
 }
 
-func depose(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id int64, now time.Time) (types.JID, error) {
+func depose(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id int64, now time.Time) (types.JID, error) {
 	heir, found, err := crownSuccessor(ctx, tx, chat, id, acc.Key)
 	if err != nil || !found {
 		return types.JID{}, err

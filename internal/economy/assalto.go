@@ -204,7 +204,7 @@ func (b *bot) runHeist(ctx context.Context, chat types.JID, members []core.Accou
 
 func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robber, now time.Time) (h heist, err error) {
 	h.robbers = slices.Clone(robbers)
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, r := range robbers {
 			if err := openWallet(ctx, tx, chat, r.acc); err != nil {
 				return err
@@ -232,7 +232,7 @@ func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robbe
 	return h, err
 }
 
-func spendGear(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber) ([]item, error) {
+func spendGear(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robber) ([]item, error) {
 	var gear []item
 	for _, it := range catalog {
 		if it.heist == 0 {
@@ -249,7 +249,7 @@ func spendGear(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber
 	return gear, nil
 }
 
-func spendFromCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, id string) (bool, error) {
+func spendFromCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robber, id string) (bool, error) {
 	for _, r := range robbers {
 		err := takeItems(ctx, tx, chat, r.acc, id, 1)
 		if errors.Is(err, errNoItems) {
@@ -260,7 +260,7 @@ func spendFromCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []ro
 	return false, nil
 }
 
-func payCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, share int64) error {
+func payCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robber, share int64) error {
 	for _, r := range robbers {
 		_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", share, chat.String(), r.acc.Key)
 		if err != nil {
@@ -270,7 +270,7 @@ func payCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, 
 	return nil
 }
 
-func jailCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, now time.Time) error {
+func jailCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robber, now time.Time) error {
 	for i := range robbers {
 		r := &robbers[i]
 		if r.job.slipsAway() || rand.Float64() < r.job.escapeOdds() {

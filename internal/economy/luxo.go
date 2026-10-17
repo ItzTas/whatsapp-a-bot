@@ -3,7 +3,6 @@ package economy
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -43,7 +42,7 @@ func localDay(now time.Time) int64 {
 
 func dailyRand(chat types.JID, now time.Time, salt string) *rand.Rand {
 	h := fnv.New64a()
-	_, _ = h.Write([]byte(chat.String() + salt))
+	_, _ = h.Write([]byte(ledgers.of(chat).String() + salt))
 	return rand.New(rand.NewPCG(uint64(localDay(now)), h.Sum64()))
 }
 
@@ -198,7 +197,7 @@ func blessedText(c charm) string {
 }
 
 func (s *walletStore) savor(ctx context.Context, chat types.JID, acc core.Account, it item, c charm, now time.Time) (idle bool, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
 			return err
 		}

@@ -70,7 +70,7 @@ func auctionLot(chat types.JID, now time.Time) item {
 
 func auctionRotation(chat types.JID, now time.Time, pool []item, salt string) item {
 	h := fnv.New64a()
-	_, _ = h.Write([]byte(chat.String() + salt))
+	_, _ = h.Write([]byte(ledgers.of(chat).String() + salt))
 	rand.New(rand.NewPCG(h.Sum64(), 0)).Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 	return pool[localDay(now)%int64(len(pool))]
 }
@@ -204,21 +204,16 @@ func (b *bot) closeDueAuctions(ctx context.Context, now time.Time) {
 
 func (b *bot) closeAuction(ctx context.Context, d dueAuction, now time.Time) error {
 	a, closed, err := b.Wallets.settleAuction(ctx, d, now)
-	if err != nil || !closed || !b.EconomyOn(ctx, d.chat) {
-		return err
-	}
-	allowed, err := b.AllowedIn(ctx, d.chat, []types.JID{a.bidder.JID})
-	if err != nil || !allowed {
+	if err != nil || !closed {
 		return err
 	}
 	next := todaysAuction(d.chat, now)
 	text := fmt.Sprintf("🔨 *Dou-lhe uma, dou-lhe duas... vendido!*\n\n🏆 @%s arrematou %s no leilão do dia por %s, e as moedas sumiram no martelo\n\n📦 Já tem item novo na mesa: %s, a partir de %s. Manda !leilao pra ver",
 		a.bidder.JID.User, a.item.label(), Coins(a.bid), next.item.label(), Coins(next.nextBid()))
-	_, err = b.SendMentions(ctx, d.chat, text, []types.JID{a.bidder.JID})
-	return err
+	return b.announce(ctx, d.chat, text, a.bidder.JID)
 }
 
-func loadAuction(ctx context.Context, tx *sql.Tx, chat types.JID, now time.Time) (dailyAuction, error) {
+func loadAuction(ctx context.Context, tx *ledgerTx, chat types.JID, now time.Time) (dailyAuction, error) {
 	a := dailyAuction{chat: chat}
 	var (
 		id, bidderJID string
@@ -248,7 +243,7 @@ func (a dailyAuction) fill(id, bidderJID string, ends int64) (dailyAuction, erro
 }
 
 func (s *walletStore) currentAuction(ctx context.Context, chat types.JID, now time.Time) (a dailyAuction, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) (err error) {
 		a, err = loadAuction(ctx, tx, chat, now)
 		return err
 	})
@@ -256,7 +251,7 @@ func (s *walletStore) currentAuction(ctx context.Context, chat types.JID, now ti
 }
 
 func (s *walletStore) bidAuction(ctx context.Context, chat types.JID, bidder core.Account, amount int64, now time.Time) (bid auctionBid, refusal string, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, bidder); err != nil {
 			return err
 		}
@@ -313,13 +308,16 @@ func (s *walletStore) dueAuctions(ctx context.Context, now time.Time) (due []due
 		if d.chat, err = types.ParseJID(raw); err != nil {
 			return nil, err
 		}
+		if ledgers.linked(d.chat) {
+			continue
+		}
 		due = append(due, d)
 	}
 	return due, rows.Err()
 }
 
 func (s *walletStore) settleAuction(ctx context.Context, d dueAuction, now time.Time) (a dailyAuction, closed bool, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var (
 			id, bidderJID string
 			ends          int64

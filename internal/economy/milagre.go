@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"slices"
 	"strings"
@@ -111,7 +110,7 @@ func coinMiracle(q itemQuery, usage string) (miracleGift, string) {
 }
 
 func (s *walletStore) bestowItem(ctx context.Context, chat types.JID, accounts []core.Account, id string, quantity int64) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range accounts {
 			if err := addItems(ctx, tx, chat, acc, id, quantity); err != nil {
 				return err

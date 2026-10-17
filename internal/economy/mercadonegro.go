@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -47,8 +46,8 @@ type high struct {
 }
 
 type smuggling struct {
-	give   func(tx *sql.Tx) error
-	get    func(tx *sql.Tx) error
+	give   func(tx *ledgerTx) error
+	get    func(tx *ledgerTx) error
 	raided bool
 	jail   time.Duration
 }
@@ -177,7 +176,7 @@ func blackMarketDay(now time.Time) string {
 	return now.In(core.ReminderZone).Format(time.DateOnly)
 }
 
-func claimHotGear(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, it item, now time.Time) error {
+func claimHotGear(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, it item, now time.Time) error {
 	res, err := tx.ExecContext(ctx,
 		"INSERT INTO muambas (chat, dia, item, comprador) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
 		chat.String(), blackMarketDay(now), it.id, acc.Key,
@@ -424,7 +423,7 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 	}
 	cost := blackMarketPrice(chat, it, now) * quantity
 	r, err := b.Wallets.smuggle(ctx, chat, acc, smuggling{
-		give: func(tx *sql.Tx) error {
+		give: func(tx *ledgerTx) error {
 			if hotGear(it) {
 				if err := claimHotGear(ctx, tx, chat, acc, it, now); err != nil {
 					return err
@@ -432,7 +431,7 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 			}
 			return debitBalance(ctx, tx, chat, acc, cost)
 		},
-		get:    func(tx *sql.Tx) error { return addItems(ctx, tx, chat, acc, it.id, quantity) },
+		get:    func(tx *ledgerTx) error { return addItems(ctx, tx, chat, acc, it.id, quantity) },
 		raided: rand.Float64() < job.raidOdds(),
 		jail:   Profession{jailTime: baseJail}.sentence(job),
 	}, now)
@@ -486,8 +485,8 @@ func (b *bot) sellContraband(ctx context.Context, evt *events.Message, q itemQue
 	now := time.Now()
 	payout := blackMarketPayout(chat, it, quantity, now)
 	r, err := b.Wallets.smuggle(ctx, chat, acc, smuggling{
-		give: func(tx *sql.Tx) error { return takeItems(ctx, tx, chat, acc, it.id, quantity) },
-		get: func(tx *sql.Tx) error {
+		give: func(tx *ledgerTx) error { return takeItems(ctx, tx, chat, acc, it.id, quantity) },
+		get: func(tx *ledgerTx) error {
 			_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", payout, chat.String(), acc.Key)
 			return err
 		},
@@ -518,7 +517,7 @@ func (b *bot) sendRaid(ctx context.Context, chat types.JID, person types.JID, jo
 }
 
 func (s *walletStore) smuggle(ctx context.Context, chat types.JID, acc core.Account, deal smuggling, now time.Time) (r raid, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}
@@ -546,7 +545,7 @@ func (s *walletStore) smuggle(ctx context.Context, chat types.JID, acc core.Acco
 	return r, err
 }
 
-func jailSmuggler(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, jail time.Duration, now time.Time) (r raid, err error) {
+func jailSmuggler(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, jail time.Duration, now time.Time) (r raid, err error) {
 	r.raided, r.jail = true, jail
 	_, err = tx.ExecContext(ctx,
 		"UPDATE carteiras SET preso_ate = MAX(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
@@ -565,7 +564,7 @@ func jailSmuggler(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Acco
 	return r, err
 }
 
-func seizeContraband(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account) (seized []stack, err error) {
+func seizeContraband(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (seized []stack, err error) {
 	ids := contrabandIDs(func(item) bool { return true })
 	rows, err := tx.QueryContext(ctx,
 		"DELETE FROM inventarios WHERE chat = ? AND pessoa = ? AND item IN ("+core.SQLPlaceholders(len(ids))+") RETURNING item, quantidade",
@@ -647,7 +646,7 @@ func (b *bot) takeDrug(ctx context.Context, evt *events.Message, it item) error 
 }
 
 func (s *walletStore) takeDrug(ctx context.Context, chat types.JID, acc core.Account, it item, now time.Time) (d dose, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
 			return err
 		}

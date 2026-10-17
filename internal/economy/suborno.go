@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -92,7 +91,7 @@ func (b *bot) bribeStatus(ctx context.Context, chat, person types.JID, acc core.
 }
 
 func (s *walletStore) payBribe(ctx context.Context, chat types.JID, acc core.Account, price int64, now time.Time) (until time.Time, err error) {
-	err = s.spend(ctx, chat, acc, price, func(tx *sql.Tx) error {
+	err = s.spend(ctx, chat, acc, price, func(tx *ledgerTx) error {
 		var end int64
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET propina_ate = MAX(propina_ate, ?) + ? WHERE chat = ? AND pessoa = ? RETURNING propina_ate",

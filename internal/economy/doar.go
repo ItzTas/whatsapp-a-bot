@@ -170,7 +170,7 @@ func (s *walletStore) worksProgress(ctx context.Context, chat types.JID) (p work
 }
 
 func (s *walletStore) donate(ctx context.Context, chat types.JID, acc core.Account, amount int64, now time.Time) (finished []finishedWork, p worksProgress, err error) {
-	err = s.spend(ctx, chat, acc, amount, func(tx *sql.Tx) error {
+	err = s.spend(ctx, chat, acc, amount, func(tx *ledgerTx) error {
 		_, err := tx.ExecContext(ctx, "INSERT INTO obras (chat) VALUES (?) ON CONFLICT DO NOTHING", chat.String())
 		if err != nil {
 			return err
@@ -202,7 +202,7 @@ func (s *walletStore) donate(ctx context.Context, chat types.JID, acc core.Accou
 	return finished, p, err
 }
 
-func recordDonation(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, level int, amount int64) error {
+func recordDonation(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, level int, amount int64) error {
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO obras_doacoes (chat, nivel, pessoa, jid, valor) VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT (chat, nivel, pessoa) DO UPDATE SET valor = valor + excluded.valor, jid = excluded.jid`,
@@ -211,7 +211,7 @@ func recordDonation(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Ac
 	return err
 }
 
-func finishWork(ctx context.Context, tx *sql.Tx, chat types.JID, level int, now time.Time) (finishedWork, error) {
+func finishWork(ctx context.Context, tx *ledgerTx, chat types.JID, level int, now time.Time) (finishedWork, error) {
 	var raw string
 	err := tx.QueryRowContext(ctx,
 		"SELECT jid FROM obras_doacoes WHERE chat = ? AND nivel = ? ORDER BY valor DESC LIMIT 1",

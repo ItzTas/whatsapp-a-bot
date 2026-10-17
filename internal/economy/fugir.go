@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"math/rand/v2"
 	"time"
@@ -186,7 +185,7 @@ func escapeEdgeText(job Profession, bonus, odds float64) string {
 }
 
 func (s *walletStore) escape(ctx context.Context, chat types.JID, acc core.Account, odds getawayOdds, now time.Time) (e escape, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		jailUntil, holdUntil, err := confinement(ctx, tx, chat, acc)
 		if err != nil {
 			return err
@@ -214,7 +213,7 @@ func (s *walletStore) escape(ctx context.Context, chat types.JID, acc core.Accou
 }
 
 func (s *walletStore) rescue(ctx context.Context, chat types.JID, helper, friend core.Account, odds rescueOdds, now time.Time) (r rescue, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		helperJail, helperHold, err := confinement(ctx, tx, chat, helper)
 		if err != nil {
 			return err
@@ -262,7 +261,7 @@ func (s *walletStore) rescue(ctx context.Context, chat types.JID, helper, friend
 	return r, err
 }
 
-func bustOut(ctx context.Context, tx *sql.Tx, chat types.JID, helper, friend core.Account, now time.Time) error {
+func bustOut(ctx context.Context, tx *ledgerTx, chat types.JID, helper, friend core.Account, now time.Time) error {
 	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0, crime_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), chat.String(), friend.Key)
 	if err != nil {
 		return err
@@ -270,7 +269,7 @@ func bustOut(ctx context.Context, tx *sql.Tx, chat types.JID, helper, friend cor
 	return markCrime(ctx, tx, chat, helper, now)
 }
 
-func confinement(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account) (jailUntil, holdUntil int64, err error) {
+func confinement(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (jailUntil, holdUntil int64, err error) {
 	if err := openWallet(ctx, tx, chat, acc); err != nil {
 		return 0, 0, err
 	}
@@ -282,7 +281,7 @@ func confinement(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Accou
 	return jailUntil, holdUntil, err
 }
 
-func easeEscape(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, now time.Time) error {
+func easeEscape(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) error {
 	ready := now.Add(-escapeCooldown.every).Unix()
 	_, err := tx.ExecContext(ctx,
 		"UPDATE carteiras SET fuga_em = fuga_em - (fuga_em - ?) * ? / 100 WHERE chat = ? AND pessoa = ? AND fuga_em > ?",
@@ -291,7 +290,7 @@ func easeEscape(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Accoun
 	return err
 }
 
-func breakJail(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, left time.Duration, chance float64, now time.Time) (bool, time.Duration, error) {
+func breakJail(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, left time.Duration, chance float64, now time.Time) (bool, time.Duration, error) {
 	if rand.Float64() < chance {
 		_, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0, crime_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), chat.String(), acc.Key)
 		return true, left, err
@@ -301,7 +300,7 @@ func breakJail(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account
 	return false, left, err
 }
 
-func breakOut(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, left time.Duration, chance float64, now time.Time) (bool, time.Duration, error) {
+func breakOut(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, left time.Duration, chance float64, now time.Time) (bool, time.Duration, error) {
 	if rand.Float64() < chance {
 		_, err := tx.ExecContext(ctx, "DELETE FROM sequestros WHERE chat = ? AND refem = ?", chat.String(), acc.Key)
 		return true, left, err

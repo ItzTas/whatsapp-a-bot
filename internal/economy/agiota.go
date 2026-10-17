@@ -515,7 +515,7 @@ func (b *bot) salaryLien(ctx context.Context, chat types.JID, debtor core.Accoun
 	return debtLien{lender: owes[i].lender, percent: jobs[i].garnish}, nil
 }
 
-func garnishPay(ctx context.Context, tx *sql.Tx, chat types.JID, debtor core.Account, lien debtLien, earned int64, now time.Time) (debtGarnish, error) {
+func garnishPay(ctx context.Context, tx *ledgerTx, chat types.JID, debtor core.Account, lien debtLien, earned int64, now time.Time) (debtGarnish, error) {
 	cut := earned * lien.percent / 100
 	if cut <= 0 {
 		return debtGarnish{}, nil
@@ -551,7 +551,7 @@ func debtCollectionText(owed *debt) string {
 
 func (s *walletStore) lend(ctx context.Context, d debt) error {
 	chat := d.chat
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO dividas (chat, devedor, devedor_jid, credor, credor_jid, divida, juros, juros_atraso, desde, vence_em)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
@@ -612,14 +612,14 @@ func (s *walletStore) debtsOf(ctx context.Context, chat types.JID, acc core.Acco
 }
 
 func (s *walletStore) repayDebt(ctx context.Context, chat types.JID, debtor, lender core.Account, amount int64, now time.Time) (left debt, paid int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) (err error) {
 		left, paid, err = settleDebt(ctx, tx, chat, debtor, lender, amount, now)
 		return err
 	})
 	return left, paid, err
 }
 
-func settleDebt(ctx context.Context, tx *sql.Tx, chat types.JID, debtor, lender core.Account, amount int64, now time.Time) (debt, int64, error) {
+func settleDebt(ctx context.Context, tx *ledgerTx, chat types.JID, debtor, lender core.Account, amount int64, now time.Time) (debt, int64, error) {
 	row := tx.QueryRowContext(ctx, debtColumns+" WHERE chat = ? AND devedor = ? AND credor = ?", chat.String(), debtor.Key, lender.Key)
 	d, err := scanDebt(row, chat)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -662,7 +662,7 @@ func scanDebt(row interface{ Scan(dest ...any) error }, chat types.JID) (debt, e
 	return d, nil
 }
 
-func storeDebt(ctx context.Context, tx *sql.Tx, d debt) error {
+func storeDebt(ctx context.Context, tx *ledgerTx, d debt) error {
 	if d.amount <= 0 {
 		_, err := tx.ExecContext(ctx, "DELETE FROM dividas WHERE chat = ? AND devedor = ? AND credor = ?", d.chat.String(), d.debtor.Key, d.lender.Key)
 		return err

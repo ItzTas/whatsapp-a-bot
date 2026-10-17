@@ -107,7 +107,7 @@ func (b *bot) withdrawBounty(ctx context.Context, chat, poster, target types.JID
 }
 
 func (s *walletStore) postBounty(ctx context.Context, chat types.JID, poster, target core.Account, amount int64, now time.Time) (total int64, err error) {
-	err = s.spend(ctx, chat, poster, amount, func(tx *sql.Tx) error {
+	err = s.spend(ctx, chat, poster, amount, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, target); err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (s *walletStore) postBounty(ctx context.Context, chat types.JID, poster, ta
 }
 
 func (s *walletStore) withdrawBounty(ctx context.Context, chat types.JID, poster, target core.Account) (refund int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		err := tx.QueryRowContext(ctx,
 			"DELETE FROM recompensas WHERE chat = ? AND alvo = ? AND autor = ? RETURNING valor",
 			chat.String(), target.Key, poster.Key,
@@ -187,7 +187,7 @@ func bountyTotal(ctx context.Context, q rowQuerier, chat types.JID, target core.
 	return total, err
 }
 
-func claimBounty(ctx context.Context, tx *sql.Tx, chat types.JID, victim, killer core.Account) (int64, error) {
+func claimBounty(ctx context.Context, tx *ledgerTx, chat types.JID, victim, killer core.Account) (int64, error) {
 	total, err := bountyTotal(ctx, tx, chat, victim)
 	if err != nil || total == 0 {
 		return 0, err

@@ -310,7 +310,7 @@ func (s *walletStore) titleHolders(ctx context.Context, chat types.JID) (holders
 }
 
 func (s *walletStore) claimTitle(ctx context.Context, chat types.JID, buyer core.Account, t title, price int64, previous titleHolder, held bool, now time.Time) (refund int64, err error) {
-	err = s.spend(ctx, chat, buyer, price, func(tx *sql.Tx) error {
+	err = s.spend(ctx, chat, buyer, price, func(tx *ledgerTx) error {
 		var current string
 		err := tx.QueryRowContext(ctx, "SELECT pessoa FROM titulos WHERE chat = ? AND titulo = ?", chat.String(), t.id).Scan(&current)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -338,7 +338,7 @@ func (s *walletStore) claimTitle(ctx context.Context, chat types.JID, buyer core
 	return refund, err
 }
 
-func dethrone(ctx context.Context, tx *sql.Tx, chat types.JID, id string, h titleHolder) (int64, error) {
+func dethrone(ctx context.Context, tx *ledgerTx, chat types.JID, id string, h titleHolder) (int64, error) {
 	refund := h.paid * titleRefundPercent / 100
 	if err := openWallet(ctx, tx, chat, h.acc); err != nil {
 		return 0, err

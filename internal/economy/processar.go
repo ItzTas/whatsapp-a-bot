@@ -437,7 +437,7 @@ func (b *bot) trialPenalty(ctx context.Context, chat types.JID, bill trialBill) 
 }
 
 func (s *walletStore) stamp(ctx context.Context, chat types.JID, acc core.Account, cd cooldown, now time.Time) (wait time.Duration, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (txErr error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) (txErr error) {
 		wait, txErr = stampCooldown(ctx, tx, chat, acc, cd, now)
 		return txErr
 	})
@@ -541,7 +541,7 @@ func (b *bot) courtDebtCollection(ctx context.Context, chat types.JID, bill tria
 }
 
 func (s *walletStore) fileGrievance(ctx context.Context, chat types.JID, victim, accused core.Account, kind string, now time.Time) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM queixas WHERE chat = ? AND em < ?", chat.String(), now.Add(-grievanceWindow).Unix()); err != nil {
 			return err
 		}

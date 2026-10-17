@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -571,7 +570,7 @@ func spellText(s spell, job Profession, c charm, caster, target types.JID) strin
 }
 
 func (s *walletStore) cast(ctx context.Context, o charmOrder) (sp spell, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, o.chat, o.target); err != nil {
 			return err
 		}
@@ -587,7 +586,7 @@ func (s *walletStore) cast(ctx context.Context, o charmOrder) (sp spell, err err
 	return sp, err
 }
 
-func landCharm(ctx context.Context, tx *sql.Tx, o charmOrder) (spell, error) {
+func landCharm(ctx context.Context, tx *ledgerTx, o charmOrder) (spell, error) {
 	sp := spell{hit: rand.Float64() < o.odds}
 	sp.backfire = !sp.hit && rand.Float64() < hexBackfire
 	if !sp.hit && !sp.backfire {
@@ -605,7 +604,7 @@ func landCharm(ctx context.Context, tx *sql.Tx, o charmOrder) (spell, error) {
 	return sp, grantCharm(ctx, tx, o.chat, bearer, author, o.charm, o.now)
 }
 
-func (o charmOrder) bouncesOffMirror(ctx context.Context, tx *sql.Tx, sp spell) (bool, error) {
+func (o charmOrder) bouncesOffMirror(ctx context.Context, tx *ledgerTx, sp spell) (bool, error) {
 	if !sp.hit || !o.charm.curse || o.pierce || o.caster.Key == o.target.Key {
 		return false, nil
 	}
@@ -652,7 +651,7 @@ func hurlText(sp spell, it item, c charm, thrower, target types.JID) string {
 }
 
 func (s *walletStore) hurl(ctx context.Context, chat types.JID, thrower, target core.Account, it item, c charm, now time.Time) (sp spell, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := takeItems(ctx, tx, chat, thrower, it.id, 1); err != nil {
 			return err
 		}
@@ -665,7 +664,7 @@ func (s *walletStore) hurl(ctx context.Context, chat types.JID, thrower, target 
 	return sp, err
 }
 
-func grantCharm(ctx context.Context, tx *sql.Tx, chat types.JID, bearer, author core.Account, c charm, now time.Time) error {
+func grantCharm(ctx context.Context, tx *ledgerTx, chat types.JID, bearer, author core.Account, c charm, now time.Time) error {
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO encantos (chat, alvo, tipo, autor, ate, parte, bonus, teto, continuo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = MAX(encantos.ate, excluded.ate),
@@ -675,7 +674,7 @@ func grantCharm(ctx context.Context, tx *sql.Tx, chat types.JID, bearer, author 
 	return err
 }
 
-func purgeCurses(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, now time.Time) error {
+func purgeCurses(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) error {
 	curses := []any{soulPactCharm.id}
 	for _, c := range charms {
 		if c.curse {

@@ -474,7 +474,7 @@ func (s *walletStore) churchOf(ctx context.Context, chat types.JID, acc core.Acc
 }
 
 func (s *walletStore) foundChurch(ctx context.Context, chat types.JID, acc core.Account, name string, d doctrine, now time.Time) (cv conversion, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var err error
 		if cv.wait, err = stampCooldown(ctx, tx, chat, acc, conversionCooldown, now); err != nil || cv.wait > 0 {
 			return err
@@ -509,7 +509,7 @@ func (s *walletStore) foundChurch(ctx context.Context, chat types.JID, acc core.
 }
 
 func (s *walletStore) joinChurch(ctx context.Context, chat types.JID, acc core.Account, id int64, now time.Time) (cv conversion, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}
@@ -541,7 +541,7 @@ func (s *walletStore) joinChurch(ctx context.Context, chat types.JID, acc core.A
 }
 
 func (s *walletStore) leaveChurch(ctx context.Context, chat types.JID, acc core.Account) (d departure, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var err error
 		if d, err = leaveFlock(ctx, tx, chat, acc); err != nil {
 			return err
@@ -554,12 +554,12 @@ func (s *walletStore) leaveChurch(ctx context.Context, chat types.JID, acc core.
 	return d, err
 }
 
-func enroll(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, id int64, now time.Time) error {
+func enroll(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id int64, now time.Time) error {
 	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET igreja = ?, igreja_desde = ? WHERE chat = ? AND pessoa = ?", id, now.Unix(), chat.String(), acc.Key)
 	return err
 }
 
-func leaveFlock(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account) (departure, error) {
+func leaveFlock(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (departure, error) {
 	f, err := flockOf(ctx, tx, chat, acc)
 	if errors.Is(err, errNotFaithful) {
 		return departure{}, nil
@@ -575,7 +575,7 @@ func leaveFlock(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Accoun
 	return handOver(ctx, tx, chat, f.id, f.coffer, d)
 }
 
-func handOver(ctx context.Context, tx *sql.Tx, chat types.JID, id, coffer int64, d departure) (departure, error) {
+func handOver(ctx context.Context, tx *ledgerTx, chat types.JID, id, coffer int64, d departure) (departure, error) {
 	heir, found, err := crownSuccessor(ctx, tx, chat, id, "")
 	if err != nil {
 		return departure{}, err
@@ -589,7 +589,7 @@ func handOver(ctx context.Context, tx *sql.Tx, chat types.JID, id, coffer int64,
 	return d, err
 }
 
-func crownSuccessor(ctx context.Context, tx *sql.Tx, chat types.JID, id int64, except string) (core.Account, bool, error) {
+func crownSuccessor(ctx context.Context, tx *ledgerTx, chat types.JID, id int64, except string) (core.Account, bool, error) {
 	var (
 		heir core.Account
 		jid  string
@@ -611,7 +611,7 @@ func crownSuccessor(ctx context.Context, tx *sql.Tx, chat types.JID, id int64, e
 	return heir, err == nil, err
 }
 
-func payTithe(ctx context.Context, tx *sql.Tx, chat types.JID, acc core.Account, income int64) (tithe, error) {
+func payTithe(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, income int64) (tithe, error) {
 	if income <= 0 {
 		return tithe{}, nil
 	}

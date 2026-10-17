@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -48,6 +47,7 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 		job           Profession
 		bodyguardLeft time.Duration
 		health        int64
+		vault         homeVault
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = b.Wallets.Balance(gctx, chat, acc); return err })
@@ -55,6 +55,7 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	g.Go(func() (err error) { titleID, err = b.Wallets.titleOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { health, err = b.Wallets.Health(gctx, chat, acc, time.Now()); return err })
+	g.Go(func() (err error) { vault, err = b.Wallets.vault(gctx, chat, acc); return err })
 	g.Go(func() (err error) {
 		bodyguardLeft, err = b.Wallets.leftUntil(gctx, chat, acc, "seguranca_ate", time.Now())
 		return err
@@ -72,6 +73,9 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	}
 	if home := homeText(job.estate); home != "" {
 		lines = append(lines, home)
+	}
+	if vault.stored > 0 {
+		lines = append(lines, fmt.Sprintf("🔐 No cofre de casa: %s, longe dos ladrões", Coins(vault.stored)))
 	}
 	if bodyguardLeft > 0 {
 		lines = append(lines, fmt.Sprintf("🕶️ Com segurança particular por mais %s", core.FormatWait(bodyguardLeft)))
@@ -454,12 +458,27 @@ func Coins(n int64) string {
 }
 
 func (b *bot) economia(ctx context.Context, evt *events.Message) error {
+	args := strings.Fields(core.MessageText(evt.Message))[1:]
+	actions := map[string]func(context.Context, *events.Message, []string) error{
+		"resetar":     b.resetEconomy,
+		"vincular":    b.linkEconomy,
+		"desvincular": b.unlinkEconomy,
+		"vinculos":    b.showEconomyLinks,
+	}
+	if len(args) > 0 {
+		if action, ok := actions[core.FoldLetters(args[0])]; ok {
+			return action(ctx, evt, args[1:])
+		}
+	}
+	return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Use assim: !economia resetar intervalos, !economia vincular <nome do grupo>, !economia desvincular ou !economia vinculos")
+}
+
+func (b *bot) resetEconomy(ctx context.Context, evt *events.Message, args []string) error {
 	chat := evt.Info.Chat.ToNonAD()
-	args := strings.Fields(core.FoldLetters(core.MessageText(evt.Message)))[1:]
-	if len(args) < 2 || args[0] != "resetar" {
+	if len(args) == 0 {
 		return b.SendText(ctx, chat, "Use assim: !economia resetar intervalos (ou !economia resetar intervalos @pessoa)")
 	}
-	if !slices.Contains([]string{"intervalos", "intervalo", "esperas"}, args[1]) {
+	if !slices.Contains([]string{"intervalos", "intervalo", "esperas"}, core.FoldLetters(args[0])) {
 		return b.SendText(ctx, chat, "Só dá pra resetar os intervalos. Dinheiro, mochila e o resto ninguém reseta, nem o dono")
 	}
 	people := core.MentionedJIDs(evt.Message)
@@ -496,7 +515,7 @@ func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accoun
 		}
 		return " WHERE chat = ? AND " + column + " IN (?" + strings.Repeat(", ?", len(accounts)-1) + ")"
 	}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx, "UPDATE carteiras SET "+strings.Join(columns, " = 0, ")+fmt.Sprintf(" = 0, saude = %d", MaxHealth)+where("pessoa"), args...)
 		if err != nil {
 			return err

@@ -2,6 +2,7 @@ package economy
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
@@ -64,6 +65,9 @@ func (b *bot) economyGuard(ctx context.Context, evt *events.Message, cmd core.Co
 	return cmd.BarredInJail && (b.holdIfJailed(ctx, evt) || b.holdIfHostage(ctx, evt))
 }
 
-func New(c *core.Bot) *Module {
-	return &bot{Bot: c, Wallets: &walletStore{db: c.Messages.DB}}
+func New(ctx context.Context, c *core.Bot) (*Module, error) {
+	if err := ledgers.load(ctx, c.Messages.DB); err != nil {
+		return nil, fmt.Errorf("ler vínculos de economia: %w", err)
+	}
+	return &bot{Bot: c, Wallets: &walletStore{db: &ledgerDB{db: c.Messages.DB}}}, nil
 }

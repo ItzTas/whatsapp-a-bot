@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -69,7 +68,7 @@ func (b *bot) treat(ctx context.Context, evt *events.Message) error {
 }
 
 func (s *walletStore) treat(ctx context.Context, chat types.JID, payer, patient core.Account, now time.Time) (price int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range []core.Account{payer, patient} {
 			if err := openWallet(ctx, tx, chat, acc); err != nil {
 				return err

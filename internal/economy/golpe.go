@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -285,7 +284,7 @@ func (p Profession) arsenal() armament {
 }
 
 func (s *walletStore) coup(ctx context.Context, chat types.JID, a *coupAttempt, now time.Time) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, r := range a.plotters {
 			if err := openWallet(ctx, tx, chat, r.acc); err != nil {
 				return err
@@ -301,7 +300,7 @@ func (s *walletStore) coup(ctx context.Context, chat types.JID, a *coupAttempt, 
 	})
 }
 
-func seize(ctx context.Context, tx *sql.Tx, chat types.JID, president, leader core.Account, now time.Time) error {
+func seize(ctx context.Context, tx *ledgerTx, chat types.JID, president, leader core.Account, now time.Time) error {
 	res, err := tx.ExecContext(ctx,
 		`UPDATE presidencias SET pessoa = ?, jid = ?, votos = 0, eleito_em = ?, mandato_ate = ?, golpe_em = ?, golpista = 1,
 		 impeachment_em = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0

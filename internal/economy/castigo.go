@@ -76,7 +76,7 @@ func (b *bot) accountsOf(ctx context.Context, people []types.JID) []core.Account
 }
 
 func (s *walletStore) smite(ctx context.Context, chat types.JID, accounts []core.Account, arg string) (total int64, punished int, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range accounts {
 			var balance int64
 			err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key).Scan(&balance)

@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"math/rand/v2"
 	"time"
@@ -87,7 +86,7 @@ func reviveText(r revival, job Profession, healer, dead types.JID) string {
 }
 
 func (s *walletStore) revive(ctx context.Context, chat types.JID, healer, dead core.Account, chance float64, pact bool, cd cooldown, now time.Time) (r revival, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, dead); err != nil {
 			return err
 		}

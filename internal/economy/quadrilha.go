@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -259,7 +258,7 @@ func gangBonus(gangsters []gangster) float64 {
 
 func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.Account, gangsters []gangster, chance float64, now time.Time) (r gangRobbery, err error) {
 	r = gangRobbery{victim: victim, gangsters: slices.Clone(gangsters), chance: chance}
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, victim); err != nil {
 			return err
 		}
@@ -292,7 +291,7 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.A
 	return r, err
 }
 
-func stampGang(ctx context.Context, tx *sql.Tx, chat types.JID, gangsters []gangster, now time.Time) error {
+func stampGang(ctx context.Context, tx *ledgerTx, chat types.JID, gangsters []gangster, now time.Time) error {
 	for _, g := range gangsters {
 		if err := openWallet(ctx, tx, chat, g.acc); err != nil {
 			return err
@@ -308,7 +307,7 @@ func stampGang(ctx context.Context, tx *sql.Tx, chat types.JID, gangsters []gang
 	return nil
 }
 
-func payGang(ctx context.Context, tx *sql.Tx, chat types.JID, victim core.Account, gangsters []gangster, share int64) error {
+func payGang(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Account, gangsters []gangster, share int64) error {
 	for i := range gangsters {
 		g := &gangsters[i]
 		g.took = share * (100 + g.job.robHaul) / 100
@@ -319,7 +318,7 @@ func payGang(ctx context.Context, tx *sql.Tx, chat types.JID, victim core.Accoun
 	return nil
 }
 
-func indemnify(ctx context.Context, tx *sql.Tx, chat types.JID, victim core.Account, gangsters []gangster) error {
+func indemnify(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Account, gangsters []gangster) error {
 	for i := range gangsters {
 		g := &gangsters[i]
 		var balance int64

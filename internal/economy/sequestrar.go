@@ -346,7 +346,7 @@ func (a arrest) rescue() (string, []types.JID) {
 }
 
 func (s *walletStore) kidnap(ctx context.Context, chat types.JID, kidnapper, victim core.Account, cd cooldown, abuse abuser, odds kidnapOdds, now time.Time) (k kidnapping, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range []core.Account{kidnapper, victim} {
 			if err := openWallet(ctx, tx, chat, acc); err != nil {
 				return err
@@ -448,7 +448,7 @@ func (s *walletStore) hostageOf(ctx context.Context, chat types.JID, kidnapper c
 }
 
 func (s *walletStore) sellHostage(ctx context.Context, chat types.JID, seller, sold core.Account, price int64, now time.Time) (left time.Duration, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var until int64
 		err := tx.QueryRowContext(ctx,
 			"UPDATE sequestros SET sequestrador = NULL, ate = MIN(ate, ?) WHERE chat = ? AND refem = ? AND sequestrador = ? AND ate > ? RETURNING ate",
@@ -467,7 +467,7 @@ func (s *walletStore) sellHostage(ctx context.Context, chat types.JID, seller, s
 	return left, err
 }
 
-func freeHostage(ctx context.Context, tx *sql.Tx, chat types.JID, kidnapper core.Account, now time.Time) (types.JID, error) {
+func freeHostage(ctx context.Context, tx *ledgerTx, chat types.JID, kidnapper core.Account, now time.Time) (types.JID, error) {
 	var jid string
 	err := tx.QueryRowContext(ctx,
 		"DELETE FROM sequestros WHERE chat = ? AND sequestrador = ? AND ate > ? RETURNING refem_jid",

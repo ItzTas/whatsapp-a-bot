@@ -645,7 +645,7 @@ func (b *bot) toggleDecreeRun(td toggleDecree) decree {
 	}
 }
 
-func (b *bot) spendDecree(ctx context.Context, call decreeCall, od onceDecree, then func(tx *sql.Tx) error) (onceOutcome, error) {
+func (b *bot) spendDecree(ctx context.Context, call decreeCall, od onceDecree, then func(tx *ledgerTx) error) (onceOutcome, error) {
 	if call.p.decrees.left(od) == 0 {
 		return onceSpent, nil
 	}
@@ -664,7 +664,7 @@ func (b *bot) spendDecree(ctx context.Context, call decreeCall, od onceDecree, t
 
 func (b *bot) taxDecree(ctx context.Context, call decreeCall) (string, error) {
 	var total, payers int64
-	outcome, err := b.spendDecree(ctx, call, taxOnce, func(tx *sql.Tx) (err error) {
+	outcome, err := b.spendDecree(ctx, call, taxOnce, func(tx *ledgerTx) (err error) {
 		total, payers, err = collectTax(ctx, tx, call.chat, call.p.president, presidentTaxPercent)
 		if err != nil || total > 0 {
 			return err
@@ -684,7 +684,7 @@ func (b *bot) taxDecree(ctx context.Context, call decreeCall) (string, error) {
 
 func (b *bot) aidDecree(ctx context.Context, call decreeCall) (string, error) {
 	var paid int64
-	outcome, err := b.spendDecree(ctx, call, aidOnce, func(tx *sql.Tx) error {
+	outcome, err := b.spendDecree(ctx, call, aidOnce, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			"UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa != ?",
 			presidentAid, call.chat.String(), call.p.president.Key,
@@ -710,7 +710,7 @@ func (b *bot) aidDecree(ctx context.Context, call decreeCall) (string, error) {
 
 func (b *bot) boxDecree(ctx context.Context, call decreeCall) (string, error) {
 	var given int64
-	outcome, err := b.spendDecree(ctx, call, boxOnce, func(tx *sql.Tx) error {
+	outcome, err := b.spendDecree(ctx, call, boxOnce, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO inventarios (chat, pessoa, item, quantidade)
 			 SELECT chat, pessoa, ?, 1 FROM carteiras WHERE chat = ? AND pessoa != ?
@@ -739,7 +739,7 @@ func (b *bot) boxDecree(ctx context.Context, call decreeCall) (string, error) {
 
 func (b *bot) amnestyDecree(ctx context.Context, call decreeCall) (string, error) {
 	var freed, cleared int64
-	outcome, err := b.spendDecree(ctx, call, amnestyOnce, func(tx *sql.Tx) (err error) {
+	outcome, err := b.spendDecree(ctx, call, amnestyOnce, func(tx *ledgerTx) (err error) {
 		freed, cleared, err = grantAmnesty(ctx, tx, call.chat, call.now)
 		if err != nil || freed+cleared > 0 {
 			return err
@@ -762,7 +762,7 @@ func (b *bot) pardonDecree(ctx context.Context, call decreeCall) (string, error)
 		return "Marca quem vai receber o indulto: !decreto indulto @pessoa", nil
 	}
 	acc := call.targets[0]
-	outcome, err := b.spendDecree(ctx, call, pardonOnce, func(tx *sql.Tx) error {
+	outcome, err := b.spendDecree(ctx, call, pardonOnce, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			"UPDATE carteiras SET preso_ate = 0, crime_em = 0 WHERE chat = ? AND pessoa = ? AND preso_ate > ?",
 			call.chat.String(), acc.Key, call.now.Unix(),
@@ -797,7 +797,7 @@ func (b *bot) seizeDecree(ctx context.Context, call decreeCall) (string, error) 
 		return "Confiscar de si mesmo não muda nada 🤨", nil
 	}
 	var taken int64
-	outcome, err := b.spendDecree(ctx, call, seizeOnce, func(tx *sql.Tx) error {
+	outcome, err := b.spendDecree(ctx, call, seizeOnce, func(tx *ledgerTx) error {
 		err := tx.QueryRowContext(ctx,
 			"SELECT saldo * ? / 100 FROM carteiras WHERE chat = ? AND pessoa = ?",
 			presidentSeizePercent, call.chat.String(), acc.Key,
@@ -842,7 +842,7 @@ func (b *bot) stockDecree(ctx context.Context, call decreeCall) (string, error) 
 		return "🤔 " + problem + ". " + usageText, nil
 	}
 	var before, after int64
-	outcome, err := b.spendDecree(ctx, call, stockOnce, func(tx *sql.Tx) (err error) {
+	outcome, err := b.spendDecree(ctx, call, stockOnce, func(tx *ledgerTx) (err error) {
 		before, after, err = pushStock(ctx, tx, call.chat, company, pct, call.now)
 		return err
 	})
@@ -860,7 +860,7 @@ func (b *bot) stockDecree(ctx context.Context, call decreeCall) (string, error) 
 	}[outcome], nil
 }
 
-func grantAmnesty(ctx context.Context, tx *sql.Tx, chat types.JID, now time.Time) (freed, cleared int64, err error) {
+func grantAmnesty(ctx context.Context, tx *ledgerTx, chat types.JID, now time.Time) (freed, cleared int64, err error) {
 	res, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0 WHERE chat = ? AND preso_ate > ?", chat.String(), now.Unix())
 	if err != nil {
 		return 0, 0, err
@@ -876,7 +876,7 @@ func grantAmnesty(ctx context.Context, tx *sql.Tx, chat types.JID, now time.Time
 	return freed, cleared, err
 }
 
-func pushStock(ctx context.Context, tx *sql.Tx, chat types.JID, company stockCompany, pct int64, now time.Time) (before, after int64, err error) {
+func pushStock(ctx context.Context, tx *ledgerTx, chat types.JID, company stockCompany, pct int64, now time.Time) (before, after int64, err error) {
 	quotes, err := refreshStocks(ctx, tx, chat, now)
 	if err != nil {
 		return 0, 0, err
@@ -891,7 +891,7 @@ func pushStock(ctx context.Context, tx *sql.Tx, chat types.JID, company stockCom
 	return before, after, err
 }
 
-func collectTax(ctx context.Context, tx *sql.Tx, chat types.JID, president core.Account, pct int64) (total, payers int64, err error) {
+func collectTax(ctx context.Context, tx *ledgerTx, chat types.JID, president core.Account, pct int64) (total, payers int64, err error) {
 	err = tx.QueryRowContext(ctx,
 		"SELECT COALESCE(SUM(saldo * ? / 100), 0), COUNT(*) FROM carteiras WHERE chat = ? AND pessoa != ? AND saldo * ? / 100 > 0",
 		pct, chat.String(), president.Key, pct,
@@ -954,8 +954,8 @@ func (s *walletStore) flipDecree(ctx context.Context, chat types.JID, president 
 	return value != 0, err == nil, err
 }
 
-func (s *walletStore) spendDecree(ctx context.Context, chat types.JID, president core.Account, od onceDecree, now time.Time, then func(tx *sql.Tx) error) (spent bool, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+func (s *walletStore) spendDecree(ctx context.Context, chat types.JID, president core.Account, od onceDecree, now time.Time, then func(tx *ledgerTx) error) (spent bool, err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		res, err := tx.ExecContext(ctx,
 			"UPDATE presidencias SET "+od.column+" = "+od.column+" + 1 WHERE chat = ? AND pessoa = ? AND mandato_ate > ? AND "+od.column+" < ?",
 			chat.String(), president.Key, now.Unix(), od.limit,
@@ -975,7 +975,7 @@ func (s *walletStore) spendDecree(ctx context.Context, chat types.JID, president
 
 func (s *walletStore) transferWithPix(ctx context.Context, chat types.JID, from, to core.Account, amount int64, levy PixLevy) (pix int64, err error) {
 	pix = amount * levy.percent / 100
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, to); err != nil {
 			return err
 		}
@@ -1072,7 +1072,7 @@ func (p prizeLevy) text() string {
 }
 
 func (s *walletStore) payPrize(ctx context.Context, chat types.JID, acc core.Account, payout int64, levy prizeLevy) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
+	return s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}
@@ -1091,7 +1091,7 @@ func (s *walletStore) payPrize(ctx context.Context, chat types.JID, acc core.Acc
 func (s *walletStore) SettleBet(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64, levy PixLevy) (balance int64, err error) {
 	due := stake + levy.cut(stake)
 	fee := levy.onBet(stake, payout)
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET saldo = saldo - ? + ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
 			stake+fee, payout, chat.String(), acc.Key, due,
@@ -1107,7 +1107,7 @@ func (s *walletStore) SettleBet(ctx context.Context, chat types.JID, acc core.Ac
 	return balance, err
 }
 
-func payLevy(ctx context.Context, tx *sql.Tx, chat types.JID, levy PixLevy, fee int64) error {
+func payLevy(ctx context.Context, tx *ledgerTx, chat types.JID, levy PixLevy, fee int64) error {
 	if fee == 0 || !levy.collected() {
 		return nil
 	}
