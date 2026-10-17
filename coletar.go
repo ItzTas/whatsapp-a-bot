@@ -24,6 +24,8 @@ type activity struct {
 	breaks    float64
 	luck      int
 	plainLuck int
+	gradeLuck int
+	rotten    bool
 	loot      []drop
 	found     []string
 	empty     []string
@@ -189,6 +191,7 @@ type gear struct {
 	faster      int64
 	fewerJunk   int64
 	moreRare    int64
+	grade       int
 	relicLure   int
 	skipsRelics bool
 	spent       bool
@@ -223,6 +226,7 @@ func (a activity) equip(bag []stack) kit {
 		} else {
 			k.luck += g.luck
 		}
+		k.gradeLuck += g.grade
 		k.cooldown.every = k.cooldown.every * time.Duration(100-g.faster) / 100
 		if g.spent {
 			k.spent = append(k.spent, s.item)
@@ -313,6 +317,7 @@ func (p profession) forage(a activity) activity {
 	if p.compassLure > 0 {
 		a.loot = lureCompasses(a.loot, p.compassLure)
 	}
+	a.rotten = p.rotten
 	return a
 }
 
@@ -330,6 +335,7 @@ func gearPerk(g *gear) string {
 		{g.faster > 0, fmt.Sprintf("espera %d%% menos", g.faster)},
 		{g.fewerJunk > 0, fmt.Sprintf("vem %d%% menos item comum e mão vazia", g.fewerJunk)},
 		{g.moreRare > 0, fmt.Sprintf("vem %d%% mais item raro, épico e lendário", g.moreRare)},
+		{g.grade > 0, fmt.Sprintf("o que acha vem com qualidade melhor: fica com a melhor de %d", g.grade+1)},
 		{g.relicLure > 0, fmt.Sprintf("deixa %dx mais fácil achar o Relicário perdido", g.relicLure)},
 		{g.metal, "só sai item de metal, então nunca vem de mão vazia"},
 		{g.alwaysFinds, "nunca vem de mão vazia"},
@@ -362,7 +368,11 @@ func (a activity) roll() haul {
 			found = other
 		}
 	}
-	return haul{found: found, broke: a.tool != "" && rand.Float64() < a.breaks}
+	h := haul{found: found, broke: a.tool != "" && rand.Float64() < a.breaks}
+	if found.gradable() {
+		h.grade = rollQuality(a.gradeLuck, a.rotten)
+	}
+	return h
 }
 
 func (b *bot) gather(base activity) command {
@@ -395,7 +405,7 @@ func (a activity) report(g gathering, person types.JID) string {
 	}
 	text := fmt.Sprintf(pickOne(a.empty), person.User)
 	if g.found.id != "" {
-		text = fmt.Sprintf(pickOne(a.found), person.User, g.found.label()) + "\n" + g.found.summary()
+		text = fmt.Sprintf(pickOne(a.found), person.User, g.found.label()+g.grade.tag()) + "\n" + g.grade.summary(g.found)
 	}
 	if g.found.relicOdds > 0 {
 		text += fmt.Sprintf("\n\n🏛️ Achado raríssimo! Abre com !usar %s e reza: em %d%% das vezes sai uma relíquia", foldLetters(g.found.name), percent(g.found.relicOdds))

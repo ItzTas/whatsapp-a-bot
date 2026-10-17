@@ -91,6 +91,7 @@ type craft struct {
 	faster    int64
 	luck      int
 	fewerJunk int64
+	grade     int
 	noTool    bool
 	noBreak   bool
 }
@@ -101,6 +102,7 @@ func (c craft) apply(a activity) activity {
 	}
 	a.cooldown.every = a.cooldown.every * time.Duration(100-c.faster) / 100
 	a.luck = c.luck
+	a.gradeLuck = c.grade
 	if c.fewerJunk > 0 {
 		a.loot = trimJunk(a.loot, c.fewerJunk)
 	}
@@ -126,6 +128,8 @@ func (c craft) describe() string {
 		{c.faster > 0, fmt.Sprintf("espera %d%% menos", c.faster)},
 		{c.luck > 0, fmt.Sprintf("tem %dx mais sorte no que acha", c.luck+1)},
 		{c.fewerJunk > 0, fmt.Sprintf("vem %d%% menos item comum e mão vazia", c.fewerJunk)},
+		{c.grade > 0, fmt.Sprintf("o que acha vem com qualidade melhor: fica com a melhor de %d", c.grade+1)},
+		{c.grade < 0, fmt.Sprintf("o que acha vem com qualidade pior: fica com a pior de %d", -c.grade+1)},
 		{c.noTool && tool.id != "", "nem precisa de " + tool.label()},
 		{c.noBreak && !c.noTool && tool.id != "", tool.label() + " nunca quebra"},
 	}
@@ -203,6 +207,7 @@ type profession struct {
 	gatherFaster int64
 	haste        int64
 	compassLure  int
+	rotten       bool
 	boxLuck      int
 	faith        faith
 
@@ -439,6 +444,7 @@ func (p profession) perks() []string {
 		{p.haste > 0, fmt.Sprintf("🐌 Espera %d%% mais no %s", p.haste, hasteCommands)},
 		{p.boxLuck > 0, fmt.Sprintf("📦 Abre caixa e baú no !usar com %dx mais sorte: fica com o item mais raro de %d sorteios", p.boxLuck+1, p.boxLuck+1)},
 		{p.compassLure > 0, fmt.Sprintf("🧭 Acha a Bússola do relicário %dx mais fácil no %s", p.compassLure, extractionCommands())},
+		{p.rotten, fmt.Sprintf("🪰 Tudo que acha no %s vem com qualidade podre (%d%% do valor)", extractionCommands(), rottenQuality.tier().percent)},
 		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},

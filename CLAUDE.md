@@ -211,12 +211,14 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje **100 minutos**, contando o que a
   pessoa recebe vendendo no `!vender`, não o valor cheio dos itens. O tempo é o `value` da
   ferramenta dividido pelo líquido por hora: o valor médio do melhor item entre `luck + 1`
-  sorteios do `loot` montado pelo `equip`, vezes `marketSalePercent` (sem o `salePercent` de
+  sorteios do `loot` montado pelo `equip` (item `gradable()` vezes a qualidade média da melhor de
+  `grade + 1` qualidades), vezes `marketSalePercent` (sem o `salePercent` de
   profissão), menos `breaks` vezes o `value` cheio da ferramenta (a reposição sai pelo preço da
   loja), vezes os usos por hora da espera. O ajuste é nos atributos do `gear` (`luck`,
   `fewerJunk`, `moreRare`), não no preço nem na espera: o `faster` é o mesmo pra toda ferramenta
   de extração da mesma raridade, hoje 0 na rara (10 minutos, igual à base), 40 na épica (6), 50
-  na lendária (5) e 80 na relíquia (2). Ferramenta nova ou mudança no `loot` de uma
+  na lendária (5) e 80 na relíquia (2). O `grade` também é fixo por raridade: 1 na rara, 2 na
+  épica, 3 na lendária e 4 na relíquia. Ferramenta nova ou mudança no `loot` de uma
   atividade precisa recalibrar as ferramentas dela pra esse tempo. As ferramentas base (Vara de
   pesca, Picareta e Rede de insetos) ficam de fora e se pagam em uns 60 minutos. Como o `loot`
   da mina vale mais, as picaretas têm um `luck` a menos que a vara e a rede da mesma raridade.
@@ -233,11 +235,33 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   O `!vender tipo <tipo>` (ou `categoria`) vende tudo o que a pessoa tem daquele tipo, menos os
   ilegais, pelo mesmo `sellBatch` do `!vender #12`. A palavra `tipo` é obrigatória porque vários
   nomes de tipo já acham item sozinhos (`!vender pesca` vende a Vara de pesca).
+  O `!vender inuteis` (ou `inutil`, `sobras`) vende, pelo mesmo `sellBatch`, tudo o que não tem
+  efeito (`uselessSales`): item sem `perk()` (o "Pra que serve" do `!item`) e sem `gift`. Lendário
+  e relíquia sem efeito ficam na mochila e aparecem no "Ficou de fora". Efeito novo que não passe
+  pelo `perk()` precisa entrar nessa checagem, senão o item vira "inútil" e é vendido.
 - O número de cada item (`#12`) é a posição dele no `catalog` (`item.number()`/`itemByNumber`), não
   vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
   todos com `#`, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
   (`sellNumbered` → `sellBatch` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
   todos os que vêm depois dele.
+- A qualidade (`qualidade.go`) é a coluna `qualidade` do `inventarios`, que faz parte da chave, então
+  cada qualidade de um item é uma linha própria. Os níveis ficam em `qualities` (de `-2` podre a `2`
+  excelente, com o `0` normal), cada um com a porcentagem do `value` que vale (`price`) e o peso no
+  sorteio; os pesos são montados pra média dar 100%, então a calibragem das ferramentas não muda.
+  Só a extração sorteia qualidade (`rollQuality` no `roll`), e só pra item `gradable()`: sem efeito
+  nenhum (nada de `gear`, caixa, baú, relíquia, luxo, ilegal, encanto, `trade`, `heist`...). Todo
+  o resto entra como normal pelo `addItems`. O `grade` da ferramenta (`gear`, somado no `equip`) e
+  o `craft.grade` da profissão dão sorteios extras de qualidade naquela extração (positivo fica com
+  a melhor, negativo com a pior), e o `rotten` (hoje
+  só o caçador de bússola, pra ele não lucrar com a espera curta de extração) deixa tudo podre.
+  O `loadInventory` junta as linhas numa `stack` por item, com as qualidades em `grades`, então o
+  resto do código continua vendo um item só; a `!mochila` mostra uma linha por qualidade. O
+  `takeItems`/`takeGrades` sempre tira da pior qualidade pra melhor, e quem passa item de uma
+  pessoa pra outra (`!dar`, `!vender @pessoa`, `!furtar`, `!leilao`) usa o `moveItems` ou o
+  `addGrades` pra levar a mesma qualidade junto. O `sellItems` calcula o pagamento dentro da
+  transação, com as qualidades que saíram de fato (`marketSale.percent`, não um valor pronto), e
+  o `!leilao` guarda as qualidades no save da rodada (`Grades`). Valor da mochila usa
+  `stack.worth()`, nunca `quantity * value`.
 - As profissões também vivem em código (`professions` em `profissoes.go`, separadas por área) e
   só o `name` vai pra coluna `profissao` da `carteiras`. Nunca renomeie um `name` existente: quem
   tinha a profissão volta pra `bico`. Os efeitos (campos de `profession` em `profissao.go`) são

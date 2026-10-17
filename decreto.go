@@ -678,7 +678,7 @@ func (b *bot) boxDecree(ctx context.Context, call decreeCall) (string, error) {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO inventarios (chat, pessoa, item, quantidade)
 			 SELECT chat, pessoa, ?, 1 FROM carteiras WHERE chat = ? AND pessoa != ?
-			 ON CONFLICT (chat, pessoa, item) DO UPDATE SET quantidade = inventarios.quantidade + excluded.quantidade`,
+			 ON CONFLICT (chat, pessoa, item, qualidade) DO UPDATE SET quantidade = inventarios.quantidade + excluded.quantidade`,
 			presidentBoxItem, call.chat.String(), call.p.president.key,
 		)
 		if err != nil {

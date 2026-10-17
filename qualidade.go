@@ -1,0 +1,152 @@
+package main
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
+
+type quality int
+
+const (
+	rottenQuality quality = -2
+	normalQuality quality = 0
+)
+
+type qualityTier struct {
+	level   quality
+	name    string
+	percent int64
+	weight  int
+}
+
+var qualities = []qualityTier{
+	{rottenQuality, "podre", 40, 10},
+	{-1, "ruim", 70, 20},
+	{normalQuality, "normal", 100, 40},
+	{1, "boa", 130, 20},
+	{2, "excelente", 160, 10},
+}
+
+type grade struct {
+	quality  quality
+	quantity int64
+}
+
+type gradeState struct {
+	Quality  quality `json:"quality"`
+	Quantity int64   `json:"quantity"`
+}
+
+func (q quality) index() int {
+	if i := slices.IndexFunc(qualities, func(t qualityTier) bool { return t.level == q }); i >= 0 {
+		return i
+	}
+	return slices.IndexFunc(qualities, func(t qualityTier) bool { return t.level == normalQuality })
+}
+
+func (q quality) tier() qualityTier {
+	return qualities[q.index()]
+}
+
+func (q quality) stars() string {
+	return strings.Repeat("⭐", q.index()+1)
+}
+
+func (q quality) tag() string {
+	if q == normalQuality {
+		return ""
+	}
+	return fmt.Sprintf(" %s _%s_", q.stars(), q.tier().name)
+}
+
+func (q quality) price(value int64) int64 {
+	return value * q.tier().percent / 100
+}
+
+func (q quality) summary(it item) string {
+	if q == normalQuality {
+		return it.summary()
+	}
+	r := rarities[it.rarity]
+	t := q.tier()
+	return fmt.Sprintf("%s %s · %s %s (%d%% do valor) · vale %s", r.emoji, r.name, q.stars(), t.name, t.percent, coins(q.price(it.value)))
+}
+
+func rollQuality(luck int, rotten bool) quality {
+	if rotten {
+		return rottenQuality
+	}
+	pick := func() quality {
+		return qualities[weightedIndex(len(qualities), func(i int) int { return qualities[i].weight })].level
+	}
+	keep := func(a, b quality) quality { return max(a, b) }
+	if luck < 0 {
+		keep = func(a, b quality) quality { return min(a, b) }
+	}
+	q := pick()
+	for range max(luck, -luck) {
+		q = keep(q, pick())
+	}
+	return q
+}
+
+func (it item) gradable() bool {
+	return it.gear == nil && it.prizes == nil && it.loot == nil && it.relicOdds == 0 && it.rarity != relic &&
+		!it.luxury && !it.illegal && !it.pet && it.arms == nil && it.high == nil && it.flex == nil &&
+		it.bless == "" && it.hex == "" && it.trade == nil && it.resets == nil && it.heist == 0
+}
+
+func worthOf(it item, grades []grade) int64 {
+	var worth int64
+	for _, g := range grades {
+		worth += g.quantity * g.quality.price(it.value)
+	}
+	return worth
+}
+
+func marketPayoutOf(it item, grades []grade, percent int64) int64 {
+	var payout int64
+	for _, g := range grades {
+		payout += marketPayoutAt(g.quality.price(it.value), g.quantity, percent)
+	}
+	return payout
+}
+
+func gradesLabel(grades []grade) string {
+	if !slices.ContainsFunc(grades, func(g grade) bool { return g.quality != normalQuality }) {
+		return ""
+	}
+	parts := make([]string, len(grades))
+	for i, g := range grades {
+		parts[i] = fmt.Sprintf("%d %s", g.quantity, g.quality.tier().name)
+	}
+	return " (" + joinWithAnd(parts) + ")"
+}
+
+func storeGrades(grades []grade) []gradeState {
+	states := make([]gradeState, len(grades))
+	for i, g := range grades {
+		states[i] = gradeState{Quality: g.quality, Quantity: g.quantity}
+	}
+	return states
+}
+
+func restoreGrades(states []gradeState, quantity int64) []grade {
+	if len(states) == 0 {
+		return []grade{{normalQuality, quantity}}
+	}
+	grades := make([]grade, len(states))
+	for i, s := range states {
+		grades[i] = grade{s.Quality, s.Quantity}
+	}
+	return grades
+}
+
+func qualityGuide() string {
+	parts := make([]string, len(qualities))
+	for i, t := range qualities {
+		parts[i] = fmt.Sprintf("%s %s %d%%", t.level.stars(), t.name, t.percent)
+	}
+	return strings.Join(parts, " · ")
+}

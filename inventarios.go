@@ -18,6 +18,7 @@ type rowsQuerier interface {
 
 type haul struct {
 	found item
+	grade quality
 	broke bool
 }
 
@@ -35,6 +36,7 @@ type theft struct {
 	empty   bool
 	locked  bool
 	item    item
+	grade   quality
 	success bool
 	fine    int64
 }
@@ -44,7 +46,10 @@ func (s *walletStore) inventory(ctx context.Context, chat types.JID, acc account
 }
 
 func loadInventory(ctx context.Context, q rowsQuerier, chat types.JID, acc account) (stacks []stack, err error) {
-	rows, err := q.QueryContext(ctx, "SELECT item, quantidade FROM inventarios WHERE chat = ? AND pessoa = ?", chat.String(), acc.key)
+	rows, err := q.QueryContext(ctx,
+		"SELECT item, qualidade, quantidade FROM inventarios WHERE chat = ? AND pessoa = ? ORDER BY item, qualidade",
+		chat.String(), acc.key,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -52,17 +57,22 @@ func loadInventory(ctx context.Context, q rowsQuerier, chat types.JID, acc accou
 
 	for rows.Next() {
 		var (
-			id       string
-			quantity int64
+			id string
+			g  grade
 		)
-		if err := rows.Scan(&id, &quantity); err != nil {
+		if err := rows.Scan(&id, &g.quality, &g.quantity); err != nil {
 			return nil, err
 		}
 		it, known := itemByID(id)
 		if !known {
 			continue
 		}
-		stacks = append(stacks, stack{item: it, quantity: quantity})
+		if n := len(stacks); n > 0 && stacks[n-1].item.id == id {
+			stacks[n-1].quantity += g.quantity
+			stacks[n-1].grades = append(stacks[n-1].grades, g)
+			continue
+		}
+		stacks = append(stacks, stack{item: it, quantity: g.quantity, grades: []grade{g}})
 	}
 	return stacks, rows.Err()
 }
@@ -91,19 +101,23 @@ func (s *walletStore) buyItem(ctx context.Context, chat types.JID, acc account, 
 type marketSale struct {
 	item     item
 	quantity int64
+	percent  int64
+	grades   []grade
 	payout   int64
 }
 
-func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc account, sales []marketSale) (balance int64, err error) {
-	var payout int64
-	for _, sale := range sales {
-		payout += sale.payout
-	}
+func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc account, sales []marketSale) (sold []marketSale, balance int64, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
-		for _, sale := range sales {
-			if err := takeItems(ctx, tx, chat, acc, sale.item.id, sale.quantity); err != nil {
+		sold = make([]marketSale, len(sales))
+		var payout int64
+		for i, sale := range sales {
+			grades, err := takeGrades(ctx, tx, chat, acc, sale.item.id, sale.quantity)
+			if err != nil {
 				return err
 			}
+			sale.grades, sale.payout = grades, marketPayoutOf(sale.item, grades, sale.percent)
+			sold[i] = sale
+			payout += sale.payout
 		}
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
@@ -113,24 +127,20 @@ func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc account
 			payout, chat.String(), acc.key,
 		).Scan(&balance)
 	})
-	return balance, err
+	return sold, balance, err
 }
 
-func (s *walletStore) giveItem(ctx context.Context, chat types.JID, from, to account, id string, quantity int64) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
-		if err := takeItems(ctx, tx, chat, from, id, quantity); err != nil {
-			return err
-		}
-		return addItems(ctx, tx, chat, to, id, quantity)
+func (s *walletStore) giveItem(ctx context.Context, chat types.JID, from, to account, id string, quantity int64) (grades []grade, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+		grades, err = moveItems(ctx, tx, chat, from, to, id, quantity)
+		return err
 	})
+	return grades, err
 }
 
-func (s *walletStore) tradeItem(ctx context.Context, o *itemOffer) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
-		if err := takeItems(ctx, tx, o.chat, o.seller, o.item.id, o.quantity); err != nil {
-			return err
-		}
-		if err := addItems(ctx, tx, o.chat, o.buyer, o.item.id, o.quantity); err != nil {
+func (s *walletStore) tradeItem(ctx context.Context, o *itemOffer) (grades []grade, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+		if grades, err = moveItems(ctx, tx, o.chat, o.seller, o.buyer, o.item.id, o.quantity); err != nil {
 			return err
 		}
 		if err := openWallet(ctx, tx, o.chat, o.seller); err != nil {
@@ -138,6 +148,15 @@ func (s *walletStore) tradeItem(ctx context.Context, o *itemOffer) error {
 		}
 		return moveCoins(ctx, tx, o.chat, o.buyer, o.seller, o.price)
 	})
+	return grades, err
+}
+
+func moveItems(ctx context.Context, tx *sql.Tx, chat types.JID, from, to account, id string, quantity int64) ([]grade, error) {
+	grades, err := takeGrades(ctx, tx, chat, from, id, quantity)
+	if err != nil {
+		return nil, err
+	}
+	return grades, addGrades(ctx, tx, chat, to, id, grades)
 }
 
 func (s *walletStore) consumeItem(ctx context.Context, chat types.JID, acc account, it item, e itemEffect, now time.Time) (wait time.Duration, err error) {
@@ -212,7 +231,7 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc account, a
 			}
 		}
 		if g.found.id != "" {
-			if err := addItems(ctx, tx, chat, acc, g.found.id, 1); err != nil {
+			if err := addGrades(ctx, tx, chat, acc, g.found.id, []grade{{g.grade, 1}}); err != nil {
 				return err
 			}
 		}
@@ -266,10 +285,12 @@ func (s *walletStore) stealItem(ctx context.Context, chat types.JID, thief, vict
 			return takeItems(ctx, tx, chat, victim, lockItemID, 1)
 		}
 		if t.success {
-			if err := takeItems(ctx, tx, chat, victim, t.item.id, 1); err != nil {
+			grades, err := moveItems(ctx, tx, chat, victim, thief, t.item.id, 1)
+			if err != nil {
 				return err
 			}
-			return addItems(ctx, tx, chat, thief, t.item.id, 1)
+			t.grade = grades[0].quality
+			return nil
 		}
 		return payTheftFine(ctx, tx, chat, thief, victim, &t)
 	})
@@ -309,38 +330,84 @@ func stampCooldown(ctx context.Context, tx *sql.Tx, chat types.JID, acc account,
 }
 
 func addItems(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, quantity int64) error {
+	return addGrades(ctx, tx, chat, acc, id, []grade{{normalQuality, quantity}})
+}
+
+func addGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, grades []grade) error {
+	for _, g := range grades {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO inventarios (chat, pessoa, item, qualidade, quantidade) VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT (chat, pessoa, item, qualidade) DO UPDATE SET quantidade = inventarios.quantidade + excluded.quantidade`,
+			chat.String(), acc.key, id, g.quality, g.quantity,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func takeItems(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, quantity int64) error {
+	_, err := takeGrades(ctx, tx, chat, acc, id, quantity)
+	return err
+}
+
+func takeGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, quantity int64) ([]grade, error) {
+	held, err := heldGrades(ctx, tx, chat, acc, id)
+	if err != nil {
+		return nil, err
+	}
+	var have int64
+	for _, g := range held {
+		have += g.quantity
+	}
+	if have < quantity {
+		return nil, errNoItems
+	}
+	var taken []grade
+	for _, g := range held {
+		if quantity == 0 {
+			break
+		}
+		n := min(quantity, g.quantity)
+		if err := takeGrade(ctx, tx, chat, acc, id, grade{g.quality, n}, n == g.quantity); err != nil {
+			return nil, err
+		}
+		taken = append(taken, grade{g.quality, n})
+		quantity -= n
+	}
+	return taken, nil
+}
+
+func takeGrade(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, g grade, whole bool) error {
+	if whole {
+		_, err := tx.ExecContext(ctx, "DELETE FROM inventarios WHERE chat = ? AND pessoa = ? AND item = ? AND qualidade = ?",
+			chat.String(), acc.key, id, g.quality)
+		return err
+	}
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO inventarios (chat, pessoa, item, quantidade) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (chat, pessoa, item) DO UPDATE SET quantidade = inventarios.quantidade + excluded.quantidade`,
-		chat.String(), acc.key, id, quantity,
+		"UPDATE inventarios SET quantidade = quantidade - ? WHERE chat = ? AND pessoa = ? AND item = ? AND qualidade = ?",
+		g.quantity, chat.String(), acc.key, id, g.quality,
 	)
 	return err
 }
 
-func takeItems(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, quantity int64) error {
-	res, err := tx.ExecContext(ctx,
-		"UPDATE inventarios SET quantidade = quantidade - ? WHERE chat = ? AND pessoa = ? AND item = ? AND quantidade > ?",
-		quantity, chat.String(), acc.key, id, quantity,
+func heldGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string) (grades []grade, err error) {
+	rows, err := tx.QueryContext(ctx,
+		"SELECT qualidade, quantidade FROM inventarios WHERE chat = ? AND pessoa = ? AND item = ? ORDER BY qualidade",
+		chat.String(), acc.key, id,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if n, err := res.RowsAffected(); err != nil || n > 0 {
-		return err
+	defer func() { err = errors.Join(err, rows.Close()) }()
+
+	for rows.Next() {
+		var g grade
+		if err := rows.Scan(&g.quality, &g.quantity); err != nil {
+			return nil, err
+		}
+		grades = append(grades, g)
 	}
-	res, err = tx.ExecContext(ctx,
-		"DELETE FROM inventarios WHERE chat = ? AND pessoa = ? AND item = ? AND quantidade = ?",
-		chat.String(), acc.key, id, quantity,
-	)
-	if err != nil {
-		return err
-	}
-	removed, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if removed == 0 {
-		return errNoItems
-	}
-	return nil
+	return grades, rows.Err()
 }

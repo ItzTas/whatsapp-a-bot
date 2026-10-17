@@ -116,7 +116,7 @@ func (e economyProfile) assetLines() []string {
 	var units, worth int64
 	for _, s := range e.held {
 		units += s.quantity
-		worth += s.quantity * s.item.value
+		worth += s.worth()
 	}
 	if units > 0 {
 		lines = append(lines, fmt.Sprintf("🎒 Mochila: %s, valendo %s", countLabel(int(units), "item", "itens"), coins(worth)))

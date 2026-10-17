@@ -471,7 +471,7 @@ func seizeContraband(ctx context.Context, tx *sql.Tx, chat types.JID, acc accoun
 			return nil, err
 		}
 		if it, ok := itemByID(id); ok {
-			seized = append(seized, stack{item: it, quantity: quantity})
+			seized = append(seized, stack{item: it, quantity: quantity, grades: []grade{{normalQuality, quantity}}})
 		}
 	}
 	return seized, rows.Err()

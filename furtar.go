@@ -87,7 +87,7 @@ func theftText(t theft, wanted item, thief, victim types.JID) string {
 		return fmt.Sprintf("🔒 @%s tentou abrir a mochila de @%s, mas tinha um cadeado! Ele quebrou segurando o ladrão e não saiu nada", thief.User, victim.User)
 	}
 	if t.success {
-		return fmt.Sprintf("🥷 @%s furtou %s da mochila de @%s e sumiu na multidão!\n%s", thief.User, t.item.label(), victim.User, t.item.summary())
+		return fmt.Sprintf("🥷 @%s furtou %s%s da mochila de @%s e sumiu na multidão!\n%s", thief.User, t.item.label(), t.grade.tag(), victim.User, t.grade.summary(t.item))
 	}
 	if t.fine == 0 {
 		return fmt.Sprintf("🚨 @%s foi pego tentando furtar %s de @%s, mas tava tão liso que saiu só com a vergonha", thief.User, t.item.label(), victim.User)

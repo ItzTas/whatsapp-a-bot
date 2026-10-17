@@ -1261,6 +1261,7 @@ func (b *bot) commands() []botCommand {
 				{"!vender <item> [quantidade]", fmt.Sprintf("vende pro mercado na hora, mas ele só paga %d%% do valor 💸 (também aceita tudo)", marketSalePercent)},
 				{"!vender #<número> [#número...]", "vende tudo o que você tem de cada item pelos números da !mochila, sempre com #, tipo !vender #12 #40 #87"},
 				{"!vender tipo <tipo>", "vende tudo o que você tem de um tipo da !mochila, tipo !vender tipo pesca (os ilegais ficam de fora)"},
+				{"!vender inuteis", "vende tudo da mochila que não tem efeito nenhum (peixe, minério, lixo, inseto...), menos os lendários"},
 				{"!vender @pessoa <item> <preço>", fmt.Sprintf("oferece o item pra pessoa marcada pelo preço que você quiser, e ela tem %s pra responder com !aceitar ou !recusar 🤝", formatWait(offerWindow))},
 				{"!vender @pessoa <item> <quantidade> <preço>", "vende vários de uma vez, com o preço sendo o total"},
 			},

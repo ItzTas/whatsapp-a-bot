@@ -26,17 +26,34 @@ func backpackText(person types.JID, held []stack) string {
 	if len(held) == 0 {
 		return fmt.Sprintf("🎒 A mochila de @%s tá vazia 🪹\n\n_Dá pra conseguir itens com !vasculhar, !pescar, !minerar e !catar, ou comprando na !loja_", person.User)
 	}
-	var units, worth, market int64
+	type lot struct {
+		item  item
+		grade grade
+	}
+	var (
+		units, worth, market int64
+		lots                 []lot
+		graded               bool
+	)
 	for _, s := range held {
 		units += s.quantity
-		worth += s.quantity * s.item.value
-		market += marketPayout(s.item.value, s.quantity)
+		worth += s.worth()
+		market += marketPayoutOf(s.item, s.grades, marketSalePercent)
+		for _, g := range s.grades {
+			lots = append(lots, lot{s.item, g})
+			graded = graded || g.quality != normalQuality
+		}
 	}
 	lines := []string{fmt.Sprintf("🎒 *Mochila de @%s*", person.User)}
-	lines = append(lines, categoryGroups(held, func(s stack) item { return s.item }, func(s stack) string {
-		return fmt.Sprintf("#%d %s %dx %s %s · 🪙 %s", s.item.number(), rarities[s.item.rarity].emoji, s.quantity, s.item.emoji, s.item.name, thousands(s.item.value))
+	lines = append(lines, categoryGroups(lots, func(l lot) item { return l.item }, func(l lot) string {
+		return fmt.Sprintf("#%d %s %dx %s %s%s · 🪙 %s", l.item.number(), rarities[l.item.rarity].emoji, l.grade.quantity, l.item.emoji,
+			l.item.name, l.grade.quality.tag(), thousands(l.grade.quality.price(l.item.value)))
 	})...)
-	lines = append(lines, "", rarityLegend(), "",
+	lines = append(lines, "", rarityLegend())
+	if graded {
+		lines = append(lines, "Qualidade: "+qualityGuide(), "_Vender, dar ou usar sempre tira primeiro o de pior qualidade_")
+	}
+	lines = append(lines, "",
 		fmt.Sprintf("📦 %s, valendo %s", countLabel(int(units), "item", "itens"), coins(worth)),
 		fmt.Sprintf("_No mercado sairia tudo por %s. Manda !item <nome> pra ver o que cada um faz_", coins(market)),
 		"_Pra vender vários de uma vez, manda os números com #: !vender #12 #40 #87_")
@@ -85,14 +102,14 @@ func (b *bot) dar(ctx context.Context, evt *events.Message) error {
 	if quantity > have {
 		return b.sendText(ctx, chat, "Você só tem "+quantityLabel(it, have))
 	}
-	err = b.wallets.giveItem(ctx, chat, fromAcc, toAcc, it.id, quantity)
+	grades, err := b.wallets.giveItem(ctx, chat, fromAcc, toAcc, it.id, quantity)
 	if errors.Is(err, errNoItems) {
 		return b.sendText(ctx, chat, "Sua mochila mudou no meio do caminho e não dá mais 🤨 Confere no !mochila")
 	}
 	if err != nil {
 		return fmt.Errorf("dar item: %w", err)
 	}
-	text := fmt.Sprintf("🎁 @%s deu %s pra @%s", from.User, quantityLabel(it, quantity), to.User)
+	text := fmt.Sprintf("🎁 @%s deu %s%s pra @%s", from.User, quantityLabel(it, quantity), gradesLabel(grades), to.User)
 	if it.gift != "" && quantity == 1 {
 		text = fmt.Sprintf(it.gift, from.User, to.User)
 	}
