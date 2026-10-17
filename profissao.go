@@ -152,6 +152,7 @@ type profession struct {
 	bustFine     int64
 	doubleChance float64
 	relicDouble  float64
+	noDouble     bool
 	finds        []string
 	findChance   float64
 	findBonus    float64
@@ -195,8 +196,10 @@ type profession struct {
 	charms    []string
 	luxuries  []string
 
-	craft craft
-	faith faith
+	craft        craft
+	gatherFaster int64
+	compassLure  int
+	faith        faith
 
 	salePercent   int64
 	discount      int64
@@ -350,6 +353,9 @@ func (p profession) shopPrice(cost int64) int64 {
 }
 
 func (p profession) doubling() float64 {
+	if p.noDouble {
+		return 0
+	}
 	return p.doubleChance + p.relicDouble
 }
 
@@ -414,7 +420,10 @@ func (p profession) perks() []string {
 		{p.reportBonus < 0, fmt.Sprintf("🙄 No !denunciar, a polícia só acredita em %d%% das vezes (o normal é %d%%)", percent(p.reportOdds()), percent(reportChance))},
 		{p.noSnitch, fmt.Sprintf("🐀 Não pode !denunciar: bandido que vira X-9 é entregue pela quadrilha e pega %s de cadeia", formatWait(p.snitchSentence()))},
 		{p.craft.activity != "", p.craft.describe()},
-		{p.salePercent > 0, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
+		{p.gatherFaster > 0, fmt.Sprintf("⏱️ Espera %d%% menos no %s", p.gatherFaster, extractionCommands())},
+		{p.compassLure > 0, fmt.Sprintf("🧭 Acha a Bússola do relicário %dx mais fácil no %s", p.compassLure, extractionCommands())},
+		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
+		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},
 		{p.interest > 0, fmt.Sprintf("🏦 A poupança rende %d%% em vez de %d%%", savingsRate+p.interest, savingsRate)},
 		{p.dailyBonus > 0, fmt.Sprintf("🎁 O !daily rende +%d%%", p.dailyBonus)},
@@ -514,7 +523,7 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 	}
 	people := []types.JID{person}
 	if w.tax > 0 {
-		people = append(people, levy.president.jid)
+		people = append(people, levy.payee()...)
 	}
 	_, err = b.sendMentions(ctx, chat, text, people)
 	return err

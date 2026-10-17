@@ -285,7 +285,8 @@ func (b *bot) presidente(ctx context.Context, evt *events.Message) error {
 		return fmt.Errorf("ler presidência: %w", err)
 	}
 	if !found {
-		return b.sendText(ctx, chat, fmt.Sprintf("🏛️ Ninguém é presidente agora. Manda !votar @pessoa pra abrir a eleição: a urna fica aberta %s e quem ganhar fica %s no cargo", formatWait(electionWindow), formatWait(termLength)))
+		text := fmt.Sprintf("🏛️ Ninguém é presidente agora. Manda !votar @pessoa pra abrir a eleição: a urna fica aberta %s e quem ganhar fica %s no cargo", formatWait(electionWindow), formatWait(termLength))
+		return b.sendText(ctx, chat, text+p.decrees.leftoverText())
 	}
 	text := p.text()
 	if value, running := b.impeachments.Load(chat.String()); running {
@@ -387,7 +388,7 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 		dest = append(dest, &levels[i])
 	}
 	err = s.db.QueryRowContext(ctx,
-		"SELECT pessoa, jid, votos, mandato_ate, impeachment_em, "+strings.Join(append(charges, columns...), ", ")+" FROM presidencias WHERE chat = ? AND mandato_ate > ?",
+		"SELECT pessoa, jid, votos, mandato_ate, impeachment_em, "+strings.Join(append(charges, columns...), ", ")+" FROM presidencias WHERE chat = ? AND (mandato_ate > ? OR renunciou = 1)",
 		chat.String(), now.Unix(),
 	).Scan(dest...)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -402,6 +403,9 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 	}
 	p.decrees = zipDecrees(columns, levels)
 	p.until = time.Unix(until, 0)
+	if !p.until.After(now) {
+		return presidency{decrees: p.decrees}, false, nil
+	}
 	p.lastImpeachment = time.Unix(impeachedAt, 0)
 	p.president.jid, err = types.ParseJID(jid)
 	return p, err == nil, err
@@ -415,7 +419,7 @@ func (s *walletStore) inaugurate(ctx context.Context, chat types.JID, acc accoun
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO presidencias (chat, pessoa, jid, votos, eleito_em, mandato_ate) VALUES (?, ?, ?, ?, ?, ?)
 			 ON CONFLICT (chat) DO UPDATE SET pessoa = excluded.pessoa, jid = excluded.jid, votos = excluded.votos,
-			 eleito_em = excluded.eleito_em, mandato_ate = excluded.mandato_ate, impeachment_em = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0`,
+			 eleito_em = excluded.eleito_em, mandato_ate = excluded.mandato_ate, impeachment_em = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0`,
 			chat.String(), acc.key, acc.jid.String(), votes, now.Unix(), now.Add(termLength).Unix(),
 		)
 		if err != nil {

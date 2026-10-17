@@ -34,11 +34,12 @@ func backpackText(person types.JID, held []stack) string {
 	}
 	lines := []string{fmt.Sprintf("🎒 *Mochila de @%s*", person.User)}
 	lines = append(lines, categoryGroups(held, func(s stack) item { return s.item }, func(s stack) string {
-		return fmt.Sprintf("%s %dx %s %s · 🪙 %s", rarities[s.item.rarity].emoji, s.quantity, s.item.emoji, s.item.name, thousands(s.item.value))
+		return fmt.Sprintf("#%d %s %dx %s %s · 🪙 %s", s.item.number(), rarities[s.item.rarity].emoji, s.quantity, s.item.emoji, s.item.name, thousands(s.item.value))
 	})...)
 	lines = append(lines, "", rarityLegend(), "",
 		fmt.Sprintf("📦 %s, valendo %s", countLabel(int(units), "item", "itens"), coins(worth)),
-		fmt.Sprintf("_No mercado sairia tudo por %s. Manda !item <nome> pra ver o que cada um faz_", coins(market)))
+		fmt.Sprintf("_No mercado sairia tudo por %s. Manda !item <nome> pra ver o que cada um faz_", coins(market)),
+		"_Pra vender vários de uma vez, manda os números com #: !vender #12 #40 #87_")
 	return strings.Join(lines, "\n")
 }
 

@@ -1136,6 +1136,24 @@ var professions = []profession{
 		},
 	},
 	{
+		name: "caçador de bússola", emoji: "🧭", title: "é caçador de bússola do relicário", area: areaCampo,
+		aliases: []string{"caçador de bússola do relicário", "bussoleiro"},
+		min: 20, max: 60, every: 28 * time.Minute,
+		bust: 0.45, bustFine: 120, salePercent: 40, betJinx: 0.15,
+		jailFactor: 50, escapeBonus: -0.15, breakoutBonus: -0.15, reportBonus: -0.2, heistBonus: -0.1, trialEdge: -1,
+		gatherFaster: 50, compassLure: 10,
+		tasks: []string{
+			"passou o dia girando no meio da praça esperando a agulha apontar pra algum lugar",
+			"vendeu um mapa \"original\" do relicário pra um turista", "seguiu a agulha de uma bússola até a casa da sogra",
+			"jurou que a bússola tremeu perto do bueiro e cavou a calçada inteira",
+			"contou pra roda do bar a lenda do Relicário perdido e ganhou umas cervejas",
+		},
+		busts: []string{
+			"seguiu a bússola até o meio do rio e teve que voltar nadando", "descobriu que a bússola tava apontando pro ímã da geladeira",
+			"invadiu um sítio atrás do relicário e levou multa do dono", "comprou uma bússola falsa no camelô e ainda pagou caro",
+		},
+	},
+	{
 		name: "jardineiro", emoji: "🌷", title: "é jardineiro", area: areaCampo, min: 70, max: 150, every: 16 * time.Minute,
 		findChance: 0.2, finds: []string{"rosa", "buque", "sapo", "casca-de-banana"}, craft: craft{activity: "!catar", faster: 30},
 		tasks: []string{

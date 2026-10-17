@@ -211,6 +211,11 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   que não bate em nada vira `Raridades`. O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
   agrupam por ele (`categoryGroups`), com a raridade na bolinha da linha. Item novo cai no tipo
   sozinho; tipo novo é só entrar na lista, na posição certa, porque a ordem decide o empate.
+- O número de cada item (`#12`) é a posição dele no `catalog` (`item.number()`/`itemByNumber`), não
+  vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
+  todos com `#`, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
+  (`sellNumbered` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
+  todos os que vêm depois dele.
 - As profissões também vivem em código (`professions` em `profissoes.go`, separadas por área) e
   só o `name` vai pra coluna `profissao` da `carteiras`. Nunca renomeie um `name` existente: quem
   tinha a profissão volta pra `bico`. Os efeitos (campos de `profession` em `profissao.go`) são
@@ -326,7 +331,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   pego no `!sequestrar` e no `!matar` vira zero, o `jailCrew` do `!assalto` pula ele, o `noSnitch`
   não vale pra ele e o `inaugurate` zera o `preso_ate` de quem toma posse. Caminho novo que mande
   alguém pra cadeia precisa checar o `untouchable()` da profissão (presidente ou subornado). Tudo some quando o `mandato_ate`
-  passa, porque toda leitura da presidência filtra por ele.
+  passa, porque toda leitura da presidência filtra por ele, menos os decretos depois de uma renúncia
+  (`!renunciar`, abaixo).
 - O `!decreto` (`decreto.go`) é só do presidente e lê três tabelas em código, cada decreto com os
   nomes que aceita e a coluna dele na `presidencias`: `percentDecrees` (um número guardado na
   coluna, limitado a `lo`/`hi` na leitura; negativo corta e positivo aumenta, como no `trabalho`,
@@ -382,7 +388,19 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `impeach` joga o `mandato_ate` pra agora, então os poderes e os decretos caem sozinhos e o
   `!votar` volta a abrir eleição. A abertura carimba a coluna `impeachment_em` da `presidencias`
   (zerada no `inaugurate`), e o próximo pedido contra o mesmo mandato só sai depois de
-  `impeachmentEvery`.
+  `impeachmentEvery`. Se o presidente da abertura já saiu do cargo quando a votação fecha
+  (renúncia ou fim do mandato), o `impeachmentResult` só avisa e não conta nada.
+- O `!renunciar` (`renunciar.go`) é o presidente largando o cargo: o `resign` joga o `mandato_ate`
+  pra agora e marca `renunciou = 1` na `presidencias`, então os poderes caem na hora e o `!votar`
+  volta a abrir eleição, mas os decretos continuam valendo até o próximo `inaugurate`, que zera o
+  `renunciou`. Por isso o `walletStore.decrees` e o `presidency` leem a linha com
+  `mandato_ate > agora OR renunciou = 1`; com o mandato vencido, o `presidency` devolve `found`
+  falso e um `presidency` só com os `decrees` (sem presidente). Os decretos de imposto continuam
+  cobrando, mas viram ralo: o `levy` da presidência sai com o `president` vazio, o
+  `collected()` do `pixLevy` fica falso, o `payLevy`, o `payPrize` e o `transferWithPix` não
+  creditam ninguém, e os textos usam o `pocket()`/`office()` ("pro ralo"). Todo imposto de decreto
+  novo monta o `pixLevy` pelo `p.levy(decreto, quem paga...)` e menciona o `levy.payee()`. O
+  `!presidente` sem presidente mostra esses decretos que sobraram (`leftoverText`).
 - O abuso de poder (`abuseKinds` em `prender.go`) deixa usar um comando mesmo com a espera dele
   pendente. Hoje tem quatro tipos: prisão (`!prender`), trabalho (`!trabalhar`), roubo (`!roubar`) e
   sequestro (`!sequestrar`). Cada `abuseKind` tem a coluna de espera dele na `carteiras` (`abuso_em`,
@@ -451,7 +469,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   - A chance de ganhar em dobro no `!trabalhar` não soma: a da profissão, a da Bolsa de grife e a
     da bênção Sorte entram com `max` no `doubleChance`, e só a Muiraquitã (relíquia) soma por
     cima, no campo próprio `relicDouble`. O sorteio e os `perks()` leem o total pelo
-    `doubling()`. Fonte nova de dobro usa `max`, nunca `+=`.
+    `doubling()`, que devolve zero com o `noDouble` (a maldição Azar), seja qual for a ordem em que
+    os encantos foram aplicados. Fonte nova de dobro usa `max`, nunca `+=`.
 - O `!mercadonegro` (`mercadonegro.go`) vende os itens com `illegal` do `catalog`: armas (campo
   `arms`) e drogas (campo `high`). O estoque do dia sai do `dailyRand` (o mesmo sorteio da
   `!luxo`, com outro sal), e cada item tem um preço do dia entre `blackMarketMinPercent` e

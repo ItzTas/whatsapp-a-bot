@@ -88,10 +88,22 @@ func (s *walletStore) buyItem(ctx context.Context, chat types.JID, acc account, 
 	return balance, err
 }
 
-func (s *walletStore) sellItem(ctx context.Context, chat types.JID, acc account, it item, quantity, payout int64) (balance int64, err error) {
+type marketSale struct {
+	item     item
+	quantity int64
+	payout   int64
+}
+
+func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc account, sales []marketSale) (balance int64, err error) {
+	var payout int64
+	for _, sale := range sales {
+		payout += sale.payout
+	}
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
-		if err := takeItems(ctx, tx, chat, acc, it.id, quantity); err != nil {
-			return err
+		for _, sale := range sales {
+			if err := takeItems(ctx, tx, chat, acc, sale.item.id, sale.quantity); err != nil {
+				return err
+			}
 		}
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err

@@ -33,7 +33,7 @@ const (
 	stockDecreeSwing      = 30
 	curfewPenalty         = 0.15
 	termOverText          = "🏛️ O mandato acabou bem agora, então o decreto não valeu. Só quem ganhar a próxima eleição (!votar) baixa decreto de novo"
-	casinoClosedText      = "🚫🎰 O cassino tá fechado por decreto do presidente. Só abre de novo quando ele revogar ou o mandato acabar"
+	casinoClosedText      = "🚫🎰 O cassino tá fechado por decreto do presidente. Só abre de novo quando o decreto for revogado ou cair"
 )
 
 var errDecreeIdle = errors.New("decreto sem efeito")
@@ -285,6 +285,18 @@ func (d decrees) inForce() []string {
 	return texts
 }
 
+func (d decrees) leftoverText() string {
+	inForce := d.inForce()
+	if len(inForce) == 0 {
+		return ""
+	}
+	lines := []string{"", "", "📜 *Decretos do último presidente, que renunciou:* valem até alguém tomar posse, e os impostos deles agora somem em vez de ir pra alguém"}
+	for _, decree := range inForce {
+		lines = append(lines, "📜 "+decree)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (d decrees) onceLeftText() string {
 	var parts []string
 	for _, od := range onceDecrees {
@@ -373,10 +385,16 @@ func (p presidency) payFor(s shift) shift {
 }
 
 func (p presidency) incomeLevy(acc account) pixLevy {
-	if p.president.key == acc.key {
-		return pixLevy{}
+	return p.levy(incomeTaxDecree, acc)
+}
+
+func (p presidency) levy(pd percentDecree, payers ...account) pixLevy {
+	for _, payer := range payers {
+		if payer.key == p.president.key {
+			return pixLevy{}
+		}
 	}
-	return pixLevy{president: p.president, percent: p.decrees.level(incomeTaxDecree)}
+	return pixLevy{president: p.president, percent: p.decrees.level(pd)}
 }
 
 func (b *bot) decreto(ctx context.Context, evt *events.Message) error {
@@ -847,7 +865,7 @@ func (s *walletStore) decrees(ctx context.Context, chat types.JID, now time.Time
 		dest[i] = &values[i]
 	}
 	err := s.db.QueryRowContext(ctx,
-		"SELECT "+strings.Join(columns, ", ")+" FROM presidencias WHERE chat = ? AND mandato_ate > ?",
+		"SELECT "+strings.Join(columns, ", ")+" FROM presidencias WHERE chat = ? AND (mandato_ate > ? OR renunciou = 1)",
 		chat.String(), now.Unix(),
 	).Scan(dest...)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -914,9 +932,37 @@ func (s *walletStore) transferWithPix(ctx context.Context, chat types.JID, from,
 		if pix == 0 {
 			return nil
 		}
+		if !levy.collected() {
+			return debitBalance(ctx, tx, chat, to, pix)
+		}
 		return moveCoins(ctx, tx, chat, to, levy.president, pix)
 	})
 	return pix, err
+}
+
+func (l pixLevy) collected() bool {
+	return l.president.key != ""
+}
+
+func (l pixLevy) payee() []types.JID {
+	if !l.collected() {
+		return nil
+	}
+	return []types.JID{l.president.jid}
+}
+
+func (l pixLevy) pocket() string {
+	if !l.collected() {
+		return "pro ralo (o presidente renunciou)"
+	}
+	return "pro bolso de @" + l.president.jid.User
+}
+
+func (l pixLevy) office() string {
+	if !l.collected() {
+		return "pro ralo (o presidente renunciou)"
+	}
+	return "pro bolso do presidente"
 }
 
 func (l pixLevy) cut(amount int64) int64 {
@@ -969,7 +1015,7 @@ func (p prizeLevy) text() string {
 	if p.fee == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" (📜 menos %s de taxa pro presidente, por decreto)", coins(p.fee))
+	return fmt.Sprintf(" (📜 menos %s de taxa %s, por decreto)", coins(p.fee), p.office())
 }
 
 func (s *walletStore) payPrize(ctx context.Context, chat types.JID, acc account, payout int64, levy prizeLevy) error {
@@ -978,7 +1024,7 @@ func (s *walletStore) payPrize(ctx context.Context, chat types.JID, acc account,
 			return err
 		}
 		_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", payout-levy.fee, chat.String(), acc.key)
-		if err != nil || levy.fee == 0 {
+		if err != nil || levy.fee == 0 || !levy.collected() {
 			return err
 		}
 		if err := openWallet(ctx, tx, chat, levy.president); err != nil {
@@ -1009,7 +1055,7 @@ func (s *walletStore) settleBet(ctx context.Context, chat types.JID, acc account
 }
 
 func payLevy(ctx context.Context, tx *sql.Tx, chat types.JID, levy pixLevy, fee int64) error {
-	if fee == 0 {
+	if fee == 0 || !levy.collected() {
 		return nil
 	}
 	if err := openWallet(ctx, tx, chat, levy.president); err != nil {
@@ -1023,7 +1069,7 @@ func incomeTaxText(tax int64, levy pixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 Desse valor, %s (%d%%) foram de imposto de renda pro bolso de @%s, por decreto", coins(tax), levy.percent, levy.president.jid.User)
+	return fmt.Sprintf("\n📜 Desse valor, %s (%d%%) foram de imposto de renda %s, por decreto", coins(tax), levy.percent, levy.pocket())
 }
 
 func betLevyText(stake, payout int64, levy pixLevy) string {
@@ -1032,14 +1078,14 @@ func betLevyText(stake, payout int64, levy pixLevy) string {
 		return ""
 	}
 	if payout > stake {
-		return fmt.Sprintf("\n📜 Desse prêmio, %s (%d%% de tudo que levou) foram de taxa pro bolso do presidente, por decreto", coins(fee), levy.percent)
+		return fmt.Sprintf("\n📜 Desse prêmio, %s (%d%% de tudo que levou) foram de taxa %s, por decreto", coins(fee), levy.percent, levy.office())
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%%) de taxa da aposta foram pro bolso do presidente, por decreto", coins(fee), levy.percent)
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de taxa da aposta foram %s, por decreto", coins(fee), levy.percent, levy.office())
 }
 
 func pixText(pix int64, levy pixLevy) string {
 	if pix == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%%) de taxa do pix foram pro bolso de @%s, por decreto", coins(pix), levy.percent, levy.president.jid.User)
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de taxa do pix foram %s, por decreto", coins(pix), levy.percent, levy.pocket())
 }

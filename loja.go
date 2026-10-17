@@ -64,22 +64,17 @@ func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
 
 	acc := b.account(ctx, person)
 	var (
-		job     profession
-		p       presidency
-		elected bool
+		job profession
+		p   presidency
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { job, err = b.professionOf(gctx, chat, acc); return err })
-	g.Go(func() (err error) { p, elected, err = b.wallets.presidency(gctx, chat, time.Now()); return err })
+	g.Go(func() (err error) { p, _, err = b.wallets.presidency(gctx, chat, time.Now()); return err })
 	if err := g.Wait(); err != nil {
 		return err
 	}
-	var levy pixLevy
-	people := []types.JID{person}
-	if elected && acc.key != p.president.key {
-		levy = pixLevy{president: p.president, percent: p.decrees.level(shopTaxDecree)}
-		people = append(people, p.president.jid)
-	}
+	levy := p.levy(shopTaxDecree, acc)
+	people := append([]types.JID{person}, levy.payee()...)
 	cost := job.shopPrice(it.value * quantity)
 	tax := levy.cut(cost)
 	balance, err := b.wallets.buyItem(ctx, chat, acc, it, quantity, cost, levy)
@@ -106,5 +101,5 @@ func shopTaxText(tax int64, levy pixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da compra foram pro bolso de @%s, por decreto", coins(tax), levy.percent, levy.president.jid.User)
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da compra foram %s, por decreto", coins(tax), levy.percent, levy.pocket())
 }

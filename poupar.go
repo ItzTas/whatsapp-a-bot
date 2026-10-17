@@ -23,14 +23,11 @@ func (b *bot) poupar(ctx context.Context, evt *events.Message) error {
 	acc := b.account(ctx, person)
 	now := time.Now()
 
-	p, elected, err := b.wallets.presidency(ctx, chat, now)
+	p, _, err := b.wallets.presidency(ctx, chat, now)
 	if err != nil {
 		return fmt.Errorf("ler presidência: %w", err)
 	}
-	var levy pixLevy
-	if elected && acc.key != p.president.key {
-		levy = pixLevy{president: p.president, percent: p.decrees.level(savingsTaxDecree)}
-	}
+	levy := p.levy(savingsTaxDecree, acc)
 	redeemed, tax, err := b.wallets.redeem(ctx, chat, acc, now, levy)
 	if err != nil {
 		return fmt.Errorf("resgatar poupança: %w", err)
@@ -45,7 +42,7 @@ func (b *bot) poupar(ctx context.Context, evt *events.Message) error {
 			person.User, coins(redeemed.amount+redeemed.interest-tax), coins(redeemed.interest-tax), savingsTaxText(tax, levy), text)
 	}
 	if tax > 0 {
-		people = append(people, levy.president.jid)
+		people = append(people, levy.payee()...)
 	}
 	_, err = b.sendMentions(ctx, chat, text, people)
 	return err
@@ -55,7 +52,7 @@ func savingsTaxText(tax int64, levy pixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" (já tirando %s, %d%% dos juros, de imposto pro bolso de @%s, por decreto)", coins(tax), levy.percent, levy.president.jid.User)
+	return fmt.Sprintf(" (já tirando %s, %d%% dos juros, de imposto %s, por decreto)", coins(tax), levy.percent, levy.pocket())
 }
 
 func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account, now time.Time) (string, error) {

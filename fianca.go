@@ -35,14 +35,11 @@ func exitPrice(balance int64, left time.Duration) int64 {
 }
 
 func (b *bot) fianca(ctx context.Context, evt *events.Message) error {
-	p, elected, err := b.wallets.presidency(ctx, evt.Info.Chat.ToNonAD(), time.Now())
+	p, _, err := b.wallets.presidency(ctx, evt.Info.Chat.ToNonAD(), time.Now())
 	if err != nil {
 		return fmt.Errorf("ler presidência: %w", err)
 	}
-	var levy pixLevy
-	if elected {
-		levy = pixLevy{president: p.president, percent: p.decrees.level(bailDecree)}
-	}
+	levy := p.levy(bailDecree)
 	return b.buyExit(ctx, evt, exit{
 		left:     b.wallets.sentenceLeft,
 		price:    exitPrice,
@@ -71,7 +68,7 @@ func (b *bot) buyExit(ctx context.Context, evt *events.Message, ex exit) error {
 	if err != nil {
 		return fmt.Errorf("ler saldo: %w", err)
 	}
-	if payerAcc.key == ex.levy.president.key {
+	if ex.levy.collected() && payerAcc.key == ex.levy.president.key {
 		ex.levy = pixLevy{}
 	}
 	price := ex.price(balance, left)
@@ -83,7 +80,7 @@ func (b *bot) buyExit(ctx context.Context, evt *events.Message, ex exit) error {
 		return payLevy(ctx, tx, chat, ex.levy, tax)
 	})
 	if errors.Is(err, errNoFunds) {
-		return b.sendText(ctx, chat, fmt.Sprintf("Sai por %s%s e você não tem tudo isso. Confere no !saldo", coins(price+tax), exitTaxShare(tax)))
+		return b.sendText(ctx, chat, fmt.Sprintf("Sai por %s%s e você não tem tudo isso. Confere no !saldo", coins(price+tax), exitTaxShare(tax, ex.levy)))
 	}
 	if errors.Is(err, errNotHeld) {
 		_, err := b.sendMentions(ctx, chat, fmt.Sprintf(ex.notHeld, held.User), []types.JID{held})
@@ -98,24 +95,24 @@ func (b *bot) buyExit(ctx context.Context, evt *events.Message, ex exit) error {
 	}
 	people := []types.JID{payer, held}
 	if tax > 0 {
-		people = append(people, ex.levy.president.jid)
+		people = append(people, ex.levy.payee()...)
 	}
 	_, err = b.sendMentions(ctx, chat, text+exitTaxText(tax, ex.levy), people)
 	return err
 }
 
-func exitTaxShare(tax int64) string {
+func exitTaxShare(tax int64, levy pixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" (contando %s de imposto pro presidente, por decreto)", coins(tax))
+	return fmt.Sprintf(" (contando %s de imposto %s, por decreto)", coins(tax), levy.office())
 }
 
 func exitTaxText(tax int64, levy pixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da fiança foram pro bolso de @%s, por decreto", coins(tax), levy.percent, levy.president.jid.User)
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da fiança foram %s, por decreto", coins(tax), levy.percent, levy.pocket())
 }
 
 func releaseHeld(ctx context.Context, tx *sql.Tx, statement string, chat types.JID, acc account, now time.Time) error {

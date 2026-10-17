@@ -95,8 +95,7 @@ var charms = []charm{
 			p.kidnapBonus -= 0.2
 			p.heistBonus -= 0.2
 			p.betJinx += 0.2
-			p.doubleChance = 0
-			p.relicDouble = 0
+			p.noDouble = true
 			return p
 		}},
 	{id: "jejum", name: "Jejum", emoji: "🍽️", curse: true, hold: 12 * time.Hour, aliases: []string{"fome", "seca"},

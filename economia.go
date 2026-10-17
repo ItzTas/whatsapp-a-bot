@@ -106,7 +106,7 @@ func (b *bot) daily(ctx context.Context, evt *events.Message) error {
 	text := fmt.Sprintf("🎁 @%s pegou o daily e ganhou %s", person.User, coins(amount)) + job.decrees.note(dailyDecree) + incomeTaxText(tax, levy)
 	people := []types.JID{person}
 	if tax > 0 {
-		people = append(people, levy.president.jid)
+		people = append(people, levy.payee()...)
 	}
 	_, err = b.sendMentions(ctx, chat, text, people)
 	return err
@@ -205,17 +205,14 @@ type wager struct {
 }
 
 func (b *bot) placeBet(ctx context.Context, chat types.JID, acc account, arg, syntax string) (wager, string, error) {
-	p, elected, err := b.wallets.presidency(ctx, chat, time.Now())
+	p, _, err := b.wallets.presidency(ctx, chat, time.Now())
 	if err != nil {
 		return wager{}, "", err
 	}
 	if p.decrees.on(betsDecree) {
 		return wager{}, casinoClosedText, nil
 	}
-	var levy pixLevy
-	if elected && acc.key != p.president.key {
-		levy = pixLevy{president: p.president, percent: p.decrees.level(betTaxDecree)}
-	}
+	levy := p.levy(betTaxDecree, acc)
 	stake, refusal, err := b.stakeAfterLevy(ctx, chat, acc, arg, syntax, levy.percent)
 	return wager{stake: stake, boost: p.decrees.level(casinoDecree), levy: levy}, refusal, err
 }
@@ -315,11 +312,10 @@ func (b *bot) transferir(ctx context.Context, evt *events.Message) error {
 	var (
 		balance int64
 		p       presidency
-		elected bool
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, _, err = b.wallets.balance(gctx, chat, fromAcc); return err })
-	g.Go(func() (err error) { p, elected, err = b.wallets.presidency(gctx, chat, time.Now()); return err })
+	g.Go(func() (err error) { p, _, err = b.wallets.presidency(gctx, chat, time.Now()); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler saldo: %w", err)
 	}
@@ -327,12 +323,8 @@ func (b *bot) transferir(ctx context.Context, evt *events.Message) error {
 	if !ok {
 		return b.sendText(ctx, chat, "Não entendi o valor. Use assim: !transferir @pessoa 100 (ou metade, 10%, tudo)")
 	}
-	var levy pixLevy
-	people := []types.JID{from, to}
-	if elected && fromAcc.key != p.president.key && toAcc.key != p.president.key {
-		levy = pixLevy{president: p.president, percent: p.decrees.level(pixDecree)}
-		people = append(people, p.president.jid)
-	}
+	levy := p.levy(pixDecree, fromAcc, toAcc)
+	people := append([]types.JID{from, to}, levy.payee()...)
 	pix, err := b.wallets.transferWithPix(ctx, chat, fromAcc, toAcc, amount, levy)
 	if errors.Is(err, errNoFunds) {
 		return b.sendText(ctx, chat, "Você só tem "+coins(balance))

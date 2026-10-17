@@ -775,6 +775,17 @@ func itemByID(id string) (item, bool) {
 	return catalog[i], true
 }
 
+func itemByNumber(n int) (item, bool) {
+	if n < 1 || n > len(catalog) {
+		return item{}, false
+	}
+	return catalog[n-1], true
+}
+
+func (it item) number() int {
+	return slices.IndexFunc(catalog, func(other item) bool { return other.id == it.id }) + 1
+}
+
 func (it item) store() string {
 	if it.pet {
 		return "!petshop"
@@ -1222,7 +1233,7 @@ func (it item) resaleText() string {
 
 func (it item) details() string {
 	lines := []string{
-		it.label(),
+		fmt.Sprintf("%s · #%d", it.label(), it.number()),
 		it.summary(),
 		it.resaleText(),
 		"",

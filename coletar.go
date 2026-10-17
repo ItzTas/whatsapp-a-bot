@@ -155,6 +155,14 @@ var bugging = activity{
 
 var activities = []activity{fishing, mining, scavenging, bugging}
 
+func extractionCommands() string {
+	commands := make([]string, len(activities))
+	for i, a := range activities {
+		commands[i] = a.command
+	}
+	return joinWithAnd(commands)
+}
+
 func activityUsing(tool string) (activity, bool) {
 	i := slices.IndexFunc(activities, func(a activity) bool { return a.tool == tool })
 	if i < 0 {
@@ -285,6 +293,24 @@ func lureRelics(loot []drop, factor int) []drop {
 	return lured
 }
 
+func lureCompasses(loot []drop, factor int) []drop {
+	lured := slices.Clone(loot)
+	for i, d := range lured {
+		if it, _ := itemByID(d.item); it.gear != nil && it.gear.relicLure > 0 {
+			lured[i].weight *= factor
+		}
+	}
+	return lured
+}
+
+func (p profession) forage(a activity) activity {
+	a.cooldown.every = a.cooldown.every * time.Duration(100-p.gatherFaster) / 100
+	if p.compassLure > 0 {
+		a.loot = lureCompasses(a.loot, p.compassLure)
+	}
+	return a
+}
+
 func gearPerk(g *gear) string {
 	parts := []struct {
 		on   bool
@@ -343,7 +369,7 @@ func (b *bot) gather(base activity) command {
 		if err != nil {
 			return err
 		}
-		a := job.craft.apply(base)
+		a := job.forage(job.craft.apply(base))
 		a.cooldown.every = a.cooldown.every * time.Duration(100+job.decrees.level(gatherDecree)) / 100
 		g, err := b.wallets.gather(ctx, chat, acc, a, time.Now())
 		if err != nil {

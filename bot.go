@@ -874,6 +874,15 @@ func (b *bot) commands() []botCommand {
 			run: b.impeachment,
 		},
 		{
+			name:     "renunciar",
+			aliases:  []string{"renuncia"},
+			category: economia,
+			help: []usage{
+				{"!renunciar", "larga a presidência na hora 🏳️ Só o presidente usa. Os poderes do cargo acabam junto, mas os decretos continuam valendo até alguém ganhar a próxima eleição (!votar), e os impostos deles passam a sumir em vez de ir pra alguém"},
+			},
+			run: b.renunciar,
+		},
+		{
 			name:     "sequestrar",
 			aliases:  []string{"sequestro", "raptar"},
 			category: economia,
@@ -1225,6 +1234,7 @@ func (b *bot) commands() []botCommand {
 			category: economia,
 			help: []usage{
 				{"!vender <item> [quantidade]", fmt.Sprintf("vende pro mercado na hora, mas ele só paga %d%% do valor 💸 (também aceita tudo)", marketSalePercent)},
+				{"!vender #<número> [#número...]", "vende tudo o que você tem de cada item pelos números da !mochila, sempre com #, tipo !vender #12 #40 #87"},
 				{"!vender @pessoa <item> <preço>", fmt.Sprintf("oferece o item pra pessoa marcada pelo preço que você quiser, e ela tem %s pra responder com !aceitar ou !recusar 🤝", formatWait(offerWindow))},
 				{"!vender @pessoa <item> <quantidade> <preço>", "vende vários de uma vez, com o preço sendo o total"},
 			},

@@ -198,6 +198,13 @@ func (b *bot) closeImpeachment(ctx context.Context, chat types.JID, i *impeachme
 }
 
 func (b *bot) impeachmentResult(ctx context.Context, chat types.JID, president account, favor, against int) (string, error) {
+	p, found, err := b.wallets.presidency(ctx, chat, time.Now())
+	if err != nil {
+		return "", fmt.Errorf("ler presidência: %w", err)
+	}
+	if !found || p.president.key != president.key {
+		return fmt.Sprintf("⚖️ A votação do impeachment fechou, mas @%s já não é mais presidente", president.jid.User), nil
+	}
 	tally := fmt.Sprintf("A favor: %s\nContra: %s", countLabel(favor, "voto", "votos"), countLabel(against, "voto", "votos"))
 	if favor < impeachmentQuorum || favor <= against {
 		return fmt.Sprintf("⚖️ *Impeachment rejeitado!*\n%s\n\n🏛️ @%s continua no cargo. Pra passar, precisava de pelo menos %d votos a favor e mais votos a favor do que contra. Outro pedido só daqui a %s",
