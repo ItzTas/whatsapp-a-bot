@@ -16,7 +16,24 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/ai"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/city"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/economy"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/games"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/jokes"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/llm"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/meters"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/moderation"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/romance"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/stats"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/utilities"
 )
+
+type module interface {
+	Register()
+}
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -33,7 +50,7 @@ func run(ctx context.Context) (err error) {
 		return fmt.Errorf("ler .env: %w", err)
 	}
 
-	gifs, err := loadGIFs()
+	gifs, err := core.LoadGIFs()
 	if err != nil {
 		return fmt.Errorf("carregar gifs: %w", err)
 	}
@@ -47,13 +64,13 @@ func run(ctx context.Context) (err error) {
 		return fmt.Errorf("ler dispositivo: %w", err)
 	}
 
-	messages, err := openMessageStore(ctx, "mensagens.db")
+	messages, err := core.OpenMessageStore(ctx, "mensagens.db")
 	if err != nil {
 		return fmt.Errorf("abrir mensagens.db: %w", err)
 	}
 	defer func() { err = errors.Join(err, messages.Close()) }()
 
-	assistant, err := newAssistantFromEnv()
+	assistant, err := llm.NewAssistantFromEnv()
 	if err != nil {
 		return fmt.Errorf("configurar IA: %w", err)
 	}
@@ -62,18 +79,34 @@ func run(ctx context.Context) (err error) {
 	defer endSession(nil)
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
-	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &labelStore{db: messages.db, table: "apelidos", column: "apelido"}, names: &labelStore{db: messages.db, table: "nomes", column: "nome"}, relationships: &relationshipStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, assistant: assistant, transcriber: transcriberFromEnv(), filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, wallets: &walletStore{db: messages.db}, quizzes: &quizStore{db: messages.db}, mutes: &restrictionStore{db: messages.db, table: "mutados"}, persecuted: &restrictionStore{db: messages.db, table: "perseguidos"}, reactions: &reactionStore{&restrictionStore{db: messages.db, table: "reacoes"}}, reminders: &reminderStore{db: messages.db}, birthdays: &birthdayStore{db: messages.db}, warnings: &warningStore{db: messages.db}, welcomes: &welcomeStore{db: messages.db}, memories: &memoryStore{db: messages.db}, games: &gameStore{db: messages.db}, gamesReady: make(chan struct{}), owners: ownersFromEnv()}
-	if len(b.owners) == 0 {
-		client.Log.Warnf("BOT_DONO não definido: ninguém consegue usar !modo, !blacklist e !whitelist")
+	b := core.New(client, gifs, messages, assistant)
+	econ := economy.New(b)
+	rom := romance.New(b, econ)
+	gms := games.New(b, econ)
+	intelligence := ai.New(b, econ, gms, rom)
+	modules := []module{
+		rom,
+		gms,
+		city.New(b),
+		meters.New(b, intelligence),
+		stats.New(b, econ),
+		jokes.New(b, econ, rom),
+		econ,
+		intelligence,
+		moderation.New(b),
+		utilities.New(b),
+	}
+	for _, m := range modules {
+		m.Register()
 	}
 	client.AddEventHandler(func(evt any) {
 		switch evt := evt.(type) {
 		case *events.Message:
-			go b.handleMessage(sessionCtx, evt)
+			go b.HandleMessage(sessionCtx, evt)
 		case *events.GroupInfo:
-			go b.welcome(sessionCtx, evt)
+			go b.HandleGroupInfo(sessionCtx, evt)
 		case *events.HistorySync:
-			go b.recordHistory(sessionCtx, evt)
+			go b.RecordHistory(sessionCtx, evt)
 		case *events.LoggedOut:
 			endSession(fmt.Errorf("sessão encerrada pelo WhatsApp (%s), reinicie para escanear um novo qr code", evt.Reason))
 		}
@@ -83,13 +116,8 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	defer client.Disconnect()
-	go b.restoreGames(sessionCtx)
-	go b.runLottery(sessionCtx)
-	go b.runReminders(sessionCtx)
-	go b.runBirthdays(sessionCtx)
-	go b.runTaxes(sessionCtx)
-	go b.runAuctions(sessionCtx)
-	go b.runLoanSeizures(sessionCtx)
+	go b.RestoreGames(sessionCtx)
+	b.StartJobs(sessionCtx)
 
 	<-sessionCtx.Done()
 	if ctx.Err() != nil {
