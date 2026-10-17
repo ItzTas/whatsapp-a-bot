@@ -1,13 +1,10 @@
 package games
 
 import (
-	"bytes"
 	"cmp"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -94,13 +91,8 @@ type impostorWord struct {
 	decoy string
 }
 
-type impostorPlayer struct {
-	jid types.JID
-	ids []types.JID
-}
-
 type impostorRound struct {
-	players  []impostorPlayer
+	players  []roomPlayer
 	impostor int
 	word     impostorWord
 	votes    []int
@@ -109,7 +101,7 @@ type impostorRound struct {
 type impostorGame struct {
 	mu          sync.Mutex
 	phase       impostorPhase
-	players     []impostorPlayer
+	players     []roomPlayer
 	impostor    int
 	word        impostorWord
 	round       int
@@ -121,43 +113,29 @@ type impostorGame struct {
 	notices     []types.MessageID
 	poll        types.MessageID
 	pollOptions []string
-	ballot      *impostorBallot
+	ballot      *roomBallot
 	dropped     bool
 }
 
-type impostorBallot struct {
-	mu      sync.Mutex
-	players []impostorPlayer
-	options [][sha256.Size]byte
-	choices map[int]int
-	decided chan struct{}
-	saved   func()
-}
-
 type impostorState struct {
-	Phase    impostorPhase         `json:"phase"`
-	Players  []impostorSavedPlayer `json:"players"`
-	Impostor int                   `json:"impostor"`
-	Word     string                `json:"word"`
-	Decoy    string                `json:"decoy"`
-	Round    int                   `json:"round"`
-	Turn     int                   `json:"turn"`
-	Clues    [][]string            `json:"clues"`
-	Deadline time.Time             `json:"deadline"`
-	Hurried  bool                  `json:"hurried"`
-	Opened   time.Time             `json:"opened"`
-	Notices  []types.MessageID     `json:"notices"`
-	Poll     types.MessageID       `json:"poll"`
-	Options  []string              `json:"options"`
-	Choices  map[int]int           `json:"choices"`
+	Phase    impostorPhase     `json:"phase"`
+	Players  []savedRoomPlayer `json:"players"`
+	Impostor int               `json:"impostor"`
+	Word     string            `json:"word"`
+	Decoy    string            `json:"decoy"`
+	Round    int               `json:"round"`
+	Turn     int               `json:"turn"`
+	Clues    [][]string        `json:"clues"`
+	Deadline time.Time         `json:"deadline"`
+	Hurried  bool              `json:"hurried"`
+	Opened   time.Time         `json:"opened"`
+	Notices  []types.MessageID `json:"notices"`
+	Poll     types.MessageID   `json:"poll"`
+	Options  []string          `json:"options"`
+	Choices  map[int]int       `json:"choices"`
 }
 
-type impostorSavedPlayer struct {
-	JID types.JID   `json:"jid"`
-	IDs []types.JID `json:"ids"`
-}
-
-type impostorPollStep func(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, id types.MessageID, ballot *impostorBallot)
+type impostorPollStep func(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, id types.MessageID, ballot *roomBallot)
 
 type impostorAction func(g *impostorGame, info types.MessageInfo) (string, []types.JID)
 
@@ -181,7 +159,7 @@ func (b *bot) impostor(ctx context.Context, evt *events.Message) error {
 		return b.postImpostor(ctx, chat, game, text, mentions)
 	}
 	if !active {
-		return b.openImpostor(ctx, chat, impostorPlayer{jid: evt.Info.Sender.ToNonAD(), ids: b.SenderIdentities(ctx, evt)}, evt.Info)
+		return b.openImpostor(ctx, chat, roomPlayer{jid: evt.Info.Sender.ToNonAD(), ids: b.SenderIdentities(ctx, evt)}, evt.Info)
 	}
 	return b.joinImpostor(ctx, evt, game)
 }
@@ -207,7 +185,7 @@ func (b *bot) answerImpostor(ctx context.Context, evt *events.Message) error {
 }
 
 func (b *bot) joinImpostor(ctx context.Context, evt *events.Message, game *impostorGame) error {
-	player := impostorPlayer{jid: evt.Info.Sender.ToNonAD(), ids: b.SenderIdentities(ctx, evt)}
+	player := roomPlayer{jid: evt.Info.Sender.ToNonAD(), ids: b.SenderIdentities(ctx, evt)}
 	text, mentions := game.join(evt.Info, player)
 	return b.postImpostor(ctx, evt.Info.Chat.ToNonAD(), game, text, mentions)
 }
@@ -226,7 +204,7 @@ func (b *bot) activeImpostor(ctx context.Context, chat types.JID) (*impostorGame
 	return nil, false
 }
 
-func (b *bot) openImpostor(ctx context.Context, chat types.JID, host impostorPlayer, info types.MessageInfo) error {
+func (b *bot) openImpostor(ctx context.Context, chat types.JID, host roomPlayer, info types.MessageInfo) error {
 	game := newImpostorGame(host)
 	if value, loaded := b.impostorGames.LoadOrStore(chat.String(), game); loaded {
 		open := value.(*impostorGame)
@@ -273,10 +251,7 @@ func (b *bot) restoreImpostor(ctx context.Context, saved core.SavedGame) error {
 }
 
 func (s impostorState) game() *impostorGame {
-	players := make([]impostorPlayer, len(s.Players))
-	for i, p := range s.Players {
-		players[i] = impostorPlayer{jid: p.JID, ids: p.IDs}
-	}
+	players := loadRoom(s.Players)
 	game := &impostorGame{
 		phase:    s.Phase,
 		players:  players,
@@ -297,7 +272,7 @@ func (s impostorState) game() *impostorGame {
 		return game
 	}
 	game.poll, game.pollOptions = s.Poll, s.Options
-	game.ballot = newImpostorBallot(players, s.Options)
+	game.ballot = newRoomBallot(players, s.Options)
 	game.ballot.restore(s.Choices)
 	return game
 }
@@ -412,7 +387,7 @@ func (b *bot) dealImpostor(ctx context.Context, chat types.JID, game *impostorGa
 	return round, true
 }
 
-func (b *bot) sendImpostorSecret(ctx context.Context, p impostorPlayer, secret string) bool {
+func (b *bot) sendImpostorSecret(ctx context.Context, p roomPlayer, secret string) bool {
 	inbox := p.inbox()
 	if err := b.SendText(ctx, inbox, secret); err != nil {
 		b.Client.Log.Errorf("mandar a palavra do !impostor no privado de %s: %v", inbox, err)
@@ -460,7 +435,7 @@ func (b *bot) impostorRoundOver(ctx context.Context, chat types.JID, game *impos
 	b.impostorDecision(ctx, chat, game, round, id, ballot)
 }
 
-func (b *bot) impostorDecision(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, id types.MessageID, ballot *impostorBallot) {
+func (b *bot) impostorDecision(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, id types.MessageID, ballot *roomBallot) {
 	votes, closed := b.awaitImpostorPoll(ctx, game, id, ballot)
 	if !closed {
 		return
@@ -473,7 +448,7 @@ func (b *bot) impostorDecision(ctx context.Context, chat types.JID, game *impost
 }
 
 func (b *bot) voteImpostor(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, header string) {
-	names := b.pollNames(ctx, chat, impostorJIDs(round.players))
+	names := b.pollNames(ctx, chat, roomJIDs(round.players))
 	id, ballot, opened := b.openImpostorPoll(ctx, chat, game, round, impostorVoting, header, names)
 	if !opened {
 		return
@@ -481,7 +456,7 @@ func (b *bot) voteImpostor(ctx context.Context, chat types.JID, game *impostorGa
 	b.impostorVerdict(ctx, chat, game, round, id, ballot)
 }
 
-func (b *bot) impostorVerdict(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, id types.MessageID, ballot *impostorBallot) {
+func (b *bot) impostorVerdict(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, id types.MessageID, ballot *roomBallot) {
 	votes, closed := b.awaitImpostorPoll(ctx, game, id, ballot)
 	if !closed {
 		return
@@ -491,7 +466,7 @@ func (b *bot) impostorVerdict(ctx context.Context, chat types.JID, game *imposto
 	b.revealImpostor(ctx, chat, round)
 }
 
-func (b *bot) openImpostorPoll(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, phase impostorPhase, header string, options []string) (types.MessageID, *impostorBallot, bool) {
+func (b *bot) openImpostorPoll(ctx context.Context, chat types.JID, game *impostorGame, round impostorRound, phase impostorPhase, header string, options []string) (types.MessageID, *roomBallot, bool) {
 	text, mentions := game.advance(phase, header)
 	b.tellImpostor(ctx, chat, text, mentions)
 	resp, err := b.Client.SendMessage(ctx, chat, b.Client.BuildPollCreation(impostorStages[phase].question, options, 1))
@@ -503,14 +478,14 @@ func (b *bot) openImpostorPoll(ctx context.Context, chat types.JID, game *impost
 		b.dropImpostor(ctx, chat, game, round, "😵 Não consegui abrir a enquete e o impostor foi cancelado")
 		return "", nil, false
 	}
-	ballot := newImpostorBallot(round.players, options)
+	ballot := newRoomBallot(round.players, options)
 	ballot.saved = func() { b.syncImpostor(ctx, chat, game) }
 	game.openPoll(resp.ID, ballot, options)
 	b.syncImpostor(ctx, chat, game)
 	return resp.ID, ballot, true
 }
 
-func (b *bot) awaitImpostorPoll(ctx context.Context, game *impostorGame, id types.MessageID, ballot *impostorBallot) ([]int, bool) {
+func (b *bot) awaitImpostorPoll(ctx context.Context, game *impostorGame, id types.MessageID, ballot *roomBallot) ([]int, bool) {
 	b.impostorPolls.Store(id, ballot)
 	defer b.impostorPolls.Delete(id)
 	if !game.wait(ctx, ballot.decided) {
@@ -528,11 +503,11 @@ func (b *bot) dropImpostor(ctx context.Context, chat types.JID, game *impostorGa
 func (b *bot) revealImpostor(ctx context.Context, chat types.JID, round impostorRound) {
 	verdict, crewWon := round.verdict()
 	text := core.AppendLine(round.summary()+"\n\n"+verdict, b.rewardImpostor(ctx, chat, round, crewWon))
-	b.tellImpostor(ctx, chat, text, impostorJIDs(round.players))
+	b.tellImpostor(ctx, chat, text, roomJIDs(round.players))
 }
 
 func (b *bot) rewardImpostor(ctx context.Context, chat types.JID, round impostorRound, crewWon bool) string {
-	players := impostorJIDs(round.players)
+	players := roomJIDs(round.players)
 	if !crewWon {
 		return b.economy.Reward(ctx, chat, []types.JID{players[round.impostor]}, len(players), impostorSoloReward)
 	}
@@ -554,8 +529,8 @@ func (b *bot) tellImpostor(ctx context.Context, chat types.JID, text string, men
 	}
 }
 
-func newImpostorGame(host impostorPlayer) *impostorGame {
-	game := &impostorGame{players: []impostorPlayer{host}, turn: -1, opened: time.Now()}
+func newImpostorGame(host roomPlayer) *impostorGame {
+	game := &impostorGame{players: []roomPlayer{host}, turn: -1, opened: time.Now()}
 	game.enter(impostorLobby)
 	return game
 }
@@ -579,6 +554,7 @@ func (g *impostorGame) hurried() bool {
 func (g *impostorGame) snapshot() impostorState {
 	state := impostorState{
 		Phase:    g.phase,
+		Players:  saveRoom(g.players),
 		Impostor: g.impostor,
 		Word:     g.word.word,
 		Decoy:    g.word.decoy,
@@ -591,9 +567,6 @@ func (g *impostorGame) snapshot() impostorState {
 		Notices:  g.notices,
 		Poll:     g.poll,
 		Options:  g.pollOptions,
-	}
-	for _, p := range g.players {
-		state.Players = append(state.Players, impostorSavedPlayer{JID: p.jid, IDs: p.ids})
 	}
 	if g.ballot != nil {
 		state.Choices = g.ballot.chosen()
@@ -619,13 +592,13 @@ func (g *impostorGame) position() (int, int) {
 	return g.turn, g.round
 }
 
-func (g *impostorGame) openPoll(id types.MessageID, ballot *impostorBallot, options []string) {
+func (g *impostorGame) openPoll(id types.MessageID, ballot *roomBallot, options []string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.poll, g.ballot, g.pollOptions = id, ballot, options
 }
 
-func (g *impostorGame) openedPoll() (types.MessageID, *impostorBallot) {
+func (g *impostorGame) openedPoll() (types.MessageID, *roomBallot) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.poll, g.ballot
@@ -679,12 +652,10 @@ func (g *impostorGame) announced(id types.MessageID) bool {
 }
 
 func (g *impostorGame) seatOf(info types.MessageInfo) int {
-	return slices.IndexFunc(g.players, func(p impostorPlayer) bool {
-		return slices.ContainsFunc(p.ids, func(id types.JID) bool { return core.SentBy(info, id) })
-	})
+	return roomSeat(g.players, info)
 }
 
-func (g *impostorGame) join(info types.MessageInfo, player impostorPlayer) (string, []types.JID) {
+func (g *impostorGame) join(info types.MessageInfo, player roomPlayer) (string, []types.JID) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.phase != impostorLobby {
@@ -861,7 +832,7 @@ func (g *impostorGame) board(header string) (string, []types.JID) {
 		lines = append(lines, g.seatLine(seat))
 	}
 	lines = append(lines, "", stage.hint(g))
-	return strings.Join(lines, "\n"), impostorJIDs(g.players)
+	return strings.Join(lines, "\n"), roomJIDs(g.players)
 }
 
 func (g *impostorGame) seatLine(seat int) string {
@@ -884,92 +855,6 @@ func (g *impostorGame) turnHint() string {
 		return fmt.Sprintf("_Quando chegar sua vez eu te marco aqui, aí você manda UMA palavra sobre o segredo, sem entregar demais. No fim de cada rodada uma enquete decide se já dá pra votar no impostor ou se rola mais uma (no máximo %d rodadas)_ 🎤", impostorMaxRounds)
 	}
 	return fmt.Sprintf("_Rodada %d de %d: agora é a vez de @%s, que tem %s pra mandar a dica_ ⏳", g.round, impostorMaxRounds, g.players[g.turn].jid.User, core.Countdown(g.deadline))
-}
-
-func newImpostorBallot(players []impostorPlayer, options []string) *impostorBallot {
-	hashes := make([][sha256.Size]byte, len(options))
-	for i, option := range options {
-		hashes[i] = sha256.Sum256([]byte(option))
-	}
-	return &impostorBallot{players: players, options: hashes, choices: map[int]int{}, decided: make(chan struct{})}
-}
-
-func (p *impostorBallot) Vote(voter types.JID, selected [][]byte) {
-	if p.record(voter, selected) {
-		p.saved()
-	}
-}
-
-func (p *impostorBallot) record(voter types.JID, selected [][]byte) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	seat := slices.IndexFunc(p.players, func(player impostorPlayer) bool {
-		return slices.ContainsFunc(player.ids, func(id types.JID) bool { return id.User == voter.User })
-	})
-	if seat < 0 {
-		return false
-	}
-	if len(selected) == 0 {
-		delete(p.choices, seat)
-		return true
-	}
-	choice := slices.IndexFunc(p.options, func(h [sha256.Size]byte) bool { return bytes.Equal(h[:], selected[0]) })
-	if choice < 0 {
-		return false
-	}
-	p.choices[seat] = choice
-	p.settle()
-	return true
-}
-
-func (p *impostorBallot) restore(choices map[int]int) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	maps.Copy(p.choices, choices)
-	p.settle()
-}
-
-func (p *impostorBallot) settle() {
-	if !p.settled() {
-		return
-	}
-	select {
-	case <-p.decided:
-	default:
-		close(p.decided)
-	}
-}
-
-func (p *impostorBallot) chosen() map[int]int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return maps.Clone(p.choices)
-}
-
-func (p *impostorBallot) settled() bool {
-	return len(p.choices) == len(p.players) || slices.Max(p.count())*2 > len(p.players)
-}
-
-func (p *impostorBallot) tally() []int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.count()
-}
-
-func (p *impostorBallot) count() []int {
-	votes := make([]int, len(p.options))
-	for _, choice := range p.choices {
-		votes[choice]++
-	}
-	return votes
-}
-
-func (p impostorPlayer) inbox() types.JID {
-	i := slices.IndexFunc(p.ids, func(id types.JID) bool { return id.Server == types.DefaultUserServer })
-	if i < 0 {
-		return p.jid
-	}
-	return p.ids[i]
 }
 
 func (r impostorRound) secret(seat int) string {
@@ -1023,12 +908,4 @@ func impostorVoteCount(n int) string {
 		return "1 voto"
 	}
 	return fmt.Sprintf("%d votos", n)
-}
-
-func impostorJIDs(players []impostorPlayer) []types.JID {
-	jids := make([]types.JID, len(players))
-	for i, p := range players {
-		jids[i] = p.jid
-	}
-	return jids
 }

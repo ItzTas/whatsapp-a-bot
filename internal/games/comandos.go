@@ -124,6 +124,17 @@ func (b *bot) gamesCommands() []core.Command {
 			Run: b.impostor,
 		},
 		{
+			Name:     "espiao",
+			Category: core.GamesCategory,
+			Help: []core.Usage{
+				{"!espiao", fmt.Sprintf("abre a sala do espião, ou entra na que tá aberta (também dá pra entrar respondendo a mensagem da sala só com !) 🕶️ Todo mundo recebe no privado o mesmo local secreto e um papel nele, menos o espião, que não sabe onde vocês estão. Aí rolam perguntas no grupo: quem tá com a vez marca alguém e pergunta, e quem foi marcado responde e faz a próxima pergunta. O espião pode chutar o local no meu privado a qualquer hora, e quando o tempo acaba (%s) todo mundo vota em quem é o espião. Com o modo economia ligado, se o grupo ganhar cada um leva %s, e se o espião ganhar ele leva %s", core.FormatWait(espiaoTalkTime), economy.Coins(espiaoCrewReward), economy.Coins(espiaoSpyReward))},
+				{"!espiao acusar @pessoa", "para o relógio e abre uma enquete pra ver se a pessoa é o espião: se mais da metade de quem joga concordar, o jogo acaba na hora. Cada um pode acusar uma vez por jogo"},
+				{"!espiao começar", fmt.Sprintf("começa sem esperar o tempo da sala (mínimo de %d jogadores)", espiaoMinPlayers)},
+				{"!espiao sair", "sai da sala antes do jogo começar (quem abriu a sala, ou o primeiro da lista se ele sair, pode usar !espiao cancelar)"},
+			},
+			Run: b.espiao,
+		},
+		{
 			Name:     "batata",
 			Category: core.GamesCategory,
 			Help: []core.Usage{

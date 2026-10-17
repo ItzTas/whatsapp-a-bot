@@ -22,6 +22,8 @@ type bot struct {
 	termoGames      sync.Map
 	impostorGames   sync.Map
 	impostorPolls   sync.Map
+	espiaoGames     sync.Map
+	espiaoPolls     sync.Map
 	velhaGames      sync.Map
 	revolvers       sync.Map
 	guessRounds     sync.Map
@@ -50,6 +52,8 @@ func (b *bot) Register() {
 	b.AddObserver("responder !2verdades1mentira", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.mentiraPolls) })
 	b.AddObserver("responder !impostor", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.impostorPolls) })
 	b.AddObserver("entrar no !impostor", b.answerImpostor)
+	b.AddObserver("responder !espiao", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.espiaoPolls) })
+	b.AddObserver("jogar o !espiao", b.answerEspiao)
 	b.AddObserver("responder !forca", b.answerForca)
 	b.AddObserver("responder !termo", b.answerTermo)
 	b.AddObserver("responder adivinhação", func(_ context.Context, evt *events.Message) error { b.answerGuess(evt); return nil })
@@ -67,6 +71,7 @@ func (b *bot) Register() {
 		"bandeira":       b.restoreBandeira,
 		"completa":       b.restoreCompleta,
 		impostorGameKind: b.restoreImpostor,
+		espiaoGameKind:   b.restoreEspiao,
 		jokenpoGameKind:  b.restoreJokenpo,
 		mentiraGameKind:  b.restoreMentira,
 		stopGameKind:     b.restoreStop,
