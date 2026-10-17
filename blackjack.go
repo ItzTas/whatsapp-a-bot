@@ -39,7 +39,7 @@ type blackjackHand struct {
 	mu         sync.Mutex
 	acc        account
 	stake      int64
-	boost      int64
+	boost      prizeBoost
 	levy       heldLevy
 	deck       []blackjackCard
 	player     []blackjackCard
@@ -56,6 +56,7 @@ type blackjackSave struct {
 	Account    storedAccount       `json:"account"`
 	Stake      int64               `json:"stake"`
 	Boost      int64               `json:"boost"`
+	Luck       int64               `json:"luck"`
 	Levy       heldLevySave        `json:"levy"`
 	Deck       []blackjackSaveCard `json:"deck"`
 	Player     []blackjackSaveCard `json:"player"`
@@ -180,7 +181,7 @@ func (b *bot) restoreBlackjack(ctx context.Context, saved savedGame) error {
 	hand := b.trackBlackjack(ctx, chat, key, &blackjackHand{
 		acc:        state.Account.account(),
 		stake:      state.Stake,
-		boost:      state.Boost,
+		boost:      prizeBoost{decree: state.Boost, luck: state.Luck},
 		levy:       state.Levy.held(),
 		deck:       loadBlackjackCards(state.Deck),
 		player:     loadBlackjackCards(state.Player),
@@ -326,7 +327,8 @@ func (h *blackjackHand) saved(chat types.JID) blackjackSave {
 		Chat:       chat,
 		Account:    storeAccount(h.acc),
 		Stake:      h.stake,
-		Boost:      h.boost,
+		Boost:      h.boost.decree,
+		Luck:       h.boost.luck,
 		Levy:       h.levy.saved(),
 		Deck:       saveBlackjackCards(h.deck),
 		Player:     saveBlackjackCards(h.player),
@@ -475,9 +477,9 @@ func (h *blackjackHand) outcome() (int64, string) {
 		if !o.happened {
 			continue
 		}
-		payout := casinoPrize(h.stake, o.payout, h.boost)
+		payout := h.boost.pay(h.stake, o.payout)
 		shown := cmp.Or(max(payout-h.stake, h.stake-payout), h.stake)
-		return payout, fmt.Sprintf(o.text, h.acc.jid.User, coins(shown)) + prizeTag(h.stake, payout, h.boost)
+		return payout, fmt.Sprintf(o.text, h.acc.jid.User, coins(shown)) + h.boost.tag(h.stake, payout)
 	}
 	return 0, fmt.Sprintf("💸 A banca ganhou. @%s perdeu %s", h.acc.jid.User, coins(h.stake))
 }

@@ -159,18 +159,8 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.account(ctx, person)
-	var (
-		bet     wager
-		refusal string
-		job     profession
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) {
-		bet, refusal, err = b.placeBet(gctx, chat, acc, firstPlainArg(messageText(evt.Message)), syntax)
-		return err
-	})
-	g.Go(func() (err error) { job, err = b.professionOf(gctx, chat, acc); return err })
-	if err := g.Wait(); err != nil {
+	bet, refusal, err := b.placeBet(ctx, chat, acc, firstPlainArg(messageText(evt.Message)), syntax)
+	if err != nil {
 		return err
 	}
 	if refusal != "" {
@@ -178,9 +168,9 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	}
 
 	stake := bet.stake
-	payout, result := play(stake, rand.Float64() < job.betJinx)
-	payout = casinoPrize(stake, payout, bet.boost)
-	refund := job.refund(stake, payout)
+	payout, result := play(stake, rand.Float64() < bet.job.jinx())
+	payout = bet.boost.pay(stake, payout)
+	refund := bet.job.refund(stake, payout)
 	balance, err := b.wallets.settleBet(ctx, chat, acc, stake, payout+refund, bet.levy)
 	if errors.Is(err, errNoFunds) {
 		return b.sendText(ctx, chat, stakeChanged)
@@ -189,7 +179,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 		return fmt.Errorf("pagar aposta: %w", err)
 	}
 	won := max(payout-stake, stake-payout)
-	text := fmt.Sprintf(result, person.User, coins(won)) + prizeTag(stake, payout, bet.boost)
+	text := fmt.Sprintf(result, person.User, coins(won)) + bet.boost.tag(stake, payout)
 	if refund > 0 {
 		text += fmt.Sprintf("\n🧾 Mas a profissão devolveu %s", coins(refund))
 	}
@@ -200,13 +190,20 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 
 type wager struct {
 	stake int64
-	boost int64
+	boost prizeBoost
 	levy  pixLevy
+	job   profession
 }
 
 func (b *bot) placeBet(ctx context.Context, chat types.JID, acc account, arg, syntax string) (wager, string, error) {
-	p, _, err := b.wallets.presidency(ctx, chat, time.Now())
-	if err != nil {
+	var (
+		p   presidency
+		job profession
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { p, _, err = b.wallets.presidency(gctx, chat, time.Now()); return err })
+	g.Go(func() (err error) { job, err = b.professionOf(gctx, chat, acc); return err })
+	if err := g.Wait(); err != nil {
 		return wager{}, "", err
 	}
 	if p.decrees.on(betsDecree) {
@@ -214,7 +211,7 @@ func (b *bot) placeBet(ctx context.Context, chat types.JID, acc account, arg, sy
 	}
 	levy := p.levy(betTaxDecree, acc)
 	stake, refusal, err := b.stakeAfterLevy(ctx, chat, acc, arg, syntax, levy.percent)
-	return wager{stake: stake, boost: p.decrees.level(casinoDecree), levy: levy}, refusal, err
+	return wager{stake: stake, boost: prizeBoost{decree: p.decrees.level(casinoDecree), luck: job.casinoLuck}, levy: levy, job: job}, refusal, err
 }
 
 func (b *bot) placeStake(ctx context.Context, chat types.JID, acc account, arg, syntax string) (int64, string, error) {

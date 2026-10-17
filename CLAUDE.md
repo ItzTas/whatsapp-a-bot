@@ -186,7 +186,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `sturdy: 97` e `grace: 100`. Item com `rarity: relic` (hoje a
   Vara de Iemanjá, a Picareta de Serra Pelada, a Rede do Curupira, o Saco do Homem do Saco, a
   Vela do Negrinho do Pastoreio, a Excalibur e as passivas Muiraquitã, Gorro do Saci, Chapéu de Lampião, Escamas do Boitatá, Coroa
-  de Dom Pedro e Santo Graal) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
+  de Dom Pedro, Santo Graal e Baralho do Zé Pelintra) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
   de caixa com `relicOdds` (hoje o Relicário perdido), que no `roll` troca o prêmio por uma
   relíquia aleatória nessa chance, e do `!criar` e do `!milagre` de deus; depois passa de mão em
   mão, mas nunca pelo `!furtar` (o `theftChoice` tira as relíquias do sorteio e o furto mirado
@@ -243,9 +243,12 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   tinha a profissão volta pra `bico`. Os efeitos (campos de `profession` em `profissao.go`) são
   aplicados em cada comando que eles afetam (`!roubar`, `!furtar`, `!pescar`, `!vender`,
   `!comprar`, `!poupar`, `!daily`, `!apostar`/`!cassino`, `!acoes`, `!processar`,
-  `!prender`, `!fugir`, `!libertar`, `!reviver`, `!denunciar`, `!sequestrar`, `!venderrefem`, `!assalto`, pensão e indenização), sempre lendo a
+  `!prender`, `!fugir`, `!libertar`, `!reviver`, `!denunciar`, `!sequestrar`, `!venderrefem`, `!assalto`, `!usar`, pensão e indenização), sempre lendo a
   profissão com `professionOf`; efeito novo precisa de campo novo, de texto em `perks()` e do
   gancho no comando.
+- O `boxLuck` da profissão (hoje só o youtuber de unboxing) dá sorteios extras no `loot` das caixas
+  e baús abertos no `!usar`: o `item.roll` sorteia `boxLuck + 1` vezes e fica com a raridade mais
+  alta (`lootRarity`). A chance de relíquia (`relicOdds`) e os prêmios em moeda não mudam.
 - Toda profissão pode achar item no `!trabalhar` (`oficio.go`): o `loot()` usa o `finds`/`findChance`
   da profissão e, se ela não tiver `finds`, cai nos `finds` da área (`areas` em `profissao.go`) com
   `areaFindChance`. Cada área tem um instrumento de trabalho no `catalog` (campo `trade`, um por
@@ -412,8 +415,10 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   vai pro presidente: quem perde (ou empata) paga a porcentagem em cima da aposta e quem ganha paga
   em cima de tudo que levou, aposta inclusa (`onBet`; ele mesmo não paga; o
   `!decreto imposto aposta` cai nele pelo mesmo motivo do `iof`). O `placeBet`
-  devolve um `wager` com o `boost` do decreto da hora da aposta, que fica guardado na aposta (e no
-  save da rodada) e é aplicado no pagamento pelo `casinoPrize`, com o `prizeTag` na resposta, e
+  devolve um `wager` com o `boost` da hora da aposta (`prizeBoost`: o `decree` do decreto e o
+  `luck` da profissão, o `casinoLuck` do Baralho do Zé Pelintra), que fica guardado na aposta (e no
+  save da rodada, em `Boost` e `Luck`) e é aplicado no pagamento pelo `boost.pay`, com o
+  `boost.tag` na resposta, e
   com o `levy` da taxa, que o `settleBet` (ou o `holdBet`, nos jogos que seguram a aposta) desconta
   junto da aposta, na mesma transação. Nos jogos que seguram a aposta, a taxa em cima da aposta
   sai na hora e fica guardada na aposta (`heldLevy`, também no save da rodada); se ganhar, o

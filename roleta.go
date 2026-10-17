@@ -81,7 +81,7 @@ type roletaBet struct {
 	shooter types.JID
 	acc     account
 	stake   int64
-	boost   int64
+	boost   prizeBoost
 	levy    pixLevy
 }
 
@@ -138,7 +138,7 @@ func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, f
 	if bet.stake == 0 {
 		return ""
 	}
-	payout := casinoPrize(bet.stake, roletaPayout(bet.stake, fired, chambersLeft), bet.boost)
+	payout := bet.boost.pay(bet.stake, roletaPayout(bet.stake, fired, chambersLeft))
 	balance, err := b.wallets.settleBet(ctx, chat, bet.acc, bet.stake, payout, bet.levy)
 	if errors.Is(err, errNoFunds) {
 		return fmt.Sprintf("🤨 O saldo de @%s mudou no meio e a aposta não valeu", bet.shooter.User)
@@ -147,7 +147,7 @@ func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, f
 		b.client.Log.Errorf("pagar aposta do !roleta: %v", err)
 		return ""
 	}
-	result := fmt.Sprintf("🤑 @%s ganhou %s%s", bet.shooter.User, coins(payout-bet.stake), prizeTag(bet.stake, payout, bet.boost))
+	result := fmt.Sprintf("🤑 @%s ganhou %s%s", bet.shooter.User, coins(payout-bet.stake), bet.boost.tag(bet.stake, payout))
 	if fired {
 		result = fmt.Sprintf("💸 @%s perdeu %s", bet.shooter.User, coins(bet.stake))
 	}

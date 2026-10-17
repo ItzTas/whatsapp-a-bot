@@ -359,18 +359,35 @@ func (p profession) curfew() float64 {
 	return curfewPenalty
 }
 
-func casinoPrize(stake, payout, boost int64) int64 {
+const casinoGames = "!apostar, !cassino, !blackjack, !crash, !corrida e !roleta"
+
+type prizeBoost struct {
+	decree int64
+	luck   int64
+}
+
+func (pb prizeBoost) pay(stake, payout int64) int64 {
 	if payout <= stake {
 		return payout
 	}
-	return stake + (payout-stake)*(100+boost)/100
+	return stake + (payout-stake)*(100+pb.decree+pb.luck)/100
 }
 
-func prizeTag(stake, payout, boost int64) string {
-	if boost == 0 || payout <= stake {
+func (pb prizeBoost) tag(stake, payout int64) string {
+	if payout <= stake {
 		return ""
 	}
-	return fmt.Sprintf(" (📜 %+d%% por decreto)", boost)
+	var parts []string
+	if pb.decree != 0 {
+		parts = append(parts, fmt.Sprintf("📜 %+d%% por decreto", pb.decree))
+	}
+	if pb.luck != 0 {
+		parts = append(parts, fmt.Sprintf("🃏 %+d%% de sorte", pb.luck))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
 
 func (p presidency) workCooldown(every time.Duration) time.Duration {

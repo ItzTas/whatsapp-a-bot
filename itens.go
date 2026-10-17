@@ -164,6 +164,12 @@ var catalog = []item{
 			p.stockProfit += 25
 			return p
 		}}},
+	{id: "baralho-do-ze-pelintra", name: "Baralho do Zé Pelintra", emoji: "🃏", rarity: relic, value: 30_000, aliases: []string{"ze pelintra", "baralho"},
+		flex: &flex{effect: "leva 30% a mais de lucro quando ganha no " + casinoGames + ", e a maldição Azar não estraga suas apostas", apply: func(p profession) profession {
+			p.casinoLuck += 30
+			p.jinxProof = true
+			return p
+		}}},
 	{id: "relicario", name: "Relicário perdido", emoji: "🗝️", rarity: legendary, value: 10_000, aliases: []string{"relicario", "caixa de reliquias", "caixa especial"},
 		loot: []int{0, 0, 30, 50, 20}, relicOdds: 0.10, use: "🗝️ @%s girou a chave enferrujada do relicário perdido e um vento gelado saiu lá de dentro"},
 	{id: "bussola-do-relicario", name: "Bússola do relicário", emoji: "🧭", rarity: epic, value: 2_500, aliases: []string{"bussola", "bussola encantada"},
@@ -1142,10 +1148,10 @@ func relicBoxes() []item {
 	return slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return it.relicOdds == 0 })
 }
 
-func (it item) roll() itemEffect {
+func (it item) roll(luck int) itemEffect {
 	var e itemEffect
 	if it.loot != nil {
-		e.prize = randomItemOf(weightedIndex(len(it.loot), func(i int) int { return it.loot[i] }))
+		e.prize = randomItemOf(it.lootRarity(luck))
 	}
 	if rand.Float64() < it.relicOdds {
 		e.prize = pickOne(relics())
@@ -1154,6 +1160,14 @@ func (it item) roll() itemEffect {
 		e.coins = it.prizes[weightedIndex(len(it.prizes), func(i int) int { return it.prizes[i].weight })].amount
 	}
 	return e
+}
+
+func (it item) lootRarity(luck int) int {
+	best := 0
+	for range luck + 1 {
+		best = max(best, weightedIndex(len(it.loot), func(i int) int { return it.loot[i] }))
+	}
+	return best
 }
 
 func resetCommands(columns []string) string {

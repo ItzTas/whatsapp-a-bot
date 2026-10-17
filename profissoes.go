@@ -883,6 +883,21 @@ var professions = []profession{
 		},
 	},
 	{
+		name: "youtuber de unboxing", emoji: "📦", title: "é youtuber de unboxing", area: areaArte,
+		aliases: []string{"unboxer", "unboxing"}, min: 70, max: 150, every: 20 * time.Minute,
+		bust: 0.15, heistBonus: -0.1, boxLuck: 1,
+		finds: []string{"caixa-misteriosa", "mercadoria-encalhada", "ring-light", "cupom-vencido"}, findChance: 0.12,
+		tasks: []string{
+			"abriu uma caixa da Shopee em câmera lenta com música épica de fundo", "gastou 20 minutos de vídeo só tirando o plástico bolha",
+			"fez \"abri 100 caixas misteriosas e olha o que veio\"", "ganhou um recebido da marca e fingiu surpresa",
+			"cheirou a caixa nova na frente da câmera e disse que cheirava a sucesso", "fez ASMR de fita adesiva e bombou",
+		},
+		busts: []string{
+			"abriu a caixa misteriosa ao vivo e só tinha um tijolo", "cortou o produto junto com a fita do estilete",
+			"a encomenda foi taxada e ficou presa na alfândega", "o vídeo levou strike porque aparecia a logo da marca",
+		},
+	},
+	{
 		name: "influencer", emoji: "🤳", title: "é influencer", area: areaArte, aliases: []string{"blogueiro", "blogueira"},
 		min: 90, max: 210, every: 24 * time.Minute,
 		discount:    20,
@@ -1140,7 +1155,7 @@ var professions = []profession{
 		aliases: []string{"caçador de bússola do relicário", "bussoleiro"}, min: 20, max: 60, every: 28 * time.Minute,
 		bust: 0.45, bustFine: 120, salePercent: 40, betJinx: 0.15,
 		jailFactor: 50, escapeBonus: -0.15, breakoutBonus: -0.15, reportBonus: -0.2, heistBonus: -0.1, trialEdge: -1,
-		gatherFaster: 50, compassLure: 10, finds: []string{"bussola-do-relicario"}, findChance: 0.005, fixedFinds: true,
+		gatherFaster: 50, compassLure: 14, finds: []string{"bussola-do-relicario"}, findChance: 0.008, fixedFinds: true,
 		tasks: []string{
 			"passou o dia girando no meio da praça esperando a agulha apontar pra algum lugar",
 			"vendeu um mapa \"original\" do relicário pra um turista", "seguiu a agulha de uma bússola até a casa da sogra",

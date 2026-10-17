@@ -133,7 +133,11 @@ func (b *bot) usar(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 
-	effect := it.roll()
+	luck, err := b.boxLuck(ctx, chat, acc, it)
+	if err != nil {
+		return err
+	}
+	effect := it.roll(luck)
 	wait, err := b.wallets.consumeItem(ctx, chat, acc, it, effect, time.Now())
 	if errors.Is(err, errNoItems) {
 		return b.sendText(ctx, chat, fmt.Sprintf("Não tem mais %s na sua mochila 🎒", it.label()))
@@ -155,6 +159,14 @@ func unusableText(it item) string {
 		return fmt.Sprintf("%s não precisa de !usar, funciona só de estar na mochila: %s", it.label(), p)
 	}
 	return fmt.Sprintf("%s não dá pra usar. Dá pra guardar, !vender ou !dar pra alguém", it.label())
+}
+
+func (b *bot) boxLuck(ctx context.Context, chat types.JID, acc account, it item) (int, error) {
+	if it.loot == nil {
+		return 0, nil
+	}
+	job, err := b.professionOf(ctx, chat, acc)
+	return job.boxLuck, err
 }
 
 func effectText(it item, e itemEffect) string {

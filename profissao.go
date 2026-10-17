@@ -203,6 +203,7 @@ type profession struct {
 	gatherFaster int64
 	haste        int64
 	compassLure  int
+	boxLuck      int
 	faith        faith
 
 	salePercent   int64
@@ -213,6 +214,8 @@ type profession struct {
 	dailyBonus    int64
 	cashback      int64
 	betJinx       float64
+	jinxProof     bool
+	casinoLuck    int64
 	legalDiscount int64
 	trialDiscount int64
 	trialBonus    int64
@@ -434,6 +437,7 @@ func (p profession) perks() []string {
 		{p.gatherFaster > 0, fmt.Sprintf("⏱️ Espera %d%% menos no %s", p.gatherFaster, extractionCommands())},
 		{p.haste < 0, fmt.Sprintf("⏩ Espera %d%% menos no %s", -p.haste, hasteCommands)},
 		{p.haste > 0, fmt.Sprintf("🐌 Espera %d%% mais no %s", p.haste, hasteCommands)},
+		{p.boxLuck > 0, fmt.Sprintf("📦 Abre caixa e baú no !usar com %dx mais sorte: fica com o item mais raro de %d sorteios", p.boxLuck+1, p.boxLuck+1)},
 		{p.compassLure > 0, fmt.Sprintf("🧭 Acha a Bússola do relicário %dx mais fácil no %s", p.compassLure, extractionCommands())},
 		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
@@ -442,7 +446,9 @@ func (p profession) perks() []string {
 		{p.savingsRoom > 0, fmt.Sprintf("🐷 Guarda até %s por vez na poupança (o normal é %s)", coins(p.savingsLimit()), coins(savingsCap))},
 		{p.dailyBonus > 0, fmt.Sprintf("🎁 O !daily rende +%d%%", p.dailyBonus)},
 		{p.cashback > 0, fmt.Sprintf("🧾 Recebe %d%% de volta quando perde no !apostar e no !cassino", p.cashback)},
-		{p.betJinx > 0, fmt.Sprintf("🐈‍⬛ %d%% das vitórias no !apostar e no !cassino viram derrota", percent(p.betJinx))},
+		{p.jinx() > 0, fmt.Sprintf("🐈‍⬛ %d%% das vitórias no !apostar e no !cassino viram derrota", percent(p.jinx()))},
+		{p.jinxProof, "🍀 A maldição Azar não estraga suas vitórias no !apostar e no !cassino"},
+		{p.casinoLuck > 0, fmt.Sprintf("🃏 Leva %d%% a mais de lucro quando ganha no %s", p.casinoLuck, casinoGames)},
 		{p.legalDiscount > 0, fmt.Sprintf("⚖️ Paga %d%% menos de pensão e de indenização por traição", p.legalDiscount)},
 		{p.trialDiscount > 0, fmt.Sprintf("💼 Paga %d%% menos quando perde um !processar", p.trialDiscount)},
 		{p.trialBonus > 0, fmt.Sprintf("📜 Leva %d%% a mais quando ganha um !processar", p.trialBonus)},
@@ -464,6 +470,13 @@ func (p profession) perks() []string {
 	lines = append(lines, contrabandPerks(p)...)
 	lines = append(lines, luxuryPerks(p)...)
 	return append(lines, charmPerks(p)...)
+}
+
+func (p profession) jinx() float64 {
+	if p.jinxProof {
+		return 0
+	}
+	return p.betJinx
 }
 
 func (p profession) savingsLimit() int64 {

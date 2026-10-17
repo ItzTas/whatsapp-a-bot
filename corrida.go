@@ -39,7 +39,7 @@ type raceHorse struct {
 type raceBet struct {
 	acc   account
 	stake int64
-	boost int64
+	boost prizeBoost
 	levy  heldLevy
 	horse int
 }
@@ -77,6 +77,7 @@ type raceSaveBet struct {
 	Account storedAccount `json:"account"`
 	Stake   int64         `json:"stake"`
 	Boost   int64         `json:"boost"`
+	Luck    int64         `json:"luck"`
 	Levy    heldLevySave  `json:"levy"`
 	Horse   int           `json:"horse"`
 }
@@ -132,7 +133,7 @@ func (b *bot) restoreRace(ctx context.Context, saved savedGame) error {
 	}
 	bets := make([]*raceBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &raceBet{acc: bet.Account.account(), stake: bet.Stake, boost: bet.Boost, levy: bet.Levy.held(), horse: bet.Horse}
+		bets[i] = &raceBet{acc: bet.Account.account(), stake: bet.Stake, boost: prizeBoost{decree: bet.Boost, luck: bet.Luck}, levy: bet.Levy.held(), horse: bet.Horse}
 	}
 	round := b.trackRace(ctx, state.Chat, &raceRound{
 		opened:  state.Opened,
@@ -349,7 +350,7 @@ func (r *raceRound) saved(chat types.JID) raceSave {
 	}
 	bets := make([]raceSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = raceSaveBet{Account: storeAccount(bet.acc), Stake: bet.stake, Boost: bet.boost, Levy: bet.levy.saved(), Horse: bet.horse}
+		bets[i] = raceSaveBet{Account: storeAccount(bet.acc), Stake: bet.stake, Boost: bet.boost.decree, Luck: bet.boost.luck, Levy: bet.levy.saved(), Horse: bet.horse}
 	}
 	return raceSave{Chat: chat, Opened: r.opened, Started: r.started, Horses: horses, Winner: r.winner, Frames: r.frames, Bets: bets}
 }
@@ -379,7 +380,7 @@ func (r *raceRound) finish() []*raceBet {
 }
 
 func (r *raceRound) payout(bet *raceBet) int64 {
-	return casinoPrize(bet.stake, bet.stake*r.horses[bet.horse].odds/100, bet.boost)
+	return bet.boost.pay(bet.stake, bet.stake*r.horses[bet.horse].odds/100)
 }
 
 func (r *raceRound) prizeLevy(bet *raceBet) prizeLevy {
@@ -445,7 +446,7 @@ func (r *raceRound) betLine(bet *raceBet, finished bool) string {
 	}
 	if bet.horse == r.winner {
 		payout := r.payout(bet)
-		return fmt.Sprintf("✅ @%s apostou no %s e levou %s%s", user, horse, coins(payout), prizeTag(bet.stake, payout, bet.boost)+r.prizeLevy(bet).text())
+		return fmt.Sprintf("✅ @%s apostou no %s e levou %s%s", user, horse, coins(payout), bet.boost.tag(bet.stake, payout)+r.prizeLevy(bet).text())
 	}
 	return fmt.Sprintf("💸 @%s perdeu %s no %s", user, coins(bet.stake), horse)
 }

@@ -30,7 +30,7 @@ const (
 type crashBet struct {
 	acc    account
 	stake  int64
-	boost  int64
+	boost  prizeBoost
 	levy   heldLevy
 	target int64
 	cashed int64
@@ -58,6 +58,7 @@ type crashSaveBet struct {
 	Account storedAccount `json:"account"`
 	Stake   int64         `json:"stake"`
 	Boost   int64         `json:"boost"`
+	Luck    int64         `json:"luck"`
 	Levy    heldLevySave  `json:"levy"`
 	Target  int64         `json:"target"`
 	Cashed  int64         `json:"cashed"`
@@ -260,7 +261,7 @@ func (b *bot) restoreCrash(ctx context.Context, saved savedGame) error {
 	}
 	bets := make([]*crashBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &crashBet{acc: bet.Account.account(), stake: bet.Stake, boost: bet.Boost, levy: bet.Levy.held(), target: bet.Target, cashed: bet.Cashed}
+		bets[i] = &crashBet{acc: bet.Account.account(), stake: bet.Stake, boost: prizeBoost{decree: bet.Boost, luck: bet.Luck}, levy: bet.Levy.held(), target: bet.Target, cashed: bet.Cashed}
 	}
 	round := b.trackCrash(ctx, state.Chat, &crashRound{opened: state.Opened, start: state.Start, point: state.Point, bets: bets})
 	wait := crashWindow - time.Since(round.opened)
@@ -333,7 +334,7 @@ func (r *crashRound) ends() time.Time {
 func (r *crashRound) saved(chat types.JID) crashSave {
 	bets := make([]crashSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = crashSaveBet{Account: storeAccount(bet.acc), Stake: bet.stake, Boost: bet.boost, Levy: bet.levy.saved(), Target: bet.target, Cashed: bet.cashed}
+		bets[i] = crashSaveBet{Account: storeAccount(bet.acc), Stake: bet.stake, Boost: bet.boost.decree, Luck: bet.boost.luck, Levy: bet.levy.saved(), Target: bet.target, Cashed: bet.cashed}
 	}
 	return crashSave{Chat: chat, Opened: r.opened, Start: r.start, Point: r.point, Bets: bets}
 }
@@ -436,7 +437,7 @@ func (bet *crashBet) reached(current, point int64) bool {
 }
 
 func (bet *crashBet) payout() int64 {
-	return casinoPrize(bet.stake, bet.stake*bet.cashed/100, bet.boost)
+	return bet.boost.pay(bet.stake, bet.stake*bet.cashed/100)
 }
 
 func (bet *crashBet) prizeLevy() prizeLevy {
@@ -444,7 +445,7 @@ func (bet *crashBet) prizeLevy() prizeLevy {
 }
 
 func (bet *crashBet) tag() string {
-	return prizeTag(bet.stake, bet.payout(), bet.boost) + bet.prizeLevy().text()
+	return bet.boost.tag(bet.stake, bet.payout()) + bet.prizeLevy().text()
 }
 
 func (bet *crashBet) entry() string {
