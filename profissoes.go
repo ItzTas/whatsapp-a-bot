@@ -1187,7 +1187,7 @@ var professions = []profession{
 		aliases: []string{"caçador de bússola do relicário", "bussoleiro"}, min: 20, max: 60, every: 28 * time.Minute,
 		bust: 0.45, bustFine: 120, salePercent: 40, betJinx: 0.15,
 		jailFactor: 50, escapeBonus: -0.15, breakoutBonus: -0.15, reportBonus: -0.2, heistBonus: -0.1, trialEdge: -1,
-		gatherFaster: 50, compassLure: 20, rotten: true, finds: []string{"bussola-do-relicario"}, findChance: 0.012, fixedFinds: true,
+		gatherFaster: 50, compassLure: 16, rotten: true, finds: []string{"bussola-do-relicario"}, findChance: 0.01, fixedFinds: true,
 		tasks: []string{
 			"passou o dia girando no meio da praça esperando a agulha apontar pra algum lugar",
 			"vendeu um mapa \"original\" do relicário pra um turista", "seguiu a agulha de uma bússola até a casa da sogra",
@@ -1961,7 +1961,7 @@ var professions = []profession{
 		aliases: []string{"mae de santo", "pai de santo", "macumbeira", "macumbeiro", "ialorixa", "babalorixa"},
 		min:     100, max: 200, every: 20 * time.Minute,
 		faith: faith{
-			blessings: []string{"protecao", "sorte", "purificacao"}, curses: []string{"olhogordo", "azar", "encosto", "lerdeza"}, hexChance: 0.7,
+			blessings: []string{"protecao", "sorte", "purificacao", "maoboa"}, curses: []string{"olhogordo", "azar", "encosto", "lerdeza"}, hexChance: 0.7,
 			blessRite: "acendeu uma vela branca pra", curseRite: "fez um despacho na encruzilhada pra",
 		},
 		tasks: []string{
@@ -1977,7 +1977,7 @@ var professions = []profession{
 			"errou a poção e o cliente ficou três dias com soluço", "a vassoura quebrou no meio do voo",
 		},
 		faith: faith{
-			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto", "lerdeza", "dizimo"}, hexChance: 0.75,
+			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto", "lerdeza", "dizimo", "panema"}, hexChance: 0.75,
 			blessRite: "fez uma poção da sorte pra", curseRite: "mexeu o caldeirão pensando em",
 		},
 		tasks: []string{
@@ -2003,7 +2003,7 @@ var professions = []profession{
 		name: "xamã", emoji: "🪶", title: "é xamã", area: areaFe, aliases: []string{"xama", "paje", "druida"},
 		min: 100, max: 190, every: 22 * time.Minute, breakoutBonus: 0.15,
 		faith: faith{
-			blessings: []string{"libertacao", "fartura", "sorte", "pressa"}, curses: []string{"jejum", "encosto"}, hexChance: 0.6,
+			blessings: []string{"libertacao", "fartura", "sorte", "pressa", "maoboa"}, curses: []string{"jejum", "encosto", "panema"}, hexChance: 0.6,
 			blessRite: "fez uma roda de tambor por", curseRite: "invocou os espíritos da floresta contra",
 		},
 		tasks: []string{

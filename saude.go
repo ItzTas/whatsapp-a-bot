@@ -52,7 +52,17 @@ type wound struct {
 type death struct {
 	freed types.JID
 	lost  int64
+	hold  time.Duration
 }
+
+type funeral struct {
+	hold       time.Duration
+	minPercent int64
+	maxPercent int64
+	heir       account
+}
+
+var plainFuneral = funeral{hold: deathHold, minPercent: deathLossMinPercent, maxPercent: deathLossMaxPercent}
 
 type injury struct {
 	wound
@@ -104,10 +114,21 @@ func hurt(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, w wound,
 	return inj, err
 }
 
-func die(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, now time.Time) (d death, err error) {
+func die(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, now time.Time) (death, error) {
+	return bury(ctx, tx, chat, acc, plainFuneral, now)
+}
+
+func bury(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, f funeral, now time.Time) (d death, err error) {
+	revenant, err := holdsItem(ctx, tx, chat, acc, ciprianoItem)
+	if err != nil {
+		return d, err
+	}
+	if d.hold = f.hold; revenant {
+		d.hold /= 2
+	}
 	_, err = tx.ExecContext(ctx,
 		"UPDATE carteiras SET morto_ate = MAX(morto_ate, ?), saude = ?, saude_em = ? WHERE chat = ? AND pessoa = ?",
-		now.Add(deathHold).Unix(), maxHealth, now.Unix(), chat.String(), acc.key,
+		now.Add(d.hold).Unix(), maxHealth, now.Unix(), chat.String(), acc.key,
 	)
 	if err != nil {
 		return d, err
@@ -115,7 +136,10 @@ func die(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, now time.
 	if d.freed, err = freeHostage(ctx, tx, chat, acc, now); err != nil {
 		return d, err
 	}
-	d.lost, err = burnBalance(ctx, tx, chat, acc, deathLossMinPercent, deathLossMaxPercent, 1)
+	if d.lost, err = burnBalance(ctx, tx, chat, acc, f.minPercent, f.maxPercent, 1); err != nil || d.lost == 0 || f.heir.key == "" {
+		return d, err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", d.lost, chat.String(), f.heir.key)
 	return d, err
 }
 
@@ -135,7 +159,7 @@ func (inj injury) text(person types.JID) (string, []types.JID) {
 	}
 	lines := []string{
 		"",
-		fmt.Sprintf("💀 @%s %s e não resistiu: a saúde zerou e morreu. Fica %s sem comando de economia, a não ser que pague o !hospital ou alguém consiga !reviver", person.User, inj.scene, formatWait(deathHold)),
+		fmt.Sprintf("💀 @%s %s e não resistiu: a saúde zerou e morreu. Fica %s sem comando de economia, a não ser que pague o !hospital ou alguém consiga !reviver", person.User, inj.scene, formatWait(inj.hold)),
 	}
 	if funeral := funeralText(person, inj.lost); funeral != "" {
 		lines = append(lines, funeral)

@@ -978,6 +978,20 @@ var catalog = []item{
 		use: "🚑 @%s abriu o kit de primeiros socorros, passou merthiolate (do que arde) e enfaixou tudo"},
 	{id: "caixa-misteriosa-prateada", name: "Caixa misteriosa prateada", emoji: "🥈", rarity: rare, value: 850, shop: true, aliases: []string{"caixa prateada", "caixa de prata", "prateada"},
 		loot: []int{28, 27, 26, 15, 4}, use: "🥈 @%s sacudiu a caixa misteriosa prateada do lado do ouvido antes de abrir, pra ver se tinha coisa boa"},
+	{id: "foice-da-comadre-morte", name: "Foice da Comadre Morte", emoji: "💀", rarity: relic, value: 30_000, aliases: []string{"foice", "comadre morte", "ceifador"},
+		flex: &flex{effect: fmt.Sprintf("+%d%% de chance no !matar, que fica liberado pra qualquer profissão e passa direto pelo colete. Quem você mata fica %dx mais tempo morto(a), e o enterro leva de %d%% a %d%% do saldo da vítima, que vão pro seu bolso em vez de sumir", percent(reaperKillBonus), reaperHoldFactor, reapLossMinPercent, reapLossMaxPercent),
+			apply: func(p profession) profession {
+				p.killChance += reaperKillBonus
+				p.reaper = true
+				return p
+			}}},
+	{id: ciprianoItem, name: "Livro de São Cipriano", emoji: "📕", rarity: relic, value: 30_000, aliases: []string{"sao cipriano", "cipriano", "capa preta", "livro de capa preta", "grimorio"},
+		flex: &flex{effect: fmt.Sprintf("o !reviver nunca falha e fica liberado pra qualquer profissão, e quem você revive volta com um pacto: por %s, %d%% de tudo que a pessoa ganhar vai pra você. E quando você morre, volta na metade do tempo", formatWait(soulPactHold), soulPactPercent),
+			apply: func(p profession) profession {
+				p.reviveChance = 1
+				p.soulPact = true
+				return p
+			}}},
 }
 
 func itemByID(id string) (item, bool) {

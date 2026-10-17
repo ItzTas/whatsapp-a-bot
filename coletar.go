@@ -354,8 +354,22 @@ func (p profession) forage(a activity) activity {
 	if p.compassLure > 0 {
 		a.loot = lureCompasses(a.loot, p.compassLure)
 	}
+	if p.barrenHauls != 0 {
+		a.loot = barrenLoot(a.loot, p.barrenHauls)
+	}
+	a.gradeLuck += p.gatherGrade
 	a.rotten = p.rotten
 	return a
+}
+
+func barrenLoot(loot []drop, percent int64) []drop {
+	barren := slices.Clone(loot)
+	for i, d := range barren {
+		if d.item == "" {
+			barren[i].weight = int(int64(d.weight) * (100 + percent) / 100)
+		}
+	}
+	return barren
 }
 
 func gearPerk(g *gear) string {

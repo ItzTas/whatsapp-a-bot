@@ -194,7 +194,9 @@ type profession struct {
 	noSnitch    bool
 
 	killChance   float64
+	reaper       bool
 	reviveChance float64
+	soulPact     bool
 
 	president bool
 	divine    bool
@@ -213,6 +215,8 @@ type profession struct {
 	haste        int64
 	compassLure  int
 	rotten       bool
+	barrenHauls  int64
+	gatherGrade  int
 	boxLuck      int
 	faith        faith
 	mirror       bool
@@ -440,7 +444,9 @@ func (p profession) perks() []string {
 		{p.jailTime > 0, fmt.Sprintf("🚔 Pode !prender quem tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou negociou no !mercadonegro nas últimas %s, por %s, a cada %s: quem tá preso não aposta, não rouba, não furta, não sequestra e não assalta. Quem tenta te !sequestrar tem bem mais chance de ir preso na hora", formatWait(crimeWindow), formatWait(p.jailTime), formatWait(p.arrestEvery))},
 		{len(p.abuses) > 0, p.abusesText()},
 		{p.releaseChance > 0, fmt.Sprintf("🔓 Pode !libertar alguém da cadeia ou do cativeiro, com %d%% de chance. Se der errado, pode levar multa", percent(p.releaseChance))},
+		{p.reaper, fmt.Sprintf("💀 No !matar, passa direto pelo colete, a vítima fica %dx mais tempo morta e o enterro (de %d%% a %d%% do saldo dela) vai pro seu bolso", reaperHoldFactor, reapLossMinPercent, reapLossMaxPercent)},
 		{p.reviveChance > 0, fmt.Sprintf("🧟 Pode !reviver quem foi morto no !matar, com %d%% de chance", percent(p.reviveChance))},
+		{p.soulPact, fmt.Sprintf("📕 Quem você revive fica %s passando %d%% de tudo que ganha pra você", formatWait(soulPactHold), soulPactPercent)},
 		{p.heistBonus > 0, fmt.Sprintf("🏦 Soma +%d%% de chance pra equipe no !assalto", percent(p.heistBonus))},
 		{p.heistBonus < 0, fmt.Sprintf("🤦 Atrapalha o !assalto: a equipe perde %d%% de chance", percent(-p.heistBonus))},
 		{p.jailFactor > 0, fmt.Sprintf("⛓️ Quando é preso no !prender ou no !assalto, fica %d%% mais tempo na cadeia", p.jailFactor)},
@@ -458,6 +464,10 @@ func (p profession) perks() []string {
 		{p.boxLuck > 0, fmt.Sprintf("📦 Abre caixa e baú no !usar com %dx mais sorte: fica com o item mais raro de %d sorteios", p.boxLuck+1, p.boxLuck+1)},
 		{p.compassLure > 0, fmt.Sprintf("🧭 Acha a Bússola do relicário %dx mais fácil no %s", p.compassLure, extractionCommands())},
 		{p.rotten, fmt.Sprintf("🪰 Tudo que acha no %s vem com qualidade %s (%d%% do valor)", extractionCommands(), worstQuality().tier().name, worstQuality().tier().percent)},
+		{p.barrenHauls > 0, fmt.Sprintf("🫙 Volta de mão vazia %d%% mais vezes no %s", p.barrenHauls, extractionCommands())},
+		{p.barrenHauls < 0, fmt.Sprintf("🤲 Volta de mão vazia %d%% menos vezes no %s", -p.barrenHauls, extractionCommands())},
+		{p.gatherGrade > 0, fmt.Sprintf("✨ O que acha no %s vem com qualidade melhor: fica com a melhor de %d", extractionCommands(), p.gatherGrade+1)},
+		{p.gatherGrade < 0, fmt.Sprintf("🥀 O que acha no %s vem com qualidade pior: fica com a pior de %d", extractionCommands(), -p.gatherGrade+1)},
 		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},

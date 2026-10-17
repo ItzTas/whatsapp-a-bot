@@ -202,7 +202,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `sturdy: 97` e `grace: 100`. Item com `rarity: relic` (hoje a
   Vara de Iemanjá, a Picareta de Serra Pelada, a Rede do Curupira, o Saco do Homem do Saco, a
   Vela do Negrinho do Pastoreio, a Excalibur e as passivas Muiraquitã, Gorro do Saci, Chapéu de Lampião, Escamas do Boitatá, Coroa
-  de Dom Pedro, Santo Graal, Baralho do Zé Pelintra, Espelho da Iara e Lamparina do Lobisomem) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
+  de Dom Pedro, Santo Graal, Baralho do Zé Pelintra, Espelho da Iara, Lamparina do Lobisomem, Foice da
+  Comadre Morte e Livro de São Cipriano) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
   de caixa com `relicOdds` (hoje o Relicário perdido), que no `roll` troca o prêmio por uma
   relíquia aleatória nessa chance, do `!leilao` nos dias de relíquia e do `!criar` e do `!milagre` de deus; depois passa de mão em
   mão, mas nunca pelo `!furtar` (o `theftChoice` tira as relíquias do sorteio e o furto mirado
@@ -407,8 +408,12 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `guard` da vítima, e a espera é `killCooldown` (coluna `assassinato_em`). A tentativa marca o
   `crime_em`, então dá pra `!prender` e `!denunciar`. Se ia dar certo e a vítima tem o Colete à
   prova de balas (`vestItemID`, ilegal), o `kill` gasta um colete (`spendItem`) e ela não morre,
-  menos contra deus (`killOdds.pierce`). Se der certo, a vítima morre pelo `die` (`saude.go`,
-  veja a saúde abaixo); enquanto tá morta, o
+  menos contra deus e contra quem tem a Foice da Comadre Morte (`killOdds.pierce`). Se der certo,
+  a vítima morre pelo `bury` (`saude.go`, veja a saúde abaixo) com o `funeral` do `killOdds`: o
+  normal (`plainFuneral`) ou, com a Foice (`reaper`, que também soma `reaperKillBonus` no
+  `killChance` e libera o `!matar` pra qualquer um), `reaperHoldFactor` vezes o `deathHold` e o
+  enterro de `reapLossMinPercent` a `reapLossMaxPercent` por cento creditado no matador (`heir`);
+  enquanto tá morta, o
   `handleMessage` barra qualquer comando da categoria de economia (`holdIfDead`), não só os com
   `barredInJail`. Se der errado, tem `killCaughtChance` de ir preso na hora (mais
   `copVictimCaught` se a vítima tem `jailTime`), por `baseJail` ajustado pelo `jailFactor`.
@@ -421,11 +426,17 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
 - O `!reviver` (`reviver.go`) tira a morte antes do prazo: só funciona pra profissão com
   `reviveChance` (necromante) ou pro presidente (`presidentRevive` mínimo), em quem tem `morto_ate`
   no futuro, uma tentativa a cada `reviveCooldown` (coluna `ressurreicao_em`). Dar certo zera o
-  `morto_ate`; falhar só gasta a espera.
-- Toda morte passa pelo `die` (`saude.go`): grava `morto_ate` por `deathHold`, volta a saúde pra
+  `morto_ate`; falhar só gasta a espera. O Livro de São Cipriano (relíquia, `ciprianoItem`) dá
+  `reviveChance` 1 e liga o `soulPact`: dar certo grava o `soulPactCharm` (o Pacto, maldição com
+  `toll` de `soulPactPercent` e `lasting`) no revivido, com quem reviveu de `autor`, por
+  `soulPactHold`. O Pacto fica fora do `charms` (ninguém lança ele, nem o Espelho da Iara), mas o
+  `charmByID` acha ele e a `purificacao` apaga ele junto das maldições.
+- Toda morte passa pelo `bury` (`saude.go`), e o `die` é ele com o `plainFuneral`: grava
+  `morto_ate` pelo `hold` do `funeral` (metade pra quem tem o Livro de São Cipriano na mochila,
+  devolvido em `death.hold` pros textos), volta a saúde pra
   `maxHealth`, solta o refém que a pessoa tiver (`freeHostage`) e o enterro queima de
   `deathLossMinPercent` a `deathLossMaxPercent` por cento do saldo (`burnBalance`, sem piso, pra
-  não zerar quem tem pouco), e as moedas somem. Hoje chamam ele o `kill` do `!matar`, a overdose do
+  não zerar quem tem pouco), e as moedas somem, a não ser que o `funeral` tenha `heir` (a Foice). Hoje chamam ele o `kill` do `!matar`, a overdose do
   `takeDrug` e o `hurt` da saúde zerada. Caminho novo de morte usa o `die` e mostra o `funeralText`.
 - A saúde (`saude.go`) fica nas colunas `saude`/`saude_em` da `carteiras`: vale o número guardado
   mais 1 ponto a cada `healthRegenEvery` desde o `saude_em`, até `maxHealth`, calculado na leitura
@@ -759,7 +770,9 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
     `carteiras` (migração `00074`), não o Go: qualquer `UPDATE` que suba o saldo de quem tem um
     desses encantos passa a `parte` do que entrou pro `autor` e credita o `bonus` (limitado ao
     `teto`) em moedas novas, tudo calculado em cima do ganho original, na mesma transação. Depois
-    ele apaga os encantos usados e grava um aviso por encanto em `encantos_avisos`. Por isso vale em
+    ele apaga os encantos usados (menos os com a coluna `continuo`, gravada pelo `lasting` do
+    encanto, hoje só o Pacto do Livro de São Cipriano, que cobra em todo ganho até o `ate`; o
+    trigger foi recriado na migração `00078`) e grava um aviso por encanto em `encantos_avisos`. Por isso vale em
     todo caminho de dinheiro sem gancho nenhum. Um ganho que daria valor zero não gasta o encanto, e
     os créditos do próprio trigger não disparam outro (o SQLite roda sem `recursive_triggers`).
     Encanto novo desse tipo é só usar os mesmos campos; não crie outro trigger no `saldo`, senão um

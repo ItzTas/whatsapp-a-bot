@@ -13,8 +13,12 @@ import (
 )
 
 const (
-	killCaughtChance = 0.5
-	deathHold        = 7 * time.Minute
+	killCaughtChance   = 0.5
+	deathHold          = 7 * time.Minute
+	reaperKillBonus    = 0.40
+	reaperHoldFactor   = 3
+	reapLossMinPercent = 15
+	reapLossMaxPercent = 25
 )
 
 var killCooldown = cooldown{column: "assassinato_em", every: 90 * time.Minute}
@@ -31,11 +35,14 @@ type killing struct {
 	fine    int64
 	bounty  int64
 	lost    int64
+	hold    time.Duration
+	reaped  bool
 }
 
 type killOdds struct {
 	lawful  bool
 	pierce  bool
+	reap    bool
 	success float64
 	caught  float64
 	jail    time.Duration
@@ -58,13 +65,14 @@ func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 	if killerJob.killChance == 0 && owed == nil {
-		return b.sendText(ctx, chat, "🚫 Só quem é do crime pesado pode matar: "+killingProfessions()+". Ou quem anda armado (tem "+lethalWeapons()+" no !mercadonegro), ou quem emprestou moedas com o !agiota pra alguém que passou do prazo")
+		return b.sendText(ctx, chat, "🚫 Só quem é do crime pesado pode matar: "+killingProfessions()+". Ou quem anda armado (tem "+lethalWeapons()+" no !mercadonegro), quem tem a Foice da Comadre Morte, ou quem emprestou moedas com o !agiota pra alguém que passou do prazo")
 	}
 	odds := killOdds{
 		success: killerJob.killOdds(victimJob),
 		caught:  victimJob.killCaughtOdds(),
 		jail:    profession{jailTime: baseJail}.sentence(killerJob),
-		pierce:  killerJob.divine,
+		pierce:  killerJob.divine || killerJob.reaper,
+		reap:    killerJob.reaper,
 	}
 	if killerJob.slipsAway() {
 		odds.caught = 0
@@ -159,11 +167,9 @@ func deathCaption(k killing, killer, victim types.JID) string {
 	lines := []string{
 		fmt.Sprintf(pickOne(scenes), killer.User, victim.User),
 		"",
-		fmt.Sprintf("⚰️ @%s tá morto(a) por %s: até ressuscitar, nada de comando de economia (nem !saldo, !trabalhar ou !daily). Um necromante ou o presidente pode tentar !reviver", victim.User, formatWait(deathHold)),
+		fmt.Sprintf("⚰️ @%s tá morto(a) por %s: até ressuscitar, nada de comando de economia (nem !saldo, !trabalhar ou !daily). Um necromante, o presidente ou quem tem o Livro de São Cipriano pode tentar !reviver", victim.User, formatWait(k.hold)),
 	}
-	if funeral := funeralText(victim, k.lost); funeral != "" {
-		lines = append(lines, funeral)
-	}
+	lines = append(lines, reapText(k, killer, victim)...)
 	if !k.freed.IsEmpty() {
 		lines = append(lines, fmt.Sprintf("🔓 O refém de @%s aproveitou o velório pra fugir: @%s tá livre!", victim.User, k.freed.User))
 	}
@@ -193,6 +199,26 @@ func (b *bot) holdIfDead(ctx context.Context, evt *events.Message) bool {
 		b.client.Log.Errorf("avisar que tá morto: %v", err)
 	}
 	return true
+}
+
+func (o killOdds) funeral(killer account) funeral {
+	if !o.reap {
+		return plainFuneral
+	}
+	return funeral{hold: deathHold * reaperHoldFactor, minPercent: reapLossMinPercent, maxPercent: reapLossMaxPercent, heir: killer}
+}
+
+func reapText(k killing, killer, victim types.JID) []string {
+	if !k.reaped {
+		if funeral := funeralText(victim, k.lost); funeral != "" {
+			return []string{funeral}
+		}
+		return nil
+	}
+	if k.lost == 0 {
+		return []string{fmt.Sprintf("💀 A Comadre Morte veio buscar @%s pela foice de @%s, mas o caixão tava vazio: não tinha nada no saldo pra levar", victim.User, killer.User)}
+	}
+	return []string{fmt.Sprintf("💀 A Comadre Morte veio buscar @%s pela foice de @%s, e o enterro de %s foi direto pro bolso de quem matou", victim.User, killer.User, coins(k.lost))}
 }
 
 func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim account, odds killOdds, cd cooldown, now time.Time) (k killing, err error) {
@@ -235,11 +261,11 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim a
 			return nil
 		}
 		if k.success {
-			d, err := die(ctx, tx, chat, victim, now)
+			d, err := bury(ctx, tx, chat, victim, odds.funeral(killer), now)
 			if err != nil {
 				return err
 			}
-			k.freed, k.lost = d.freed, d.lost
+			k.freed, k.lost, k.hold, k.reaped = d.freed, d.lost, d.hold, odds.reap
 			k.bounty, err = claimBounty(ctx, tx, chat, victim, killer)
 			return err
 		}

@@ -11,12 +11,19 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+const (
+	ciprianoItem    = "livro-de-sao-cipriano"
+	soulPactHold    = 3 * time.Hour
+	soulPactPercent = 25
+)
+
 var reviveCooldown = cooldown{column: "ressurreicao_em", every: 45 * time.Minute}
 
 type revival struct {
 	alive   bool
 	wait    time.Duration
 	success bool
+	pact    bool
 }
 
 func (b *bot) reviver(ctx context.Context, evt *events.Message) error {
@@ -35,9 +42,9 @@ func (b *bot) reviver(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 	if job.reviveChance == 0 {
-		return b.sendText(ctx, chat, "🚫 Só quem mexe com o além consegue reviver alguém: "+revivingProfessions()+", ou o presidente")
+		return b.sendText(ctx, chat, "🚫 Só quem mexe com o além consegue reviver alguém: "+revivingProfessions()+", o presidente, ou quem tem o Livro de São Cipriano")
 	}
-	r, err := b.wallets.revive(ctx, chat, healerAcc, deadAcc, job.reviveChance, job.pace(reviveCooldown), time.Now())
+	r, err := b.wallets.revive(ctx, chat, healerAcc, deadAcc, job.reviveChance, job.soulPact, job.pace(reviveCooldown), time.Now())
 	if err != nil {
 		return fmt.Errorf("reviver: %w", err)
 	}
@@ -66,13 +73,19 @@ func reviveText(r revival, job profession, healer, dead types.JID) string {
 	if r.success {
 		text = fmt.Sprintf("🧟 %s @%s fez o ritual e @%s levantou do caixão! Tá vivo(a) de novo e já pode usar a economia", job.badge(), healer.User, dead.User)
 	}
+	if r.pact {
+		text += fmt.Sprintf("\n📕 Só que o ritual foi pelo Livro de São Cipriano, e ninguém volta de graça: por %s, %d%% de tudo que @%s ganhar vai pra @%s", formatWait(soulPactHold), soulPactPercent, dead.User, healer.User)
+	}
+	if job.soulPact {
+		return text + "\n📕 Com o Livro de São Cipriano, o ritual não falha"
+	}
 	if job.president {
 		return text + fmt.Sprintf("\n🏛️ Como presidente, tinha %d%% de chance", percent(job.reviveChance))
 	}
 	return text + fmt.Sprintf("\n✨ Como %s, tinha %d%% de chance", job.title, percent(job.reviveChance))
 }
 
-func (s *walletStore) revive(ctx context.Context, chat types.JID, healer, dead account, chance float64, cd cooldown, now time.Time) (r revival, err error) {
+func (s *walletStore) revive(ctx context.Context, chat types.JID, healer, dead account, chance float64, pact bool, cd cooldown, now time.Time) (r revival, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := openWallet(ctx, tx, chat, dead); err != nil {
 			return err
@@ -95,7 +108,11 @@ func (s *walletStore) revive(ctx context.Context, chat types.JID, healer, dead a
 			return nil
 		}
 		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET morto_ate = 0 WHERE chat = ? AND pessoa = ?", chat.String(), dead.key)
-		return err
+		if err != nil || !pact {
+			return err
+		}
+		r.pact = true
+		return grantCharm(ctx, tx, chat, dead, healer, soulPactCharm, now)
 	})
 	return r, err
 }

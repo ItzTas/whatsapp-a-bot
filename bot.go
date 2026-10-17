@@ -931,7 +931,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"assassinar", "apagar"},
 			category: economia,
 			help: []usage{
-				{"!matar @pessoa", fmt.Sprintf("tenta apagar a pessoa marcada 🔪 Só algumas profissões matam, cada uma com a sua chance: %s, e a proteção da vítima tira um pouco. Se der certo ela fica %s morta, sem poder usar nenhum comando de economia (a não ser que alguém consiga !reviver), o enterro leva um pedaço do saldo dela, e se tiver um refém no cativeiro ele fica livre. Se tiver !recompensa na cabeça dela, ela é toda sua. Se der errado você tem %d%% de chance de ir preso na hora por %s (bem mais se a vítima for da polícia, e a profissão muda o tempo). Matar ou tentar é crime: a polícia pode !prender e qualquer um pode !denunciar. Dá pra tentar a cada %s. Quem emprestou moedas com o !agiota pode matar quem passou do prazo sem pagar, mesmo sem ser dessas profissões, com pelo menos %d%% de chance, sem ser crime e sem ir preso", killingProfessions(), formatWait(deathHold), percent(killCaughtChance), formatWait(baseJail), formatWait(killCooldown.every), percent(debtKillChance))},
+				{"!matar @pessoa", fmt.Sprintf("tenta apagar a pessoa marcada 🔪 Só algumas profissões matam, cada uma com a sua chance: %s, e a proteção da vítima tira um pouco. Com a Foice da Comadre Morte (relíquia), qualquer um mata, o colete não segura, a vítima fica %dx mais tempo morta e o enterro (de %d%% a %d%% do saldo dela) vai pro seu bolso. Se der certo ela fica %s morta, sem poder usar nenhum comando de economia (a não ser que alguém consiga !reviver), o enterro leva um pedaço do saldo dela, e se tiver um refém no cativeiro ele fica livre. Se tiver !recompensa na cabeça dela, ela é toda sua. Se der errado você tem %d%% de chance de ir preso na hora por %s (bem mais se a vítima for da polícia, e a profissão muda o tempo). Matar ou tentar é crime: a polícia pode !prender e qualquer um pode !denunciar. Dá pra tentar a cada %s. Quem emprestou moedas com o !agiota pode matar quem passou do prazo sem pagar, mesmo sem ser dessas profissões, com pelo menos %d%% de chance, sem ser crime e sem ir preso", killingProfessions(), reaperHoldFactor, reapLossMinPercent, reapLossMaxPercent, formatWait(deathHold), percent(killCaughtChance), formatWait(baseJail), formatWait(killCooldown.every), percent(debtKillChance))},
 			},
 			run:          b.matar,
 			barredInJail: true,
@@ -953,7 +953,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"ressuscitar", "ressucitar"},
 			category: economia,
 			help: []usage{
-				{"!reviver @pessoa", fmt.Sprintf("tenta trazer de volta quem morreu no !matar 🧟 Só algumas profissões conseguem, cada uma com a sua chance: %s, e o presidente também revive. Se der certo a pessoa volta na hora e já pode usar a economia, e se der errado ela continua no caixão até o prazo acabar. Dá pra tentar a cada %s", revivingProfessions(), formatWait(reviveCooldown.every))},
+				{"!reviver @pessoa", fmt.Sprintf("tenta trazer de volta quem morreu no !matar 🧟 Só algumas profissões conseguem, cada uma com a sua chance: %s, e o presidente também revive. Com o Livro de São Cipriano (relíquia), qualquer um revive sem falhar, mas a pessoa volta presa num pacto e passa %d%% de tudo que ganhar pra quem fez o ritual por %s. Se der certo a pessoa volta na hora e já pode usar a economia, e se der errado ela continua no caixão até o prazo acabar. Dá pra tentar a cada %s", revivingProfessions(), soulPactPercent, formatWait(soulPactHold), formatWait(reviveCooldown.every))},
 			},
 			run: b.reviver,
 		},

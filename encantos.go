@@ -38,8 +38,12 @@ type charm struct {
 	toll    int64
 	boon    int64
 	boonCap int64
+	lasting bool
 	apply   func(profession) profession
 }
+
+var soulPactCharm = charm{id: "pacto", name: "Pacto de São Cipriano", emoji: "📕", curse: true, lasting: true, hold: soulPactHold, toll: soulPactPercent,
+	effect: fmt.Sprintf("voltou do além pelo Livro de São Cipriano: %d%% de tudo que ganhar vai pra quem fez o ritual, até o pacto acabar ou alguém purificar", soulPactPercent)}
 
 var charms = []charm{
 	{id: "prosperidade", name: "Prosperidade", emoji: "💰", hold: 6 * time.Hour, aliases: []string{"dinheiro", "riqueza", "grana"},
@@ -87,6 +91,13 @@ var charms = []charm{
 		apply: func(p profession) profession {
 			p.every = p.every * 70 / 100
 			p.haste -= 30
+			return p
+		}},
+	{id: "maoboa", name: "Mão boa", emoji: "🤲", hold: 6 * time.Hour, aliases: []string{"mao de ouro", "boa pescaria", "caipora"},
+		effect: "no " + extractionCommands() + ", volta de mão vazia metade das vezes e o que acha vem com qualidade melhor (fica com a melhor de 2)",
+		apply: func(p profession) profession {
+			p.barrenHauls -= 50
+			p.gatherGrade++
 			return p
 		}},
 	{id: "multiplicacao", name: "Multiplicação", emoji: "🐟", hold: 12 * time.Hour, boon: boonPercent, boonCap: boonCap, aliases: []string{"multiplicar", "milagre", "peixes", "paes e peixes"},
@@ -137,6 +148,13 @@ var charms = []charm{
 		apply: func(p profession) profession {
 			p.every = p.every * 3 / 2
 			p.haste += 50
+			return p
+		}},
+	{id: "panema", name: "Panema", emoji: "🪹", curse: true, hold: 4 * time.Hour, aliases: []string{"inhaca", "mao vazia", "maldicao do pescador"},
+		effect: "no " + extractionCommands() + ", volta de mão vazia o dobro das vezes e o que acha vem com qualidade pior (fica com a pior de 2)",
+		apply: func(p profession) profession {
+			p.barrenHauls += 100
+			p.gatherGrade--
 			return p
 		}},
 	{id: "dizimo", name: "Dízimo", emoji: "🧾", curse: true, hold: 12 * time.Hour, toll: tithePercent, aliases: []string{"pedagio", "comissao", "parte", "porcentagem"},
@@ -209,6 +227,9 @@ func purifiers() string {
 }
 
 func charmByID(id string) (charm, bool) {
+	if id == soulPactCharm.id {
+		return soulPactCharm, true
+	}
 	i := slices.IndexFunc(charms, func(c charm) bool { return c.id == id })
 	if i < 0 {
 		return charm{}, false
@@ -627,16 +648,16 @@ func (s *walletStore) hurl(ctx context.Context, chat types.JID, thrower, target 
 
 func grantCharm(ctx context.Context, tx *sql.Tx, chat types.JID, bearer, author account, c charm, now time.Time) error {
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO encantos (chat, alvo, tipo, autor, ate, parte, bonus, teto) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO encantos (chat, alvo, tipo, autor, ate, parte, bonus, teto, continuo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = MAX(encantos.ate, excluded.ate),
-		   parte = excluded.parte, bonus = excluded.bonus, teto = excluded.teto`,
-		chat.String(), bearer.key, c.id, author.key, now.Add(c.hold).Unix(), c.toll, c.boon, c.boonCap,
+		   parte = excluded.parte, bonus = excluded.bonus, teto = excluded.teto, continuo = excluded.continuo`,
+		chat.String(), bearer.key, c.id, author.key, now.Add(c.hold).Unix(), c.toll, c.boon, c.boonCap, c.lasting,
 	)
 	return err
 }
 
 func purgeCurses(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, now time.Time) error {
-	var curses []any
+	curses := []any{soulPactCharm.id}
 	for _, c := range charms {
 		if c.curse {
 			curses = append(curses, c.id)
