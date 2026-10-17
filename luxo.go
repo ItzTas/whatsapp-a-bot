@@ -31,12 +31,19 @@ func luxuryGoods(it item) bool {
 	return it.luxury || (it.rarity >= epic && it.keep && !it.shop)
 }
 
-func dailyRand(chat types.JID, now time.Time, salt string) *rand.Rand {
+func werewolfHour(now time.Time) bool {
+	return now.In(brazilTime).Hour() < 6
+}
+
+func localDay(now time.Time) int64 {
 	local := now.In(reminderZone)
-	day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC).Unix() / 86400
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC).Unix() / 86400
+}
+
+func dailyRand(chat types.JID, now time.Time, salt string) *rand.Rand {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(chat.String() + salt))
-	return rand.New(rand.NewPCG(uint64(day), h.Sum64()))
+	return rand.New(rand.NewPCG(uint64(localDay(now)), h.Sum64()))
 }
 
 func luxuryStock(chat types.JID, now time.Time) []item {

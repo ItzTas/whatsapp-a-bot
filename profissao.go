@@ -165,9 +165,12 @@ type profession struct {
 	fixedFinds   bool
 	equipped     bool
 	peak         peak
+	hazard       hazard
+	safety       int64
 
 	robEvery   time.Duration
 	robBonus   float64
+	robHaul    int64
 	guard      float64
 	theftEvery time.Duration
 	theftBonus float64
@@ -185,6 +188,7 @@ type profession struct {
 	jailFactor    int64
 	escapeBonus   float64
 	releaseChance float64
+	elusive       bool
 
 	reportBonus float64
 	noSnitch    bool
@@ -202,6 +206,7 @@ type profession struct {
 	drug      string
 	charms    []string
 	luxuries  []string
+	titleID   string
 
 	craft        craft
 	gatherFaster int64
@@ -210,17 +215,20 @@ type profession struct {
 	rotten       bool
 	boxLuck      int
 	faith        faith
+	mirror       bool
 
 	salePercent   int64
 	discount      int64
 	interest      int64
 	savingsRoom   int64
+	savingsFaster int64
 	stockProfit   int64
 	dailyBonus    int64
 	cashback      int64
 	betJinx       float64
 	jinxProof     bool
 	casinoLuck    int64
+	rescueOdds    float64
 	legalDiscount int64
 	trialDiscount int64
 	trialBonus    int64
@@ -239,6 +247,7 @@ type shift struct {
 	doubled bool
 	peaked  bool
 	found   item
+	wound   wound
 }
 
 func professionNamed(name string) (profession, bool) {
@@ -410,12 +419,15 @@ func (p profession) perks() []string {
 		{p.president, fmt.Sprintf("🏛️ É presidente da conversa: mais proteção, não pode ser preso, pode !prender, !libertar e !reviver, abusa do poder %d vezes no mandato no !prender, !trabalhar, !roubar e !sequestrar e baixa !decreto (veja !presidente)", presidentAbuses)},
 		{p.bust > 0 && p.bustFine == 0, fmt.Sprintf("😬 Em %d%% das vezes dá ruim e não ganha nada", percent(p.bust))},
 		{p.bust > 0 && p.bustFine > 0, fmt.Sprintf("💥 Em %d%% das vezes dá ruim e ainda perde até %s", percent(p.bust), coins(p.bustFine))},
+		{p.hazard.harm > 0, hazardPerk(p.hazard, p.safety)},
+		{p.safety > 0 && p.hazard.harm > 0, fmt.Sprintf("🦺 Se machuca %d%% menos no !trabalhar", min(p.safety, maxSafety))},
 		{p.peak.bonus > 0, fmt.Sprintf("⏰ Ganha +%d%% entre %dh e %dh", p.peak.bonus, p.peak.from, p.peak.to)},
 		{p.doubling() > 0, fmt.Sprintf("🍀 %d%% de chance de ganhar em dobro", percent(p.doubling()))},
 		{findChance > 0 && !p.fixedFinds, fmt.Sprintf("🎁 %d%% de chance de achar um item trabalhando: %s", percent(findChance), findsText(finds))},
 		{p.fixedFinds, fmt.Sprintf("🎁 Trabalhando não acha nada, só tem %s%% de chance de achar %s, e nada aumenta essa chance", fineChance(findChance), findsText(finds))},
 		{p.robEvery > 0, "🦹 Rouba a cada " + formatWait(p.robEvery)},
 		{p.robBonus > 0, fmt.Sprintf("🦹 +%d%% de chance no !roubar", percent(p.robBonus))},
+		{p.robHaul > 0, fmt.Sprintf("💰 Leva %d%% a mais do que rouba no !roubar e na !quadrilha", p.robHaul)},
 		{p.theftEvery > 0, "🥷 Furta a cada " + formatWait(p.theftEvery)},
 		{p.theftBonus > 0, fmt.Sprintf("🥷 +%d%% de chance no !furtar", percent(p.theftBonus))},
 		{p.kidnapEvery > 0, "🚐 Sequestra a cada " + formatWait(p.kidnapEvery)},
@@ -433,6 +445,7 @@ func (p profession) perks() []string {
 		{p.heistBonus < 0, fmt.Sprintf("🤦 Atrapalha o !assalto: a equipe perde %d%% de chance", percent(-p.heistBonus))},
 		{p.jailFactor > 0, fmt.Sprintf("⛓️ Quando é preso no !prender ou no !assalto, fica %d%% mais tempo na cadeia", p.jailFactor)},
 		{p.jailFactor < 0, fmt.Sprintf("🗝️ Quando é preso no !prender ou no !assalto, fica %d%% menos tempo na cadeia", -p.jailFactor)},
+		{p.elusive, "👻 Fica invisível quando o crime dá errado: nunca é pego(a) na hora no !sequestrar, no !matar, no !fugir @pessoa nem no !assalto"},
 		{p.escapeBonus > 0, fmt.Sprintf("🏃 +%d%% de chance no !fugir da cadeia e de escapar quando o !assalto dá errado", percent(p.escapeBonus))},
 		{p.escapeBonus < 0, fmt.Sprintf("👀 %d%% menos chance no !fugir e de escapar quando o !assalto dá errado: todo mundo fica de olho", percent(-p.escapeBonus))},
 		{p.reportBonus > 0, fmt.Sprintf("🕵️ No !denunciar, a polícia acredita em %d%% das vezes (o normal é %d%%)", percent(p.reportOdds()), percent(reportChance))},
@@ -450,11 +463,13 @@ func (p profession) perks() []string {
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},
 		{p.interest > 0, fmt.Sprintf("🏦 A poupança rende %d%% em vez de %d%%", savingsRate+p.interest, savingsRate)},
 		{p.savingsRoom > 0, fmt.Sprintf("🐷 Guarda até %s por vez na poupança (o normal é %s)", coins(p.savingsLimit()), coins(savingsCap))},
+		{p.savingsFaster > 0, fmt.Sprintf("⏳ A poupança libera em %s em vez de %s", formatWait(p.savingsWait()), formatWait(savingsLock))},
 		{p.dailyBonus > 0, fmt.Sprintf("🎁 O !daily rende +%d%%", p.dailyBonus)},
 		{p.cashback > 0, fmt.Sprintf("🧾 Recebe %d%% de volta quando perde no !apostar e no !cassino", p.cashback)},
 		{p.jinx() > 0, fmt.Sprintf("🐈‍⬛ %d%% das vitórias no !apostar e no !cassino viram derrota", percent(p.jinx()))},
 		{p.jinxProof, "🍀 A maldição Azar não estraga suas vitórias no !apostar e no !cassino"},
 		{p.casinoLuck > 0, fmt.Sprintf("🃏 Leva %d%% a mais de lucro quando ganha no %s", p.casinoLuck, casinoGames)},
+		{p.rescueOdds > 0, fmt.Sprintf("🃏 %d%% de chance de pegar a aposta inteira de volta quando perde no %s", percent(p.rescueOdds), casinoGames)},
 		{p.legalDiscount > 0, fmt.Sprintf("⚖️ Paga %d%% menos de pensão e de indenização por traição", p.legalDiscount)},
 		{p.trialDiscount > 0, fmt.Sprintf("💼 Paga %d%% menos quando perde um !processar", p.trialDiscount)},
 		{p.trialBonus > 0, fmt.Sprintf("📜 Leva %d%% a mais quando ganha um !processar", p.trialBonus)},
@@ -475,6 +490,7 @@ func (p profession) perks() []string {
 	lines = append(lines, faithPerks(p)...)
 	lines = append(lines, contrabandPerks(p)...)
 	lines = append(lines, luxuryPerks(p)...)
+	lines = append(lines, titlePerks(p)...)
 	return append(lines, charmPerks(p)...)
 }
 
@@ -487,6 +503,10 @@ func (p profession) jinx() float64 {
 
 func (p profession) savingsLimit() int64 {
 	return savingsCap + p.savingsRoom
+}
+
+func (p profession) savingsWait() time.Duration {
+	return savingsLock * time.Duration(100-p.savingsFaster) / 100
 }
 
 func (p profession) ballotWeight() int {
@@ -525,7 +545,7 @@ func (b *bot) professionOf(ctx context.Context, chat types.JID, acc account) (pr
 		job = job.presidential()
 	}
 	job.decrees = decreed
-	return job.housed(st.estate).escorted(st.guarded).paidOff(st.bribed).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).tooled(passive).charmed(held), nil
+	return job.housed(st.estate).escorted(st.guarded).paidOff(st.bribed).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).tooled(passive).titled(st.title).charmed(held), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target account) (attackerJob, targetJob profession, err error) {
@@ -546,8 +566,9 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 	s := p.payFor(job.work(now))
+	s.wound = job.hazard.roll(job.safety)
 	levy := p.incomeLevy(acc)
-	w, err := b.wallets.work(ctx, chat, acc, cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}, job.abuse(workAbuse), s.amount, s.found.id, levy, now)
+	w, err := b.wallets.work(ctx, chat, acc, cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}, job.abuse(workAbuse), s, levy, now)
 	if err != nil {
 		return fmt.Errorf("trabalhar: %w", err)
 	}
@@ -559,11 +580,12 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 	if job.cursed && w.wait == 0 {
 		text += "\n🧿 Tem uma praga do !zoar em cima de você: o trampo pagou metade. Pra se livrar: !zoar limpar"
 	}
-	people := []types.JID{person}
+	hurtText, freed := w.injury.text(person)
+	people := append([]types.JID{person}, freed...)
 	if w.tax > 0 {
 		people = append(people, levy.payee()...)
 	}
-	_, err = b.sendMentions(ctx, chat, text, people)
+	_, err = b.sendMentions(ctx, chat, text+hurtText, people)
 	return err
 }
 

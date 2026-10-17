@@ -46,6 +46,7 @@ type gangster struct {
 	acc  account
 	job  profession
 	paid int64
+	took int64
 }
 
 type gangRobbery struct {
@@ -55,7 +56,6 @@ type gangRobbery struct {
 	poor      bool
 	alarmed   bool
 	success   bool
-	share     int64
 }
 
 func (b *bot) quadrilha(ctx context.Context, evt *events.Message) error {
@@ -283,8 +283,8 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim accoun
 			return err
 		}
 		if r.success = rand.Float64() < chance; r.success {
-			r.share = victimBalance * (gangLootMin + rand.Int64N(gangLootMax-gangLootMin+1)) / 100 / int64(len(r.gangsters))
-			return payGang(ctx, tx, chat, victim, r.gangsters, r.share)
+			share := victimBalance * (gangLootMin + rand.Int64N(gangLootMax-gangLootMin+1)) / 100 / int64(len(r.gangsters))
+			return payGang(ctx, tx, chat, victim, r.gangsters, share)
 		}
 		return indemnify(ctx, tx, chat, victim, r.gangsters)
 	})
@@ -308,8 +308,10 @@ func stampGang(ctx context.Context, tx *sql.Tx, chat types.JID, gangsters []gang
 }
 
 func payGang(ctx context.Context, tx *sql.Tx, chat types.JID, victim account, gangsters []gangster, share int64) error {
-	for _, g := range gangsters {
-		if err := moveCoins(ctx, tx, chat, victim, g.acc, share); err != nil {
+	for i := range gangsters {
+		g := &gangsters[i]
+		g.took = share * (100 + g.job.robHaul) / 100
+		if err := moveCoins(ctx, tx, chat, victim, g.acc, g.took); err != nil {
 			return err
 		}
 	}
@@ -341,10 +343,8 @@ func (r gangRobbery) text() string {
 		return strings.Join(append(lines, fmt.Sprintf("🚨 A quadrilha cercou @%s, mas o alarme disparou! Saíram correndo de mãos vazias e o alarme queimou", r.victim.jid.User)), "\n")
 	}
 	if r.success {
-		return strings.Join(append(lines,
-			fmt.Sprintf("💰 Cercaram @%s e levaram %s! Cada um ficou com %s", r.victim.jid.User, coins(r.share*int64(len(r.gangsters))), coins(r.share)),
-			fmt.Sprintf("🚓 Mas a polícia tá de olho: dá pra !prender quem tava na quadrilha nas próximas %s", formatWait(crimeWindow)),
-		), "\n")
+		lines = append(lines, r.lootLines()...)
+		return strings.Join(append(lines, fmt.Sprintf("🚓 Mas a polícia tá de olho: dá pra !prender quem tava na quadrilha nas próximas %s", formatWait(crimeWindow))), "\n")
 	}
 	lines = append(lines, fmt.Sprintf("🚔 @%s reagiu, juntou gente e a quadrilha se deu mal! Cada um teve que pagar indenização:", r.victim.jid.User))
 	for _, g := range r.gangsters {
@@ -353,12 +353,36 @@ func (r gangRobbery) text() string {
 	return strings.Join(lines, "\n")
 }
 
+func (r gangRobbery) lootLines() []string {
+	var total int64
+	for _, g := range r.gangsters {
+		total += g.took
+	}
+	head := fmt.Sprintf("💰 Cercaram @%s e levaram %s!", r.victim.jid.User, coins(total))
+	first := r.gangsters[0].took
+	if !slices.ContainsFunc(r.gangsters, func(g gangster) bool { return g.took != first }) {
+		return []string{head + " Cada um ficou com " + coins(first)}
+	}
+	lines := []string{head}
+	for _, g := range r.gangsters {
+		lines = append(lines, g.loot())
+	}
+	return lines
+}
+
 func (r gangRobbery) crewText() string {
 	members := make([]string, len(r.gangsters))
 	for i, g := range r.gangsters {
 		members[i] = fmt.Sprintf("@%s (%s %s%s)", g.acc.jid.User, g.job.emoji, g.job.name, signedPercent(g.job.robBonus))
 	}
 	return joinWithAnd(members)
+}
+
+func (g gangster) loot() string {
+	if g.job.robHaul > 0 {
+		return fmt.Sprintf("💰 @%s ficou com %s (%d%% a mais)", g.acc.jid.User, coins(g.took), g.job.robHaul)
+	}
+	return fmt.Sprintf("💰 @%s ficou com %s", g.acc.jid.User, coins(g.took))
 }
 
 func (g gangster) fate() string {

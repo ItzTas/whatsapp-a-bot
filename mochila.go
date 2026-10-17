@@ -144,6 +144,12 @@ func (b *bot) usar(ctx context.Context, evt *events.Message) error {
 	if it.hex != "" {
 		return b.hurlCurse(ctx, evt, it)
 	}
+	if it.id == forgedReleaseID {
+		return b.forgeRelease(ctx, evt, it)
+	}
+	if it.heal > 0 {
+		return b.healWith(ctx, evt, it)
+	}
 	text := fmt.Sprintf(it.use, person.User)
 	if it.keep {
 		_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
@@ -163,7 +169,7 @@ func (b *bot) usar(ctx context.Context, evt *events.Message) error {
 		return fmt.Errorf("usar item: %w", err)
 	}
 	if wait > 0 {
-		text = fmt.Sprintf("😵‍💫 @%s já tomou cafeína demais e o coração tá pedindo arrego. Guarda %s pra daqui a %s", person.User, it.label(), formatWait(wait))
+		text = fmt.Sprintf(it.limit.tired, person.User, it.label(), formatWait(wait))
 		_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
 		return err
 	}

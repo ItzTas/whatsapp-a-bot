@@ -33,11 +33,6 @@ type grade struct {
 	quantity int64
 }
 
-type gradeState struct {
-	Quality  quality `json:"quality"`
-	Quantity int64   `json:"quantity"`
-}
-
 func (q quality) index() int {
 	if i := slices.IndexFunc(qualities, func(t qualityTier) bool { return t.level == q }); i >= 0 {
 		return i
@@ -95,7 +90,7 @@ func worstQuality() quality {
 func (it item) gradable() bool {
 	return it.gear == nil && it.prizes == nil && it.loot == nil && it.relicOdds == 0 && it.rarity != relic &&
 		!it.luxury && !it.illegal && !it.pet && it.arms == nil && it.high == nil && it.flex == nil &&
-		it.bless == "" && it.hex == "" && it.trade == nil && it.resets == nil && it.heist == 0
+		it.bless == "" && it.hex == "" && it.trade == nil && it.resets == nil && it.heist == 0 && it.heal == 0
 }
 
 func worthOf(it item, grades []grade) int64 {
@@ -107,6 +102,7 @@ func worthOf(it item, grades []grade) int64 {
 }
 
 func marketPayoutOf(it item, grades []grade, percent int64) int64 {
+	percent = marketPercentOf(it, percent)
 	var payout int64
 	for _, g := range grades {
 		payout += marketPayoutAt(g.quality.price(it.value), g.quantity, percent)
@@ -123,25 +119,6 @@ func gradesLabel(grades []grade) string {
 		parts[i] = fmt.Sprintf("%d %s", g.quantity, g.quality.tier().name)
 	}
 	return " (" + joinWithAnd(parts) + ")"
-}
-
-func storeGrades(grades []grade) []gradeState {
-	states := make([]gradeState, len(grades))
-	for i, g := range grades {
-		states[i] = gradeState{Quality: g.quality, Quantity: g.quantity}
-	}
-	return states
-}
-
-func restoreGrades(states []gradeState, quantity int64) []grade {
-	if len(states) == 0 {
-		return []grade{{normalQuality, quantity}}
-	}
-	grades := make([]grade, len(states))
-	for i, s := range states {
-		grades[i] = grade{s.Quality, s.Quantity}
-	}
-	return grades
 }
 
 func qualityGuide() string {

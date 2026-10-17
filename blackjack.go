@@ -57,6 +57,7 @@ type blackjackSave struct {
 	Stake      int64               `json:"stake"`
 	Boost      int64               `json:"boost"`
 	Luck       int64               `json:"luck"`
+	Rescued    bool                `json:"rescued"`
 	Levy       heldLevySave        `json:"levy"`
 	Deck       []blackjackSaveCard `json:"deck"`
 	Player     []blackjackSaveCard `json:"player"`
@@ -181,7 +182,7 @@ func (b *bot) restoreBlackjack(ctx context.Context, saved savedGame) error {
 	hand := b.trackBlackjack(ctx, chat, key, &blackjackHand{
 		acc:        state.Account.account(),
 		stake:      state.Stake,
-		boost:      prizeBoost{decree: state.Boost, luck: state.Luck},
+		boost:      prizeBoost{decree: state.Boost, luck: state.Luck, rescued: state.Rescued},
 		levy:       state.Levy.held(),
 		deck:       loadBlackjackCards(state.Deck),
 		player:     loadBlackjackCards(state.Player),
@@ -329,6 +330,7 @@ func (h *blackjackHand) saved(chat types.JID) blackjackSave {
 		Stake:      h.stake,
 		Boost:      h.boost.decree,
 		Luck:       h.boost.luck,
+		Rescued:    h.boost.rescued,
 		Levy:       h.levy.saved(),
 		Deck:       saveBlackjackCards(h.deck),
 		Player:     saveBlackjackCards(h.player),
@@ -437,8 +439,9 @@ func (h *blackjackHand) report(note string) blackjackReport {
 		return blackjackReport{acc: h.acc, text: board + "\n\n👉 Manda " + h.choices()}
 	}
 	payout, result := h.outcome()
+	saved := h.boost.rescue(h.stake, payout)
 	levy := h.levy.onPrize(h.stake, payout)
-	return blackjackReport{acc: h.acc, text: board + "\n\n" + result + levy.text(), payout: payout, levy: levy, over: true}
+	return blackjackReport{acc: h.acc, text: board + "\n\n" + result + levy.text() + savedBetText(saved), payout: payout + saved, levy: levy, over: true}
 }
 
 func (h *blackjackHand) choices() string {

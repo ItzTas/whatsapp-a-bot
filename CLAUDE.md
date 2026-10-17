@@ -102,12 +102,28 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `walletStore`, `filterStore`, `modeStore`...), pendurado na struct `bot`.
 - Estado efêmero de jogos (rodadas de `!bmc`, `!quiz`, `!forca`...) fica em campos `sync.Map`
   da struct `bot` e se perde ao reiniciar. Jogos que seguram moedas no meio da rodada
-  (`!blackjack`, `!crash`, `!corrida`, `!jokenpo @pessoa`, `!leilao`) descontam a aposta na hora em que ela
+  (`!blackjack`, `!crash`, `!corrida`, `!jokenpo @pessoa`) descontam a aposta na hora em que ela
   é feita e pagam no fim. No `!jokenpo`, a aposta do desafiado é descontada quando ele manda a
-  jogada no privado. No `!leilao` (`auctions`), o item sai da mochila ao abrir, o lance de quem
-  está ganhando é descontado e devolvido quando alguém cobre, e lance no fim prorroga o prazo; ao
-  desligar o bot ele tenta devolver item e lance, mas se o processo morrer de vez o que estava
-  preso se perde.
+  jogada no privado.
+- O `!leilao` (`leilao.go`) é o leilão do dia: o bot leiloa um item por conversa, e ninguém leiloa
+  item da própria mochila. O item sai do `auctionLot`: um rodízio fixo por conversa
+  (`auctionRotation`, o `catalog` filtrado pelo `auctionGoods` e embaralhado com a semente do chat,
+  andando uma posição por `localDay`), então o item nunca repete de um dia pro outro e só volta
+  depois de passar a lista toda. O `auctionGoods` pega épico e lendário que não é ilegal, não é da
+  loja e não é caixa de relíquia. Com `auctionRelicChance` (sorteio do `dailyRand`), o dia é de
+  relíquia, num rodízio próprio das `relics()`. O lance mínimo é o `auctionOpening`: o `value`, o
+  `luxuryPrice` pros `luxuryGoods` (pra não sair mais barato que a `!luxo`) e `auctionRelicPercent`
+  (hoje 3000%) do `value` na relíquia, alto de propósito: relíquia não foi feita pra ser comprada, então não baixe esse preço pra ela ficar acessível. O leilão só vira linha na tabela `leiloes` (`chat`, `dia`,
+  `item`, `lance`, `licitante`, `fecha_em`) no primeiro lance; antes disso ele é calculado na hora
+  (`todaysAuction`). O `bidAuction` desconta o lance, devolve o do coberto e grava tudo numa
+  transação só, e lance nos últimos `auctionExtension` empurra o `fecha_em` (que começa na
+  meia-noite de BRT), então o leilão de ontem pode seguir aberto uns minutos depois da virada; o
+  `loadAuction` pega sempre a linha aberta mais antiga e só cai no de hoje quando não tem nenhuma.
+  O `runAuctions`, iniciado junto do `runTaxes`, fecha as linhas vencidas com um
+  `DELETE ... RETURNING` (então reiniciar não entrega duas vezes), põe o item na mochila de quem
+  ganhou com qualidade normal e anuncia na conversa (respeitando o modo `economia` e o `allowedIn`
+  de quem ganhou). Ninguém recebe as moedas do lance vencedor: é ralo. Dia sem lance não deixa
+  rastro.
 - O `!processaria` (`processaria.go`) e o `!processar` (`processar.go`) dividem o mesmo tribunal:
   o processo aberto fica em `trialChats` (um por conversa, pros dois comandos) e a enquete do júri
   em `trialPolls`, e depois de 2 minutos o veredito sai pela contagem da enquete.
@@ -186,15 +202,15 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `sturdy: 97` e `grace: 100`. Item com `rarity: relic` (hoje a
   Vara de Iemanjá, a Picareta de Serra Pelada, a Rede do Curupira, o Saco do Homem do Saco, a
   Vela do Negrinho do Pastoreio, a Excalibur e as passivas Muiraquitã, Gorro do Saci, Chapéu de Lampião, Escamas do Boitatá, Coroa
-  de Dom Pedro, Santo Graal e Baralho do Zé Pelintra) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
+  de Dom Pedro, Santo Graal, Baralho do Zé Pelintra, Espelho da Iara e Lamparina do Lobisomem) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
   de caixa com `relicOdds` (hoje o Relicário perdido), que no `roll` troca o prêmio por uma
-  relíquia aleatória nessa chance, e do `!criar` e do `!milagre` de deus; depois passa de mão em
+  relíquia aleatória nessa chance, do `!leilao` nos dias de relíquia e do `!criar` e do `!milagre` de deus; depois passa de mão em
   mão, mas nunca pelo `!furtar` (o `theftChoice` tira as relíquias do sorteio e o furto mirado
   numa relíquia é recusado). A caixa com `relicOdds` também não sai de outra caixa e só cai nas extrações (`loot` das
   `activities`, peso 2). Equipamento com `relicLure` (hoje a Bússola do relicário, que sai de
   caixa comum e, com peso 1, das extrações) multiplica esse peso no `equip` (`lureRelics`) e, com `spent`, é gasto na próxima
   extração. O filtro de metal do Ímã tira a caixa de relíquia do sorteio, mesmo com a bússola. O
-  `randomItemOf` pula tudo que é `unboxable()` (luxo, ilegal, relíquia e
+  `randomItemOf` pula tudo que é `unboxable()` (luxo, ilegal, relíquia, mítico e
   caixa de relíquia). Ferramentas (`gear` com `tool`) não somam entre si: se a pessoa tem mais de
   uma da mesma atividade, o `equip` só aplica a de maior `value` (`bestTool`), e as outras ficam
   paradas na mochila. Os acessórios (`gear` sem `tool`, como isca, capacete e bússola) continuam
@@ -206,14 +222,30 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   quatro extrações: não substitui a ferramenta, só soma sorte e tira a mão vazia do sorteio
   (`alwaysFinds`). As relíquias passivas usam o mesmo `flex` dos itens de luxo (o
   `passives` lê qualquer item com `flex`), mas nunca levam `keep`: o `luxuryGoods` põe na `!luxo`
-  todo épico ou acima com `keep` que não é da loja.
+  todo épico ou acima com `keep` que não é da loja. A Lamparina do Lobisomem é a única que depende
+  da hora: o `apply` dela só mexe na profissão quando o `werewolfHour` (0h às 6h em
+  `brazilTime`) dá verdadeiro, e aí soma em quase tudo (crimes, com o `killChance` liberando o
+  `!matar` pra qualquer um, proteção, fuga, ganho e espera do `!trabalhar`, `haste`, achados,
+  `!daily`, poupança, cassino, caixas, refém e `!acoes`). Como o `professionOf` monta a profissão
+  a cada comando, o efeito liga e desliga sozinho, sem estado guardado.
+- Mítico é outra raridade própria (`mythic`, entre a `legendary` e a `relic`): são itens de
+  extração que só servem pra vender (sem `use`, sem `keep`, sem efeito), dois por atividade, com
+  peso 1 no `loot`. Eles só saem com relíquia: o `equip` tira os míticos do `loot` quando nenhum
+  item equipado naquela extração é relíquia, então a ferramenta relíquia da atividade (ou o Saco
+  do Homem do Saco) e a Vela do Negrinho do Pastoreio liberam eles, e o `source` da atividade
+  mostra quais relíquias liberam no "Onde conseguir". São `unboxable()`, então não saem de caixa
+  nem de baú, mas têm qualidade e podem ser furtados. Na venda pro mercado, o `marketPercentOf`
+  paga pelo menos `mythicSalePercent` (hoje 90%) por eles, ou o `salePercent` da profissão se for
+  maior; ele é aplicado dentro do `marketPayoutOf` e do `marketPayout`, então vale no `!vender`
+  (todas as formas), no valor de mercado da `!mochila` e no `!item`.
+  O `!vender inuteis` vende mítico junto com o resto.
 - As ferramentas de extração que não são relíquia (rara, épica e lendária de `!pescar`,
-  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje **100 minutos**, contando o que a
+  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje **135 minutos**, contando o que a
   pessoa recebe vendendo no `!vender`, não o valor cheio dos itens. O tempo é o `value` da
   ferramenta dividido pelo líquido por hora: o valor médio do melhor item entre `luck + 1`
   sorteios do `loot` montado pelo `equip` (item `gradable()` vezes a qualidade média da melhor de
-  `grade + 1` qualidades), vezes `marketSalePercent` (sem o `salePercent` de
-  profissão), menos `breaks` vezes o `value` cheio da ferramenta (a reposição sai pelo preço da
+  `grade + 1` qualidades), vezes o `marketPercentOf` do item (o `marketSalePercent`, ou o
+  `mythicSalePercent` nos míticos, sem o `salePercent` de profissão), menos `breaks` vezes o `value` cheio da ferramenta (a reposição sai pelo preço da
   loja), vezes os usos por hora da espera. O ajuste é nos atributos do `gear` (`luck`,
   `fewerJunk`, `moreRare`), não no preço nem na espera: o `faster` é o mesmo pra toda ferramenta
   de extração da mesma raridade, hoje 0 na rara (10 minutos, igual à base), 40 na épica (6), 50
@@ -224,21 +256,31 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   da mina vale mais, as picaretas têm um `luck` a menos que a vara e a rede da mesma raridade.
   As relíquias de extração que fazem o papel da ferramenta (Vara de Iemanjá, Picareta de Serra
   Pelada, Rede do Curupira e o Saco do Homem do Saco, que é acessório porque o `!vasculhar` não
-  tem ferramenta base) seguem a mesma conta com outro tempo, hoje **45 minutos**, usando o `value`
-  delas como preço; como nunca quebram, não têm custo de quebra. A Vela do Negrinho do Pastoreio
-  fica de fora, porque só soma em cima da ferramenta que a pessoa já tem.
+  tem ferramenta base) seguem a mesma conta com outro tempo, hoje **30 minutos**, usando o `value`
+  delas como preço; como nunca quebram, não têm custo de quebra. Os míticos entram nessa conta
+  (só elas acham), então mexer em mítico também pede recalibrar as relíquias de extração. A Vela
+  do Negrinho do Pastoreio fica de fora, porque só soma em cima da ferramenta que a pessoa já tem.
 - O tipo de cada item (`itemCategories` em `itens.go`) não é um campo: é a primeira regra da lista
   que bate com os campos do item (`pet`, `arms`, `heist`, `gift`, o loot das `activities`...), e o
-  que não bate em nada vira `Raridades`. O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
+  que não bate em nada vira `Raridades`. O `Contrabando` pega o ilegal que não é arma nem droga, e
+  o `Vantagens` pega os itens com `flex` que não são relíquia, luxo nem ilegais. O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
   agrupam por ele (`categoryGroups`), com a raridade na bolinha da linha. Item novo cai no tipo
   sozinho; tipo novo é só entrar na lista, na posição certa, porque a ordem decide o empate.
   O `!vender tipo <tipo>` (ou `categoria`) vende tudo o que a pessoa tem daquele tipo, menos os
   ilegais, pelo mesmo `sellBatch` do `!vender #12`. A palavra `tipo` é obrigatória porque vários
   nomes de tipo já acham item sozinhos (`!vender pesca` vende a Vara de pesca).
-  O `!vender inuteis` (ou `inutil`, `sobras`) vende, pelo mesmo `sellBatch`, tudo o que não tem
-  efeito (`uselessSales`): item sem `perk()` (o "Pra que serve" do `!item`) e sem `gift`. Lendário
-  e relíquia sem efeito ficam na mochila e aparecem no "Ficou de fora". Efeito novo que não passe
-  pelo `perk()` precisa entrar nessa checagem, senão o item vira "inútil" e é vendido.
+  As vendas em lote de uma palavra só ficam no mapa do `parseBulkSale`, cada uma com o filtro
+  (`pick`) e a dica, e todas passam pelo mesmo `sellBatch` do `!vender #12`:
+  - `!vender inuteis` (ou `inutil`, `sobras`): tudo o que não tem `perk()` (o "Pra que serve" do
+    `!item`) e não tem `gift`, de qualquer raridade.
+  - `!vender bugigangas` (ou `bugiganga`, `tralhas`): tudo o que não tem `effectPerk()`, que é o
+    `perk()` sem a parte do `usePerk()` (o `!usar` que só manda texto, com ou sem `keep`). Então
+    entram também comida, presente e colecionável. Os bichinhos (`pet`) ficam de fora.
+  - `!vender duplicados` (ou `duplicadas`, `repetidos`, `repetidas`): `quantity - 1` de cada item.
+    Como o `takeGrades` tira da pior qualidade pra melhor, quem fica na mochila é o de melhor
+    qualidade.
+  Os ilegais nunca entram. Efeito novo precisa ir pro `effectPerk()`, e não pro `usePerk()`,
+  senão o item vira bugiganga (ou inútil) e é vendido.
 - O número de cada item (`#12`) é a posição dele no `catalog` (`item.number()`/`itemByNumber`), não
   vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
   todos com `#`, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
@@ -261,10 +303,9 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   O `loadInventory` junta as linhas numa `stack` por item, com as qualidades em `grades`, então o
   resto do código continua vendo um item só; a `!mochila` mostra uma linha por qualidade. O
   `takeItems`/`takeGrades` sempre tira da pior qualidade pra melhor, e quem passa item de uma
-  pessoa pra outra (`!dar`, `!vender @pessoa`, `!furtar`, `!leilao`) usa o `moveItems` ou o
+  pessoa pra outra (`!dar`, `!vender @pessoa`, `!furtar`) usa o `moveItems` ou o
   `addGrades` pra levar a mesma qualidade junto. O `sellItems` calcula o pagamento dentro da
-  transação, com as qualidades que saíram de fato (`marketSale.percent`, não um valor pronto), e
-  o `!leilao` guarda as qualidades no save da rodada (`Grades`). Valor da mochila usa
+  transação, com as qualidades que saíram de fato (`marketSale.percent`, não um valor pronto). Valor da mochila usa
   `stack.worth()`, nunca `quantity * value`.
 - As profissões também vivem em código (`professions` em `profissoes.go`, separadas por área) e
   só o `name` vai pra coluna `profissao` da `carteiras`. Nunca renomeie um `name` existente: quem
@@ -315,7 +356,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   (coluna `prisao_em`). A saída da cadeia fica em `preso_ate` na `carteiras`. Toda ida pra cadeia
   (`!prender`, `!denunciar`, X-9, pego no `!matar`, no `!sequestrar` e no `!assalto`) cobra uma
   multa de `fineMinPercent` a `fineMaxPercent` por cento do saldo e corta `arrestEaseCut` por cento da espera do `!fugir` que faltava (`lockUp`,
-  via `easeEscape`), e as moedas somem; a `!fianca` é outra coisa, é o preço de sair antes. Caminho novo que mande alguém pra
+  via `easeEscape`), e as moedas somem, menos no `!prender`, em que o `arrest` (com
+  `copKeepsFine`) credita a multa em quem mandou prender; a `!fianca` é outra coisa, é o preço de sair antes. Caminho novo que mande alguém pra
   cadeia precisa chamar o `lockUp` também. Comando com
   `barredInJail` no `commands()` é barrado no `handleMessage` enquanto quem mandou tá preso ou em
   cativeiro (hoje `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roubar`, `!furtar`,
@@ -333,8 +375,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
     chances da profissão de quem ajuda e a espera `fuga_em` dela; quem tá preso ou em cativeiro
     não ajuda ninguém. Na cadeia, dar certo zera o `preso_ate` e marca o `crime_em` dos dois
     (`bustOut`); dar errado marca o `crime_em` de quem ajudou e tem `rescueCaught` de chance de ele
-    ir preso na hora, por `baseJail` ajustado pelo `jailFactor`, com `lockUp` (zero pra quem é
-    `untouchable()`). No cativeiro, dar certo apaga a linha de `sequestros` e falhar não tem castigo.
+    ir preso na hora, por `baseJail` ajustado pelo `jailFactor`, com `lockUp` (zero pra quem
+    `slipsAway()`). No cativeiro, dar certo apaga a linha de `sequestros` e falhar não tem castigo.
 - O `!libertar` (`libertar.go`) é o `!fugir` feito por outra pessoa: só funciona pra profissão
   com `releaseChance` (juiz, advogado, delegado), em quem tá preso ou em cativeiro (a cadeia vem
   primeiro), uma tentativa a cada `releaseCooldown` (coluna `libertacao_em`). Dar certo zera o
@@ -363,8 +405,10 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
 - O `!matar` (`matar.go`) só funciona pra profissão com `killChance` (bandido, açougueiro,
   assaltante de banco, sequestrador e matador de aluguel). A chance é o `killChance` menos o
   `guard` da vítima, e a espera é `killCooldown` (coluna `assassinato_em`). A tentativa marca o
-  `crime_em`, então dá pra `!prender` e `!denunciar`. Se der certo, a vítima ganha `morto_ate`
-  na `carteiras` por `deathHold` e solta o refém que tiver (`freeHostage`); enquanto tá morta, o
+  `crime_em`, então dá pra `!prender` e `!denunciar`. Se ia dar certo e a vítima tem o Colete à
+  prova de balas (`vestItemID`, ilegal), o `kill` gasta um colete (`spendItem`) e ela não morre,
+  menos contra deus (`killOdds.pierce`). Se der certo, a vítima morre pelo `die` (`saude.go`,
+  veja a saúde abaixo); enquanto tá morta, o
   `handleMessage` barra qualquer comando da categoria de economia (`holdIfDead`), não só os com
   `barredInJail`. Se der errado, tem `killCaughtChance` de ir preso na hora (mais
   `copVictimCaught` se a vítima tem `jailTime`), por `baseJail` ajustado pelo `jailFactor`.
@@ -373,11 +417,32 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   (botar de novo soma). Quando o `!matar` dá certo, o `kill` chama o `claimBounty` na mesma
   transação: soma tudo que tem na cabeça da vítima, apaga as linhas e credita no matador, então
   vale também pra cobrança do `!agiota` e pro deus. A `!recompensa retirar @pessoa` devolve só a
-  parte de quem mandou. Nenhum outro jeito de morrer (overdose) paga a recompensa.
+  parte de quem mandou. Nenhum outro jeito de morrer (overdose, saúde zerada) paga a recompensa.
 - O `!reviver` (`reviver.go`) tira a morte antes do prazo: só funciona pra profissão com
   `reviveChance` (necromante) ou pro presidente (`presidentRevive` mínimo), em quem tem `morto_ate`
   no futuro, uma tentativa a cada `reviveCooldown` (coluna `ressurreicao_em`). Dar certo zera o
   `morto_ate`; falhar só gasta a espera.
+- Toda morte passa pelo `die` (`saude.go`): grava `morto_ate` por `deathHold`, volta a saúde pra
+  `maxHealth`, solta o refém que a pessoa tiver (`freeHostage`) e o enterro queima de
+  `deathLossMinPercent` a `deathLossMaxPercent` por cento do saldo (`burnBalance`, sem piso, pra
+  não zerar quem tem pouco), e as moedas somem. Hoje chamam ele o `kill` do `!matar`, a overdose do
+  `takeDrug` e o `hurt` da saúde zerada. Caminho novo de morte usa o `die` e mostra o `funeralText`.
+- A saúde (`saude.go`) fica nas colunas `saude`/`saude_em` da `carteiras`: vale o número guardado
+  mais 1 ponto a cada `healthRegenEvery` desde o `saude_em`, até `maxHealth`, calculado na leitura
+  (`readHealth`), sem nada rodando em segundo plano. Quem muda a saúde grava os dois juntos
+  (`setHealth`). O `!trabalhar` das profissões com `hazard` (as perigosas de obra, transporte,
+  cozinha, campo, polícia, crime...) e as quatro extrações (o `hazard` de cada `activity`)
+  sorteiam um ferimento (`hazard.roll`, dano de `harm/2` a `harm`), e o `hurt` aplica na mesma
+  transação, só quando o comando saiu de fato (com espera pendente ninguém se machuca). A chance
+  cai pela porcentagem de `safety`, até `maxSafety`: no trampo, o `safety` da profissão (o Kit EPI,
+  pelo `flex`); nas extrações, o `safety` do `gear` que cabe nela (capacete, luva de borracha,
+  boia salva-vidas e roupa de apicultor), somado no `equip`. Saúde zerada mata pelo `die`. Item
+  com `heal` (Curativo e Kit de primeiros socorros, tipo `Saúde`) é gasto no `!usar` e cura na
+  hora (`walletStore.heal`, que recusa com a saúde cheia sem gastar), e o `!hospital` de quem tá
+  vivo e machucado (`treat`) enche a saúde cobrando o `hospitalPrice` vezes a fração que falta
+  (`carePrice`). O `!saude` mostra a saúde e a chance de se machucar em cada lugar, já com a
+  proteção. Profissão perigosa nova é só ganhar um `hazard`; os `wounds` entram logo depois do
+  `@pessoa` (tipo "caiu do andaime"), então começam com verbo no passado.
 - O `!assalto` (`assalto.go`) junta uma equipe de `heistSize` pessoas em `heistCrews` (uma por
   conversa, efêmera): quem manda primeiro abre, e se a equipe não fechar em `heistWindow` o
   assalto é cancelado. A espera é só checada ao entrar (`cooldownLeft`) e carimbada pra todo mundo
@@ -396,7 +461,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   pra todo mundo na hora do roubo, junto do `crime_em`. A chance é `robSuccessChance` mais o
   `robBonus` de cada um mais `gangHelp` por pessoa a mais, menos o `guard` da vítima e o toque de
   recolher. O alarme da vítima protege igual ao `!roubar`. Se der certo, a quadrilha leva de
-  `gangLootMin` a `gangLootMax` por cento do saldo da vítima, dividido igual; se der errado, cada
+  `gangLootMin` a `gangLootMax` por cento do saldo da vítima, dividido igual, e a parte de cada um cresce o `robHaul` da profissão dele (hoje só o Chapéu de Lampião, o mesmo que aumenta o que leva no `!roubar`); se der errado, cada
   um paga de 10% a 20% do próprio saldo pra vítima. Ninguém vai preso na hora.
 - A presidência (`presidencia.go`) fica na tabela `presidencias`, uma linha por conversa (`pessoa`/`jid`,
   `mandato_ate`, as cargas de abuso e as colunas dos decretos). O `!votar @pessoa`
@@ -408,7 +473,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   presidente tem imunidade: `!prender` e `!denunciar` recusam com o `immunityText`, a chance de ser
   pego no `!sequestrar` e no `!matar` vira zero, o `jailCrew` do `!assalto` pula ele, o `noSnitch`
   não vale pra ele e o `inaugurate` zera o `preso_ate` de quem toma posse. Caminho novo que mande
-  alguém pra cadeia precisa checar o `untouchable()` da profissão (presidente ou subornado). Tudo some quando o `mandato_ate`
+  alguém pra cadeia precisa checar o `untouchable()` da profissão (presidente ou subornado), ou o
+  `slipsAway()` se for flagrante na hora. Tudo some quando o `mandato_ate`
   passa, porque toda leitura da presidência filtra por ele, menos os decretos depois de uma renúncia
   (`!renunciar`, abaixo).
 - O `!decreto` (`decreto.go`) é só do presidente e lê três tabelas em código, cada decreto com os
@@ -421,7 +487,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   tabelas, e o `inaugurate` zera todas as colunas (`decreeColumns`). O `professionOf` pendura os
   decretos da conversa na profissão (`job.decrees`), então os ganchos leem `job.decrees.level(...)`
   e mostram `job.decrees.note(...)`: `daily`, `juros` (pontos na taxa do `!poupar`), `pena` (no `sentence`, então vale pra toda ida pra cadeia),
-  `extracao` (espera do `!pescar`, `!minerar`, `!vasculhar` e `!catar`) e o toque de recolher (`curfew()`,
+  `extracao` (espera do `!pescar`, `!minerar`, `!vasculhar` e `!catar`, e o intervalo dos `!empregados`) e o toque de recolher (`curfew()`,
   tirado da chance de `!roubar`, `!furtar`, `!sequestrar`, `!matar`, `!assalto` e `!quadrilha`). Quem não lê a
   profissão chama `b.wallets.decrees`: o `trabalho`/`salario` (`workCooldown`/`payFor`), o `pix`
   (taxa de quem recebe no `!transferir`, que vai pro presidente, a não ser que ele esteja
@@ -446,7 +512,10 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   devolve um `wager` com o `boost` da hora da aposta (`prizeBoost`: o `decree` do decreto e o
   `luck` da profissão, o `casinoLuck` do Baralho do Zé Pelintra), que fica guardado na aposta (e no
   save da rodada, em `Boost` e `Luck`) e é aplicado no pagamento pelo `boost.pay`, com o
-  `boost.tag` na resposta, e
+  `boost.tag` na resposta. O `boost` também leva o `rescued`, sorteado ali mesmo com o
+  `rescueOdds` da profissão (hoje só o Baralho, 20%) e salvo em `Rescued`: na derrota, o
+  `boost.rescue` devolve a aposta inteira (no `!crash` e na `!corrida`, quem perdeu recebe pelo
+  `payRescues` no fim da rodada). O `wager` vem também
   com o `levy` da taxa, que o `settleBet` (ou o `holdBet`, nos jogos que seguram a aposta) desconta
   junto da aposta, na mesma transação. Nos jogos que seguram a aposta, a taxa em cima da aposta
   sai na hora e fica guardada na aposta (`heldLevy`, também no save da rodada); se ganhar, o
@@ -481,6 +550,21 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   creditam ninguém, e os textos usam o `pocket()`/`office()` ("pro ralo"). Todo imposto de decreto
   novo monta o `pixLevy` pelo `p.levy(decreto, quem paga...)` e menciona o `levy.payee()`. O
   `!presidente` sem presidente mostra esses decretos que sobraram (`leftoverText`).
+- O `!golpe` (`golpe.go`) tira o presidente na marra. O primeiro `!golpe` abre a conspiração
+  (`coups`, uma por conversa, efêmera e salva com `keepGame`), presa ao presidente da abertura, e
+  quem abriu é o líder (`plotters[0]`). Quem manda `!golpe` entra no golpe e quem manda
+  `!golpe defender` entra na defesa (`coupLoyal`), inclusive o presidente; não dá pra trocar de
+  lado. A abertura carimba a coluna `golpe_em` da `presidencias`, e o próximo golpe contra o mesmo
+  mandato só sai depois de `coupEvery`. Quando a `coupWindow` acaba, o golpe precisa de `coupMin`
+  golpistas (sem esse mínimo se deus tiver no golpe). A chance (`coupAttempt.odds`) é `coupChance`
+  mais `coupHelp` por golpista a mais, menos `coupHelp` por defensor, mais o `crime` da arma de
+  cada golpista, menos o `guard` da arma de cada defensor (`arsenal`), menos o `guard` do
+  presidente e o toque de recolher; deus golpista dá 100% e deus defendendo (ou presidente) dá 0%.
+  Todo golpista leva `crime_em`. Se der certo, o `seize` troca a linha da `presidencias` pro líder
+  com `mandato_ate` de `coupTerm`, `golpista = 1`, `golpe_em` agora e abusos e decretos zerados
+  (o `UPDATE` exige o presidente da abertura ainda no cargo, senão falha com `errCoupVacant`); o
+  presidente derrubado só perde o cargo. Se der errado, os golpistas passam pelo `jailCrew` do
+  `!assalto`. O `inaugurate` zera `golpe_em` e `golpista`.
 - O abuso de poder (`abuseKinds` em `prender.go`) deixa usar um comando mesmo com a espera dele
   pendente. Hoje tem quatro tipos: prisão (`!prender`), trabalho (`!trabalhar`), roubo (`!roubar`) e
   sequestro (`!sequestrar`). Cada `abuseKind` tem a coluna de espera dele na `carteiras` (`abuso_em`,
@@ -495,7 +579,8 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
 - O `!economia resetar intervalos` (dono, em `economia.go`) zera as colunas `*_em` de espera da
   `carteiras` (`resetCooldowns`), da conversa toda ou só de quem foi marcado. Ele também zera
   `preso_ate`, `morto_ate` e `crime_em` e apaga a linha de `sequestros` de quem é refém, então
-  solta da cadeia, da morte e do cativeiro e limpa a ficha. Nunca mexe em saldo, mochila,
+  solta da cadeia, da morte e do cativeiro e limpa a ficha. Também enche a saúde (`saude` e
+  `saude_em`). Nunca mexe em saldo, mochila,
   poupança, empréstimo nem presidência. Coluna de espera nova entra na lista do `resetCooldowns`.
 - Os ralos de dinheiro existem porque a economia só tinha torneira: o dinheiro gasto neles some
   (nunca vai pra ninguém), a não ser quando o texto diz o contrário. Preço de ralo, quando dá, é
@@ -505,14 +590,15 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `taxHour` (BRT), cada conversa com o modo `economia` ligado é marcada na tabela `impostos`
   (`chat`, `dia`) antes de cobrar, então reiniciar não cobra duas vezes. Cobra as faixas marginais
   de `taxBrackets` (`wealthTax`) mais o IPTU do imóvel, limitado ao saldo, e anuncia na conversa
-  (respeitando o `allowedIn` de quem mais pagou). O `!transferir`, a venda do `!vender @pessoa` e o
-  `!leilao` não têm taxa fixa; a única taxa de transferência é a do decreto `pix`.
+  (respeitando o `allowedIn` de quem mais pagou). O `!transferir` e a venda do `!vender @pessoa`
+  não têm taxa fixa; a única taxa de transferência é a do decreto `pix`.
 - Fiança, hospital e resgate (`fianca.go`, `hospital.go`, `resgate.go`) passam pelo `buyExit`: o
   preço sai do saldo de quem tá preso/morto/refém e quem paga pode ser outra pessoa. A saída é um
   `UPDATE`/`DELETE` condicionado ao prazo (`releaseHeld`), e se a pessoa já saiu ele devolve
   `errNotHeld` e a transação desfaz a cobrança. O resgate apaga a linha de `sequestros`, o que
   mela uma venda de refém pendente. O `!hospital` tem `whileDead` no `commands()`, que é o que
-  deixa ele passar pelo `holdIfDead`.
+  deixa ele passar pelo `holdIfDead`; com a pessoa viva, ele não passa pelo `buyExit` e vira o
+  tratamento da saúde (`treat`).
 - O `professionOf` lê tudo de uma vez (`walletStore.standing`) e aplica, depois do
   `presidential()`, o imóvel (`housed`), o segurança do `!seguranca` (`escorted`, coluna
   `seguranca_ate`) e a maldição do `!zoar` (`hexed`). Efeito novo que mude `guard`, ganho ou
@@ -523,18 +609,44 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   presidente e subornado) barra a cadeia como a imunidade do presidente: o `arrestShield` recusa o
   `!prender` e o `!denunciar`, a chance de flagrante no `!sequestrar` e no `!matar` e a batida do
   `!mercadonegro` viram zero e o `jailCrew` do `!assalto` pula a pessoa. O X-9 do `noSnitch`
-  continua valendo, porque quem entrega é a quadrilha. No `!processar`, o `trialBribes` lê a
+  continua valendo, porque quem entrega é a quadrilha. O flagrante na hora (`!sequestrar`, `!matar`,
+  `!fugir @pessoa` e o `jailCrew` do `!assalto`) checa o `slipsAway()`, que junta o `untouchable()`
+  com o `elusive` do Gorro do Saci; o Gorro só escapa do flagrante, não do `!prender`, do
+  `!denunciar` nem da batida do `!mercadonegro`. No `!processar`, o `trialBribes` lê a
   propina dos dois lados na hora da sentença: se só um pagou, o `riggedVerdict` dá a vitória pra
   ele sem olhar a enquete (nem o quórum); se os dois pagaram, o júri decide normalmente.
 - Os imóveis vivem em código (`estates` em `imovel.go`) e só o nível vai pra coluna `imovel` da
   `carteiras`. Sobe um nível por vez, pagando o preço cheio, e cada nível dá `guard`,
-  `dailyBonus` e cobra IPTU (`tax`) no imposto diário. Nunca reordene a lista: o nível é o índice.
+  `dailyBonus`, `payBonus` (porcentagem a mais no `min`/`max` do `!trabalhar`, aplicada no
+  `housed`) e cobra IPTU (`tax`) no imposto diário. Nunca reordene a lista: o nível é o índice.
+  O `staff` de cada nível é o número de vagas de empregado (`!empregados`); sem imóvel, nenhuma.
+- Os empregados (`empregados.go`) são fictícios e vivem em código (`staff`), e só o `id` vai pra
+  coluna `tipo` da tabela `empregados`, uma linha por empregado contratado (cada um com o próprio
+  `coletado_em`, então contratar outro do mesmo tipo não herda as horas dos antigos). Cada tipo
+  faz uma extração (`activity`) sozinho a cada `every`, ajustado pelo decreto `extracao`
+  (`pace`), e guarda até `stock` achados. Nada roda em segundo plano: o `!empregados coletar`
+  calcula as rodadas desde o `coletado_em` (`ready`), cobra o `wage` de cada rodada do saldo e
+  sorteia o `roll()` da atividade nerfada pelo `shift`; as rodadas que o saldo não paga viram
+  greve e se perdem. O `shift` tira do `loot` tudo que é lendário ou acima, `unboxable()` e
+  Bússola do relicário (`relicLure`), e o empregado não usa ferramenta, equipamento nem
+  profissão (sem quebra, sem machucado). O aprendiz puxa a qualidade pra baixo (`gradeLuck`
+  -1) e o veterano escolhe o melhor de dois achados (`luck` 1). O `price` é calibrado pra se
+  pagar em **72 horas** produzindo sem parar (o líquido por rodada, com o `wage` em 30% do que
+  a rodada rende em média na venda), então mexer no `loot` de uma atividade pede recalibrar os
+  empregados dela. Nunca renomeie um `id`: o empregado com o id antigo some.
 - Os títulos (`titulos` em `titulo.go`) são diferentes do `!apelido`: cada um tem um dono só por
   conversa (tabela `titulos`, PK `chat`, `titulo`), e o equipado fica na coluna `titulo` da
   `carteiras`, que aparece no `!saldo` e no `!ricos` (`titleBadge`). Tomar de alguém custa
   `titleStealPercent` do que a pessoa pagou e devolve `titleRefundPercent` pra ela (`dethrone`).
   O `claimTitle` confere se o dono ainda é o mesmo e falha com `errTitleChanged` se mudou. Nunca
-  renomeie um `id`.
+  renomeie um `id`. Cada título dá uma vantagem leve no campo `bonus` (um `flex`), e só o
+  equipado vale: o `standing` lê a coluna `titulo` e o `professionOf` aplica o `titled` antes do
+  `charmed`. A vantagem é de um de três jeitos: um efeito pequeno direto na profissão, uma
+  maldição pra lançar (`titleCurse`, que soma na `faith` e pega com pelo menos `titleHexChance`)
+  ou um tipo de abuso de poder (`titleAbuse`, que soma no `abuses`). O `castersOf` também lista
+  os títulos. Título não dá bênção: como dá pra lançar em si mesmo, a bênção vira um efeito
+  permanente bem mais forte que o resto. Mantenha as vantagens fracas e crescendo com o preço
+  (compare com os itens de luxo que dão o mesmo efeito), porque o título passa de mão em mão.
 - A loja de luxo (`luxo.go`) sorteia `luxuryStockSize` itens por dia e conversa (semente do dia
   em BRT e do chat) entre os `luxuryGoods`: os itens com `luxury` e os épicos/lendários com
   `keep` que a loja comum não vende. O preço é o `value` vezes `luxuryMarkup`, e o `!comprar`
@@ -552,10 +664,23 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
     `doubling()`, que devolve zero com o `noDouble` (a maldição Azar), seja qual for a ordem em que
     os encantos foram aplicados. Fonte nova de dobro usa `max`, nunca `+=`.
 - O `!mercadonegro` (`mercadonegro.go`) vende os itens com `illegal` do `catalog`: armas (campo
-  `arms`) e drogas (campo `high`). O estoque do dia sai do `dailyRand` (o mesmo sorteio da
+  `arms`), drogas (campo `high`) e o contrabando (o resto, como a Balança adulterada e o Dado
+  viciado, que valem pelo `flex`, o Colete à prova de balas e o Alvará de soltura falso).
+  O `!usar` do alvará (`alvara.go`) tira da cadeia quem usou ou quem foi marcado, pelo `releaseHeld`
+  da fiança, e marca o `crime_em` de quem usou; com chance `forgeryCaught`, o carcereiro percebe e
+  a pena aumenta `escapePenalty`. Nos dois casos o alvará é gasto. O estoque do dia sai do `dailyRand` (o mesmo sorteio da
   `!luxo`, com outro sal), e cada item tem um preço do dia entre `blackMarketMinPercent` e
   `blackMarketMaxPercent` do `value`. O receptador (`!mercadonegro vender`) paga
-  `blackMarketBuyback` por cento desse preço, e o `!vender` comum recusa item ilegal. Toda
+  `blackMarketBuyback` por cento desse preço, e o `!vender` comum recusa item ilegal. Além do estoque
+  do dia, a muamba (`hotGear`: ferramenta lendária com `tool` e equipamento com `relicLure`, hoje as
+  três ferramentas lendárias de extração e a Bússola do relicário) chega pelo `hotGearArrivals`. As
+  ferramentas (`hotTool`) dividem um sorteio só: com `hotToolChance` vem uma delas, sorteada entre
+  todas, então nunca aparecem duas no mesmo dia. O resto da muamba tem `hotGearChance` de chegar,
+  cada item num sorteio próprio do `dailyRand`. Só tem uma de cada por dia e conversa: o
+  `claimHotGear` grava a compra na tabela `muambas` (`chat`, `dia`, `item`, `comprador`) na mesma
+  transação da cobrança e falha com `errSoldOut` se alguém já levou; batida também conta como
+  vendida, porque a mercadoria se perde. Ela não é ilegal: não é apreendida, o receptador
+  não compra e a revenda é no `!vender`. Toda
   negociação passa pelo `walletStore.smuggle`: tira o que a pessoa dá, marca o `crime_em` e
   entrega a mercadoria, ou, com chance `raidOdds()` (zero pro presidente e pro deus), dá batida
   (`jailSmuggler`): cadeia por `baseJail` ajustado, `lockUp`, apreensão e solta o refém. Item
@@ -567,13 +692,28 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   - A droga é gasta no `!usar` (`takeDrug`) e guarda o efeito nas colunas `droga`/`droga_ate` da
     `carteiras`; o `standing` só devolve a droga enquanto o `droga_ate` não passou, e o `drugged`
     aplica o `high` na profissão. Só um efeito vale por vez: usar outra troca o efeito e soma
-    `drugMixOverdose` à chance de overdose, que mata por `deathHold` (`morto_ate`) e solta o refém.
+    `drugMixOverdose` à chance de overdose, que mata pelo `die`.
   - O `walletStore.arrest` (`!prender` e `!denunciar`) apreende tudo o que é ilegal da mochila de
     quem vai preso (`seizeContraband`), e a batida também. Os outros caminhos de cadeia não
     apreendem.
 - Os bichinhos do `!petshop` (`petshop.go`) são itens normais do `catalog` com `shop` e `pet`: o
   `!loja` pula eles, o `!comprar` compra igual (com a mensagem de levar pra casa) e o `sources`
   aponta pro `!petshop` (`item.store()`). Bicho novo é só entrar no `catalog` com `pet: true`.
+- Item com `shop` e `rotating` é oferta do dia (`rotatingStock` em `loja.go`): a `!loja` tira ele da
+  lista fixa e mostra só os `rotatingShopSize` sorteados do dia na seção "⏳ Só hoje" (o
+  `dailyRand` com o sal `loja`, trocando à meia-noite de BRT), e o `!comprar` recusa quando ele não
+  tá no sorteio de hoje. Uma das vagas é sempre de ferramenta de extração (`featuredTool`, hoje as
+  três épicas: Vara de titânio, Picareta de nióbio e Rede de náilon), em rodízio pelo dia
+  (`localDay`), então cada uma volta em até 3 dias; as outras vagas são sorteadas e podem trazer
+  outra ferramenta de bônus. Fora isso é item de loja normal: sai de caixa, paga o decreto `loja` e
+  tem o desconto da profissão. Item de loja com `days` (dias da semana, em BRT) só aparece no "Só
+  hoje" nesses dias (`weekdayStock`), fora das vagas sorteadas, e o `!comprar` recusa nos outros
+  (`onSale`); hoje só a Tele Sena, aos domingos.
+- O `resets` (zerar esperas no `!usar`) sempre vem com um `limit` (`limiter` em `itens.go`), que é
+  a espera própria entre usos e os textos dela: a `caffeine` (coluna `cafeina_em`) do café, do
+  energético e do chimarrão, e o `disguise` (coluna `disfarce_em`) do Kit disfarce, que zera o
+  `!roubar`, o `!furtar` e o `!sequestrar`. Item novo de zerar espera escolhe um dos dois ou cria
+  outro `limiter`, com a coluna numa migração e no `resetCooldowns`.
 - As obras do `!doar` (`doar.go`) seguem `publicWorks` em ordem por conversa (`obras` guarda o
   nível e o arrecadado, `obras_doacoes` quanto cada um deu em cada obra). Depois da última vêm
   monumentos com a meta dobrando (`workAt`). Doação que passa da meta segue pra próxima, e a obra
@@ -604,6 +744,31 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
     leva dois `%s` (quem joga e o alvo). Todo item com `bless` ou `hex` que não é de luxo cai no
     tipo `Bênçãos e maldições`, e o `!abencoar`/`!amaldicoar` sem marcar ninguém mostram os itens
     de cada encanto (`itemsCarrying`).
+  - O Espelho da Iara (relíquia, `mirrorItem`) liga o `mirror` da profissão pelo `flex`: o `canCast`
+    deixa lançar qualquer bênção ou maldição (com a espera do `charmCooldown` normal) e o `hexOdds`
+    fica com o maior entre a `hexChance` da profissão e o `mirrorHexChance`. Ele também devolve
+    maldição: quando uma praga pega em quem tem o espelho na mochila, o `landCharm` (via
+    `bouncesOffMirror`, que lê a mochila na mesma transação) joga ela em quem lançou, tanto no
+    `!amaldicoar` quanto no item com `hex`. Não devolve a praga que a pessoa joga em si mesma, a que
+    volta pelo `hexBackfire` nem a do deus (`pierce`), e só devolve uma vez (espelho contra espelho
+    não fica rebatendo).
+  - Dois encantos não têm `apply` e agem no próximo ganho de dinheiro: a maldição `Dízimo` (do
+    pastor e da bruxa), com `toll` (`tithePercent`), e a bênção `Multiplicação` (do padre e do
+    pastor), com `boon` (`boonPercent`) e `boonCap`. O `grantCharm` grava esses campos nas colunas
+    `parte`, `bonus` e `teto` de `encantos`, e quem age é o trigger `encantos_no_ganho` da
+    `carteiras` (migração `00074`), não o Go: qualquer `UPDATE` que suba o saldo de quem tem um
+    desses encantos passa a `parte` do que entrou pro `autor` e credita o `bonus` (limitado ao
+    `teto`) em moedas novas, tudo calculado em cima do ganho original, na mesma transação. Depois
+    ele apaga os encantos usados e grava um aviso por encanto em `encantos_avisos`. Por isso vale em
+    todo caminho de dinheiro sem gancho nenhum. Um ganho que daria valor zero não gasta o encanto, e
+    os créditos do próprio trigger não disparam outro (o SQLite roda sem `recursive_triggers`).
+    Encanto novo desse tipo é só usar os mesmos campos; não crie outro trigger no `saldo`, senão um
+    dispara o outro. O `handleMessage` chama o `announcePayouts` (`ganhos.go`, com `defer`) em toda
+    mensagem de conversa liberada, que apaga os avisos da conversa e manda no grupo, então o que
+    cair no `runLottery` ou no `runTaxes` só é avisado na próxima mensagem. Quando a praga volta
+    (`hexBackfire` ou espelho), o `landCharm` grava o alvo original como `autor`, então quem jogou
+    paga pra ele; o Dízimo em si mesmo (`autor = alvo`) é ignorado pelo trigger. O `purges()` é só
+    a `purificacao`.
 - O `mensagens.db` guarda no máximo 2 anos ou 1 milhão de mensagens (`mensagens.go`), com poda
   periódica.
 - O `!retrospectiva`, o `!horario` e o `!primeiramsg` leem só o `mensagens.db` e o `risadas`, sem

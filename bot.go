@@ -46,7 +46,6 @@ type bot struct {
 	mentiraChats     sync.Map
 	mentiraPolls     sync.Map
 	bandeiraRecent   sync.Map
-	auctions         sync.Map
 	welcomeBatches   sync.Map
 	trialChats       sync.Map
 	trialPolls       sync.Map
@@ -55,6 +54,7 @@ type bot struct {
 	hostageSales     sync.Map
 	elections        sync.Map
 	impeachments     sync.Map
+	coups            sync.Map
 	messages         *messageStore
 	nicknames        *labelStore
 	names            *labelStore
@@ -702,7 +702,7 @@ func (b *bot) commands() []botCommand {
 			name:     "trabalhar",
 			aliases:  []string{"trabalho", "work"},
 			category: economia,
-			help:     []usage{{"!trabalhar", "faz um trampo da sua profissão e ganha moedas 💼 Quanto ganha, de quanto em quanto tempo e o que pode acontecer no meio (pagar em dobro, achar item, dar ruim...) depende da profissão (veja !profissao)"}},
+			help:     []usage{{"!trabalhar", "faz um trampo da sua profissão e ganha moedas 💼 Quanto ganha, de quanto em quanto tempo e o que pode acontecer no meio (pagar em dobro, achar item, dar ruim...) depende da profissão (veja !profissao). Algumas profissões são perigosas e dá pra se machucar no trampo: veja o risco da sua no !saude"}},
 			run:      b.trabalhar,
 		},
 		{
@@ -863,7 +863,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"presidencia", "eleicao", "mandato"},
 			category: economia,
 			help: []usage{
-				{"!presidente", "mostra quem é o presidente da conversa, quanto falta do mandato, os abusos de poder que sobram e os decretos em vigor 🏛️ Se tiver eleição ou impeachment rolando, mostra a apuração parcial"},
+				{"!presidente", "mostra quem é o presidente da conversa, quanto falta do mandato, os abusos de poder que sobram e os decretos em vigor 🏛️ Se tiver eleição, impeachment ou golpe rolando, mostra como tá"},
 			},
 			run: b.presidente,
 		},
@@ -885,6 +885,17 @@ func (b *bot) commands() []botCommand {
 				{"!impeachment nao", "vota contra o impeachment (sem nada, ou com !impeachment sim, é a favor)"},
 			},
 			run: b.impeachment,
+		},
+		{
+			name:     "golpe",
+			aliases:  []string{"golpedeestado", "conspirar"},
+			category: economia,
+			help: []usage{
+				{"!golpe", fmt.Sprintf("trama derrubar o presidente na marra 🪖 O primeiro abre a conspiração e quem quiser entra mandando !golpe em até %s. Precisa de pelo menos %d golpistas: começa com %d%% de chance, cada golpista a mais soma %d%%, arma na mochila ajuda e a proteção do presidente atrapalha. Se der certo, quem abriu vira presidente por %s e os decretos caem; se der errado, quem não escapar vai preso. Dá pra tentar um golpe a cada %s por mandato. Com deus no golpe, não tem como dar errado", formatWait(coupWindow), coupMin, percent(coupChance), percent(coupHelp), formatWait(coupTerm), formatWait(coupEvery))},
+				{"!golpe defender", fmt.Sprintf("entra do lado do governo (o presidente também pode): cada defensor tira %d%% da chance do golpe, e arma na mochila tira mais. Com deus defendendo, o golpe não passa", percent(coupHelp))},
+			},
+			run:          b.golpe,
+			barredInJail: true,
 		},
 		{
 			name:     "renunciar",
@@ -920,7 +931,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"assassinar", "apagar"},
 			category: economia,
 			help: []usage{
-				{"!matar @pessoa", fmt.Sprintf("tenta apagar a pessoa marcada 🔪 Só algumas profissões matam, cada uma com a sua chance: %s, e a proteção da vítima tira um pouco. Se der certo ela fica %s morta, sem poder usar nenhum comando de economia (a não ser que alguém consiga !reviver), e se tiver um refém no cativeiro ele fica livre. Se tiver !recompensa na cabeça dela, ela é toda sua. Se der errado você tem %d%% de chance de ir preso na hora por %s (bem mais se a vítima for da polícia, e a profissão muda o tempo). Matar ou tentar é crime: a polícia pode !prender e qualquer um pode !denunciar. Dá pra tentar a cada %s. Quem emprestou moedas com o !agiota pode matar quem passou do prazo sem pagar, mesmo sem ser dessas profissões, com pelo menos %d%% de chance, sem ser crime e sem ir preso", killingProfessions(), formatWait(deathHold), percent(killCaughtChance), formatWait(baseJail), formatWait(killCooldown.every), percent(debtKillChance))},
+				{"!matar @pessoa", fmt.Sprintf("tenta apagar a pessoa marcada 🔪 Só algumas profissões matam, cada uma com a sua chance: %s, e a proteção da vítima tira um pouco. Se der certo ela fica %s morta, sem poder usar nenhum comando de economia (a não ser que alguém consiga !reviver), o enterro leva um pedaço do saldo dela, e se tiver um refém no cativeiro ele fica livre. Se tiver !recompensa na cabeça dela, ela é toda sua. Se der errado você tem %d%% de chance de ir preso na hora por %s (bem mais se a vítima for da polícia, e a profissão muda o tempo). Matar ou tentar é crime: a polícia pode !prender e qualquer um pode !denunciar. Dá pra tentar a cada %s. Quem emprestou moedas com o !agiota pode matar quem passou do prazo sem pagar, mesmo sem ser dessas profissões, com pelo menos %d%% de chance, sem ser crime e sem ir preso", killingProfessions(), formatWait(deathHold), percent(killCaughtChance), formatWait(baseJail), formatWait(killCooldown.every), percent(debtKillChance))},
 			},
 			run:          b.matar,
 			barredInJail: true,
@@ -952,7 +963,7 @@ func (b *bot) commands() []botCommand {
 			category: economia,
 			help: []usage{
 				{"!abencoar", "mostra todas as bênçãos, quem pode dar cada uma e as que tão em você agora 🙏"},
-				{"!abencoar @pessoa <bênção>", fmt.Sprintf("dá uma bênção pra pessoa por um tempo: mais ganho, mais proteção, mais sorte, mais chance de fugir... A Purificação tira na hora as maldições dela. Só as profissões de fé e feitiçaria abençoam, cada uma com as suas (%s), e ninguém se abençoa sozinho, a não ser gastando um item de bênção no !usar (veja no !item encantos). Dá pra lançar uma bênção ou maldição a cada %s", mysticProfessions(), formatWait(charmCooldown.every))},
+				{"!abencoar @pessoa <bênção>", fmt.Sprintf("dá uma bênção pra pessoa por um tempo: mais ganho, mais proteção, mais sorte, mais chance de fugir... A Purificação tira na hora as maldições dela. Só as profissões de fé e feitiçaria abençoam, cada uma com as suas (%s), e ninguém se abençoa sozinho, a não ser gastando um item de bênção no !usar (veja no !item encantos). Quem tem o %s (relíquia) lança qualquer bênção ou maldição. Dá pra lançar uma bênção ou maldição a cada %s", mysticProfessions(), mirrorLabel(), formatWait(charmCooldown.every))},
 			},
 			run: b.abencoar,
 		},
@@ -962,7 +973,7 @@ func (b *bot) commands() []botCommand {
 			category: economia,
 			help: []usage{
 				{"!amaldicoar", "mostra todas as maldições, quem pode jogar cada uma e as que tão em você agora 🕯️"},
-				{"!amaldicoar @pessoa <maldição>", fmt.Sprintf("joga uma maldição na pessoa por um tempo: ganha menos, fica mais fácil de roubar, perde sorte no crime, fica mais tempo preso... Cada profissão de fé e feitiçaria tem as suas e a sua chance de pegar, e quando falha a praga tem %d%% de chance de voltar pra quem jogou. Quem não tem a profissão pode jogar com item, no !usar <item> @pessoa (veja no !item encantos), com %d%% de chance de pegar. Quem tá amaldiçoado se livra com uma !abencoar @pessoa purificacao ou com um !usar sal grosso", percent(hexBackfire), percent(itemHexChance))},
+				{"!amaldicoar @pessoa <maldição>", fmt.Sprintf("joga uma maldição na pessoa por um tempo: ganha menos, fica mais fácil de roubar, perde sorte no crime, fica mais tempo preso... Cada profissão de fé e feitiçaria tem as suas e a sua chance de pegar, e quando falha a praga tem %d%% de chance de voltar pra quem jogou. Quem não tem a profissão pode jogar com item, no !usar <item> @pessoa (veja no !item encantos), com %d%% de chance de pegar. Quem tem o %s joga qualquer maldição, e a que jogam nele volta pra quem jogou. Quem tá amaldiçoado se livra com uma !abencoar @pessoa purificacao ou com um !usar sal grosso", percent(hexBackfire), percent(itemHexChance), mirrorLabel())},
 			},
 			run: b.amaldicoar,
 		},
@@ -1103,11 +1114,21 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"medico", "upa"},
 			category: economia,
 			help: []usage{
-				{"!hospital", fmt.Sprintf("paga o hospital particular pra voltar à vida na hora 🏥 Custa %d%% do saldo (mínimo de %s) e dá pra usar mesmo morto(a)", hospitalPercent, coins(hospitalFloor))},
-				{"!hospital @pessoa", "paga o hospital pra trazer outra pessoa de volta"},
+				{"!hospital", fmt.Sprintf("paga o hospital particular 🏥 Morto(a), volta à vida na hora: custa %d%% do saldo (mínimo de %s) e dá pra usar mesmo morto(a). Vivo(a) e machucado(a), sai com a saúde cheia pagando só a parte da saúde que falta (com a saúde em 50, metade do preço)", hospitalPercent, coins(hospitalFloor))},
+				{"!hospital @pessoa", "paga o hospital pra trazer outra pessoa de volta, ou pra cuidar dela se tiver machucada"},
 			},
 			run:       b.hospital,
 			whileDead: true,
+		},
+		{
+			name:     "saude",
+			aliases:  []string{"vida", "hp"},
+			category: economia,
+			help: []usage{
+				{"!saude", fmt.Sprintf("mostra sua saúde ❤️ (de 0 a %d), quanto falta pra sarar e a chance de se machucar no !trabalhar e em cada extração. Recupera sozinho 1 ponto a cada %s, ou na hora com o !hospital ou com !usar curativo. Equipamento de proteção (tem na !loja) diminui a chance de se machucar. Se zerar, morre por %s e o enterro leva de %d%% a %d%% do saldo", maxHealth, formatWait(healthRegenEvery), formatWait(deathHold), deathLossMinPercent, deathLossMaxPercent)},
+				{"!saude @pessoa", "mostra a saúde da pessoa marcada"},
+			},
+			run: b.saude,
 		},
 		{
 			name:     "resgate",
@@ -1144,18 +1165,30 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"imoveis", "casa", "mansao"},
 			category: economia,
 			help: []usage{
-				{"!imovel", fmt.Sprintf("mostra os %d imóveis, da barraca de camping à base em Marte, e onde você mora 🏘️ Cada um dá proteção, bônus no !daily e cobra IPTU todo dia", len(estates))},
+				{"!imovel", fmt.Sprintf("mostra os %d imóveis, da barraca de camping à base em Marte, e onde você mora 🏘️ Cada um dá proteção, bônus no !daily e no !trabalhar e cobra IPTU todo dia", len(estates))},
 				{"!imovel comprar", "se muda pro próximo imóvel da lista. Paga o preço cheio e o antigo vai pro lixo"},
 				{"!imovel @pessoa", "mostra onde a pessoa marcada mora"},
 			},
 			run: b.imovel,
 		},
 		{
+			name:     "empregados",
+			aliases:  []string{"empregado", "funcionarios", "funcionario"},
+			category: economia,
+			help: []usage{
+				{"!empregados", "mostra seus empregados, o que eles já acharam e quem dá pra contratar 👷 Eles fazem o " + extractionCommands() + " sozinhos, mas nunca acham relíquia, mítico nem lendário"},
+				{"!empregados contratar <nome>", "contrata um empregado. Precisa de imóvel, e quanto melhor o imóvel, mais vagas"},
+				{"!empregados coletar", "pega o que os empregados acharam e paga o salário deles. Sem saldo pro salário, eles fazem greve"},
+				{"!empregados demitir <nome>", "manda um empregado embora, e o que ele achou e você não coletou vai junto"},
+			},
+			run: b.empregados,
+		},
+		{
 			name:     "titulo",
 			aliases:  []string{"titulos", "nobreza"},
 			category: economia,
 			help: []usage{
-				{"!titulo", "mostra os títulos de nobreza do grupo, quem tem cada um e quanto custa 👑 Cada título tem um dono só e aparece antes do nome no !saldo e no !ricos"},
+				{"!titulo", "mostra os títulos de nobreza do grupo, quem tem cada um, quanto custa e a vantagem de cada um 👑 Cada título tem um dono só, aparece antes do nome no !saldo e no !ricos e dá uma vantagem leve enquanto tá em uso: um bônus pequeno, uma bênção ou maldição pra lançar ou um abuso de poder"},
 				{"!titulo comprar <nome>", fmt.Sprintf("compra o título, ou toma de quem tem pagando %d%% do que a pessoa pagou (ela recebe %d%% de volta)", titleStealPercent, titleRefundPercent)},
 				{"!titulo usar <nome>", "troca o título que aparece no seu nome (!titulo usar nenhum tira)"},
 			},
@@ -1176,8 +1209,8 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"mn", "submundo", "biqueira"},
 			category: economia,
 			help: []usage{
-				{"!mercadonegro", fmt.Sprintf("mostra as armas e drogas do dia 🕶️ São %d itens por dia, e o preço varia de %d%% a %d%% do valor de tabela. Toda negociação conta como crime pro !prender e pro !denunciar, e tem %d%% de chance de dar batida: cadeia, multa e a mercadoria perdida. Quem é preso ainda perde as armas e drogas da mochila", blackMarketStockSize, blackMarketMinPercent, blackMarketMaxPercent, percent(raidChance))},
-				{"!mercadonegro comprar <item> [quantidade]", "compra uma arma ou droga do estoque do dia (o !comprar também funciona). Arma funciona só de estar na mochila, droga é com !usar"},
+				{"!mercadonegro", fmt.Sprintf("mostra as armas, drogas e o contrabando do dia 🕶️ São %d itens por dia, e o preço varia de %d%% a %d%% do valor de tabela. Às vezes chega muamba também: no máximo uma ferramenta de extração lendária por dia (%d%% de chance de vir uma) e a bússola do relicário com %d%% de chance, mas só vem uma de cada e quem comprar primeiro leva. Toda negociação conta como crime pro !prender e pro !denunciar, e tem %d%% de chance de dar batida: cadeia, multa e a mercadoria perdida. Quem é preso ainda perde tudo o que é ilegal da mochila", blackMarketStockSize, blackMarketMinPercent, blackMarketMaxPercent, percent(hotToolChance), percent(hotGearChance), percent(raidChance))},
+				{"!mercadonegro comprar <item> [quantidade]", "compra uma arma, droga ou muamba do estoque do dia (o !comprar também funciona). Arma funciona só de estar na mochila, droga é com !usar"},
 				{"!mercadonegro vender <item> [quantidade]", fmt.Sprintf("vende arma ou droga pro receptador, a %d%% do preço do dia", blackMarketBuyback)},
 			},
 			run:          b.mercadonegro,
@@ -1233,7 +1266,7 @@ func (b *bot) commands() []botCommand {
 			name:     "loja",
 			aliases:  []string{"shop"},
 			category: economia,
-			help:     []usage{{"!loja", "mostra o que dá pra comprar e quanto custa 🛒"}},
+			help:     []usage{{"!loja", fmt.Sprintf("mostra o que dá pra comprar e quanto custa 🛒 Embaixo vêm as ofertas do dia (⏳ Só hoje): %d itens que mudam todo dia, e cada um só aparece em alguns dias. Um deles é sempre uma ferramenta épica de extração, em rodízio, então cada uma volta em até 3 dias. E a Tele Sena só sai aos domingos", rotatingShopSize)}},
 			run:      b.loja,
 		},
 		{
@@ -1258,10 +1291,12 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"sell"},
 			category: economia,
 			help: []usage{
-				{"!vender <item> [quantidade]", fmt.Sprintf("vende pro mercado na hora, mas ele só paga %d%% do valor 💸 (também aceita tudo)", marketSalePercent)},
+				{"!vender <item> [quantidade]", fmt.Sprintf("vende pro mercado na hora, mas ele só paga %d%% do valor 💸 (item mítico sai por %d%%; também aceita tudo)", marketSalePercent, mythicSalePercent)},
 				{"!vender #<número> [#número...]", "vende tudo o que você tem de cada item pelos números da !mochila, sempre com #, tipo !vender #12 #40 #87"},
 				{"!vender tipo <tipo>", "vende tudo o que você tem de um tipo da !mochila, tipo !vender tipo pesca (os ilegais ficam de fora)"},
-				{"!vender inuteis", "vende tudo da mochila que não tem efeito nenhum (peixe, minério, lixo, inseto...), menos os lendários"},
+				{"!vender inuteis", "vende tudo da mochila que não tem efeito nenhum (peixe, minério, lixo, inseto...), lendários e míticos inclusos"},
+				{"!vender bugigangas", "vende os inúteis e mais o que dá pra !usar mas não faz nada de verdade (comida, presente, Nokia, Tamagotchi...). Os bichinhos ficam"},
+				{"!vender duplicados", "vende tudo que tá repetido e deixa 1 de cada item, sempre o de melhor qualidade"},
 				{"!vender @pessoa <item> <preço>", fmt.Sprintf("oferece o item pra pessoa marcada pelo preço que você quiser, e ela tem %s pra responder com !aceitar ou !recusar 🤝", formatWait(offerWindow))},
 				{"!vender @pessoa <item> <quantidade> <preço>", "vende vários de uma vez, com o preço sendo o total"},
 			},
@@ -1283,11 +1318,9 @@ func (b *bot) commands() []botCommand {
 		},
 		{
 			name:     "leilao",
-			aliases:  []string{"leiloar"},
 			category: economia,
 			help: []usage{
-				{"!leilao <item> [quantidade] [lance mínimo]", fmt.Sprintf("leiloa um item da sua mochila pro grupo por %s 🔨 O item fica preso no leilão até acabar. Sem lance mínimo, ele começa no que o mercado pagaria", formatWait(auctionWindow))},
-				{"!leilao", "mostra o leilão rolando, o lance atual e quanto tempo falta"},
+				{"!leilao", "mostra o leilão do dia 🔨 Todo dia o bot leiloa um item épico ou lendário diferente (e, bem de vez em quando, uma relíquia com lance mínimo salgado), e quem tiver o maior lance à meia-noite leva. As moedas do lance vencedor somem"},
 			},
 			run: b.leilao,
 		},
@@ -1295,7 +1328,7 @@ func (b *bot) commands() []botCommand {
 			name:     "lance",
 			category: economia,
 			help: []usage{
-				{"!lance <valor>", fmt.Sprintf("dá um lance no leilão aberto (!leilao <valor> também funciona). Tem que cobrir o anterior em pelo menos %d%% (mínimo %d moedas), as moedas saem na hora e voltam se alguém cobrir, e lance no último %s prorroga o leilão", auctionStepPercent, auctionMinStep, formatSeconds(auctionExtension))},
+				{"!lance <valor>", fmt.Sprintf("dá um lance no leilão do dia (!leilao <valor> também funciona). Tem que cobrir o anterior em pelo menos %d%% (mínimo %d moedas), as moedas saem na hora e voltam se alguém cobrir, e lance nos últimos %s prorroga o leilão", auctionStepPercent, auctionMinStep, formatWait(auctionExtension))},
 			},
 			run: b.lance,
 		},
@@ -1313,7 +1346,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"abrir", "comer", "beber", "tomar"},
 			category: economia,
 			help: []usage{
-				{"!usar <item>", "usa um item: come, bebe, abre caixa, raspa raspadinha... cada um faz uma coisa (veja no !item <nome>) ✨ Item de bênção (trevo, terço, olho grego...) abençoa quem usa, e item de maldição se joga em alguém, tipo !usar gato preto @pessoa. Dá pra mandar !comer, !beber ou !abrir também"},
+				{"!usar <item>", "usa um item: come, bebe, abre caixa, raspa raspadinha... cada um faz uma coisa (veja no !item <nome>) ✨ Item de bênção (trevo, terço, olho grego...) abençoa quem usa, item de cura (curativo, kit de primeiros socorros) recupera saúde, e item de maldição se joga em alguém, tipo !usar gato preto @pessoa. Dá pra mandar !comer, !beber ou !abrir também"},
 			},
 			run: b.usar,
 		},
@@ -1322,7 +1355,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"pesca", "pescaria"},
 			category: economia,
 			help: []usage{
-				{"!pescar", fmt.Sprintf("joga a linha e pesca um item, de lambari a escama de sereia 🎣 Precisa de vara de pesca (tem na !loja) e dá pra pescar a cada %s", formatWait(fishing.cooldown.every))},
+				{"!pescar", fmt.Sprintf("joga a linha e pesca um item, de lambari a escama de sereia 🎣 Precisa de vara de pesca (tem na !loja) e dá pra pescar a cada %s. Em %s das vezes se machuca (a boia salva-vidas protege)", formatWait(fishing.cooldown.every), oddsText(fishing.hazard.chance))},
 			},
 			run: b.gather(fishing),
 		},
@@ -1331,7 +1364,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"mina", "mineracao"},
 			category: economia,
 			help: []usage{
-				{"!minerar", fmt.Sprintf("desce na mina atrás de minério e pedra preciosa, e com sorte um meteorito ⛏️ Precisa de picareta (tem na !loja) e dá pra minerar a cada %s", formatWait(mining.cooldown.every))},
+				{"!minerar", fmt.Sprintf("desce na mina atrás de minério e pedra preciosa, e com sorte um meteorito ⛏️ Precisa de picareta (tem na !loja) e dá pra minerar a cada %s. Em %s das vezes se machuca (o capacete protege)", formatWait(mining.cooldown.every), oddsText(mining.hazard.chance))},
 			},
 			run: b.gather(mining),
 		},
@@ -1340,7 +1373,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"lixao", "lixo", "garimpar"},
 			category: economia,
 			help: []usage{
-				{"!vasculhar", fmt.Sprintf("revira o lixão atrás de tralha, e às vezes de coisa boa 🗑️ Não precisa de nada e dá pra vasculhar a cada %s", formatWait(scavenging.cooldown.every))},
+				{"!vasculhar", fmt.Sprintf("revira o lixão atrás de tralha, e às vezes de coisa boa 🗑️ Não precisa de nada e dá pra vasculhar a cada %s. Em %s das vezes se machuca (a luva de borracha protege)", formatWait(scavenging.cooldown.every), oddsText(scavenging.hazard.chance))},
 			},
 			run: b.gather(scavenging),
 		},
@@ -1349,7 +1382,7 @@ func (b *bot) commands() []botCommand {
 			aliases:  []string{"cacar", "cacada", "insetos", "borboletas"},
 			category: economia,
 			help: []usage{
-				{"!catar", fmt.Sprintf("sai com a rede atrás de inseto, de pernilongo a fada no pote 🦋 Precisa de rede de insetos (tem na !loja) e dá pra catar a cada %s", formatWait(bugging.cooldown.every))},
+				{"!catar", fmt.Sprintf("sai com a rede atrás de inseto, de pernilongo a fada no pote 🦋 Precisa de rede de insetos (tem na !loja) e dá pra catar a cada %s. Em %s das vezes se machuca (a roupa de apicultor protege)", formatWait(bugging.cooldown.every), oddsText(bugging.hazard.chance))},
 			},
 			run: b.gather(bugging),
 		},
@@ -1746,6 +1779,7 @@ func (b *bot) handleMessage(ctx context.Context, evt *events.Message) {
 	if !allowed {
 		return
 	}
+	defer b.announcePayouts(ctx, evt.Info.Chat.ToNonAD())
 	if err := b.messages.record(ctx, evt); err != nil {
 		b.client.Log.Errorf("guardar mensagem: %v", err)
 	}

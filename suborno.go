@@ -30,6 +30,10 @@ func (p profession) untouchable() bool {
 	return p.president || p.bribed
 }
 
+func (p profession) slipsAway() bool {
+	return p.untouchable() || p.elusive
+}
+
 func bribePrice(balance int64) int64 {
 	return max(bribeFloor, max(balance, 0)*bribePercent/100)
 }

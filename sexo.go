@@ -292,9 +292,17 @@ func joinMentions(people []types.JID) string {
 }
 
 func joinWithAnd(items []string) string {
+	return joinWith(items, " e ")
+}
+
+func joinWithOr(items []string) string {
+	return joinWith(items, " ou ")
+}
+
+func joinWith(items []string, word string) string {
 	last := len(items) - 1
 	if last == 0 {
 		return items[0]
 	}
-	return strings.Join(items[:last], ", ") + " e " + items[last]
+	return strings.Join(items[:last], ", ") + word + items[last]
 }

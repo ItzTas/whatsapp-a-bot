@@ -13,16 +13,67 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const maxPurchase = 100
+const (
+	maxPurchase      = 100
+	rotatingShopSize = 5
+)
+
+func weekdaysText(days []time.Weekday) string {
+	names := map[time.Weekday]string{
+		time.Sunday:    "aos domingos",
+		time.Monday:    "às segundas",
+		time.Tuesday:   "às terças",
+		time.Wednesday: "às quartas",
+		time.Thursday:  "às quintas",
+		time.Friday:    "às sextas",
+		time.Saturday:  "aos sábados",
+	}
+	labels := make([]string, len(days))
+	for i, d := range days {
+		labels[i] = names[d]
+	}
+	return joinWithAnd(labels)
+}
+
+func onSale(it item, now time.Time) bool {
+	return it.days == nil || slices.Contains(it.days, now.In(reminderZone).Weekday())
+}
+
+func weekdayStock(now time.Time) []item {
+	return slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !it.shop || it.days == nil || !onSale(it, now) })
+}
+
+func featuredTool(it item) bool {
+	return it.shop && it.rotating && it.gear != nil && it.gear.tool
+}
+
+func rotatingStock(chat types.JID, now time.Time) []item {
+	tools := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !featuredTool(it) })
+	featured := tools[localDay(now)%int64(len(tools))]
+	pool := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !it.shop || !it.rotating || it.id == featured.id })
+	dailyRand(chat, now, "loja").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+	stock := append([]item{featured}, pool[:min(rotatingShopSize-1, len(pool))]...)
+	slices.SortFunc(stock, compareItems)
+	return stock
+}
 
 func (b *bot) loja(ctx context.Context, evt *events.Message) error {
-	stock := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !it.shop || it.pet })
+	chat := evt.Info.Chat.ToNonAD()
+	now := time.Now()
+	stock := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !it.shop || it.pet || it.rotating || it.days != nil })
 	lines := []string{"🛒 *Loja do grupo*"}
 	lines = append(lines, categoryGroups(stock, func(it item) item { return it }, shopLine)...)
-	lines = append(lines, "",
+	lines = append(lines, "", "⏳ *Só hoje*", "_Essas ofertas mudam todo dia, e cada item só aparece em alguns dias. Comprou, é seu pra sempre. Todo dia tem uma ferramenta épica de extração, em rodízio_")
+	for _, it := range weekdayStock(now) {
+		lines = append(lines, shopLine(it)+" _(só "+weekdaysText(it.days)+")_")
+	}
+	for _, it := range rotatingStock(chat, now) {
+		lines = append(lines, shopLine(it))
+	}
+	lines = append(lines, fmt.Sprintf("_As ofertas trocam em %s_", formatWait(nextRestock(now))), "",
 		"_Compra com !comprar <item>, tipo !comprar vara de pesca ou !comprar todynho 5. Os bichinhos ficam no !petshop_",
 		fmt.Sprintf("_O resto dos itens só sai no !pescar, no !minerar, no !vasculhar, no !catar ou em caixa, as coisas finas ficam na !luxo e o que é proibido, no !mercadonegro. Vendendo pro mercado, ele paga %d%% do valor_", marketSalePercent))
-	return b.sendText(ctx, evt.Info.Chat, strings.Join(lines, "\n"))
+	return b.sendText(ctx, chat, strings.Join(lines, "\n"))
 }
 
 func shopLine(it item) string {
@@ -49,11 +100,17 @@ func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
 	if !it.shop && slices.ContainsFunc(luxuryStock(chat, time.Now()), func(s item) bool { return s.id == it.id }) {
 		return b.buyLuxury(ctx, evt, it, quantity)
 	}
-	if it.illegal && inStock(blackMarketStock(chat, time.Now()))(it) {
+	if !it.shop && inStock(blackMarketStock(chat, time.Now()))(it) {
 		return b.buyContraband(ctx, evt, it, quantity)
 	}
 	if !it.shop {
 		return b.sendText(ctx, chat, fmt.Sprintf("A loja não vende %s. Dá pra conseguir com %s, ou comprando de alguém do grupo", it.label(), joinWithAnd(sources(it))))
+	}
+	if !onSale(it, time.Now()) {
+		return b.sendText(ctx, chat, fmt.Sprintf("📅 %s só sai %s. Volta no dia certo", it.label(), weekdaysText(it.days)))
+	}
+	if it.rotating && !inStock(rotatingStock(chat, time.Now()))(it) {
+		return b.sendText(ctx, chat, fmt.Sprintf("⏳ %s não tá nas ofertas de hoje. Ele some e volta, então fica de olho na !loja", it.label()))
 	}
 	if quantity <= 0 {
 		return b.sendText(ctx, chat, fmt.Sprintf("Diz quantos quer: !comprar %s 3", strings.ToLower(it.name)))

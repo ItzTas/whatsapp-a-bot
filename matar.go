@@ -25,14 +25,17 @@ type killing struct {
 	jailed  bool
 	wait    time.Duration
 	success bool
+	vested  bool
 	jail    time.Duration
 	freed   types.JID
 	fine    int64
 	bounty  int64
+	lost    int64
 }
 
 type killOdds struct {
 	lawful  bool
+	pierce  bool
 	success float64
 	caught  float64
 	jail    time.Duration
@@ -61,8 +64,9 @@ func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 		success: killerJob.killOdds(victimJob),
 		caught:  victimJob.killCaughtOdds(),
 		jail:    profession{jailTime: baseJail}.sentence(killerJob),
+		pierce:  killerJob.divine,
 	}
-	if killerJob.untouchable() {
+	if killerJob.slipsAway() {
 		odds.caught = 0
 	}
 	if owed != nil {
@@ -122,6 +126,13 @@ func killText(k killing, killerJob, victimJob profession, killer, victim types.J
 	if k.success {
 		return deathCaption(k, killer, victim)
 	}
+	if k.vested {
+		text := fmt.Sprintf("🦺 @%s acertou @%s em cheio, mas o colete à prova de balas segurou tudo. O colete ficou destruído, e a vítima saiu só com um roxo", killer.User, victim.User)
+		if k.lawful {
+			return text
+		}
+		return text + fmt.Sprintf("\n🚔 Tentativa de homicídio também é crime: a polícia pode !prender @%s nas próximas %s", killer.User, formatWait(crimeWindow))
+	}
 	text := fmt.Sprintf("🩹 @%s tentou apagar @%s, mas errou feio e a vítima saiu só com um susto", killer.User, victim.User)
 	if k.lawful {
 		return text
@@ -149,6 +160,9 @@ func deathCaption(k killing, killer, victim types.JID) string {
 		fmt.Sprintf(pickOne(scenes), killer.User, victim.User),
 		"",
 		fmt.Sprintf("⚰️ @%s tá morto(a) por %s: até ressuscitar, nada de comando de economia (nem !saldo, !trabalhar ou !daily). Um necromante ou o presidente pode tentar !reviver", victim.User, formatWait(deathHold)),
+	}
+	if funeral := funeralText(victim, k.lost); funeral != "" {
+		lines = append(lines, funeral)
 	}
 	if !k.freed.IsEmpty() {
 		lines = append(lines, fmt.Sprintf("🔓 O refém de @%s aproveitou o velório pra fugir: @%s tá livre!", victim.User, k.freed.User))
@@ -210,17 +224,22 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim a
 				return err
 			}
 		}
-		if k.success = rand.Float64() < odds.success; k.success {
-			_, err := tx.ExecContext(ctx,
-				"UPDATE carteiras SET morto_ate = ? WHERE chat = ? AND pessoa = ?",
-				now.Add(deathHold).Unix(), chat.String(), victim.key,
-			)
+		k.success = rand.Float64() < odds.success
+		if k.success && !odds.pierce {
+			if k.vested, err = spendItem(ctx, tx, chat, victim, vestItemID); err != nil {
+				return err
+			}
+			k.success = !k.vested
+		}
+		if k.vested {
+			return nil
+		}
+		if k.success {
+			d, err := die(ctx, tx, chat, victim, now)
 			if err != nil {
 				return err
 			}
-			if k.freed, err = freeHostage(ctx, tx, chat, victim, now); err != nil {
-				return err
-			}
+			k.freed, k.lost = d.freed, d.lost
 			k.bounty, err = claimBounty(ctx, tx, chat, victim, killer)
 			return err
 		}

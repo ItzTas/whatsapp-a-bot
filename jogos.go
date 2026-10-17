@@ -57,7 +57,6 @@ func (b *bot) gameRestorers() map[string]gameRestorer {
 		"bandeira":       b.restoreBandeira,
 		"emoji":          b.restoreEmoji,
 		"completa":       b.restoreCompleta,
-		auctionKind:      b.restoreAuction,
 		offerKind:        b.restoreOffer,
 		debtRequestKind:  b.restoreDebtRequest,
 		proposalKind:     b.restoreProposal,
@@ -67,6 +66,7 @@ func (b *bot) gameRestorers() map[string]gameRestorer {
 		trialKind:        b.restoreTrial,
 		electionKind:     b.restoreElection,
 		impeachmentKind:  b.restoreImpeachment,
+		coupKind:         b.restoreCoup,
 		impostorGameKind: b.restoreImpostor,
 		jokenpoGameKind:  b.restoreJokenpo,
 		mentiraGameKind:  b.restoreMentira,
@@ -137,11 +137,6 @@ func (s *gameStore) save(ctx context.Context, kind, key string, state any, expir
 
 func (s *gameStore) remove(ctx context.Context, kind, key string) error {
 	_, err := s.db.ExecContext(ctx, "DELETE FROM jogos WHERE tipo = ? AND chave = ?", kind, key)
-	return err
-}
-
-func dropGameTx(ctx context.Context, tx *sql.Tx, kind, key string) error {
-	_, err := tx.ExecContext(ctx, "DELETE FROM jogos WHERE tipo = ? AND chave = ?", kind, key)
 	return err
 }
 

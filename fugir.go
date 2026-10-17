@@ -81,7 +81,7 @@ func (b *bot) helpEscape(ctx context.Context, chat types.JID, job profession, he
 		caught:  rescueCaught,
 		jail:    profession{jailTime: baseJail}.sentence(job),
 	}
-	if job.untouchable() {
+	if job.slipsAway() {
 		odds.caught = 0
 	}
 	r, err := b.wallets.rescue(ctx, chat, helperAcc, friendAcc, odds, time.Now())

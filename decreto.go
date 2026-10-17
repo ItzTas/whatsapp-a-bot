@@ -158,9 +158,9 @@ var (
 	}
 	gatherDecree = percentDecree{
 		names: []string{"extracao", "pescar", "pesca", "minerar", "mineracao", "vasculhar", "catar", "cacar", "insetos", "coleta"}, column: "extracao_pct", lo: -decreeSwing, hi: decreeSwing,
-		raised: "o !pescar, o !minerar, o !vasculhar e o !catar esperam %d%% mais", lowered: "o !pescar, o !minerar, o !vasculhar e o !catar esperam %d%% menos",
-		revoked: "o !pescar, o !minerar, o !vasculhar e o !catar voltam à espera normal",
-		syntax:  "!decreto extracao -30", about: "muda a espera do !pescar, do !minerar, do !vasculhar e do !catar",
+		raised: "o !pescar, o !minerar, o !vasculhar, o !catar e os !empregados esperam %d%% mais", lowered: "o !pescar, o !minerar, o !vasculhar, o !catar e os !empregados esperam %d%% menos",
+		revoked: "o !pescar, o !minerar, o !vasculhar, o !catar e os !empregados voltam à espera normal",
+		syntax:  "!decreto extracao -30", about: "muda a espera do !pescar, do !minerar, do !vasculhar, do !catar e dos !empregados",
 	}
 	casinoDecree = percentDecree{
 		names: []string{"cassino", "premio", "premios"}, column: "cassino_pct", lo: -decreeSwing, hi: decreeSwing, popular: true,
@@ -362,8 +362,43 @@ func (p profession) curfew() float64 {
 const casinoGames = "!apostar, !cassino, !blackjack, !crash, !corrida e !roleta"
 
 type prizeBoost struct {
-	decree int64
-	luck   int64
+	decree  int64
+	luck    int64
+	rescued bool
+}
+
+func (pb prizeBoost) rescue(stake, payout int64) int64 {
+	if !pb.rescued || payout >= stake {
+		return 0
+	}
+	return stake - payout
+}
+
+type rescuedBet struct {
+	acc   account
+	stake int64
+}
+
+func (b *bot) payRescues(ctx context.Context, chat types.JID, game string, bets []rescuedBet) {
+	for _, bet := range bets {
+		if err := b.wallets.payPrize(ctx, chat, bet.acc, bet.stake, prizeLevy{}); err != nil {
+			b.client.Log.Errorf("devolver aposta salva do %s pra %s: %v", game, bet.acc.jid, err)
+		}
+	}
+}
+
+func savedBetNote(pb prizeBoost) string {
+	if !pb.rescued {
+		return ""
+	}
+	return ", mas o Baralho do Zé Pelintra devolveu tudo 🃏"
+}
+
+func savedBetText(saved int64) string {
+	if saved == 0 {
+		return ""
+	}
+	return "\n🃏 Mas o Baralho do Zé Pelintra devolveu " + coins(saved)
 }
 
 func (pb prizeBoost) pay(stake, payout int64) int64 {

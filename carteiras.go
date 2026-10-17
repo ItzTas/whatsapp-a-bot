@@ -50,10 +50,11 @@ type robbery struct {
 }
 
 type workday struct {
-	wait  time.Duration
-	paid  int64
-	tax   int64
-	abuse powerAbuse
+	wait   time.Duration
+	paid   int64
+	tax    int64
+	abuse  powerAbuse
+	injury injury
 }
 
 func (s *walletStore) balance(ctx context.Context, chat types.JID, acc account) (balance int64, rank int, err error) {
@@ -121,7 +122,7 @@ func (s *walletStore) claim(ctx context.Context, chat types.JID, acc account, cd
 	return wait, tax, err
 }
 
-func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd cooldown, abuse abuser, amount int64, find string, levy pixLevy, now time.Time) (w workday, err error) {
+func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd cooldown, abuse abuser, sh shift, levy pixLevy, now time.Time) (w workday, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		var err error
 		if w.wait, w.abuse, err = stampOrAbuse(ctx, tx, chat, acc, cd, abuse, now); err != nil || w.wait > 0 {
@@ -132,16 +133,22 @@ func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd 
 		if err != nil {
 			return err
 		}
-		w.paid = max(amount, -balance)
+		w.paid = max(sh.amount, -balance)
 		w.tax = levy.cut(max(w.paid, 0))
 		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", w.paid-w.tax, chat.String(), acc.key)
 		if err != nil {
 			return err
 		}
-		if err := payLevy(ctx, tx, chat, levy, w.tax); err != nil || find == "" {
+		if err := payLevy(ctx, tx, chat, levy, w.tax); err != nil {
 			return err
 		}
-		return addItems(ctx, tx, chat, acc, find, 1)
+		if sh.found.id != "" {
+			if err := addItems(ctx, tx, chat, acc, sh.found.id, 1); err != nil {
+				return err
+			}
+		}
+		w.injury, err = hurt(ctx, tx, chat, acc, sh.wound, now)
+		return err
 	})
 	return w, err
 }
@@ -154,6 +161,7 @@ type standing struct {
 	bribed     bool
 	cursed     bool
 	drug       string
+	title      string
 }
 
 func (s *walletStore) standing(ctx context.Context, chat types.JID, acc account) (st standing, err error) {
@@ -163,10 +171,11 @@ func (s *walletStore) standing(ctx context.Context, chat types.JID, acc account)
 		        EXISTS (SELECT 1 FROM presidencias p WHERE p.chat = c.chat AND p.pessoa = c.pessoa AND p.mandato_ate > ?),
 		        c.imovel, c.seguranca_ate > ?, c.propina_ate > ?,
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
-		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END
+		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END,
+		        c.titulo
 		 FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?`,
 		now, now, now, curseKind, now, now, chat.String(), acc.key,
-	).Scan(&st.profession, &st.president, &st.estate, &st.guarded, &st.bribed, &st.cursed, &st.drug)
+	).Scan(&st.profession, &st.president, &st.estate, &st.guarded, &st.bribed, &st.cursed, &st.drug, &st.title)
 	if errors.Is(err, sql.ErrNoRows) {
 		return standing{}, nil
 	}

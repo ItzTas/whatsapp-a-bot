@@ -51,12 +51,14 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 		titleID       string
 		job           profession
 		bodyguardLeft time.Duration
+		health        int64
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = b.wallets.balance(gctx, chat, acc); return err })
 	g.Go(func() (err error) { saved, hasSavings, err = b.wallets.savings(gctx, chat, acc); return err })
 	g.Go(func() (err error) { titleID, err = b.wallets.titleOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { job, err = b.professionOf(gctx, chat, acc); return err })
+	g.Go(func() (err error) { health, err = b.wallets.health(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) {
 		bodyguardLeft, err = b.wallets.leftUntil(gctx, chat, acc, "seguranca_ate", time.Now())
 		return err
@@ -77,6 +79,9 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	}
 	if bodyguardLeft > 0 {
 		lines = append(lines, fmt.Sprintf("🕶️ Com segurança particular por mais %s", formatWait(bodyguardLeft)))
+	}
+	if health < maxHealth {
+		lines = append(lines, "🩺 Saúde: "+healthText(health)+" (veja !saude)")
 	}
 	_, err := b.sendMentions(ctx, chat, strings.Join(lines, "\n"), []types.JID{person})
 	return err
@@ -170,8 +175,9 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	stake := bet.stake
 	payout, result := play(stake, rand.Float64() < bet.job.jinx())
 	payout = bet.boost.pay(stake, payout)
-	refund := bet.job.refund(stake, payout)
-	balance, err := b.wallets.settleBet(ctx, chat, acc, stake, payout+refund, bet.levy)
+	saved := bet.boost.rescue(stake, payout)
+	refund := bet.job.refund(stake, payout+saved)
+	balance, err := b.wallets.settleBet(ctx, chat, acc, stake, payout+saved+refund, bet.levy)
 	if errors.Is(err, errNoFunds) {
 		return b.sendText(ctx, chat, stakeChanged)
 	}
@@ -179,7 +185,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 		return fmt.Errorf("pagar aposta: %w", err)
 	}
 	won := max(payout-stake, stake-payout)
-	text := fmt.Sprintf(result, person.User, coins(won)) + bet.boost.tag(stake, payout)
+	text := fmt.Sprintf(result, person.User, coins(won)) + bet.boost.tag(stake, payout) + savedBetText(saved)
 	if refund > 0 {
 		text += fmt.Sprintf("\n🧾 Mas a profissão devolveu %s", coins(refund))
 	}
@@ -211,7 +217,7 @@ func (b *bot) placeBet(ctx context.Context, chat types.JID, acc account, arg, sy
 	}
 	levy := p.levy(betTaxDecree, acc)
 	stake, refusal, err := b.stakeAfterLevy(ctx, chat, acc, arg, syntax, levy.percent)
-	return wager{stake: stake, boost: prizeBoost{decree: p.decrees.level(casinoDecree), luck: job.casinoLuck}, levy: levy, job: job}, refusal, err
+	return wager{stake: stake, boost: prizeBoost{decree: p.decrees.level(casinoDecree), luck: job.casinoLuck, rescued: rand.Float64() < job.rescueOdds}, levy: levy, job: job}, refusal, err
 }
 
 func (b *bot) placeStake(ctx context.Context, chat types.JID, acc account, arg, syntax string) (int64, string, error) {
@@ -257,7 +263,7 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 	chance := clampChance(robSuccessChance + thiefJob.robBonus - victimJob.guard - thiefJob.curfew())
-	r, err := b.wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), time.Now(), robMinVictim, robOutcome(chance))
+	r, err := b.wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
 	if err != nil {
 		return fmt.Errorf("roubar: %w", err)
 	}
@@ -265,10 +271,10 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 	return err
 }
 
-func robOutcome(chance float64) func(thiefBalance, victimBalance int64) (bool, int64) {
+func robOutcome(chance float64, haul int64) func(thiefBalance, victimBalance int64) (bool, int64) {
 	return func(thiefBalance, victimBalance int64) (bool, int64) {
 		if rand.Float64() < chance {
-			return true, victimBalance * (10 + rand.Int64N(21)) / 100
+			return true, min(victimBalance, victimBalance*(10+rand.Int64N(21))*(100+haul)/10_000)
 		}
 		return false, thiefBalance * (10 + rand.Int64N(11)) / 100
 	}
@@ -510,10 +516,10 @@ func (b *bot) economia(ctx context.Context, evt *events.Message) error {
 		return fmt.Errorf("resetar intervalos: %w", err)
 	}
 	if len(people) > 0 {
-		_, err = b.sendMentions(ctx, chat, "⏱️ Intervalos zerados pra "+mentionList(accounts)+", e quem tava preso, de refém ou morto tá livre. O dinheiro continua igualzinho", people)
+		_, err = b.sendMentions(ctx, chat, "⏱️ Intervalos zerados pra "+mentionList(accounts)+", quem tava preso, de refém ou morto tá livre e todo mundo tá com a saúde cheia. O dinheiro continua igualzinho", people)
 		return err
 	}
-	return b.sendText(ctx, chat, fmt.Sprintf("⏱️ Intervalos zerados pra %d pessoa(s) desta conversa, e quem tava preso, de refém ou morto tá livre. O dinheiro continua igualzinho", reset))
+	return b.sendText(ctx, chat, fmt.Sprintf("⏱️ Intervalos zerados pra %d pessoa(s) desta conversa, quem tava preso, de refém ou morto tá livre e todo mundo tá com a saúde cheia. O dinheiro continua igualzinho", reset))
 }
 
 func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accounts []account) (reset int64, err error) {
@@ -521,7 +527,8 @@ func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accoun
 		"daily_em", "trabalho_em", "roubo_em", "profissao_em", "pesca_em", "mineracao_em", "lixao_em",
 		"inseto_em", "furto_em", "cafeina_em", "prisao_em", "abuso_em", "processo_em", "fuga_em", "sequestro_em",
 		"assalto_em", "denuncia_em", "assassinato_em", "libertacao_em", "abuso_trabalho_em", "abuso_roubo_em",
-		"abuso_sequestro_em", "ressurreicao_em", "encanto_em", "preso_ate", "morto_ate", "crime_em",
+		"abuso_sequestro_em", "ressurreicao_em", "encanto_em", "disfarce_em", "preso_ate", "morto_ate", "crime_em",
+		"saude_em",
 	}
 	args := []any{chat.String()}
 	for _, acc := range accounts {
@@ -534,7 +541,7 @@ func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accoun
 		return " WHERE chat = ? AND " + column + " IN (?" + strings.Repeat(", ?", len(accounts)-1) + ")"
 	}
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, "UPDATE carteiras SET "+strings.Join(columns, " = 0, ")+" = 0"+where("pessoa"), args...)
+		res, err := tx.ExecContext(ctx, "UPDATE carteiras SET "+strings.Join(columns, " = 0, ")+fmt.Sprintf(" = 0, saude = %d", maxHealth)+where("pessoa"), args...)
 		if err != nil {
 			return err
 		}

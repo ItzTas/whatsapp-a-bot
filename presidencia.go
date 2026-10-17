@@ -38,6 +38,8 @@ type presidency struct {
 	until           time.Time
 	abuses          map[string]int
 	lastImpeachment time.Time
+	lastCoup        time.Time
+	coup            bool
 	decrees         decrees
 }
 
@@ -292,6 +294,9 @@ func (b *bot) presidente(ctx context.Context, evt *events.Message) error {
 	if value, running := b.impeachments.Load(chat.String()); running {
 		text += "\n\n" + value.(*impeachment).partialText()
 	}
+	if value, running := b.coups.Load(chat.String()); running {
+		text += "\n\n" + value.(*coup).partialText()
+	}
 	_, err = b.sendMentions(ctx, chat, text, []types.JID{p.president.jid})
 	return err
 }
@@ -306,7 +311,7 @@ func (e *election) partialText(candidates []candidate) string {
 
 func (p presidency) text() string {
 	lines := []string{
-		fmt.Sprintf("🏛️ *Presidente:* @%s, eleito com %s", p.president.jid.User, countLabel(p.votes, "voto", "votos")),
+		p.headline(),
 		fmt.Sprintf("⏳ O mandato acaba em %s", formatWait(time.Until(p.until))),
 		"😈 Abusos de poder sobrando: " + p.abusesLeftText(),
 		"📜 Decretos de uma vez sobrando: " + p.decrees.onceLeftText(),
@@ -315,6 +320,13 @@ func (p presidency) text() string {
 		lines = append(lines, "📜 Decreto em vigor: "+decree)
 	}
 	return strings.Join(append(append(lines, "", "*Poderes do cargo*"), presidentialPowers()...), "\n")
+}
+
+func (p presidency) headline() string {
+	if p.coup {
+		return fmt.Sprintf("🏛️ *Presidente:* @%s, que tomou o poder num golpe 🪖", p.president.jid.User)
+	}
+	return fmt.Sprintf("🏛️ *Presidente:* @%s, eleito com %s", p.president.jid.User, countLabel(p.votes, "voto", "votos"))
 }
 
 func (p presidency) abusesLeftText() string {
@@ -375,12 +387,13 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 		jid         string
 		until       int64
 		impeachedAt int64
+		coupAt      int64
 	)
 	charges := abuseChargeColumns()
 	used := make([]int, len(charges))
 	columns := decreeColumns()
 	levels := make([]int64, len(columns))
-	dest := []any{&p.president.key, &jid, &p.votes, &until, &impeachedAt}
+	dest := []any{&p.president.key, &jid, &p.votes, &until, &impeachedAt, &coupAt, &p.coup}
 	for i := range used {
 		dest = append(dest, &used[i])
 	}
@@ -388,7 +401,7 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 		dest = append(dest, &levels[i])
 	}
 	err = s.db.QueryRowContext(ctx,
-		"SELECT pessoa, jid, votos, mandato_ate, impeachment_em, "+strings.Join(append(charges, columns...), ", ")+" FROM presidencias WHERE chat = ? AND (mandato_ate > ? OR renunciou = 1)",
+		"SELECT pessoa, jid, votos, mandato_ate, impeachment_em, golpe_em, golpista, "+strings.Join(append(charges, columns...), ", ")+" FROM presidencias WHERE chat = ? AND (mandato_ate > ? OR renunciou = 1)",
 		chat.String(), now.Unix(),
 	).Scan(dest...)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -407,6 +420,7 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 		return presidency{decrees: p.decrees}, false, nil
 	}
 	p.lastImpeachment = time.Unix(impeachedAt, 0)
+	p.lastCoup = time.Unix(coupAt, 0)
 	p.president.jid, err = types.ParseJID(jid)
 	return p, err == nil, err
 }
@@ -419,7 +433,7 @@ func (s *walletStore) inaugurate(ctx context.Context, chat types.JID, acc accoun
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO presidencias (chat, pessoa, jid, votos, eleito_em, mandato_ate) VALUES (?, ?, ?, ?, ?, ?)
 			 ON CONFLICT (chat) DO UPDATE SET pessoa = excluded.pessoa, jid = excluded.jid, votos = excluded.votos,
-			 eleito_em = excluded.eleito_em, mandato_ate = excluded.mandato_ate, impeachment_em = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0`,
+			 eleito_em = excluded.eleito_em, mandato_ate = excluded.mandato_ate, impeachment_em = 0, golpe_em = 0, golpista = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0`,
 			chat.String(), acc.key, acc.jid.String(), votes, now.Unix(), now.Add(termLength).Unix(),
 		)
 		if err != nil {

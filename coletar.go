@@ -26,6 +26,8 @@ type activity struct {
 	plainLuck int
 	gradeLuck int
 	rotten    bool
+	hazard    hazard
+	safety    int64
 	loot      []drop
 	found     []string
 	empty     []string
@@ -36,8 +38,12 @@ var fishing = activity{
 	command:  "!pescar",
 	emoji:    "🎣",
 	cooldown: cooldown{column: "pesca_em", every: 10 * time.Minute},
-	tool:     "vara-de-pesca",
-	breaks:   0.05,
+	hazard: hazard{chance: 0.04, harm: 20, wounds: []string{
+		"escorregou na pedra lisa do rio e bateu a cabeça", "fisgou a própria orelha com o anzol",
+		"foi puxado pra dentro do rio por um peixe gigante e quase se afogou", "pisou numa arraia escondida na areia",
+	}},
+	tool:   "vara-de-pesca",
+	breaks: 0.05,
 	loot: []drop{
 		{"", 180}, {"bota-velha", 80}, {"sapo", 60}, {"lambari", 170}, {"tilapia", 140}, {"camarao", 90},
 		{"caranguejo", 80}, {"baiacu", 50}, {"peixe-palhaco", 40}, {"tambaqui", 50}, {"lula", 30}, {"polvo", 25},
@@ -46,7 +52,7 @@ var fishing = activity{
 		{"celular-afogado", 40}, {"piranha", 35}, {"agua-viva", 30}, {"atum", 25}, {"arraia", 20},
 		{"garrafa-com-mensagem", 12}, {"dourado", 10}, {"peixe-espada", 7}, {"tridente", 1},
 		{"dente-de-megalodonte", 1}, {"boto-cor-de-rosa", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
-		{"chave-de-sao-pedro", 3},
+		{"chave-de-sao-pedro", 3}, {"pente-da-iara", 1}, {"olho-de-boto", 1},
 	},
 	found: []string{
 		"🎣 @%[1]s jogou a linha e fisgou %[2]s",
@@ -67,8 +73,12 @@ var mining = activity{
 	command:  "!minerar",
 	emoji:    "⛏️",
 	cooldown: cooldown{column: "mineracao_em", every: 10 * time.Minute},
-	tool:     "picareta",
-	breaks:   0.06,
+	hazard: hazard{chance: 0.07, harm: 30, wounds: []string{
+		"levou uma pedra na cabeça quando o teto da mina cedeu", "acertou a picareta no próprio pé",
+		"respirou poeira demais e saiu tossindo da mina", "ficou preso num desmoronamento e saiu cavando com a mão",
+	}},
+	tool:   "picareta",
+	breaks: 0.06,
 	loot: []drop{
 		{"", 150}, {"pedra", 200}, {"carvao", 150}, {"cobre", 120}, {"ferro", 110}, {"sal-grosso", 60},
 		{"caveira", 40}, {"prata", 60}, {"ametista", 40}, {"ouro", 35}, {"moeda-do-imperio", 15}, {"vaso-antigo", 15},
@@ -76,7 +86,8 @@ var mining = activity{
 		{"meteorito", 2}, {"areia", 110}, {"granito", 100}, {"quartzo", 70}, {"ouro-de-tolo", 60}, {"topazio", 35},
 		{"geodo", 30}, {"opala", 12}, {"jade", 12}, {"petroleo", 10}, {"urna", 8}, {"uranio", 3},
 		{"diamante-rosa", 1}, {"idolo-de-ouro", 1}, {"pedra-filosofal", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
-		{"moeda-amaldicoada", 10}, {"ampulheta", 6}, {"machado-de-xango", 2},
+		{"moeda-amaldicoada", 10}, {"ampulheta", 6}, {"machado-de-xango", 2}, {"pepita-do-eldorado", 1},
+		{"fogo-da-mae-do-ouro", 1},
 	},
 	found: []string{
 		"⛏️ @%[1]s cavou fundo na mina e achou %[2]s",
@@ -97,6 +108,10 @@ var scavenging = activity{
 	command:  "!vasculhar",
 	emoji:    "🗑️",
 	cooldown: cooldown{column: "lixao_em", every: 10 * time.Minute},
+	hazard: hazard{chance: 0.06, harm: 20, wounds: []string{
+		"cortou a mão num caco de vidro escondido no lixo", "levou uma mordida de um rato do tamanho de um gato",
+		"pisou num prego enferrujado e vai ter que tomar antitetânica", "brigou com um urubu e perdeu",
+	}},
 	loot: []drop{
 		{"", 210}, {"casca-de-banana", 85}, {"boleto", 65}, {"chinelo", 80}, {"cueca", 60}, {"jornal", 55},
 		{"todynho-pela-metade", 70}, {"cabo-usb", 55}, {"guarda-chuva", 50}, {"controle-remoto", 50}, {"boneca", 40},
@@ -112,7 +127,7 @@ var scavenging = activity{
 		{"brinco-de-ouro", 5}, {"carta-holografica", 4}, {"cofre-esquecido", 2}, {"bilhete-premiado", 1},
 		{"mala-de-dinheiro", 1}, {"taca-jules-rimet", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
 		{"espelho-quebrado", 25}, {"despertador-quebrado", 30}, {"marmita-estragada", 30}, {"olho-de-sogra", 15},
-		{"moeda-amaldicoada", 5}, {"pacto-com-o-capeta", 2},
+		{"moeda-amaldicoada", 5}, {"pacto-com-o-capeta", 2}, {"chupa-cabra", 1}, {"boneco-do-fofao", 1},
 	},
 	found: []string{
 		"🗑️ @%[1]s revirou o lixão e achou %[2]s",
@@ -133,8 +148,12 @@ var bugging = activity{
 	command:  "!catar",
 	emoji:    "🦋",
 	cooldown: cooldown{column: "inseto_em", every: 10 * time.Minute},
-	tool:     "rede-de-insetos",
-	breaks:   0.05,
+	hazard: hazard{chance: 0.05, harm: 20, wounds: []string{
+		"levou uma ferroada de marimbondo bem no olho", "foi picado pela caranguejeira que tava escondida no tronco",
+		"pisou num formigueiro de formiga-de-fogo", "cutucou uma colmeia e levou 30 picadas",
+	}},
+	tool:   "rede-de-insetos",
+	breaks: 0.05,
 	loot: []drop{
 		{"", 170}, {"folha-seca", 120}, {"teia-de-aranha", 80}, {"pernilongo", 120}, {"mosca-varejeira", 100},
 		{"formiga", 120}, {"barata", 80}, {"mosquito-da-dengue", 60}, {"isca", 90}, {"grilo", 110}, {"caracol", 80},
@@ -143,7 +162,7 @@ var bugging = activity{
 		{"favo-de-mel", 30}, {"escorpiao", 30}, {"caranguejeira", 20}, {"besouro-rinoceronte", 12},
 		{"casulo-de-seda", 12}, {"borboleta-azul", 10}, {"abelha-rainha", 5}, {"mosquito-no-ambar", 4},
 		{"escaravelho-de-ouro", 1}, {"fada", 1}, {"grilo-falante", 1}, {"saci-na-garrafa", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
-		{"arruda", 50}, {"semente-de-roma", 30},
+		{"arruda", 50}, {"semente-de-roma", 30}, {"pena-do-uirapuru", 1}, {"pito-da-caipora", 1},
 	},
 	found: []string{
 		"🦋 @%[1]s correu no mato com a rede e pegou %[2]s",
@@ -192,6 +211,7 @@ type gear struct {
 	fewerJunk   int64
 	moreRare    int64
 	grade       int
+	safety      int64
 	relicLure   int
 	skipsRelics bool
 	spent       bool
@@ -227,6 +247,7 @@ func (a activity) equip(bag []stack) kit {
 			k.luck += g.luck
 		}
 		k.gradeLuck += g.grade
+		k.safety += g.safety
 		k.cooldown.every = k.cooldown.every * time.Duration(100-g.faster) / 100
 		if g.spent {
 			k.spent = append(k.spent, s.item)
@@ -244,6 +265,9 @@ func (a activity) equip(bag []stack) kit {
 			k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { return d.item == "" })
 		}
 		metalOnly = metalOnly || g.metal
+	}
+	if !slices.ContainsFunc(k.worn, func(it item) bool { return it.rarity == relic }) {
+		k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { it, _ := itemByID(d.item); return it.rarity == mythic })
 	}
 	if metalOnly {
 		k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { it, _ := itemByID(d.item); return !it.metal })
@@ -266,6 +290,19 @@ func (a activity) bestTool(bag []stack) (item, bool) {
 		}
 	}
 	return best, best.id != ""
+}
+
+func (a activity) source(it item) string {
+	if it.rarity != mythic {
+		return a.command
+	}
+	var unlockers []string
+	for _, r := range relics() {
+		if r.gear.fits(a) {
+			unlockers = append(unlockers, r.name)
+		}
+	}
+	return a.command + " usando " + joinWithOr(unlockers)
 }
 
 func trimJunk(loot []drop, percent int64) []drop {
@@ -336,6 +373,7 @@ func gearPerk(g *gear) string {
 		{g.fewerJunk > 0, fmt.Sprintf("vem %d%% menos item comum e mão vazia", g.fewerJunk)},
 		{g.moreRare > 0, fmt.Sprintf("vem %d%% mais item raro, épico e lendário", g.moreRare)},
 		{g.grade > 0, fmt.Sprintf("o que acha vem com qualidade melhor: fica com a melhor de %d", g.grade+1)},
+		{g.safety > 0, fmt.Sprintf("se machuca %d%% menos", g.safety)},
 		{g.relicLure > 0, fmt.Sprintf("deixa %dx mais fácil achar o Relicário perdido", g.relicLure)},
 		{g.metal, "só sai item de metal, então nunca vem de mão vazia"},
 		{g.alwaysFinds, "nunca vem de mão vazia"},
@@ -390,7 +428,8 @@ func (b *bot) gather(base activity) command {
 		if err != nil {
 			return fmt.Errorf("%s: %w", a.command, err)
 		}
-		_, err = b.sendMentions(ctx, chat, a.report(g, person)+job.decrees.note(gatherDecree), []types.JID{person})
+		hurtText, freed := g.injury.text(person)
+		_, err = b.sendMentions(ctx, chat, a.report(g, person)+job.decrees.note(gatherDecree)+hurtText, append([]types.JID{person}, freed...))
 		return err
 	}
 }
@@ -406,6 +445,9 @@ func (a activity) report(g gathering, person types.JID) string {
 	text := fmt.Sprintf(pickOne(a.empty), person.User)
 	if g.found.id != "" {
 		text = fmt.Sprintf(pickOne(a.found), person.User, g.found.label()+g.grade.tag()) + "\n" + g.grade.summary(g.found)
+	}
+	if g.found.rarity == mythic {
+		text += fmt.Sprintf("\n\n🟠 *MÍTICO!* Isso só aparece pra quem extrai com relíquia, e o mercado paga pelo menos %d%% do valor dele no !vender", mythicSalePercent)
 	}
 	if g.found.relicOdds > 0 {
 		text += fmt.Sprintf("\n\n🏛️ Achado raríssimo! Abre com !usar %s e reza: em %d%% das vezes sai uma relíquia", foldLetters(g.found.name), percent(g.found.relicOdds))

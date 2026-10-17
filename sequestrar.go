@@ -86,7 +86,7 @@ func (b *bot) sequestrar(ctx context.Context, evt *events.Message) error {
 		caught:  victimJob.caughtOdds(),
 		jail:    profession{jailTime: baseJail}.sentence(kidnapperJob),
 	}
-	if kidnapperJob.untouchable() || odds.lawful {
+	if kidnapperJob.slipsAway() || odds.lawful {
 		odds.caught = 0
 	}
 	k, err := b.wallets.kidnap(ctx, chat, kidnapperAcc, victimAcc, kidnapperJob.kidnapCooldown(), kidnapperJob.abuse(kidnapAbuse), odds, time.Now())

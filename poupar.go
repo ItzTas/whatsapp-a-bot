@@ -72,7 +72,7 @@ func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account
 	}
 	rate := max(int64(savingsRate)+job.interest+job.decrees.level(interestDecree), 0)
 	usage := fmt.Sprintf("🏦 Pra guardar moedas: !poupar 100 (ou metade, 10%%, tudo). Elas ficam travadas por %s e voltam com %d%% de juros, até %s por vez",
-		formatWait(savingsLock), rate, coins(job.savingsLimit())) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree)
+		formatWait(job.savingsWait()), rate, coins(job.savingsLimit())) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree)
 	arg := firstPlainArg(messageText(evt.Message))
 	if arg == "" {
 		return usage, nil
@@ -96,7 +96,7 @@ func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account
 		return "O mínimo pra poupar é " + coins(savingsMin), nil
 	}
 
-	deposit := savings{amount: amount, interest: amount * rate / 100, due: now.Add(savingsLock)}
+	deposit := savings{amount: amount, interest: amount * rate / 100, due: now.Add(job.savingsWait())}
 	err = b.wallets.deposit(ctx, chat, acc, deposit)
 	if errors.Is(err, errNoFunds) {
 		return "Seu saldo mudou no meio do depósito e não dá mais 🤨 Confere no !saldo", nil
@@ -108,7 +108,7 @@ func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc account
 		return "", fmt.Errorf("guardar na poupança: %w", err)
 	}
 	return fmt.Sprintf("🔒 @%s guardou %s na poupança. Daqui a %s volta com %s de juros, é só mandar !poupar pra resgatar",
-		user, coins(deposit.amount), formatWait(savingsLock), coins(deposit.interest)) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree), nil
+		user, coins(deposit.amount), formatWait(job.savingsWait()), coins(deposit.interest)) + job.decrees.note(interestDecree) + job.decrees.note(savingsTaxDecree), nil
 }
 
 func lockedSavingsText(user string, sv savings, now time.Time) string {

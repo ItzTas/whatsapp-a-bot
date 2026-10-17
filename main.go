@@ -88,6 +88,7 @@ func run(ctx context.Context) (err error) {
 	go b.runReminders(sessionCtx)
 	go b.runBirthdays(sessionCtx)
 	go b.runTaxes(sessionCtx)
+	go b.runAuctions(sessionCtx)
 
 	<-sessionCtx.Done()
 	if ctx.Err() != nil {

@@ -57,6 +57,7 @@ func (k *iaToolkit) personEconomy(ctx context.Context, input json.RawMessage) (s
 		job        profession
 		jailLeft   time.Duration
 		deathLeft  time.Duration
+		health     int64
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = k.b.wallets.balance(gctx, k.chat, acc); return err })
@@ -64,6 +65,7 @@ func (k *iaToolkit) personEconomy(ctx context.Context, input json.RawMessage) (s
 	g.Go(func() (err error) { job, err = k.b.professionOf(gctx, k.chat, acc); return err })
 	g.Go(func() (err error) { jailLeft, err = k.b.wallets.sentenceLeft(gctx, k.chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { deathLeft, err = k.b.wallets.deathLeft(gctx, k.chat, acc, time.Now()); return err })
+	g.Go(func() (err error) { health, err = k.b.wallets.health(gctx, k.chat, acc, time.Now()); return err })
 	if err := g.Wait(); err != nil {
 		return "", err
 	}
@@ -81,6 +83,7 @@ func (k *iaToolkit) personEconomy(ctx context.Context, input json.RawMessage) (s
 	if deathLeft > 0 {
 		lines = append(lines, "Tá morto, ressuscita em "+formatWait(deathLeft))
 	}
+	lines = append(lines, fmt.Sprintf("Saúde: %d de %d", health, maxHealth))
 	lines = append(lines, "Profissão: "+job.details())
 	return strings.Join(lines, "\n"), nil
 }

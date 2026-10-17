@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	hexBackfire   = 0.25
-	itemHexChance = 0.5
+	hexBackfire     = 0.25
+	itemHexChance   = 0.5
+	mirrorHexChance = 0.6
+	mirrorItem      = "espelho-da-iara"
 )
 
 var charmCooldown = cooldown{column: "encanto_em", every: 40 * time.Minute}
@@ -33,6 +35,9 @@ type charm struct {
 	hold    time.Duration
 	effect  string
 	aliases []string
+	toll    int64
+	boon    int64
+	boonCap int64
 	apply   func(profession) profession
 }
 
@@ -84,6 +89,8 @@ var charms = []charm{
 			p.haste -= 30
 			return p
 		}},
+	{id: "multiplicacao", name: "Multiplicação", emoji: "🐟", hold: 12 * time.Hour, boon: boonPercent, boonCap: boonCap, aliases: []string{"multiplicar", "milagre", "peixes", "paes e peixes"},
+		effect: fmt.Sprintf("na próxima vez que o saldo da pessoa subir (trabalho, aposta, venda, pix, o que for), entra mais %d%% do que entrou, em moedas novas, até %s", boonPercent, coins(boonCap))},
 	{id: "purificacao", name: "Purificação", emoji: "🧂", aliases: []string{"descarrego", "limpeza", "limpar", "exorcismo"},
 		effect: "tira na hora toda maldição da pessoa, até a praga do !zoar"},
 
@@ -132,6 +139,8 @@ var charms = []charm{
 			p.haste += 50
 			return p
 		}},
+	{id: "dizimo", name: "Dízimo", emoji: "🧾", curse: true, hold: 12 * time.Hour, toll: tithePercent, aliases: []string{"pedagio", "comissao", "parte", "porcentagem"},
+		effect: fmt.Sprintf("na próxima vez que o saldo da pessoa subir (trabalho, aposta, venda, pix, o que for), %d%% do que entrou vai pra quem rogou a praga. Se a praga voltar, quem recebe é quem ia levar ela", tithePercent)},
 	{id: "excomunhao", name: "Excomunhão", emoji: "📛", curse: true, hold: 12 * time.Hour, aliases: []string{"excomungar", "heresia"},
 		effect: "o júri do !processar ganha 2 votos contra a pessoa",
 		apply: func(p profession) profession {
@@ -159,14 +168,16 @@ type charmOrder struct {
 	target account
 	charm  charm
 	odds   float64
+	pierce bool
 	cd     cooldown
 	now    time.Time
 }
 
 type spell struct {
-	wait     time.Duration
-	hit      bool
-	backfire bool
+	wait      time.Duration
+	hit       bool
+	backfire  bool
+	reflected bool
 }
 
 func (c charm) label() string {
@@ -174,7 +185,7 @@ func (c charm) label() string {
 }
 
 func (c charm) purges() bool {
-	return c.apply == nil
+	return c.id == "purificacao"
 }
 
 func (c charm) matchKeys() []string {
@@ -229,8 +240,13 @@ func charmNames(ids []string) string {
 	return joinWithAnd(names)
 }
 
+func mirrorLabel() string {
+	it, _ := itemByID(mirrorItem)
+	return it.label()
+}
+
 func (p profession) canCast(c charm) bool {
-	if p.divine {
+	if p.divine || p.mirror {
 		return true
 	}
 	if c.curse {
@@ -247,7 +263,17 @@ func (p profession) hexOdds() float64 {
 	if p.divine {
 		return 1
 	}
+	if p.mirror {
+		return clampChance(max(p.faith.hexChance, mirrorHexChance))
+	}
 	return clampChance(p.faith.hexChance)
+}
+
+func (p profession) castingAs() string {
+	if p.mirror && !p.divine {
+		return "Com o " + mirrorLabel()
+	}
+	return "Como " + p.title
 }
 
 func (p profession) rite(curse bool) string {
@@ -268,7 +294,9 @@ func (p profession) charmed(held []heldCharm) profession {
 		if !ok || c.purges() {
 			continue
 		}
-		p = c.apply(p)
+		if c.apply != nil {
+			p = c.apply(p)
+		}
 		p.charms = append(p.charms, h.id)
 	}
 	return p
@@ -295,6 +323,9 @@ func charmPerks(p profession) []string {
 }
 
 func faithPerks(p profession) []string {
+	if p.mirror && !p.divine {
+		return []string{fmt.Sprintf("🧜‍♀️ Pode !abencoar e !amaldicoar com qualquer bênção ou maldição, com %d%% de chance de a praga pegar, e toda maldição que jogam em você volta pra quem jogou", percent(p.hexOdds()))}
+	}
 	var lines []string
 	if len(p.faith.blessings) > 0 {
 		lines = append(lines, "🙏 Pode !abencoar os outros com "+charmNames(p.faith.blessings))
@@ -325,6 +356,11 @@ func castersOf(c charm) string {
 	for _, p := range professions {
 		if p.canCast(c) {
 			names = append(names, p.emoji+" "+p.name)
+		}
+	}
+	for _, t := range titles {
+		if t.bonus.apply(profession{}).canCast(c) {
+			names = append(names, t.emoji+" quem usa o título "+t.name)
 		}
 	}
 	return joinWithAnd(names)
@@ -375,7 +411,7 @@ func (b *bot) castCharm(ctx context.Context, evt *events.Message, curse bool) er
 	if curse {
 		odds = job.hexOdds()
 	}
-	order := charmOrder{chat: chat, caster: casterAcc, target: targetAcc, charm: c, odds: odds, cd: job.pace(charmCooldown), now: time.Now()}
+	order := charmOrder{chat: chat, caster: casterAcc, target: targetAcc, charm: c, odds: odds, pierce: job.divine, cd: job.pace(charmCooldown), now: time.Now()}
 	s, err := b.wallets.cast(ctx, order)
 	if errors.Is(err, errCharmIdle) {
 		_, err := b.sendMentions(ctx, chat, fmt.Sprintf("😌 @%s tá com a alma limpinha, não tem maldição nenhuma pra tirar", target.User), []types.JID{target})
@@ -408,12 +444,12 @@ func charmChoiceText(query string, job profession, available []charm, curse bool
 	if curse {
 		command, kind = "!amaldicoar", "maldição"
 	}
-	header := fmt.Sprintf("Qual %s? Como %s, você tem:", kind, job.title)
+	header := fmt.Sprintf("Qual %s? %s, você tem:", kind, job.castingAs())
 	if query != "" {
-		header = fmt.Sprintf("Não conheço essa %s 🤔 Como %s, você tem:", kind, job.title)
+		header = fmt.Sprintf("Não conheço essa %s 🤔 %s, você tem:", kind, job.castingAs())
 	}
 	if c, found := findCharm(query, curse); found && query != "" {
-		header = fmt.Sprintf("🚫 %s não é com você, quem tem é %s. Como %s, você tem:", c.label(), castersOf(c), job.title)
+		header = fmt.Sprintf("🚫 %s não é com você, quem tem é %s. %s, você tem:", c.label(), castersOf(c), job.castingAs())
 	}
 	lines := []string{header}
 	for _, c := range available {
@@ -431,7 +467,7 @@ func (b *bot) charmMenu(ctx context.Context, chat types.JID, acc account, job pr
 	if curse {
 		command, title = "!amaldicoar", "🕯️ *Maldições*"
 	}
-	lines := []string{title, "_Só quem mexe com fé ou feitiçaria lança, e cada profissão tem as suas_"}
+	lines := []string{title, "_Só quem mexe com fé ou feitiçaria lança, e cada profissão tem as suas. Quem tem o " + mirrorLabel() + " lança todas_"}
 	for _, c := range charms {
 		if c.curse != curse {
 			continue
@@ -461,7 +497,7 @@ func ownCharmsText(job profession, curse bool, command string) string {
 	for i, c := range available {
 		ids[i] = c.id
 	}
-	text := fmt.Sprintf("_Como %s, você tem %s. Manda %s @pessoa <nome>, uma vez a cada %s_", job.title, charmNames(ids), command, formatWait(job.pace(charmCooldown).every))
+	text := fmt.Sprintf("_%s, você tem %s. Manda %s @pessoa <nome>, uma vez a cada %s_", job.castingAs(), charmNames(ids), command, formatWait(job.pace(charmCooldown).every))
 	if job.divine {
 		text = fmt.Sprintf("_Como deus, você tem todas, sem espera. Manda %s @pessoa <nome>_", command)
 	}
@@ -481,6 +517,9 @@ func spellText(s spell, job profession, c charm, caster, target types.JID) strin
 	}
 	if !c.curse {
 		return head + fmt.Sprintf(" e deu %s por %s 😇\n%s", c.label(), formatWait(c.hold), c.effect)
+	}
+	if s.reflected {
+		return head + ", mas " + reflectedText(c, caster)
 	}
 	if s.hit {
 		return head + fmt.Sprintf(" e jogou %s por %s 😈\n%s\n%s", c.label(), formatWait(c.hold), c.effect, cureText())
@@ -502,23 +541,39 @@ func (s *walletStore) cast(ctx context.Context, o charmOrder) (sp spell, err err
 		if o.charm.purges() {
 			return purgeCurses(ctx, tx, o.chat, o.target, o.now)
 		}
-		sp, err = landCharm(ctx, tx, o.chat, o.caster, o.target, o.charm, o.odds, o.now)
+		sp, err = landCharm(ctx, tx, o)
 		return err
 	})
 	return sp, err
 }
 
-func landCharm(ctx context.Context, tx *sql.Tx, chat types.JID, caster, target account, c charm, odds float64, now time.Time) (spell, error) {
-	sp := spell{hit: rand.Float64() < odds}
+func landCharm(ctx context.Context, tx *sql.Tx, o charmOrder) (spell, error) {
+	sp := spell{hit: rand.Float64() < o.odds}
 	sp.backfire = !sp.hit && rand.Float64() < hexBackfire
 	if !sp.hit && !sp.backfire {
 		return sp, nil
 	}
-	bearer := target
-	if sp.backfire {
-		bearer = caster
+	reflected, err := o.bouncesOffMirror(ctx, tx, sp)
+	if err != nil {
+		return sp, err
 	}
-	return sp, grantCharm(ctx, tx, chat, bearer, caster, c, now)
+	sp.reflected = reflected
+	bearer, author := o.target, o.caster
+	if sp.backfire || sp.reflected {
+		bearer, author = o.caster, o.target
+	}
+	return sp, grantCharm(ctx, tx, o.chat, bearer, author, o.charm, o.now)
+}
+
+func (o charmOrder) bouncesOffMirror(ctx context.Context, tx *sql.Tx, sp spell) (bool, error) {
+	if !sp.hit || !o.charm.curse || o.pierce || o.caster.key == o.target.key {
+		return false, nil
+	}
+	return holdsItem(ctx, tx, o.chat, o.target, mirrorItem)
+}
+
+func reflectedText(c charm, caster types.JID) string {
+	return fmt.Sprintf("a praga bateu no %s e voltou! 🔁 Quem ficou com %s por %s foi @%s\n%s\n%s", mirrorLabel(), c.label(), formatWait(c.hold), caster.User, c.effect, cureText())
 }
 
 func (b *bot) hurlCurse(ctx context.Context, evt *events.Message, it item) error {
@@ -544,6 +599,9 @@ func (b *bot) hurlCurse(ctx context.Context, evt *events.Message, it item) error
 
 func hurlText(sp spell, it item, c charm, thrower, target types.JID) string {
 	head := fmt.Sprintf(it.use, thrower.User, target.User)
+	if sp.reflected {
+		return head + "\n\nMas " + reflectedText(c, thrower)
+	}
 	if sp.hit {
 		return head + fmt.Sprintf("\n\n😈 Pegou! @%s ficou com %s por %s\n%s\n%s", target.User, c.label(), formatWait(c.hold), c.effect, cureText())
 	}
@@ -561,7 +619,7 @@ func (s *walletStore) hurl(ctx context.Context, chat types.JID, thrower, target 
 		if err := openWallet(ctx, tx, chat, target); err != nil {
 			return err
 		}
-		sp, err = landCharm(ctx, tx, chat, thrower, target, c, itemHexChance, now)
+		sp, err = landCharm(ctx, tx, charmOrder{chat: chat, caster: thrower, target: target, charm: c, odds: itemHexChance, now: now})
 		return err
 	})
 	return sp, err
@@ -569,9 +627,10 @@ func (s *walletStore) hurl(ctx context.Context, chat types.JID, thrower, target 
 
 func grantCharm(ctx context.Context, tx *sql.Tx, chat types.JID, bearer, author account, c charm, now time.Time) error {
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO encantos (chat, alvo, tipo, autor, ate) VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = MAX(encantos.ate, excluded.ate)`,
-		chat.String(), bearer.key, c.id, author.key, now.Add(c.hold).Unix(),
+		`INSERT INTO encantos (chat, alvo, tipo, autor, ate, parte, bonus, teto) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = MAX(encantos.ate, excluded.ate),
+		   parte = excluded.parte, bonus = excluded.bonus, teto = excluded.teto`,
+		chat.String(), bearer.key, c.id, author.key, now.Add(c.hold).Unix(), c.toll, c.boon, c.boonCap,
 	)
 	return err
 }

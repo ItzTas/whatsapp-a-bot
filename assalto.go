@@ -272,7 +272,7 @@ func payCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, 
 func jailCrew(ctx context.Context, tx *sql.Tx, chat types.JID, robbers []robber, now time.Time) error {
 	for i := range robbers {
 		r := &robbers[i]
-		if r.job.untouchable() || rand.Float64() < r.job.escapeOdds() {
+		if r.job.slipsAway() || rand.Float64() < r.job.escapeOdds() {
 			continue
 		}
 		r.caught = true

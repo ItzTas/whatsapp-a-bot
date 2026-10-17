@@ -16,6 +16,7 @@ import (
 const (
 	titleStealPercent  = 150
 	titleRefundPercent = 50
+	titleHexChance     = 0.4
 )
 
 var errTitleChanged = errors.New("o título mudou de dono")
@@ -26,21 +27,102 @@ type title struct {
 	name   string
 	price  int64
 	flavor string
+	bonus  flex
 }
 
 var titles = []title{
-	{id: "herdeiro", emoji: "🧸", name: "Herdeiro(a)", price: 5_000, flavor: "nunca trabalhou um dia na vida"},
-	{id: "coach", emoji: "🗣️", name: "Coach Quântico", price: 8_000, flavor: "vende curso de como ficar rico vendendo curso"},
-	{id: "patrao", emoji: "🤑", name: "Patrão", price: 10_000, flavor: "paga o salário de todo mundo com atraso"},
-	{id: "influencer", emoji: "📸", name: "Influencer Milionário", price: 15_000, flavor: "ficou rico com publi de bet"},
-	{id: "rei-do-camarote", emoji: "🍾", name: "Rei do Camarote", price: 20_000, flavor: "chega na balada com vela de faísca"},
-	{id: "barao", emoji: "🎩", name: "Barão", price: 30_000, flavor: "usa monóculo e fala de dividendos no café da manhã"},
-	{id: "magnata", emoji: "💼", name: "Magnata", price: 50_000, flavor: "compra empresa por impulso"},
-	{id: "chefao", emoji: "🕴️", name: "Chefão da Máfia", price: 75_000, flavor: "faz propostas que ninguém pode recusar"},
-	{id: "sheik", emoji: "🛢️", name: "Sheik do Petróleo", price: 100_000, flavor: "achou petróleo cavando o quintal"},
-	{id: "lenda", emoji: "🌟", name: "Lenda Viva", price: 250_000, flavor: "já tem estátua em vida"},
-	{id: "farao", emoji: "🔺", name: "Faraó", price: 500_000, flavor: "construiu uma pirâmide só pra guardar o saldo"},
-	{id: "imperador", emoji: "👑", name: "Imperador(a) do Grupo", price: 1_000_000, flavor: "o grupo inteiro trabalha pra essa pessoa"},
+	{id: "herdeiro", emoji: "🧸", name: "Herdeiro(a)", price: 5_000, flavor: "nunca trabalhou um dia na vida",
+		bonus: flex{effect: "o !daily rende 15% a mais", apply: func(p profession) profession {
+			p.dailyBonus += 15
+			return p
+		}}},
+	{id: "coach", emoji: "🗣️", name: "Coach Quântico", price: 8_000, flavor: "vende curso de como ficar rico vendendo curso",
+		bonus: flex{effect: "o !trabalhar paga 5% a mais", apply: func(p profession) profession {
+			p.min, p.max = p.min*105/100, p.max*105/100
+			return p
+		}}},
+	{id: "patrao", emoji: "🤑", name: "Patrão", price: 10_000, flavor: "paga o salário de todo mundo com atraso",
+		bonus: titleAbuse(workAbuse)},
+	{id: "influencer", emoji: "📸", name: "Influencer Milionário", price: 15_000, flavor: "ficou rico com publi de bet",
+		bonus: flex{effect: "recebe 5% de volta quando perde no !apostar e no !cassino", apply: func(p profession) profession {
+			p.cashback += 5
+			return p
+		}}},
+	{id: "rei-do-camarote", emoji: "🍾", name: "Rei do Camarote", price: 20_000, flavor: "chega na balada com vela de faísca",
+		bonus: flex{effect: "fura a fila: espera 5% menos no !trabalhar e no " + hasteCommands, apply: func(p profession) profession {
+			p.every = p.every * 95 / 100
+			p.haste -= 5
+			return p
+		}}},
+	{id: "barao", emoji: "🎩", name: "Barão", price: 30_000, flavor: "usa monóculo e fala de dividendos no café da manhã",
+		bonus: flex{effect: "a poupança rende 1 ponto a mais", apply: func(p profession) profession {
+			p.interest++
+			return p
+		}}},
+	{id: "magnata", emoji: "💼", name: "Magnata", price: 50_000, flavor: "compra empresa por impulso",
+		bonus: flex{effect: "o lucro na venda do !acoes rende 10% a mais", apply: func(p profession) profession {
+			p.stockProfit += 10
+			return p
+		}}},
+	{id: "chefao", emoji: "🕴️", name: "Chefão da Máfia", price: 75_000, flavor: "faz propostas que ninguém pode recusar",
+		bonus: titleAbuse(robAbuse)},
+	{id: "sheik", emoji: "🛢️", name: "Sheik do Petróleo", price: 100_000, flavor: "achou petróleo cavando o quintal",
+		bonus: flex{effect: "anda com escolta: quem tenta !roubar, !furtar, !sequestrar ou !matar a pessoa tem 10% menos chance", apply: func(p profession) profession {
+			p.guard += 0.1
+			return p
+		}}},
+	{id: "lenda", emoji: "🌟", name: "Lenda Viva", price: 250_000, flavor: "já tem estátua em vida",
+		bonus: flex{effect: "tem fã-clube: o voto conta 1 a mais no !votar, no !impeachment e no júri do !processar", apply: func(p profession) profession {
+			p.voteWeight = p.ballotWeight() + 1
+			return p
+		}}},
+	{id: "farao", emoji: "🔺", name: "Faraó", price: 500_000, flavor: "construiu uma pirâmide só pra guardar o saldo",
+		bonus: titleCurse("encosto")},
+	{id: "imperador", emoji: "👑", name: "Imperador(a) do Grupo", price: 1_000_000, flavor: "o grupo inteiro trabalha pra essa pessoa",
+		bonus: titleCurse("miseria")},
+}
+
+func titleCurse(id string) flex {
+	c, _ := charmByID(id)
+	return flex{
+		effect: fmt.Sprintf("pode !amaldicoar os outros com %s (%s), com pelo menos %d%% de chance de pegar", c.label(), c.effect, percent(titleHexChance)),
+		apply: func(p profession) profession {
+			p.faith.curses = append(slices.Clip(p.faith.curses), id)
+			p.faith.hexChance = max(p.faith.hexChance, titleHexChance)
+			return p
+		},
+	}
+}
+
+func titleAbuse(kind abuseKind) flex {
+	return flex{
+		effect: fmt.Sprintf("a cada %s pode abusar do poder: %s", formatWait(kind.every), kind.perk),
+		apply: func(p profession) profession {
+			if slices.Contains(p.abuses, kind) {
+				return p
+			}
+			p.abuses = append(slices.Clip(p.abuses), kind)
+			return p
+		},
+	}
+}
+
+func (p profession) titled(id string) profession {
+	t, ok := titleByID(id)
+	if !ok {
+		return p
+	}
+	p = t.bonus.apply(p)
+	p.titleID = id
+	return p
+}
+
+func titlePerks(p profession) []string {
+	t, ok := titleByID(p.titleID)
+	if !ok {
+		return nil
+	}
+	return []string{"👑 Usa o título " + t.label() + " (já conta nas vantagens acima)"}
 }
 
 type titleHolder struct {
@@ -131,9 +213,9 @@ func (b *bot) titlesMenu(ctx context.Context, chat types.JID) error {
 			status = fmt.Sprintf("de @%s, pra tomar", h.acc.jid.User)
 			mentions = append(mentions, h.acc.jid)
 		}
-		lines = append(lines, fmt.Sprintf("%s: %s · %s\n    _%s_", t.label(), coins(t.priceFrom(h, held)), status, t.flavor))
+		lines = append(lines, fmt.Sprintf("%s: %s · %s\n    _%s_\n    ✨ %s", t.label(), coins(t.priceFrom(h, held)), status, t.flavor, t.bonus.effect))
 	}
-	lines = append(lines, "", "_Manda !titulo comprar <nome>. Quem compra já sai usando, e o título aparece antes do nome no !saldo e no !ricos. Pra trocar entre os seus: !titulo usar <nome> (ou nenhum)_")
+	lines = append(lines, "", "_Manda !titulo comprar <nome>. Quem compra já sai usando, e o título aparece antes do nome no !saldo e no !ricos. Só o título que tá usando dá a vantagem. Pra trocar entre os seus: !titulo usar <nome> (ou nenhum)_")
 	_, err = b.sendMentions(ctx, chat, strings.Join(lines, "\n"), mentions)
 	return err
 }

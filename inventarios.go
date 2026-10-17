@@ -29,6 +29,7 @@ type gathering struct {
 	broken item
 	worn   []item
 	spent  []item
+	injury injury
 }
 
 type theft struct {
@@ -161,13 +162,13 @@ func moveItems(ctx context.Context, tx *sql.Tx, chat types.JID, from, to account
 
 func (s *walletStore) consumeItem(ctx context.Context, chat types.JID, acc account, it item, e itemEffect, now time.Time) (wait time.Duration, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
-		if it.resets != nil {
-			caffeineWait, err := stampCooldown(ctx, tx, chat, acc, caffeineCooldown, now)
+		if it.limit != nil {
+			limitWait, err := stampCooldown(ctx, tx, chat, acc, it.limit.cooldown, now)
 			if err != nil {
 				return err
 			}
-			if caffeineWait > 0 {
-				wait = caffeineWait
+			if limitWait > 0 {
+				wait = limitWait
 				return nil
 			}
 		}
@@ -218,6 +219,9 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc account, a
 			return nil
 		}
 		g.haul, g.worn, g.spent = k.roll(), k.worn, k.spent
+		if g.injury, err = hurt(ctx, tx, chat, acc, k.hazard.roll(k.safety), now); err != nil {
+			return err
+		}
 		if k.grace > 0 {
 			uses, err := wearTool(ctx, tx, chat, acc, k.tool)
 			if err != nil {
@@ -352,6 +356,14 @@ func takeItems(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id 
 	return err
 }
 
+func spendItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string) (bool, error) {
+	err := takeItems(ctx, tx, chat, acc, id, 1)
+	if errors.Is(err, errNoItems) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func takeGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, quantity int64) ([]grade, error) {
 	held, err := heldGrades(ctx, tx, chat, acc, id)
 	if err != nil {
@@ -390,6 +402,14 @@ func takeGrade(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id 
 		g.quantity, chat.String(), acc.key, id, g.quality,
 	)
 	return err
+}
+
+func holdsItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string) (held bool, err error) {
+	err = tx.QueryRowContext(ctx,
+		"SELECT EXISTS (SELECT 1 FROM inventarios WHERE chat = ? AND pessoa = ? AND item = ?)",
+		chat.String(), acc.key, id,
+	).Scan(&held)
+	return held, err
 }
 
 func heldGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string) (grades []grade, err error) {

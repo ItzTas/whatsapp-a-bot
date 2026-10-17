@@ -3,126 +3,110 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"math/rand/v2"
+	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
-	auctionWindow      = 2 * time.Minute
-	auctionExtension   = 30 * time.Second
-	auctionMinStep     = 10
-	auctionStepPercent = 5
-	auctionKind        = "leilao"
+	auctionExtension    = 5 * time.Minute
+	auctionMinStep      = 10
+	auctionStepPercent  = 5
+	auctionRelicChance  = 0.03
+	auctionRelicPercent = 3000
+	auctionSendLimit    = 4
 )
 
-type auction struct {
-	mu       sync.Mutex
-	chat     types.JID
-	seller   account
-	item     item
-	quantity int64
-	grades   []grade
-	minimum  int64
-	bid      int64
-	bidder   account
-	ends     time.Time
-	over     bool
-}
-
-type auctionState struct {
-	Chat     types.JID     `json:"chat"`
-	Seller   storedAccount `json:"seller"`
-	Item     string        `json:"item"`
-	Quantity int64         `json:"quantity"`
-	Grades   []gradeState  `json:"grades,omitempty"`
-	Minimum  int64         `json:"minimum"`
-	Bid      int64         `json:"bid"`
-	Bidder   storedAccount `json:"bidder"`
-	Ends     time.Time     `json:"ends"`
+type dailyAuction struct {
+	chat   types.JID
+	day    string
+	item   item
+	bid    int64
+	bidder account
+	ends   time.Time
 }
 
 type auctionBid struct {
+	lot      dailyAuction
 	previous account
 	refunded int64
 	extended bool
-	next     int64
+}
+
+type dueAuction struct {
+	chat types.JID
+	day  string
+}
+
+func auctionGoods(it item) bool {
+	return (it.rarity == epic || it.rarity == legendary) && !it.illegal && !it.shop && it.relicOdds == 0
+}
+
+func auctionOpening(it item) int64 {
+	if it.rarity == relic {
+		return it.value * auctionRelicPercent / 100
+	}
+	if luxuryGoods(it) {
+		return luxuryPrice(it)
+	}
+	return it.value
+}
+
+func auctionLot(chat types.JID, now time.Time) item {
+	if dailyRand(chat, now, "leilao").Float64() < auctionRelicChance {
+		return auctionRotation(chat, now, relics(), "leilao-reliquia")
+	}
+	return auctionRotation(chat, now, slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !auctionGoods(it) }), "leilao-rodizio")
+}
+
+func auctionRotation(chat types.JID, now time.Time, pool []item, salt string) item {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(chat.String() + salt))
+	rand.New(rand.NewPCG(h.Sum64(), 0)).Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+	return pool[localDay(now)%int64(len(pool))]
+}
+
+func todaysAuction(chat types.JID, now time.Time) dailyAuction {
+	return dailyAuction{chat: chat, day: now.In(reminderZone).Format(time.DateOnly), item: auctionLot(chat, now), ends: now.Add(nextRestock(now))}
+}
+
+func (a dailyAuction) nextBid() int64 {
+	if a.bid == 0 {
+		return auctionOpening(a.item)
+	}
+	return a.bid + max(auctionMinStep, a.bid*auctionStepPercent/100)
+}
+
+func (a dailyAuction) refusal(bidder account, amount int64) string {
+	if bidder.key == a.bidder.key {
+		return fmt.Sprintf("Você já tá ganhando com %s 🏆 Espera alguém cobrir", coins(a.bid))
+	}
+	if next := a.nextBid(); amount < next {
+		return fmt.Sprintf("O lance tem que ser de pelo menos %s", coins(next))
+	}
+	return ""
 }
 
 func (b *bot) leilao(ctx context.Context, evt *events.Message) error {
-	chat := evt.Info.Chat.ToNonAD()
-	text := messageText(evt.Message)
-	arg := firstPlainArg(text)
-	value, open := b.auctions.Load(chat.String())
-	if open && arg != "" {
-		return b.bidAuction(ctx, evt, value.(*auction), arg)
+	if arg := firstPlainArg(messageText(evt.Message)); arg != "" {
+		return b.bidAuction(ctx, evt, arg)
 	}
-	if open {
-		return b.sendAuctionStatus(ctx, value.(*auction))
-	}
-	q := parseItemQuery(text)
-	if q.name == "" {
-		return b.sendText(ctx, chat, fmt.Sprintf("Não tem leilão rolando agora 🔨 Abre um com !leilao <item> [quantidade] [lance mínimo], tipo !leilao espada 2 500. Ele fica aberto por %s", formatWait(auctionWindow)))
-	}
-	return b.openAuction(ctx, evt, q)
+	return b.sendAuctionStatus(ctx, evt.Info.Chat.ToNonAD())
 }
 
 func (b *bot) lance(ctx context.Context, evt *events.Message) error {
-	chat := evt.Info.Chat.ToNonAD()
-	value, open := b.auctions.Load(chat.String())
-	if !open {
-		return b.sendText(ctx, chat, "Não tem leilão rolando agora 🔨 Abre um com !leilao <item>")
-	}
-	return b.bidAuction(ctx, evt, value.(*auction), firstPlainArg(messageText(evt.Message)))
+	return b.bidAuction(ctx, evt, firstPlainArg(messageText(evt.Message)))
 }
 
-func (b *bot) openAuction(ctx context.Context, evt *events.Message, q itemQuery) error {
-	chat := evt.Info.Chat.ToNonAD()
-	seller := b.account(ctx, evt.Info.Sender)
-	it, have, problem, err := b.heldItem(ctx, chat, seller, q.name)
-	if err != nil {
-		return err
-	}
-	if problem != "" {
-		return b.sendText(ctx, chat, problem)
-	}
-	quantity, minimum, priced := auctionTerms(q, have)
-	if quantity > have {
-		return b.sendText(ctx, chat, "Você só tem "+quantityLabel(it, have))
-	}
-	grades, err := b.wallets.takeAuctionItem(ctx, chat, seller, it.id, quantity)
-	if errors.Is(err, errNoItems) {
-		return b.sendText(ctx, chat, "Sua mochila mudou no meio do caminho e não dá mais 🤨 Confere no !mochila")
-	}
-	if err != nil {
-		return fmt.Errorf("guardar item do leilão: %w", err)
-	}
-
-	if !priced {
-		minimum = marketPayoutOf(it, grades, marketSalePercent)
-	}
-	a := &auction{chat: chat, seller: seller, item: it, quantity: quantity, grades: grades, minimum: minimum, ends: time.Now().Add(auctionWindow)}
-	if !b.storeAuction(ctx, a) {
-		if err := b.wallets.putBackAuctionItem(ctx, chat, seller, it.id, grades); err != nil {
-			return fmt.Errorf("devolver item do leilão: %w", err)
-		}
-		return b.sendText(ctx, chat, "Alguém abriu um leilão aqui agora mesmo 🔨 Espera ele acabar pra abrir o seu")
-	}
-	go b.runAuction(ctx, a)
-
-	text := fmt.Sprintf("🔨 *Leilão aberto!* @%s tá leiloando %s, que vale %s\n💰 Lance mínimo: %s\n⏰ Fecha em %s, e lance no finzinho prorroga por mais %s\n\n_Manda !lance <valor> pra dar lance_",
-		seller.jid.User, a.lot(), coins(worthOf(it, grades)), coins(minimum), formatWait(auctionWindow), formatSeconds(auctionExtension))
-	_, err = b.sendMentions(ctx, chat, text, []types.JID{seller.jid})
-	return err
-}
-
-func (b *bot) bidAuction(ctx context.Context, evt *events.Message, a *auction, arg string) error {
+func (b *bot) bidAuction(ctx context.Context, evt *events.Message, arg string) error {
 	chat := evt.Info.Chat.ToNonAD()
 	bidder := b.account(ctx, evt.Info.Sender)
 	amount, refusal, err := b.placeStake(ctx, chat, bidder, arg, "!lance")
@@ -132,220 +116,229 @@ func (b *bot) bidAuction(ctx context.Context, evt *events.Message, a *auction, a
 	if refusal != "" {
 		return b.sendText(ctx, chat, refusal)
 	}
-	bid, refusal, err := b.raiseAuction(ctx, a, bidder, amount, time.Now())
+	bid, refusal, err := b.wallets.bidAuction(ctx, chat, bidder, amount, time.Now())
 	if err != nil {
-		return err
+		return fmt.Errorf("dar lance no leilão: %w", err)
 	}
 	if refusal != "" {
 		return b.sendText(ctx, chat, refusal)
 	}
 
-	lines := []string{fmt.Sprintf("💸 @%s deu um lance de %s em %s", bidder.jid.User, coins(amount), a.lot())}
+	lines := []string{fmt.Sprintf("💸 @%s deu um lance de %s em %s", bidder.jid.User, coins(amount), bid.lot.item.label())}
 	mentions := []types.JID{bidder.jid}
 	if bid.refunded > 0 {
 		lines = append(lines, fmt.Sprintf("↩️ @%s foi coberto e recebeu os %s de volta", bid.previous.jid.User, thousands(bid.refunded)))
 		mentions = append(mentions, bid.previous.jid)
 	}
 	if bid.extended {
-		lines = append(lines, fmt.Sprintf("⏰ Lance no finzinho! O leilão foi prorrogado e fecha em %s", formatSeconds(auctionExtension)))
+		lines = append(lines, fmt.Sprintf("⏰ Lance no finzinho! O leilão foi prorrogado e fecha em %s", formatWait(auctionExtension)))
 	}
-	lines = append(lines, "", fmt.Sprintf("_Pra cobrir: !lance %s ou mais_", thousands(bid.next)))
+	lines = append(lines, "", fmt.Sprintf("_Pra cobrir: !lance %s ou mais_", thousands(bid.lot.nextBid())))
 	_, err = b.sendMentions(ctx, chat, strings.Join(lines, "\n"), mentions)
 	return err
 }
 
-func (b *bot) raiseAuction(ctx context.Context, a *auction, bidder account, amount int64, now time.Time) (auctionBid, string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.over {
-		return auctionBid{}, "🔨 Esse leilão acabou de fechar", nil
-	}
-	if bidder.key == a.seller.key {
-		return auctionBid{}, "Dar lance no próprio leilão? Isso se chama inflar o preço 🤡", nil
-	}
-	if bidder.key == a.bidder.key {
-		return auctionBid{}, fmt.Sprintf("Você já tá ganhando com %s 🏆 Espera alguém cobrir", coins(a.bid)), nil
-	}
-	if next := a.nextBid(); amount < next {
-		return auctionBid{}, fmt.Sprintf("O lance tem que ser de pelo menos %s", coins(next)), nil
-	}
-	held, err := b.holdStake(ctx, a.chat, bidder, amount)
+func (b *bot) sendAuctionStatus(ctx context.Context, chat types.JID) error {
+	now := time.Now()
+	a, err := b.wallets.currentAuction(ctx, chat, now)
 	if err != nil {
-		return auctionBid{}, "", fmt.Errorf("segurar lance do leilão: %w", err)
+		return fmt.Errorf("ler leilão do dia: %w", err)
 	}
-	if !held {
-		return auctionBid{}, stakeChanged, nil
+	lines := []string{"🔨 *Leilão do dia*", "_Todo dia o martelo bate num item diferente, e quem der o maior lance leva na virada da meia-noite_", ""}
+	if a.item.rarity == relic {
+		lines = append(lines, "🔴 *Hoje tem relíquia!* Isso quase nunca aparece por aqui, e o lance mínimo é salgado")
 	}
-
-	bid := auctionBid{previous: a.bidder, refunded: a.bid}
+	lines = append(lines, fmt.Sprintf("📦 %s (%s)", a.item.label(), a.item.summary()))
+	if p := perk(a.item); p != "" {
+		lines = append(lines, "✨ "+p)
+	}
+	var mentions []types.JID
+	price := "💰 Ainda sem lance, o mínimo é " + coins(a.nextBid())
 	if a.bid > 0 {
-		if err := b.wallets.credit(ctx, a.chat, []account{a.bidder}, a.bid); err != nil {
-			b.client.Log.Errorf("devolver %d moedas do lance coberto de %s no leilão: %v", a.bid, a.bidder.jid, err)
+		price = fmt.Sprintf("💰 Lance atual: %s de @%s", coins(a.bid), a.bidder.jid.User)
+		mentions = append(mentions, a.bidder.jid)
+	}
+	lines = append(lines, price,
+		fmt.Sprintf("⏰ Fecha em %s, e lance nos últimos %s prorroga", formatWait(a.ends.Sub(now)), formatWait(auctionExtension)),
+		"",
+		fmt.Sprintf("_Manda !lance %s ou mais pra entrar. As moedas saem na hora e voltam se alguém cobrir; as do lance vencedor somem no martelo_", thousands(a.nextBid())),
+	)
+	_, err = b.sendMentions(ctx, chat, strings.Join(lines, "\n"), mentions)
+	return err
+}
+
+func (b *bot) runAuctions(ctx context.Context) {
+	ticker := time.NewTicker(reminderTick)
+	defer ticker.Stop()
+	for {
+		if b.client.IsLoggedIn() {
+			b.closeDueAuctions(ctx, time.Now())
 		}
-	}
-	a.bid, a.bidder = amount, bidder
-	if a.ends.Sub(now) < auctionExtension {
-		a.ends = now.Add(auctionExtension)
-		bid.extended = true
-	}
-	bid.next = a.nextBid()
-	b.keepAuction(ctx, a)
-	return bid, "", nil
-}
-
-func (b *bot) storeAuction(ctx context.Context, a *auction) bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if _, taken := b.auctions.LoadOrStore(a.chat.String(), a); taken {
-		return false
-	}
-	b.keepAuction(ctx, a)
-	return true
-}
-
-func (b *bot) keepAuction(ctx context.Context, a *auction) {
-	state := auctionState{
-		Chat: a.chat, Seller: storeAccount(a.seller), Item: a.item.id, Quantity: a.quantity, Grades: storeGrades(a.grades),
-		Minimum: a.minimum, Bid: a.bid, Bidder: storeAccount(a.bidder), Ends: a.ends,
-	}
-	b.keepGame(ctx, auctionKind, a.chat.String(), state, a.ends)
-}
-
-func (a *auction) nextBid() int64 {
-	if a.bid == 0 {
-		return a.minimum
-	}
-	return a.bid + max(auctionMinStep, a.bid*auctionStepPercent/100)
-}
-
-func (a *auction) closeIfDue(now time.Time) time.Duration {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	wait := a.ends.Sub(now)
-	if wait <= 0 {
-		a.over = true
-	}
-	return wait
-}
-
-func (b *bot) runAuction(ctx context.Context, a *auction) {
-	for wait := a.closeIfDue(time.Now()); wait > 0; wait = a.closeIfDue(time.Now()) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(wait):
+		case <-ticker.C:
 		}
-	}
-	b.auctions.CompareAndDelete(a.chat.String(), a)
-	if err := b.finishAuction(ctx, a); err != nil {
-		b.client.Log.Errorf("fechar leilão de %s: %v", a.chat, err)
 	}
 }
 
-func (b *bot) finishAuction(ctx context.Context, a *auction) error {
-	lot := a.lot()
-	if a.bidder.key == "" {
-		if err := b.wallets.returnAuctionItem(ctx, a); err != nil {
-			return fmt.Errorf("devolver item sem lance: %w", err)
-		}
-		text := fmt.Sprintf("🔨 O leilão de %s acabou sem nenhum lance, então voltou pra mochila de @%s", lot, a.seller.jid.User)
-		_, err := b.sendMentions(ctx, a.chat, text, []types.JID{a.seller.jid})
+func (b *bot) closeDueAuctions(ctx context.Context, now time.Time) {
+	due, err := b.wallets.dueAuctions(ctx, now)
+	if err != nil {
+		b.client.Log.Errorf("procurar leilões vencidos: %v", err)
+		return
+	}
+	var g errgroup.Group
+	g.SetLimit(auctionSendLimit)
+	for _, d := range due {
+		g.Go(func() error {
+			if err := b.closeAuction(ctx, d, now); err != nil {
+				b.client.Log.Errorf("fechar leilão de %s em %s: %v", d.day, d.chat, err)
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+}
+
+func (b *bot) closeAuction(ctx context.Context, d dueAuction, now time.Time) error {
+	a, closed, err := b.wallets.settleAuction(ctx, d, now)
+	if err != nil || !closed || !b.economyOn(ctx, d.chat) {
 		return err
 	}
-	if err := b.wallets.settleAuction(ctx, a); err != nil {
-		return fmt.Errorf("pagar leilão: %w", err)
+	allowed, err := b.allowedIn(ctx, d.chat, []types.JID{a.bidder.jid})
+	if err != nil || !allowed {
+		return err
 	}
-	text := fmt.Sprintf("🔨 *Dou-lhe uma, dou-lhe duas... vendido!*\n\n🏆 @%s arrematou %s de @%s por %s",
-		a.bidder.jid.User, lot, a.seller.jid.User, coins(a.bid))
-	_, err := b.sendMentions(ctx, a.chat, text, []types.JID{a.bidder.jid, a.seller.jid})
+	next := todaysAuction(d.chat, now)
+	text := fmt.Sprintf("🔨 *Dou-lhe uma, dou-lhe duas... vendido!*\n\n🏆 @%s arrematou %s no leilão do dia por %s, e as moedas sumiram no martelo\n\n📦 Já tem item novo na mesa: %s, a partir de %s. Manda !leilao pra ver",
+		a.bidder.jid.User, a.item.label(), coins(a.bid), next.item.label(), coins(next.nextBid()))
+	_, err = b.sendMentions(ctx, d.chat, text, []types.JID{a.bidder.jid})
 	return err
 }
 
-func (b *bot) sendAuctionStatus(ctx context.Context, a *auction) error {
-	a.mu.Lock()
-	seller, bidder, bid, next, left := a.seller, a.bidder, a.bid, a.nextBid(), time.Until(a.ends)
-	a.mu.Unlock()
-
-	lines := []string{
-		fmt.Sprintf("🔨 *Leilão de @%s*", seller.jid.User),
-		fmt.Sprintf("📦 %s, que vale %s", a.lot(), coins(worthOf(a.item, a.grades))),
+func loadAuction(ctx context.Context, tx *sql.Tx, chat types.JID, now time.Time) (dailyAuction, error) {
+	a := dailyAuction{chat: chat}
+	var (
+		id, bidderJID string
+		ends          int64
+	)
+	err := tx.QueryRowContext(ctx,
+		"SELECT dia, item, lance, licitante, licitante_jid, fecha_em FROM leiloes WHERE chat = ? AND fecha_em > ? ORDER BY dia LIMIT 1",
+		chat.String(), now.Unix(),
+	).Scan(&a.day, &id, &a.bid, &a.bidder.key, &bidderJID, &ends)
+	if errors.Is(err, sql.ErrNoRows) {
+		return todaysAuction(chat, now), nil
 	}
-	price, mentions := "💰 Ainda sem lance, o mínimo é "+coins(next), []types.JID{seller.jid}
-	if bid > 0 {
-		price = fmt.Sprintf("💰 Lance atual: %s de @%s", coins(bid), bidder.jid.User)
-		mentions = append(mentions, bidder.jid)
+	if err != nil {
+		return a, err
 	}
-	lines = append(lines, price, "⏰ Fecha em "+formatSeconds(left), "", fmt.Sprintf("_Manda !lance %s ou mais pra entrar_", thousands(next)))
-	_, err := b.sendMentions(ctx, a.chat, strings.Join(lines, "\n"), mentions)
-	return err
+	return a.fill(id, bidderJID, ends)
 }
 
-func auctionTerms(q itemQuery, have int64) (quantity, minimum int64, priced bool) {
-	if len(q.numbers) == 0 || (len(q.numbers) == 1 && !q.all && q.count == 0) {
-		return q.quantity(have), 0, false
-	}
-	minimum = q.numbers[len(q.numbers)-1]
-	q.numbers = q.numbers[:len(q.numbers)-1]
-	return q.quantity(have), minimum, true
-}
-
-func (a *auction) lot() string {
-	return quantityLabel(a.item, a.quantity) + gradesLabel(a.grades)
-}
-
-func (s *walletStore) takeAuctionItem(ctx context.Context, chat types.JID, acc account, id string, quantity int64) (grades []grade, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
-		grades, err = takeGrades(ctx, tx, chat, acc, id, quantity)
-		return err
-	})
-	return grades, err
-}
-
-func (s *walletStore) putBackAuctionItem(ctx context.Context, chat types.JID, acc account, id string, grades []grade) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error { return addGrades(ctx, tx, chat, acc, id, grades) })
-}
-
-func (s *walletStore) returnAuctionItem(ctx context.Context, a *auction) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
-		if err := addGrades(ctx, tx, a.chat, a.seller, a.item.id, a.grades); err != nil {
-			return err
-		}
-		return dropGameTx(ctx, tx, auctionKind, a.chat.String())
-	})
-}
-
-func (s *walletStore) settleAuction(ctx context.Context, a *auction) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
-		if err := dropGameTx(ctx, tx, auctionKind, a.chat.String()); err != nil {
-			return err
-		}
-		if err := addGrades(ctx, tx, a.chat, a.bidder, a.item.id, a.grades); err != nil {
-			return err
-		}
-		if err := openWallet(ctx, tx, a.chat, a.seller); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", a.bid, a.chat.String(), a.seller.key)
-		return err
-	})
-}
-
-func (b *bot) restoreAuction(ctx context.Context, saved savedGame) error {
-	var state auctionState
-	if err := json.Unmarshal(saved.state, &state); err != nil {
-		return fmt.Errorf("ler leilão salvo: %w", err)
-	}
-	it, ok := itemByID(state.Item)
+func (a dailyAuction) fill(id, bidderJID string, ends int64) (dailyAuction, error) {
+	it, ok := itemByID(id)
 	if !ok {
-		return fmt.Errorf("item %q do leilão não existe mais", state.Item)
+		return a, fmt.Errorf("item %q do leilão não existe mais", id)
 	}
-	a := &auction{
-		chat: state.Chat, seller: state.Seller.account(), item: it, quantity: state.Quantity, grades: restoreGrades(state.Grades, state.Quantity),
-		minimum: state.Minimum, bid: state.Bid, bidder: state.Bidder.account(), ends: state.Ends,
+	jid, err := types.ParseJID(bidderJID)
+	a.item, a.bidder.jid, a.ends = it, jid, time.Unix(ends, 0)
+	return a, err
+}
+
+func (s *walletStore) currentAuction(ctx context.Context, chat types.JID, now time.Time) (a dailyAuction, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+		a, err = loadAuction(ctx, tx, chat, now)
+		return err
+	})
+	return a, err
+}
+
+func (s *walletStore) bidAuction(ctx context.Context, chat types.JID, bidder account, amount int64, now time.Time) (bid auctionBid, refusal string, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := openWallet(ctx, tx, chat, bidder); err != nil {
+			return err
+		}
+		a, err := loadAuction(ctx, tx, chat, now)
+		if err != nil {
+			return err
+		}
+		if refusal = a.refusal(bidder, amount); refusal != "" {
+			return nil
+		}
+		if err := debitBalance(ctx, tx, chat, bidder, amount); err != nil {
+			return err
+		}
+		if a.bid > 0 {
+			_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", a.bid, chat.String(), a.bidder.key)
+			if err != nil {
+				return err
+			}
+		}
+		bid.previous, bid.refunded = a.bidder, a.bid
+		if a.ends.Sub(now) < auctionExtension {
+			a.ends, bid.extended = now.Add(auctionExtension), true
+		}
+		a.bid, a.bidder = amount, bidder
+		bid.lot = a
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO leiloes (chat, dia, item, lance, licitante, licitante_jid, fecha_em) VALUES (?, ?, ?, ?, ?, ?, ?)
+			 ON CONFLICT (chat, dia) DO UPDATE SET lance = excluded.lance, licitante = excluded.licitante, licitante_jid = excluded.licitante_jid, fecha_em = excluded.fecha_em`,
+			chat.String(), a.day, a.item.id, a.bid, a.bidder.key, a.bidder.jid.String(), a.ends.Unix(),
+		)
+		return err
+	})
+	if errors.Is(err, errNoFunds) {
+		return bid, stakeChanged, nil
 	}
-	if _, taken := b.auctions.LoadOrStore(a.chat.String(), a); taken {
-		return fmt.Errorf("já tem outro leilão rolando em %s", a.chat)
+	return bid, refusal, err
+}
+
+func (s *walletStore) dueAuctions(ctx context.Context, now time.Time) (due []dueAuction, err error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT chat, dia FROM leiloes WHERE fecha_em <= ?", now.Unix())
+	if err != nil {
+		return nil, err
 	}
-	go b.runAuction(ctx, a)
-	return nil
+	defer func() { err = errors.Join(err, rows.Close()) }()
+
+	for rows.Next() {
+		var (
+			raw string
+			d   dueAuction
+		)
+		if err := rows.Scan(&raw, &d.day); err != nil {
+			return nil, err
+		}
+		if d.chat, err = types.ParseJID(raw); err != nil {
+			return nil, err
+		}
+		due = append(due, d)
+	}
+	return due, rows.Err()
+}
+
+func (s *walletStore) settleAuction(ctx context.Context, d dueAuction, now time.Time) (a dailyAuction, closed bool, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		var (
+			id, bidderJID string
+			ends          int64
+		)
+		a = dailyAuction{chat: d.chat, day: d.day}
+		err := tx.QueryRowContext(ctx,
+			"DELETE FROM leiloes WHERE chat = ? AND dia = ? AND fecha_em <= ? RETURNING item, lance, licitante, licitante_jid, fecha_em",
+			d.chat.String(), d.day, now.Unix(),
+		).Scan(&id, &a.bid, &a.bidder.key, &bidderJID, &ends)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if a, err = a.fill(id, bidderJID, ends); err != nil {
+			return err
+		}
+		closed = true
+		return addItems(ctx, tx, d.chat, a.bidder, a.item.id, 1)
+	})
+	return a, closed, err
 }

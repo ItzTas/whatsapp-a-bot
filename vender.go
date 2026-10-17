@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 
 const (
 	marketSalePercent = 60
+	mythicSalePercent = 90
 	offerWindow       = 3 * time.Minute
 	offerKind         = "vender"
 )
@@ -47,8 +49,15 @@ func offerKey(chat types.JID, buyer account) string {
 	return chat.String() + "|" + buyer.key
 }
 
-func marketPayout(value, quantity int64) int64 {
-	return marketPayoutAt(value, quantity, marketSalePercent)
+func marketPayout(it item, quantity int64) int64 {
+	return marketPayoutAt(it.value, quantity, marketPercentOf(it, marketSalePercent))
+}
+
+func marketPercentOf(it item, percent int64) int64 {
+	if it.rarity == mythic {
+		return max(percent, mythicSalePercent)
+	}
+	return percent
 }
 
 func marketPayoutAt(value, quantity, percent int64) int64 {
@@ -66,8 +75,8 @@ func (b *bot) vender(ctx context.Context, evt *events.Message) error {
 	if kind, ok := parseCategorySale(text); ok {
 		return b.sellCategory(ctx, evt, kind)
 	}
-	if parseUselessSale(text) {
-		return b.sellUseless(ctx, evt)
+	if sale, ok := parseBulkSale(text); ok {
+		return b.sellBatch(ctx, evt, sale.pick, sale.hint)
 	}
 	return b.sellToMarket(ctx, evt)
 }
@@ -81,10 +90,32 @@ func parseCategorySale(text string) (string, bool) {
 	return strings.Join(fields[2:], " "), true
 }
 
-func parseUselessSale(text string) bool {
-	keywords := map[string]bool{"inuteis": true, "inutil": true, "sobras": true}
+type bulkSale struct {
+	pick func(held []stack, percent int64) ([]marketSale, []string)
+	hint string
+}
+
+func parseBulkSale(text string) (bulkSale, bool) {
+	useless := bulkSale{
+		pick: salesWhere(func(it item) bool { return perk(it) == "" && it.gift == "" }, "Você não tem nenhum item sem efeito na mochila"),
+		hint: "_Sem efeito é o item que não tem \"Pra que serve\" no !item <nome> e não dá de presente. Pra levar junto o que o !usar só faz graça, manda !vender bugigangas_",
+	}
+	trinkets := bulkSale{
+		pick: salesWhere(func(it item) bool { return effectPerk(it) == "" && !it.pet }, "Você não tem nenhuma bugiganga na mochila"),
+		hint: "_Bugiganga é o que não tem efeito de verdade: o que não tem \"Pra que serve\", os presentes e o que o !usar só faz graça (comida, Nokia, Tamagotchi...). Os bichinhos ficam em casa_",
+	}
+	duplicates := bulkSale{pick: duplicateSales, hint: "_Fica 1 de cada item na mochila, sempre o de melhor qualidade_"}
+	modes := map[string]bulkSale{
+		"inuteis": useless, "inutil": useless, "sobras": useless,
+		"bugigangas": trinkets, "bugiganga": trinkets, "tralhas": trinkets,
+		"duplicados": duplicates, "duplicadas": duplicates, "repetidos": duplicates, "repetidas": duplicates,
+	}
 	fields := strings.Fields(text)
-	return len(fields) == 2 && keywords[normalizeItemName(fields[1])]
+	if len(fields) != 2 {
+		return bulkSale{}, false
+	}
+	sale, ok := modes[normalizeItemName(fields[1])]
+	return sale, ok
 }
 
 func parseItemNumbers(text string) ([]int, bool) {
@@ -167,29 +198,40 @@ func categorySales(c int, held []stack, percent int64) ([]marketSale, []string) 
 	return sales, problems
 }
 
-func (b *bot) sellUseless(ctx context.Context, evt *events.Message) error {
-	return b.sellBatch(ctx, evt, uselessSales, "_Sem efeito é o item que não tem \"Pra que serve\" no !item <nome> e não dá de presente. Os lendários nunca entram_")
+func salesWhere(sellable func(item) bool, empty string) func(held []stack, percent int64) ([]marketSale, []string) {
+	return func(held []stack, percent int64) ([]marketSale, []string) {
+		var sales []marketSale
+		for _, s := range held {
+			if sellable(s.item) && !s.item.illegal {
+				sales = append(sales, marketSale{item: s.item, quantity: s.quantity, percent: percent})
+			}
+		}
+		if len(sales) == 0 {
+			return nil, []string{empty}
+		}
+		return sales, nil
+	}
 }
 
-func uselessSales(held []stack, percent int64) ([]marketSale, []string) {
+func duplicateSales(held []stack, percent int64) ([]marketSale, []string) {
 	var (
-		sales []marketSale
-		kept  []string
+		sales    []marketSale
+		problems []string
 	)
 	for _, s := range held {
-		if perk(s.item) != "" || s.item.gift != "" {
+		if s.quantity < 2 {
 			continue
 		}
-		if s.item.rarity >= legendary {
-			kept = append(kept, fmt.Sprintf("#%d %s é %s e fica na mochila", s.item.number(), s.item.label(), rarities[s.item.rarity].name))
+		if s.item.illegal {
+			problems = append(problems, fmt.Sprintf("#%d %s o mercado não compra, só o !mercadonegro vender", s.item.number(), s.item.label()))
 			continue
 		}
-		sales = append(sales, marketSale{item: s.item, quantity: s.quantity, percent: percent})
+		sales = append(sales, marketSale{item: s.item, quantity: s.quantity - 1, percent: percent})
 	}
-	if len(sales)+len(kept) == 0 {
-		kept = append(kept, "Você não tem nenhum item sem efeito na mochila")
+	if len(sales)+len(problems) == 0 {
+		problems = append(problems, "Você não tem nenhum item repetido na mochila")
 	}
-	return sales, kept
+	return sales, problems
 }
 
 func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick func(held []stack, percent int64) ([]marketSale, []string), hint string) error {
@@ -225,7 +267,7 @@ func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick func(held
 		total += sale.payout
 		lines = append(lines, fmt.Sprintf("#%d %s%s · %s", sale.item.number(), quantityLabel(sale.item, sale.quantity), gradesLabel(sale.grades), coins(sale.payout)))
 	}
-	lines = append(lines, "", "💵 Total: "+coins(total)+marketBonus(job, person), "💰 Saldo: "+coins(balance))
+	lines = append(lines, "", "💵 Total: "+coins(total)+marketBonus(job, person)+mythicNote(sold), "💰 Saldo: "+coins(balance))
 	if len(problems) > 0 {
 		lines = append(lines, "", "⚠️ Ficou de fora:")
 		lines = append(lines, problems...)
@@ -256,13 +298,20 @@ func marketBonus(job profession, person types.JID) string {
 	return fmt.Sprintf("\n%s Como @%s %s, o mercado pagou %d%% em vez de %d%%", job.emoji, person.User, job.title, job.salePercent, marketSalePercent)
 }
 
+func mythicNote(sold []marketSale) string {
+	if !slices.ContainsFunc(sold, func(s marketSale) bool { return s.item.rarity == mythic }) {
+		return ""
+	}
+	return fmt.Sprintf("\n🟠 Item mítico sai por pelo menos %d%% do valor", mythicSalePercent)
+}
+
 func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.account(ctx, person)
 	q := parseItemQuery(messageText(evt.Message))
 	if q.name == "" {
-		return b.sendText(ctx, chat, fmt.Sprintf("Diz o que quer vender: !vender todynho (ou !vender todynho 3, ou tudo). Pra vender vários de uma vez, usa os números da !mochila com #: !vender #12 #40 #87, ou vende um tipo inteiro: !vender tipo pesca, ou tudo que não serve pra nada (menos os lendários): !vender inuteis. O mercado paga %d%% do valor, e com !vender @pessoa todynho 50 você vende pra alguém do grupo pelo preço que quiser", marketSalePercent))
+		return b.sendText(ctx, chat, fmt.Sprintf("Diz o que quer vender: !vender todynho (ou !vender todynho 3, ou tudo). Pra vender vários de uma vez, usa os números da !mochila com #: !vender #12 #40 #87, ou vende um tipo inteiro: !vender tipo pesca, ou tudo que não serve pra nada: !vender inuteis (ou !vender bugigangas, que leva junto o que o !usar só faz graça), ou o que tá repetido: !vender duplicados. O mercado paga %d%% do valor, e com !vender @pessoa todynho 50 você vende pra alguém do grupo pelo preço que quiser", marketSalePercent))
 	}
 	it, have, problem, err := b.heldItem(ctx, chat, acc, q.name)
 	if err != nil {
@@ -295,8 +344,8 @@ func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 		"pro agiota do bairro", "pra um colecionador meio estranho", "pro dono do bar da esquina", "pra um tiozinho no Marketplace",
 	}
 	sale := sold[0]
-	text := fmt.Sprintf("💸 @%s vendeu %s%s %s por %s%s\n💰 Saldo: %s\n\n_Vendendo pra alguém do grupo com !vender @pessoa dá pra cobrar o valor cheio (%s)_",
-		person.User, quantityLabel(it, quantity), gradesLabel(sale.grades), pickOne(buyers), coins(sale.payout), marketBonus(job, person), coins(balance), coins(worthOf(it, sale.grades)))
+	text := fmt.Sprintf("💸 @%s vendeu %s%s %s por %s%s%s\n💰 Saldo: %s\n\n_Vendendo pra alguém do grupo com !vender @pessoa dá pra cobrar o valor cheio (%s)_",
+		person.User, quantityLabel(it, quantity), gradesLabel(sale.grades), pickOne(buyers), coins(sale.payout), marketBonus(job, person), mythicNote(sold), coins(balance), coins(worthOf(it, sale.grades)))
 	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
 	return err
 }
@@ -347,7 +396,7 @@ func (b *bot) offerItem(ctx context.Context, evt *events.Message, buyer types.JI
 	time.AfterFunc(offerWindow, func() { b.expireOffer(ctx, key, offer) })
 
 	text := fmt.Sprintf("🤝 @%s quer vender %s pra @%s por %s\n_%s, e no mercado sairia por %s_\n\n@%s, manda !aceitar pra comprar ou !recusar pra dispensar. A proposta vale por %s",
-		seller.User, quantityLabel(it, quantity), buyer.User, coins(price), storePriceNote(it, quantity), coins(marketPayout(it.value, quantity)), buyer.User, formatWait(offerWindow))
+		seller.User, quantityLabel(it, quantity), buyer.User, coins(price), storePriceNote(it, quantity), coins(marketPayout(it, quantity)), buyer.User, formatWait(offerWindow))
 	_, err = b.sendMentions(ctx, chat, text, []types.JID{seller, buyer})
 	return err
 }

@@ -171,6 +171,7 @@ var professions = []profession{
 	},
 	{
 		name: "pedreiro", emoji: "🧱", title: "é pedreiro", area: areaObras, min: 120, max: 220, every: 20 * time.Minute,
+		hazard: hazard{chance: 0.1, harm: 30, wounds: []string{"deixou um tijolo cair no pé", "caiu do andaime do segundo andar", "levou uma marretada no dedão"}},
 		tasks: []string{
 			"levantou um muro torto", "bateu laje no domingo", "assentou piso sem nível nenhum", "fez um puxadinho na casa da sogra",
 			"rebocou a parede e o próprio pé", "terminou a obra só 3 meses atrasado",
@@ -180,6 +181,7 @@ var professions = []profession{
 		name: "servente", emoji: "🪣", title: "é servente de pedreiro", area: areaObras, aliases: []string{"ajudante"},
 		min: 80, max: 140, every: 16 * time.Minute,
 		finds: []string{"pedra", "cafe", "marmita", "pao-de-queijo", "chinelo"}, findChance: 0.15,
+		hazard: hazard{chance: 0.1, harm: 25, wounds: []string{"travou a coluna carregando saco de cimento", "pisou num prego enferrujado da obra", "caiu dentro da vala da fundação"}},
 		tasks: []string{
 			"carregou 200 tijolos subindo a escada", "virou massa na enxada até a mão criar calo",
 			"buscou o café do mestre 14 vezes", "subiu saco de cimento pro terceiro andar no ombro",
@@ -190,6 +192,7 @@ var professions = []profession{
 		name: "mestre de obras", emoji: "👷", title: "é mestre de obras", area: areaObras, aliases: []string{"mestre"},
 		min: 180, max: 300, every: 36 * time.Minute,
 		discount: 15, abuses: []abuseKind{workAbuse},
+		hazard: hazard{chance: 0.05, harm: 25, wounds: []string{"foi conferir a laje e levou uma telha na cabeça", "tropeçou num vergalhão no meio da obra"}},
 		tasks: []string{
 			"gritou com a equipe inteira antes das 7h", "conseguiu cimento mais barato com o primo do depósito",
 			"jurou pro cliente que a obra entrega semana que vem", "leu a planta de cabeça pra baixo e ninguém percebeu",
@@ -204,6 +207,7 @@ var professions = []profession{
 		},
 		peak:       peak{from: 18, to: 22, bonus: 40},
 		heistBonus: 0.05,
+		hazard:     hazard{chance: 0.12, harm: 40, wounds: []string{"levou um choque de 220 que deixou o cabelo em pé", "esqueceu de desligar o disjuntor", "caiu do poste mexendo num gato de luz"}},
 		tasks: []string{
 			"trocou o chuveiro da vizinha e ainda queimou a resistência", "fez um gato na rede e chamou de instalação provisória",
 			"passou fiação nova na casa inteira", "consertou a tomada que soltava faísca desde 2015",
@@ -213,6 +217,7 @@ var professions = []profession{
 	{
 		name: "encanador", emoji: "🪠", title: "é encanador", area: areaObras, min: 110, max: 210, every: 20 * time.Minute,
 		finds: []string{"bota-velha", "rato", "cueca", "carteira-perdida", "sapo", "anel"}, findChance: 0.12,
+		hazard: hazard{chance: 0.07, harm: 20, wounds: []string{"levou um jato de esgoto na cara", "cortou a mão num cano quebrado"}},
 		tasks: []string{
 			"desentupiu a privada de uma festa de aniversário", "trocou o sifão da pia e molhou a cozinha inteira",
 			"achou o vazamento depois de quebrar meio banheiro", "consertou a caixa d'água no telhado debaixo de sol",
@@ -222,6 +227,7 @@ var professions = []profession{
 	{
 		name: "pintor", emoji: "🎨", title: "é pintor", area: areaObras, min: 90, max: 170, every: 20 * time.Minute,
 		doubleChance: 0.1,
+		hazard:       hazard{chance: 0.08, harm: 25, wounds: []string{"caiu da escada com a lata de tinta junto", "ficou tonto com o cheiro do thinner e caiu do andaime"}},
 		tasks: []string{
 			"pintou a fachada de verde-limão a pedido da cliente", "deu duas demãos e cobrou por três",
 			"pintou a parede e o rodapé junto", "fez textura grafiato que arranha quem encosta",
@@ -231,6 +237,7 @@ var professions = []profession{
 	{
 		name: "marceneiro", emoji: "🪚", title: "é marceneiro", area: areaObras, min: 130, max: 230, every: 28 * time.Minute,
 		salePercent: 75,
+		hazard:      hazard{chance: 0.1, harm: 35, wounds: []string{"passou o dedo perto demais da serra circular", "martelou o próprio dedo"}},
 		tasks: []string{
 			"montou um guarda-roupa sem sobrar parafuso nenhum", "fez uma mesa de jantar que balança só um pouquinho",
 			"lixou uma cadeira até ela virar banquinho", "fez armário planejado que não coube na parede",
@@ -241,6 +248,7 @@ var professions = []profession{
 		name: "serralheiro", emoji: "🔩", title: "é serralheiro", area: areaObras, min: 120, max: 200, every: 28 * time.Minute,
 		theftEvery: 15 * time.Minute, theftBonus: 0.15, escapeBonus: 0.15,
 		heistBonus: 0.08,
+		hazard:     hazard{chance: 0.08, harm: 30, wounds: []string{"deixou o portão de ferro cair no pé", "levou uma faísca da esmerilhadeira no olho"}},
 		tasks: []string{
 			"fez um portão de ferro que pesa mais que um carro", "abriu um cadeado com um clipe em 10 segundos",
 			"instalou grade em todas as janelas do prédio", "soldou a grade do vizinho por engano",
@@ -273,7 +281,8 @@ var professions = []profession{
 			"esqueceu a máscara e ficou vendo estrelinha o dia todo", "soldou a própria bota no portão",
 			"queimou a sobrancelha com uma faísca",
 		},
-		craft: craft{activity: "!minerar", noBreak: true},
+		craft:  craft{activity: "!minerar", noBreak: true},
+		hazard: hazard{chance: 0.1, harm: 30, wounds: []string{"soldou sem máscara e queimou a vista", "levou uma faísca dentro da bota"}},
 		tasks: []string{
 			"soldou a estrutura de um galpão inteiro", "consertou o carrinho de mão com solda de emergência",
 			"fez churrasqueira de tambor pro churrasco de domingo", "remendou a lataria de um Gol 94",
@@ -287,6 +296,7 @@ var professions = []profession{
 			"instalou o espelho e o espelho caiu na primeira batida de porta", "cortou o vidro 2 centímetros menor",
 		},
 		doubleChance: 0.12,
+		hazard:       hazard{chance: 0.1, harm: 30, wounds: []string{"deixou a vidraça escorregar e se cortou todo", "atravessou uma porta de vidro achando que tava aberta"}},
 		tasks: []string{
 			"instalou um box de banheiro sem nenhuma bolha de silicone", "trocou a janela que o filho do vizinho quebrou com a bola",
 			"colocou espelho na academia inteira", "fez fachada de vidro numa loja de shopping",
@@ -297,7 +307,8 @@ var professions = []profession{
 		name: "operador de retroescavadeira", emoji: "🚜", title: "é operador de retroescavadeira", area: areaObras,
 		aliases: []string{"retroescavadeira", "retro", "operador"},
 		min:     150, max: 250, every: 36 * time.Minute,
-		craft: craft{activity: "!minerar", faster: 30, luck: 1, grade: -1, noTool: true},
+		craft:  craft{activity: "!minerar", faster: 30, luck: 1, grade: -1, noTool: true},
+		hazard: hazard{chance: 0.05, harm: 45, wounds: []string{"tombou a retroescavadeira dentro da vala", "bateu a cabeça no teto da cabine num buraco"}},
 		tasks: []string{
 			"cavou uma vala e achou um cano da Sabesp do jeito mais caro", "abriu um buraco do tamanho de uma piscina olímpica",
 			"fez manobra de retro pra plateia de criança na calçada", "derrubou um muro que era pra derrubar, dessa vez",
@@ -308,6 +319,7 @@ var professions = []profession{
 	{
 		name: "motoboy", emoji: "🛵", title: "é motoboy", area: areaTransporte, min: 50, max: 110, every: 8 * time.Minute,
 		robEvery: 15 * time.Minute,
+		hazard:   hazard{chance: 0.12, harm: 45, wounds: []string{"levou uma fechada de ônibus e beijou o asfalto", "derrapou no óleo da avenida", "passou no corredor e arrancou um retrovisor com o joelho"}},
 		tasks: []string{
 			"entregou um iFood debaixo de chuva", "fez 14 entregas e levou 3 multas", "entregou uma pizza de cabeça pra baixo e ainda ganhou gorjeta",
 			"cortou caminho pela calçada", "entregou um lanche frio com um sorriso quente", "subiu 12 andares de escada porque o elevador quebrou",
@@ -318,6 +330,7 @@ var professions = []profession{
 		name: "motorista de aplicativo", emoji: "🚗", title: "é motorista de aplicativo", area: areaTransporte, aliases: []string{"uber", "99"},
 		min: 110, max: 210, every: 20 * time.Minute,
 		bust: 0.1, peak: peak{from: 17, to: 20, bonus: 50},
+		hazard: hazard{chance: 0.04, harm: 30, wounds: []string{"levou uma coronhada de um passageiro mal-intencionado", "bateu o carro seguindo o GPS pelo meio de uma feira"}},
 		tasks: []string{
 			"levou um passageiro que contou a vida inteira em 15 minutos", "ofereceu balinha e água pra garantir as 5 estrelas",
 			"pegou uma corrida com tarifa dinâmica no meio da chuva", "fingiu que não ouviu o passageiro pedindo pra trocar de música",
@@ -343,6 +356,7 @@ var professions = []profession{
 		name: "caminhoneiro", emoji: "🚛", title: "é caminhoneiro", area: areaTransporte, min: 300, max: 525, every: 40 * time.Minute,
 		bust: 0.15, bustFine: 110,
 		finds: []string{"pneu", "marmita", "energetico", "cd-pirata"}, findChance: 0.15,
+		hazard: hazard{chance: 0.05, harm: 50, wounds: []string{"cochilou no volante e acordou no acostamento", "pegou neblina na serra e bateu no guard-rail"}},
 		tasks: []string{
 			"cruzou o país ouvindo o mesmo CD de modão", "comeu um PF de posto que deixou saudade", "levou uma carga de melancia de Goiás até a Bahia",
 			"buzinou pras crianças que fizeram sinal na estrada", "dormiu na boleia e acordou com o caminhão carregado",
@@ -375,6 +389,7 @@ var professions = []profession{
 	{
 		name: "piloto de avião", emoji: "✈️", title: "é piloto de avião", area: areaTransporte, min: 255, max: 390, every: 40 * time.Minute,
 		bust: 0.05, discount: 15,
+		hazard: hazard{chance: 0.02, harm: 90, wounds: []string{"fez um pouso de barriga em Congonhas", "pegou uma turbulência e bateu a cabeça no painel"}},
 		tasks: []string{
 			"pousou tão macio que ninguém bateu palma", "pousou tão duro que todo mundo bateu palma", "avisou da turbulência e foi tomar café",
 			"fez um voo de Congonhas pro Galeão e reclamou do trânsito", "anunciou o tempo de voo com aquela voz de rádio FM",
@@ -401,6 +416,7 @@ var professions = []profession{
 	{
 		name: "mototaxista", emoji: "🏍️", title: "é mototaxista", area: areaTransporte, min: 40, max: 90, every: 8 * time.Minute,
 		robBonus: 0.1,
+		hazard:   hazard{chance: 0.1, harm: 40, wounds: []string{"caiu da moto com passageiro e tudo num buraco", "foi fechado por um carro que não deu seta"}},
 		tasks: []string{
 			"levou uma senhora com três sacolas de feira na garupa", "subiu o morro empinando com passageiro e tudo",
 			"emprestou o capacete que não fecha", "cortou o engarrafamento pelo meio dos carros",
@@ -433,6 +449,7 @@ var professions = []profession{
 	{
 		name: "entregador de gás", emoji: "🔥", title: "é entregador de gás", area: areaTransporte, min: 110, max: 190, every: 20 * time.Minute,
 		doubleChance: 0.08, peak: peak{from: 8, to: 12, bonus: 50},
+		hazard: hazard{chance: 0.08, harm: 30, wounds: []string{"travou a lombar subindo 10 andares com o botijão nas costas", "deixou o botijão cair no pé"}},
 		tasks: []string{
 			"passou na rua tocando Pour Elise no último volume", "subiu quatro andares com o botijão no ombro",
 			"trocou o botijão e ainda testou o fogão com sabão", "chegou bem na hora em que a vizinha estava no meio do almoço",
@@ -443,6 +460,7 @@ var professions = []profession{
 	{
 		name: "chef", emoji: "👨‍🍳", title: "é chef", area: areaComida, min: 170, max: 290, every: 28 * time.Minute,
 		peak: peak{from: 19, to: 23, bonus: 40}, finds: []string{"pizza", "pudim", "chocolate", "picanha"}, findChance: 0.1,
+		hazard: hazard{chance: 0.07, harm: 20, wounds: []string{"se queimou no óleo da fritura", "cortou o dedo picando cebola rápido demais"}},
 		tasks: []string{
 			"gritou \"sim, chef!\" pra si mesmo", "montou um prato de 3 garfadas por 180 reais",
 			"jogou o risoto do estagiário no lixo e mandou refazer", "passou uma redução de balsâmico em tudo",
@@ -476,6 +494,7 @@ var professions = []profession{
 	{
 		name: "pizzaiolo", emoji: "🍕", title: "é pizzaiolo", area: areaComida, min: 120, max: 200, every: 20 * time.Minute,
 		doubleChance: 0.06, peak: peak{from: 19, to: 23, bonus: 60},
+		hazard: hazard{chance: 0.07, harm: 20, wounds: []string{"encostou o braço no forno a lenha", "deixou a pá de pizza cair no pé"}},
 		tasks: []string{
 			"girou a massa no ar e ela grudou no teto", "fez uma pizza de strogonoff e jurou que é tradicional",
 			"colocou ketchup na pizza e fingiu que não foi ele", "assou 40 pizzas numa sexta de jogo do Brasil",
@@ -485,6 +504,7 @@ var professions = []profession{
 	{
 		name: "churrasqueiro", emoji: "🥩", title: "é churrasqueiro", area: areaComida, min: 130, max: 230, every: 20 * time.Minute,
 		bust: 0.1, finds: []string{"latao", "picanha", "dolly"}, findChance: 0.08,
+		hazard: hazard{chance: 0.08, harm: 20, wounds: []string{"jogou álcool na brasa e a churrasqueira explodiu na cara", "pegou o espeto pela ponta quente"}},
 		tasks: []string{
 			"passou a tarde inteira na churrasqueira e não comeu nada", "serviu o pão de alho primeiro pra ganhar tempo",
 			"cortou a picanha na espessura certa e foi aplaudido", "acendeu o carvão com secador de cabelo",
@@ -530,6 +550,7 @@ var professions = []profession{
 	{
 		name: "açougueiro", emoji: "🔪", title: "é açougueiro", area: areaComida, min: 90, max: 150, every: 20 * time.Minute,
 		guard: 0.15, finds: []string{"picanha", "sal-grosso"}, findChance: 0.06, killChance: 0.25,
+		hazard: hazard{chance: 0.1, harm: 30, wounds: []string{"errou a machadinha e quase levou o dedo junto", "escorregou na câmara fria e caiu de costas"}},
 		tasks: []string{
 			"moeu a carne de segunda e chamou de patinho", "jogou um bife no balcão com aquela força desnecessária",
 			"perguntou \"mais alguma coisa?\" pra fila inteira", "vendeu uma picanha que era maminha",
@@ -765,6 +786,7 @@ var professions = []profession{
 		min: 150, max: 260, every: 28 * time.Minute,
 		finds:      []string{"pombo", "rato", "sapo", "gato-preto", "papagaio"},
 		findChance: 0.12,
+		hazard:     hazard{chance: 0.07, harm: 20, wounds: []string{"levou uma mordida de um chihuahua estressado", "levou um coice de um cavalo nervoso"}},
 		tasks: []string{
 			"vacinou um gato que lutou como se fosse o UFC", "tirou um carrapato do tamanho de uma uva",
 			"atendeu um vira-lata caramelo que comeu uma meia", "castrou o cachorro da vizinha sem ela saber o que era",
@@ -978,6 +1000,7 @@ var professions = []profession{
 		bust: 0.1, theftEvery: 20 * time.Minute, theftBonus: 0.15, escapeBonus: 0.3,
 		heistBonus:    0.05,
 		breakoutBonus: 0.3,
+		hazard:        hazard{chance: 0.05, harm: 30, wounds: []string{"errou o truque de serrar a assistente e serrou a própria mão", "engoliu uma espada que era de verdade"}},
 		tasks: []string{
 			"tirou um coelho da cartola, mas era o gato do vizinho", "adivinhou a carta da plateia na terceira tentativa",
 			"serrou a assistente ao meio e colou de volta com durex", "sumiu com o celular de um tio e devolveu do outro lado da festa",
@@ -1039,7 +1062,8 @@ var professions = []profession{
 	},
 	{
 		name: "pescador", emoji: "🎣", title: "é pescador", area: areaCampo, min: 60, max: 140, every: 20 * time.Minute,
-		craft: craft{activity: "!pescar", faster: 50, fewerJunk: 30, grade: 2},
+		craft:  craft{activity: "!pescar", faster: 50, fewerJunk: 30, grade: 2},
+		hazard: hazard{chance: 0.05, harm: 25, wounds: []string{"caiu do barco e quase se afogou", "fisgou a própria mão com o anzol"}},
 		tasks: []string{
 			"pescou uma tilápia e contou pra todo mundo que era um tubarão", "passou a madrugada no pesqueiro e vendeu tudo na feira",
 			"consertou a rede dos pescadores do porto", "levou turista pra pescar e o turista só pegou insolação",
@@ -1051,6 +1075,7 @@ var professions = []profession{
 		name: "fazendeiro", emoji: "🚜", title: "é fazendeiro", area: areaCampo, aliases: []string{"agro"},
 		min: 220, max: 380, every: 36 * time.Minute,
 		bust: 0.1, bustFine: 120, findChance: 0.12, finds: []string{"pote-de-feijao", "pao-de-queijo", "cafe", "picanha"},
+		hazard: hazard{chance: 0.05, harm: 25, wounds: []string{"levou um coice da vaca", "teve o pé atropelado pelo trator"}},
 		tasks: []string{
 			"tirou leite da vaca às 4 da manhã", "colheu milho e vendeu pamonha na beira da estrada",
 			"consertou a cerca que o boi derrubou", "foi pra cidade de caminhonete só pra comprar pão",
@@ -1065,6 +1090,7 @@ var professions = []profession{
 	{
 		name: "garimpeiro", emoji: "💎", title: "é garimpeiro", area: areaCampo, min: 80, max: 180, every: 20 * time.Minute,
 		bust: 0.1, bustFine: 50, craft: craft{activity: "!minerar", luck: 1, fewerJunk: 40, grade: 2},
+		hazard: hazard{chance: 0.1, harm: 35, wounds: []string{"ficou embaixo do barranco do garimpo que desmoronou", "afundou na lama até o pescoço"}},
 		tasks: []string{
 			"bateou cascalho o dia inteiro e achou umas pepitas", "jurou que uma pedra amarela era ouro e conseguiu vender",
 			"achou um cristal e disse que ele tinha energia", "voltou do rio com o bolso cheio de areia brilhante",
@@ -1077,7 +1103,8 @@ var professions = []profession{
 	},
 	{
 		name: "minerador", emoji: "⛏️", title: "é minerador", area: areaCampo, min: 80, max: 160, every: 20 * time.Minute,
-		craft: craft{activity: "!minerar", faster: 30, fewerJunk: 30, grade: 1, noBreak: true},
+		craft:  craft{activity: "!minerar", faster: 30, fewerJunk: 30, grade: 1, noBreak: true},
+		hazard: hazard{chance: 0.1, harm: 40, wounds: []string{"ficou preso num desabamento da mina", "respirou gás da mina e desmaiou lá embaixo"}},
 		tasks: []string{
 			"quebrou pedra o turno inteiro na mina", "tirou carvão suficiente pra um churrasco de 50 pessoas",
 			"achou um veio de cobre e vendeu pro ferro-velho", "desceu na mina de capacete com lanterna e voltou preto de pó",
@@ -1088,6 +1115,7 @@ var professions = []profession{
 	{
 		name: "lenhador", emoji: "🪓", title: "é lenhador", area: areaCampo, min: 160, max: 280, every: 28 * time.Minute,
 		bust: 0.15, bustFine: 90, doubleChance: 0.1,
+		hazard: hazard{chance: 0.12, harm: 35, wounds: []string{"derrubou a árvore pro lado errado", "levou um coice da motosserra"}},
 		tasks: []string{
 			"derrubou uma árvore e gritou \"madeiraaa\"", "rachou lenha pro forno da pizzaria",
 			"vendeu lenha pra fogueira da festa junina do bairro", "cortou o eucalipto que tava em cima da fiação",
@@ -1101,6 +1129,7 @@ var professions = []profession{
 	{
 		name: "apicultor", emoji: "🐝", title: "é apicultor", area: areaCampo, min: 80, max: 160, every: 20 * time.Minute,
 		bust: 0.1, guard: 0.2, craft: craft{activity: "!catar", luck: 1, fewerJunk: 25, grade: 2},
+		hazard: hazard{chance: 0.12, harm: 20, wounds: []string{"levou 40 picadas de abelha", "abriu a colmeia sem a roupa de proteção"}},
 		tasks: []string{
 			"colheu mel e vendeu na feira em pote de maionese", "tirou um enxame do telhado da vizinha",
 			"vendeu própolis dizendo que cura até dor de cotovelo", "fez vela de cera e vendeu como artesanato",
@@ -1115,6 +1144,7 @@ var professions = []profession{
 		name: "peão de rodeio", emoji: "🐂", title: "é peão de rodeio", area: areaCampo, aliases: []string{"peão", "cowboy"},
 		min: 240, max: 440, every: 28 * time.Minute,
 		bust: 0.4, bustFine: 100, doubleChance: 0.15,
+		hazard: hazard{chance: 0.18, harm: 40, wounds: []string{"foi jogado longe pelo touro, que ainda pisou em cima", "ficou pendurado no touro com a mão presa na corda"}},
 		tasks: []string{
 			"ficou 8 segundos em cima do touro e levou uma fivela do tamanho de um prato", "montou o touro mais bravo da festa e saiu andando",
 			"fez a dança do peão com o chapéu na mão", "domou um cavalo xucro na frente da arquibancada",
@@ -1127,7 +1157,8 @@ var professions = []profession{
 	},
 	{
 		name: "mergulhador", emoji: "🤿", title: "é mergulhador", area: areaCampo, min: 60, max: 130, every: 20 * time.Minute,
-		craft: craft{activity: "!pescar", luck: 1, fewerJunk: 30, grade: 1, noTool: true},
+		craft:  craft{activity: "!pescar", luck: 1, fewerJunk: 30, grade: 1, noTool: true},
+		hazard: hazard{chance: 0.08, harm: 40, wounds: []string{"subiu rápido demais e pegou a doença do mergulhador", "levou um susto de um tubarão e bateu a cabeça no coral"}},
 		tasks: []string{
 			"soldou o casco de um navio debaixo d'água", "achou a aliança que o noivo deixou cair do barco",
 			"limpou o aquário gigante do shopping", "levou turista pra ver tartaruga e não apareceu nenhuma",
@@ -1139,6 +1170,7 @@ var professions = []profession{
 		name: "caçador de tesouro", emoji: "🗺️", title: "é caçador de tesouro", area: areaCampo, aliases: []string{"caçador"},
 		min: 130, max: 250, every: 28 * time.Minute,
 		bust: 0.2, bustFine: 80, craft: craft{activity: "!vasculhar", luck: 2, fewerJunk: 40, grade: 1},
+		hazard: hazard{chance: 0.08, harm: 35, wounds: []string{"caiu numa armadilha de pedra igual Indiana Jones", "levou uma flecha de uma armadilha antiga"}},
 		tasks: []string{
 			"seguiu um mapa do tesouro desenhado num guardanapo", "passou o detector de metal na praia e achou 3 tampinhas e um brinco",
 			"cavou o quintal da avó atrás das moedas que o vô escondeu", "achou um baú no sótão cheio de foto antiga",
@@ -1155,7 +1187,7 @@ var professions = []profession{
 		aliases: []string{"caçador de bússola do relicário", "bussoleiro"}, min: 20, max: 60, every: 28 * time.Minute,
 		bust: 0.45, bustFine: 120, salePercent: 40, betJinx: 0.15,
 		jailFactor: 50, escapeBonus: -0.15, breakoutBonus: -0.15, reportBonus: -0.2, heistBonus: -0.1, trialEdge: -1,
-		gatherFaster: 50, compassLure: 14, rotten: true, finds: []string{"bussola-do-relicario"}, findChance: 0.008, fixedFinds: true,
+		gatherFaster: 50, compassLure: 20, rotten: true, finds: []string{"bussola-do-relicario"}, findChance: 0.012, fixedFinds: true,
 		tasks: []string{
 			"passou o dia girando no meio da praça esperando a agulha apontar pra algum lugar",
 			"vendeu um mapa \"original\" do relicário pra um turista", "seguiu a agulha de uma bússola até a casa da sogra",
@@ -1269,6 +1301,7 @@ var professions = []profession{
 		name: "dono de ferro-velho", emoji: "🔩", title: "tem um ferro-velho", area: areaComercio, min: 70, max: 130, every: 20 * time.Minute,
 		salePercent: 75,
 		craft:       craft{activity: "!vasculhar", luck: 1, fewerJunk: 25},
+		hazard:      hazard{chance: 0.07, harm: 25, wounds: []string{"cortou a mão numa lata enferrujada", "ficou embaixo de uma pilha de sucata que desabou"}},
 		tasks: []string{
 			"comprou geladeira velha a 20 reais e vendeu o motor a 200", "desmontou um fusca inteiro com uma chave de fenda",
 			"pesou uma pilha de latinha na balança viciada", "achou peça de carro rara no meio da sucata",
@@ -1357,6 +1390,7 @@ var professions = []profession{
 		every: 28 * time.Minute,
 		guard: 0.15, jailTime: baseJail, arrestEvery: 30 * time.Minute, jailFactor: -25, escapeBonus: -0.1,
 		breakoutBonus: 0.2,
+		hazard:        hazard{chance: 0.1, harm: 40, wounds: []string{"levou um tiro de raspão numa troca de tiro", "correu atrás de um suspeito e caiu do muro"}},
 		tasks: []string{
 			"fez uma blitz e só achou carro com IPVA atrasado", "comeu coxinha na padaria de graça",
 			"correu atrás de um ladrão de celular até perder o fôlego", "parou a viatura na calçada pra tomar um café",
@@ -1369,6 +1403,7 @@ var professions = []profession{
 		guard:         0.25,
 		heistBonus:    0.1,
 		breakoutBonus: 0.15,
+		hazard:        hazard{chance: 0.08, harm: 30, wounds: []string{"separou uma briga de bar e levou uma garrafada", "levou uma cadeirada de um bêbado"}},
 		tasks: []string{
 			"seguiu um cliente suspeito pelo mercado inteiro", "ficou de braços cruzados na porta da balada a noite toda",
 			"barrou um cara de chinelo na festa", "fingiu falar no rádio sem ninguém do outro lado",
@@ -1406,6 +1441,7 @@ var professions = []profession{
 		finds:         []string{"gato-preto", "papagaio", "pombo"},
 		findChance:    0.08,
 		breakoutBonus: 0.15,
+		hazard:        hazard{chance: 0.12, harm: 40, wounds: []string{"entrou num prédio pegando fogo e saiu com o braço queimado", "caiu da escada magirus resgatando um gato"}},
 		tasks: []string{
 			"tirou um gato de cima do poste pela terceira vez na semana", "apagou um incêndio começado por uma panela de pressão",
 			"tirou a mão de uma criança presa no pote de biscoito", "fez plantão de 24 horas e ainda lavou o caminhão",
@@ -1420,6 +1456,7 @@ var professions = []profession{
 		reportBonus: 0.15,
 		guard:       0.1,
 		heistBonus:  0.08,
+		hazard:      hazard{chance: 0.05, harm: 20, wounds: []string{"foi atrás de um barulho no escuro e caiu num buraco", "levou uma mordida do cachorro da firma"}},
 		tasks: []string{
 			"passou a noite acordado na base do café de garrafa térmica", "assustou um gato achando que era ladrão",
 			"fez a ronda com a lanterna quase sem pilha", "ouviu o jogo inteiro no radinho de pilha",
@@ -1431,7 +1468,8 @@ var professions = []profession{
 		name: "guarda de trânsito", emoji: "🚦", title: "é guarda de trânsito", area: areaSeguranca, aliases: []string{"marronzinho"},
 		min: 100, max: 200, every: 20 * time.Minute,
 		bust: 0.2, doubleChance: 0.15,
-		peak: peak{from: 17, to: 20, bonus: 40},
+		peak:   peak{from: 17, to: 20, bonus: 40},
+		hazard: hazard{chance: 0.05, harm: 30, wounds: []string{"foi atropelado por um motorista sem CNH", "levou um retrovisor no braço no meio do cruzamento"}},
 		tasks: []string{
 			"multou um carro parado em fila dupla na porta da escola", "apitou no cruzamento até perder a voz",
 			"guinchou o carro de um influencer", "fingiu que não viu o carro do chefe na vaga de idoso",
@@ -1486,6 +1524,7 @@ var professions = []profession{
 		craft:      craft{activity: "!pescar", faster: 25, noBreak: true},
 		finds:      []string{"bota-velha", "chinelo", "oculos-juliet", "perola"},
 		findChance: 0.1,
+		hazard:     hazard{chance: 0.08, harm: 25, wounds: []string{"foi salvar um banhista e levou um caldo", "pegou uma água-viva no peito"}},
 		tasks: []string{
 			"apitou pra galera sair da área de corrente", "puxou um turista que achou que sabia nadar",
 			"correu na areia em câmera lenta pra impressionar", "fincou a bandeira vermelha e ninguém respeitou",
@@ -1511,6 +1550,7 @@ var professions = []profession{
 		name: "bandido", emoji: "🦹", title: "é bandido", area: areaCrime, aliases: []string{"vagabundo"}, min: 40, max: 150, every: 8 * time.Minute,
 		bust: 0.35, robEvery: 5 * time.Minute, robBonus: 0.25, jailFactor: 50, trialEdge: -1, escapeBonus: 0.15, kidnapBonus: 0.1,
 		heistBonus: 0.1, noSnitch: true, killChance: 0.35,
+		hazard: hazard{chance: 0.1, harm: 40, wounds: []string{"trocou tiro com a polícia e levou um de raspão", "pulou o muro errado e caiu no quintal de um rottweiler"}},
 		tasks: []string{
 			"vendeu celular de procedência duvidosa na feira", "passou a perna num turista", "vendeu um Rolex de camelô como original",
 			"aplicou o golpe do pix errado", "revendeu ingresso falso de show", "vendeu gato de TV a cabo pra rua inteira",
@@ -1586,6 +1626,7 @@ var professions = []profession{
 		min: 300, max: 750, every: 40 * time.Minute,
 		bust: 0.45, bustFine: 225, robBonus: 0.35, jailFactor: 100, trialEdge: -2, escapeBonus: 0.2, kidnapBonus: 0.15,
 		heistBonus: 0.2, killChance: 0.4, abuses: []abuseKind{robAbuse},
+		hazard: hazard{chance: 0.1, harm: 45, wounds: []string{"levou chumbo do segurança do banco", "tava perto demais quando a bomba do cofre explodiu antes da hora"}},
 		tasks: []string{
 			"cavou um túnel até o cofre igual no filme", "fez o banco inteiro deitar no chão e levou até as canetas presas na corrente",
 			"rendeu o carro-forte com uma banana dentro da blusa", "planejou o assalto perfeito com maquete de massinha",
@@ -1657,6 +1698,7 @@ var professions = []profession{
 		kidnapBonus: 0.2, kidnapEvery: 30 * time.Minute,
 		heistBonus:    0.12,
 		breakoutBonus: 0.25,
+		hazard:        hazard{chance: 0.12, harm: 45, wounds: []string{"capotou o carro na perseguição", "bateu num poste fugindo da viatura"}},
 		tasks: []string{
 			"fez um cavalo de pau na rotatória e despistou a viatura", "fugiu pela contramão cantando Velozes e Furiosos",
 			"deu fuga num Gol bolinha com a lataria amarrada de arame", "cortou caminho por dentro do shopping",
@@ -1688,6 +1730,7 @@ var professions = []profession{
 		min: 150, max: 350, every: 36 * time.Minute,
 		bust: 0.3, bustFine: 150, jailFactor: 100, trialEdge: -2, escapeBonus: 0.15, noSnitch: true,
 		killChance: 0.6,
+		hazard:     hazard{chance: 0.08, harm: 40, wounds: []string{"descobriu tarde demais que o alvo também tava armado", "se cortou limpando a faca"}},
 		tasks: []string{
 			"deu um susto num devedor que pagou tudo na hora", "fez plantão de três dias numa kombi com binóculo",
 			"limpou a arma ouvindo pagode na varanda", "apareceu no aniversário do alvo só pra encarar ele no parabéns",
@@ -1702,6 +1745,7 @@ var professions = []profession{
 		name: "ladrão de galinha", emoji: "🐔", title: "é ladrão de galinha", area: areaCrime, aliases: []string{"ladrão"}, min: 20, max: 80,
 		every: 8 * time.Minute,
 		bust:  0.3, theftBonus: 0.08, robBonus: 0.1, jailFactor: 25, trialEdge: -1, escapeBonus: 0.1,
+		hazard: hazard{chance: 0.1, harm: 15, wounds: []string{"levou uma mordida na canela do cachorro do sítio", "levou uma bicada do galo de briga"}},
 		tasks: []string{
 			"pulou o muro do sítio e saiu com duas galinhas debaixo do braço", "roubou o varal da vizinha com as roupas e tudo",
 			"levou a manga do pé do vizinho", "saiu do bar com o saleiro e o paliteiro", "roubou o sinal de Wi-Fi da padaria",
@@ -1809,7 +1853,8 @@ var professions = []profession{
 	{
 		name: "passeador de cães", emoji: "🐕", title: "passeia com cachorro", area: areaServicos, aliases: []string{"passeador", "dog walker"},
 		min: 60, max: 120, every: 16 * time.Minute,
-		guard: 0.15,
+		guard:  0.15,
+		hazard: hazard{chance: 0.07, harm: 15, wounds: []string{"foi arrastado no asfalto pelos 8 cachorros puxando pro mesmo lado", "levou uma mordida de um poodle bravo"}},
 		tasks: []string{
 			"passeou com oito cachorros ao mesmo tempo sem soltar nenhuma guia", "recolheu um cocô do tamanho de um pão francês",
 			"foi arrastado por um golden atrás de um pombo", "levou um pinscher que latiu pra um caminhão",
@@ -1818,7 +1863,8 @@ var professions = []profession{
 	},
 	{
 		name: "gari", emoji: "🧹", title: "é gari", area: areaServicos, min: 80, max: 150, every: 20 * time.Minute,
-		craft: craft{activity: "!vasculhar", faster: 40},
+		craft:  craft{activity: "!vasculhar", faster: 40},
+		hazard: hazard{chance: 0.07, harm: 25, wounds: []string{"caiu do caminhão do lixo andando", "cortou a mão num caco de vidro no saco de lixo"}},
 		tasks: []string{
 			"varreu a avenida no dia seguinte ao Carnaval", "sambou com a vassoura na Sapucaí",
 			"correu atrás do caminhão de lixo e pulou no estribo", "limpou a praia depois do Réveillon",
@@ -1828,7 +1874,8 @@ var professions = []profession{
 	{
 		name: "catador de recicláveis", emoji: "♻️", title: "cata recicláveis", area: areaServicos, aliases: []string{"catador", "reciclador"},
 		min: 40, max: 100, every: 16 * time.Minute,
-		craft: craft{activity: "!vasculhar", luck: 1, fewerJunk: 30},
+		craft:  craft{activity: "!vasculhar", luck: 1, fewerJunk: 30},
+		hazard: hazard{chance: 0.07, harm: 15, wounds: []string{"cortou a mão numa lata de alumínio", "virou a carroça na ladeira"}},
 		tasks: []string{
 			"juntou três sacos de latinha depois do show", "empurrou a carroça cheia de papelão ladeira acima",
 			"separou o lixo do condomínio que ninguém separa", "achou uma geladeira inteira jogada no terreno",
@@ -1884,7 +1931,7 @@ var professions = []profession{
 		min: 110, max: 190, every: 20 * time.Minute,
 		peak: peak{from: 7, to: 10, bonus: 40},
 		faith: faith{
-			blessings: []string{"protecao", "justica", "purificacao"}, curses: []string{"excomunhao"}, hexChance: 0.5,
+			blessings: []string{"protecao", "justica", "purificacao", "multiplicacao"}, curses: []string{"excomunhao"}, hexChance: 0.5,
 			blessRite: "jogou água benta em", curseRite: "excomungou",
 		},
 		tasks: []string{
@@ -1900,7 +1947,7 @@ var professions = []profession{
 			"o fiel pediu o dízimo de volta no Procon", "a live do culto caiu bem na hora da oferta",
 		},
 		faith: faith{
-			blessings: []string{"prosperidade", "fartura"}, curses: []string{"miseria", "excomunhao"}, hexChance: 0.55,
+			blessings: []string{"prosperidade", "fartura", "multiplicacao"}, curses: []string{"miseria", "excomunhao", "dizimo"}, hexChance: 0.55,
 			blessRite: "orou em línguas por", curseRite: "repreendeu em nome de Jesus",
 		},
 		tasks: []string{
@@ -1930,7 +1977,7 @@ var professions = []profession{
 			"errou a poção e o cliente ficou três dias com soluço", "a vassoura quebrou no meio do voo",
 		},
 		faith: faith{
-			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto", "lerdeza"}, hexChance: 0.75,
+			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto", "lerdeza", "dizimo"}, hexChance: 0.75,
 			blessRite: "fez uma poção da sorte pra", curseRite: "mexeu o caldeirão pensando em",
 		},
 		tasks: []string{
@@ -1975,6 +2022,7 @@ var professions = []profession{
 			blessings: []string{"purificacao", "libertacao"}, curses: []string{"encosto"}, hexChance: 0.65,
 			blessRite: "fez um exorcismo em", curseRite: "mandou um encosto pra cima de",
 		},
+		hazard: hazard{chance: 0.1, harm: 25, wounds: []string{"levou uma rasteira do demônio que saiu do possuído", "levou uma cabeçada de um possuído"}},
 		tasks: []string{
 			"tirou um demônio de uma casa e ainda cobrou a mudança", "exorcizou uma boneca que andava sozinha (era um carrinho de controle remoto)",
 			"jogou água benta na sogra a pedido do genro", "fez exorcismo por chamada de vídeo",

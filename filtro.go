@@ -320,7 +320,7 @@ func (b *bot) ownerCommands() []botCommand {
 			name:     "economia",
 			category: dono,
 			help: []usage{
-				{"!economia resetar intervalos", "zera a espera de todos os comandos da economia (daily, trabalhar, roubar, pescar, prender, fugir...) pra todo mundo desta conversa, solta quem tá preso, de refém ou morto e limpa a ficha de crime. O dinheiro, a mochila e o resto ficam como tão"},
+				{"!economia resetar intervalos", "zera a espera de todos os comandos da economia (daily, trabalhar, roubar, pescar, prender, fugir...) pra todo mundo desta conversa, solta quem tá preso, de refém ou morto, enche a saúde e limpa a ficha de crime. O dinheiro, a mochila e o resto ficam como tão"},
 				{"!economia resetar intervalos @pessoa", "zera os intervalos só das pessoas marcadas"},
 			},
 			run: b.economia,

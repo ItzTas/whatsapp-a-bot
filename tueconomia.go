@@ -26,6 +26,7 @@ type economyProfile struct {
 	bounty        int64
 	jailLeft      time.Duration
 	deathLeft     time.Duration
+	health        int64
 	captive       captivity
 	bodyguardLeft time.Duration
 	bribeLeft     time.Duration
@@ -52,6 +53,7 @@ func (b *bot) economyProfile(ctx context.Context, chat types.JID, person types.J
 	g.Go(func() (err error) { e.bounty, err = b.wallets.bountyTotal(gctx, chat, acc); return err })
 	g.Go(func() (err error) { e.jailLeft, err = b.wallets.sentenceLeft(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.deathLeft, err = b.wallets.deathLeft(gctx, chat, acc, now); return err })
+	g.Go(func() (err error) { e.health, err = b.wallets.health(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.captive, err = b.wallets.captivity(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) {
 		e.bodyguardLeft, err = b.wallets.leftUntil(gctx, chat, acc, "seguranca_ate", now)
@@ -166,6 +168,9 @@ func (e economyProfile) statusLines() []string {
 	}
 	if e.deathLeft > 0 {
 		lines = append(lines, "💀 Tá morto, ressuscita em "+formatWait(e.deathLeft))
+	}
+	if e.health < maxHealth && e.deathLeft == 0 {
+		lines = append(lines, "🩺 Saúde: "+healthText(e.health))
 	}
 	if e.captive.left > 0 {
 		lines = append(lines, "🔗 Tá em cativeiro por mais "+formatWait(e.captive.left))
