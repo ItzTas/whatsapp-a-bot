@@ -217,6 +217,9 @@ type profession struct {
 	rotten       bool
 	barrenHauls  int64
 	gatherGrade  int
+	gatherLuck   int
+	gatherRare   int64
+	gatherJunk   int64
 	boxLuck      int
 	faith        faith
 	mirror       bool
@@ -240,6 +243,13 @@ type profession struct {
 	voteWeight    int
 	trialEvery    time.Duration
 	freeBrokerage bool
+
+	lendRate     int64
+	lendLateRate int64
+	collectBonus float64
+	collectEvery time.Duration
+	collectVotes int
+	garnish      int64
 
 	decrees decrees
 }
@@ -468,6 +478,9 @@ func (p profession) perks() []string {
 		{p.barrenHauls < 0, fmt.Sprintf("🤲 Volta de mão vazia %d%% menos vezes no %s", -p.barrenHauls, extractionCommands())},
 		{p.gatherGrade > 0, fmt.Sprintf("✨ O que acha no %s vem com qualidade melhor: fica com a melhor de %d", extractionCommands(), p.gatherGrade+1)},
 		{p.gatherGrade < 0, fmt.Sprintf("🥀 O que acha no %s vem com qualidade pior: fica com a pior de %d", extractionCommands(), -p.gatherGrade+1)},
+		{p.gatherLuck > 0, fmt.Sprintf("👃 No %s, sorteia %d vezes e fica com o achado mais valioso (caixa de relíquia não conta nos sorteios extras)", extractionCommands(), p.gatherLuck+1)},
+		{p.gatherRare > 0, fmt.Sprintf("🔎 No %s, item raro ou acima aparece %d%% mais", extractionCommands(), p.gatherRare)},
+		{p.gatherJunk > 0, fmt.Sprintf("🌱 No %s, vem %d%% menos item comum e mão vazia", extractionCommands(), p.gatherJunk)},
 		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},
@@ -489,6 +502,11 @@ func (p profession) perks() []string {
 		{p.trialEvery > 0, fmt.Sprintf("⏳ Abre um !processar a cada %s (o normal é %s)", formatWait(p.trialEvery), formatWait(trialEvery))},
 		{p.freeBrokerage, fmt.Sprintf("📈 Não paga a corretagem de %d%% no !acoes", stockFeePercent)},
 		{p.stockProfit > 0, fmt.Sprintf("💹 O lucro na venda do !acoes rende %d%% a mais", p.stockProfit)},
+		{p.lendRate > 0 || p.lendLateRate > 0, p.loanRatesPerk()},
+		{p.garnish > 0, fmt.Sprintf("💼 Quem te deve no !agiota com o prazo vencido tem %d%% do !trabalhar descontado direto pra dívida", p.garnish)},
+		{p.collectBonus > 0, fmt.Sprintf("💢 Cobrando dívida vencida do !agiota, tem +%d%% de chance no !matar e no !sequestrar", percent(p.collectBonus))},
+		{p.collectEvery > 0, fmt.Sprintf("🚓 Manda !prender quem te deve com o prazo vencido a cada %s (o normal é %s)", formatWait(p.collectEvery), formatWait(debtArrestEvery))},
+		{p.collectVotes > 0, fmt.Sprintf("📑 No !processar por calote, conta como %s a mais pro seu lado no júri", countLabel(p.collectVotes, "voto", "votos"))},
 	}
 	var lines []string
 	for _, perk := range perks {
@@ -571,18 +589,25 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.account(ctx, person)
 	now := time.Now()
-	job, p, err := b.workTerms(ctx, chat, acc, now)
-	if err != nil {
+	var (
+		job  profession
+		p    presidency
+		lien debtLien
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { job, p, err = b.workTerms(gctx, chat, acc, now); return err })
+	g.Go(func() (err error) { lien, err = b.salaryLien(gctx, chat, acc, now); return err })
+	if err := g.Wait(); err != nil {
 		return err
 	}
 	s := p.payFor(job.work(now))
 	s.wound = job.hazard.roll(job.safety)
 	levy := p.incomeLevy(acc)
-	w, err := b.wallets.work(ctx, chat, acc, cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}, job.abuse(workAbuse), s, levy, now)
+	w, err := b.wallets.work(ctx, chat, acc, cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}, job.abuse(workAbuse), s, levy, lien, now)
 	if err != nil {
 		return fmt.Errorf("trabalhar: %w", err)
 	}
-	text := s.text(job, person.User, w.paid) + incomeTaxText(w.tax, levy) + w.abuse.note("Abusou do poder e trabalhou sem descansar")
+	text := s.text(job, person.User, w.paid) + incomeTaxText(w.tax, levy) + w.garnish.text() + w.abuse.note("Abusou do poder e trabalhou sem descansar")
 	if w.wait > 0 {
 		text = fmt.Sprintf("😮‍💨 @%s ainda tá cansado do último trampo. Volta em %s", person.User, formatWait(w.wait))
 	}
@@ -591,7 +616,7 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 		text += "\n🧿 Tem uma praga do !zoar em cima de você: o trampo pagou metade. Pra se livrar: !zoar limpar"
 	}
 	hurtText, freed := w.injury.text(person)
-	people := append([]types.JID{person}, freed...)
+	people := append(append([]types.JID{person}, freed...), w.garnish.people()...)
 	if w.tax > 0 {
 		people = append(people, levy.payee()...)
 	}

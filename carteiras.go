@@ -50,11 +50,12 @@ type robbery struct {
 }
 
 type workday struct {
-	wait   time.Duration
-	paid   int64
-	tax    int64
-	abuse  powerAbuse
-	injury injury
+	wait    time.Duration
+	paid    int64
+	tax     int64
+	abuse   powerAbuse
+	injury  injury
+	garnish debtGarnish
 }
 
 func (s *walletStore) balance(ctx context.Context, chat types.JID, acc account) (balance int64, rank int, err error) {
@@ -122,7 +123,7 @@ func (s *walletStore) claim(ctx context.Context, chat types.JID, acc account, cd
 	return wait, tax, err
 }
 
-func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd cooldown, abuse abuser, sh shift, levy pixLevy, now time.Time) (w workday, err error) {
+func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd cooldown, abuse abuser, sh shift, levy pixLevy, lien debtLien, now time.Time) (w workday, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		var err error
 		if w.wait, w.abuse, err = stampOrAbuse(ctx, tx, chat, acc, cd, abuse, now); err != nil || w.wait > 0 {
@@ -140,6 +141,9 @@ func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd 
 			return err
 		}
 		if err := payLevy(ctx, tx, chat, levy, w.tax); err != nil {
+			return err
+		}
+		if w.garnish, err = garnishPay(ctx, tx, chat, acc, lien, w.paid-w.tax, now); err != nil {
 			return err
 		}
 		if sh.found.id != "" {

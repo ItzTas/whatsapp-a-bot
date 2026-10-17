@@ -109,13 +109,6 @@ func (b *bot) deleteIfMuted(ctx context.Context, evt *events.Message) bool {
 	return true
 }
 
-func (b *bot) reactIfHandcuffed(ctx context.Context, evt *events.Message) {
-	if evt.IsEdit || !revocable(evt.Message) || !b.restricted(ctx, evt, b.handcuffs) {
-		return
-	}
-	b.react(ctx, evt, "🔒")
-}
-
 type revokedMessage struct {
 	chat types.JID
 	id   types.MessageID
@@ -416,20 +409,6 @@ func (b *bot) unmuteEveryone(ctx context.Context, evt *events.Message) error {
 		return b.sendText(ctx, m.chat, "Ninguém tava mutado no grupo 🤷")
 	}
 	return b.sendText(ctx, m.chat, fmt.Sprintf("🔊 %s: todo mundo já pode falar de novo", countLabel(int(unmuted), "pessoa desmutada", "pessoas desmutadas")))
-}
-
-func (b *bot) algemar(ctx context.Context, evt *events.Message) error {
-	return b.changeRestrictions(ctx, evt, "algemar", false, true, b.handcuffs.add, map[bool]string{
-		true:  "🔒 @%s foi algemado(a): o bot vai reagir com 🔒 em toda mensagem que mandar",
-		false: "@%s já tava algemado(a)",
-	})
-}
-
-func (b *bot) desalgemar(ctx context.Context, evt *events.Message) error {
-	return b.changeRestrictions(ctx, evt, "desalgemar", false, true, b.handcuffs.remove, map[bool]string{
-		true:  "🔓 @%s foi solto(a) das algemas",
-		false: "@%s nem tava algemado(a)",
-	})
 }
 
 func (b *bot) changeRestrictions(ctx context.Context, evt *events.Message, name string, needsBotAdmin, ownerAllowed bool, change func(context.Context, types.JID, []types.JID) (bool, error), results map[bool]string) error {

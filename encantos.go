@@ -100,6 +100,24 @@ var charms = []charm{
 			p.gatherGrade++
 			return p
 		}},
+	{id: "faro", name: "Faro", emoji: "👃", hold: 2 * time.Hour, aliases: []string{"farejar", "nariz", "figa"},
+		effect: "no " + extractionCommands() + ", sorteia duas vezes e fica com o achado mais valioso (caixa de relíquia não conta no sorteio extra)",
+		apply: func(p profession) profession {
+			p.gatherLuck++
+			return p
+		}},
+	{id: "achado", name: "Achado", emoji: "🔎", hold: 2 * time.Hour, aliases: []string{"sao longuinho", "longuinho", "achar"},
+		effect: "no " + extractionCommands() + ", item raro ou acima aparece 50% mais",
+		apply: func(p profession) profession {
+			p.gatherRare += 50
+			return p
+		}},
+	{id: "abrecaminho", name: "Abre-caminho", emoji: "🌱", hold: 2 * time.Hour, aliases: []string{"abre caminho", "caminho aberto"},
+		effect: "no " + extractionCommands() + ", vem 40% menos item comum e mão vazia",
+		apply: func(p profession) profession {
+			p.gatherJunk += 40
+			return p
+		}},
 	{id: "multiplicacao", name: "Multiplicação", emoji: "🐟", hold: 12 * time.Hour, boon: boonPercent, boonCap: boonCap, aliases: []string{"multiplicar", "milagre", "peixes", "paes e peixes"},
 		effect: fmt.Sprintf("na próxima vez que o saldo da pessoa subir (trabalho, aposta, venda, pix, o que for), entra mais %d%% do que entrou, em moedas novas, até %s", boonPercent, coins(boonCap))},
 	{id: "purificacao", name: "Purificação", emoji: "🧂", aliases: []string{"descarrego", "limpeza", "limpar", "exorcismo"},

@@ -67,8 +67,8 @@ type bot struct {
 	wallets          *walletStore
 	quizzes          *quizStore
 	mutes            *restrictionStore
-	handcuffs        *restrictionStore
 	persecuted       *restrictionStore
+	reactions        *reactionStore
 	reminders        *reminderStore
 	birthdays        *birthdayStore
 	memories         *memoryStore
@@ -666,6 +666,16 @@ func (b *bot) commands() []botCommand {
 			run: b.nome,
 		},
 		{
+			name:     "reagir",
+			aliases:  []string{"reacao", "emote"},
+			category: zoeira,
+			help: []usage{
+				{"!reagir @pessoa <emoji>", "o bot reage com o emoji em toda mensagem que a pessoa mandar, tipo !reagir @pessoa 🤡"},
+				{"!reagir parar @pessoa", "o bot para de reagir às mensagens da pessoa"},
+			},
+			run: b.reagir,
+		},
+		{
 			name:     "frase",
 			category: zoeira,
 			help: []usage{
@@ -1040,14 +1050,25 @@ func (b *bot) commands() []botCommand {
 		},
 		{
 			name:     "agiota",
-			aliases:  []string{"emprestar", "emprestimo", "pediremprestado", "divida", "dividas"},
+			aliases:  []string{"emprestar", "pediremprestado", "divida", "dividas"},
 			category: economia,
 			help: []usage{
-				{"!agiota @pessoa <valor> [dias]", fmt.Sprintf("pede moedas emprestadas pra pessoa marcada, que vira seu agiota 🦈 Ela tem %s pra responder com !aceitar ou !recusar. O prazo padrão é de %d dias (dá pra pedir de 1 a %d). Juros de %d%% ao dia, compostos, já dentro do prazo, e depois dele sobem pra %d%% ao dia. Passou do prazo, o agiota pode !matar, !prender, !sequestrar ou !processar quem deve, sem ser crime e sem precisar da profissão", formatWait(offerWindow), debtTermDays, debtMaxDays, debtRate, debtLateRate)},
+				{"!agiota @pessoa <valor> [dias]", fmt.Sprintf("pede moedas emprestadas pra pessoa marcada, que vira seu agiota 🦈 Ela tem %s pra responder com !aceitar ou !recusar. O prazo padrão é de %d dias (dá pra pedir de 1 a %d). Juros de %d%% ao dia, compostos, já dentro do prazo, e depois dele sobem pra %d%% ao dia (quem é agiota de profissão cobra mais). Passou do prazo, o agiota pode !matar, !prender, !sequestrar ou !processar quem deve, sem ser crime e sem precisar da profissão", formatWait(offerWindow), debtTermDays, debtMaxDays, debtRate, debtLateRate)},
 				{"!agiota pagar @pessoa [valor|tudo]", "paga parte ou toda a dívida com a pessoa marcada (se você só deve pra uma, nem precisa marcar)"},
 				{"!agiota", "mostra quanto você deve e quanto te devem, com os juros e o prazo de cada dívida"},
 			},
 			run: b.agiota,
+		},
+		{
+			name:     "emprestimo",
+			aliases:  []string{"emprestimos", "financiamento"},
+			category: economia,
+			help: []usage{
+				{"!emprestimo pegar <valor> [dias]", fmt.Sprintf("pega moedas emprestadas do banco 🏦, até um limite que cresce com o que sua profissão paga no !trabalhar (de %s a %s). O prazo padrão é de %d dias (dá pra pedir de 1 a %d). Juros de %d%% ao dia, compostos, e depois do prazo sobem pra %d%% ao dia e o banco penhora seu saldo a cada %s até quitar", coins(loanLimitFloor), coins(loanLimitCap), loanTermDays, loanMaxDays, loanRate, loanLateRate, formatWait(loanSeizeEvery))},
+				{"!emprestimo pagar [valor|tudo]", "paga parte ou todo o empréstimo do banco, e as moedas pagas somem"},
+				{"!emprestimo", "mostra quanto você deve pro banco, ou quanto ele te empresta se você não deve nada"},
+			},
+			run: b.emprestimo,
 		},
 		{
 			name:     "acoes",
@@ -1168,6 +1189,9 @@ func (b *bot) commands() []botCommand {
 				{"!imovel", fmt.Sprintf("mostra os %d imóveis, da barraca de camping à base em Marte, e onde você mora 🏘️ Cada um dá proteção, bônus no !daily e no !trabalhar e cobra IPTU todo dia", len(estates))},
 				{"!imovel comprar", "se muda pro próximo imóvel da lista. Paga o preço cheio e o antigo vai pro lixo"},
 				{"!imovel @pessoa", "mostra onde a pessoa marcada mora"},
+				{"!imovel guardar <item> [quantidade]", "guarda um item da mochila em casa, onde ninguém furta e a polícia não apreende. Cada imóvel tem um tanto de espaço, e item guardado não funciona até voltar pra mochila"},
+				{"!imovel tirar <item> [quantidade]", "tira um item de casa e põe de volta na mochila"},
+				{"!imovel guardados", "mostra o que você tem guardado em casa (ou de quem for marcado) e quanto espaço sobra"},
 			},
 			run: b.imovel,
 		},
@@ -1563,23 +1587,6 @@ func (b *bot) commands() []botCommand {
 			run: b.desmutar,
 		},
 		{
-			name:     "algemar",
-			aliases:  []string{"prender"},
-			category: moderacao,
-			help: []usage{
-				{"!algemar @pessoa", "algema a pessoa marcada: o bot reage com 🔒 em toda mensagem que ela mandar no grupo (só admin ou o dono do bot)"},
-				{"!algemar", "responda uma mensagem com !algemar e o bot algema quem mandou ela"},
-			},
-			run: b.algemar,
-		},
-		{
-			name:     "desalgemar",
-			aliases:  []string{"soltar"},
-			category: moderacao,
-			help:     []usage{{"!desalgemar @pessoa", "tira as algemas da pessoa e o bot para de reagir nas mensagens dela 🔓 (só admin ou o dono do bot)"}},
-			run:      b.desalgemar,
-		},
-		{
 			name:     "advertir",
 			aliases:  []string{"advertencia", "warn"},
 			category: moderacao,
@@ -1783,8 +1790,9 @@ func (b *bot) handleMessage(ctx context.Context, evt *events.Message) {
 	if err := b.messages.record(ctx, evt); err != nil {
 		b.client.Log.Errorf("guardar mensagem: %v", err)
 	}
-	b.reactIfHandcuffed(ctx, evt)
-	b.reactIfClowned(ctx, evt)
+	if !b.reactIfMarked(ctx, evt) {
+		b.reactToAilments(ctx, evt)
+	}
 	if err := b.answerBmc(ctx, evt); err != nil {
 		b.client.Log.Errorf("responder !bmc: %v", err)
 	}

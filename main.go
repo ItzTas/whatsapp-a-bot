@@ -62,7 +62,7 @@ func run(ctx context.Context) (err error) {
 	defer endSession(nil)
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
-	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &labelStore{db: messages.db, table: "apelidos", column: "apelido"}, names: &labelStore{db: messages.db, table: "nomes", column: "nome"}, relationships: &relationshipStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, assistant: assistant, transcriber: transcriberFromEnv(), filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, wallets: &walletStore{db: messages.db}, quizzes: &quizStore{db: messages.db}, mutes: &restrictionStore{db: messages.db, table: "mutados"}, handcuffs: &restrictionStore{db: messages.db, table: "algemados"}, persecuted: &restrictionStore{db: messages.db, table: "perseguidos"}, reminders: &reminderStore{db: messages.db}, birthdays: &birthdayStore{db: messages.db}, warnings: &warningStore{db: messages.db}, welcomes: &welcomeStore{db: messages.db}, memories: &memoryStore{db: messages.db}, games: &gameStore{db: messages.db}, gamesReady: make(chan struct{}), owners: ownersFromEnv()}
+	b := &bot{client: client, gifs: gifs, messages: messages, nicknames: &labelStore{db: messages.db, table: "apelidos", column: "apelido"}, names: &labelStore{db: messages.db, table: "nomes", column: "nome"}, relationships: &relationshipStore{db: messages.db}, adoptions: &adoptionStore{db: messages.db}, assistant: assistant, transcriber: transcriberFromEnv(), filters: &filterStore{db: messages.db}, modes: &modeStore{db: messages.db}, wallets: &walletStore{db: messages.db}, quizzes: &quizStore{db: messages.db}, mutes: &restrictionStore{db: messages.db, table: "mutados"}, persecuted: &restrictionStore{db: messages.db, table: "perseguidos"}, reactions: &reactionStore{&restrictionStore{db: messages.db, table: "reacoes"}}, reminders: &reminderStore{db: messages.db}, birthdays: &birthdayStore{db: messages.db}, warnings: &warningStore{db: messages.db}, welcomes: &welcomeStore{db: messages.db}, memories: &memoryStore{db: messages.db}, games: &gameStore{db: messages.db}, gamesReady: make(chan struct{}), owners: ownersFromEnv()}
 	if len(b.owners) == 0 {
 		client.Log.Warnf("BOT_DONO não definido: ninguém consegue usar !modo, !blacklist e !whitelist")
 	}
@@ -89,6 +89,7 @@ func run(ctx context.Context) (err error) {
 	go b.runBirthdays(sessionCtx)
 	go b.runTaxes(sessionCtx)
 	go b.runAuctions(sessionCtx)
+	go b.runLoanSeizures(sessionCtx)
 
 	<-sessionCtx.Done()
 	if ctx.Err() != nil {

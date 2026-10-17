@@ -78,7 +78,7 @@ func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 		odds.caught = 0
 	}
 	if owed != nil {
-		odds.success = max(odds.success, clampChance(debtKillChance-victimJob.guard))
+		odds.success = max(odds.success, clampChance(debtKillChance+killerJob.collectionEdge(owed)-victimJob.guard))
 		odds.caught, odds.lawful = 0, true
 	}
 	k, err := b.wallets.kill(ctx, chat, killerAcc, victimAcc, odds, killerJob.pace(killCooldown), time.Now())

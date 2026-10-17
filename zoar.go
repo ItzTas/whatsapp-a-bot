@@ -219,30 +219,6 @@ func (b *bot) prankCleanse(ctx context.Context, _ *events.Message, o prankOrder)
 	return err
 }
 
-func (b *bot) reactIfClowned(ctx context.Context, evt *events.Message) {
-	if evt.IsEdit || !revocable(evt.Message) {
-		return
-	}
-	chat := evt.Info.Chat.ToNonAD()
-	now := time.Now()
-	any, err := b.wallets.anyPrank(ctx, chat, clownKind, now)
-	if err != nil {
-		b.client.Log.Warnf("checar palhaçada em %s: %v", chat, err)
-		return
-	}
-	if !any {
-		return
-	}
-	_, found, err := b.wallets.prankOn(ctx, chat, b.account(ctx, evt.Info.Sender), clownKind, now)
-	if err != nil {
-		b.client.Log.Warnf("checar palhaçada de %s: %v", evt.Info.Sender, err)
-		return
-	}
-	if found && b.economyOn(ctx, chat) {
-		b.react(ctx, evt, "🤡")
-	}
-}
-
 func (b *bot) nicknameLocked(ctx context.Context, chat, sender, target types.JID) (string, error) {
 	now := time.Now()
 	author, found, err := b.wallets.prankOn(ctx, chat.ToNonAD(), b.account(ctx, target), nicknameLockKind, now)
@@ -277,14 +253,6 @@ func (s *walletStore) prank(ctx context.Context, o prankOrder, target account, k
 		return err
 	})
 	return until, err
-}
-
-func (s *walletStore) anyPrank(ctx context.Context, chat types.JID, kind string, now time.Time) (found bool, err error) {
-	err = s.db.QueryRowContext(ctx,
-		"SELECT EXISTS (SELECT 1 FROM zoeiras WHERE chat = ? AND tipo = ? AND ate > ?)",
-		chat.String(), kind, now.Unix(),
-	).Scan(&found)
-	return found, err
 }
 
 func (s *walletStore) prankOn(ctx context.Context, chat types.JID, target account, kind string, now time.Time) (prankAuthor, bool, error) {

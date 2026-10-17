@@ -54,6 +54,8 @@ type debtRequest struct {
 	lender   account
 	amount   int64
 	term     time.Duration
+	rate     int64
+	lateRate int64
 	expires  time.Time
 }
 
@@ -63,11 +65,40 @@ type debtRequestState struct {
 	Lender   storedAccount `json:"lender"`
 	Amount   int64         `json:"amount"`
 	Term     time.Duration `json:"term"`
+	Rate     int64         `json:"rate"`
+	LateRate int64         `json:"late_rate"`
 	Expires  time.Time     `json:"expires"`
 }
 
-func newDebt(chat types.JID, debtor, lender account, amount int64, term time.Duration, now time.Time) debt {
-	return debt{chat: chat, debtor: debtor, lender: lender, amount: amount, rate: debtRate, lateRate: debtLateRate, since: now, due: now.Add(term)}
+type debtLien struct {
+	lender  account
+	percent int64
+}
+
+type debtGarnish struct {
+	lender account
+	paid   int64
+	left   int64
+}
+
+func (r *debtRequest) debt(now time.Time) debt {
+	return debt{chat: r.chat, debtor: r.borrower, lender: r.lender, amount: r.amount, rate: r.rate, lateRate: r.lateRate, since: now, due: now.Add(r.term)}
+}
+
+func (p profession) loanRates() (rate, lateRate int64) {
+	return debtRate + p.lendRate, debtLateRate + p.lendLateRate
+}
+
+func (p profession) loanRatesPerk() string {
+	rate, lateRate := p.loanRates()
+	return fmt.Sprintf("🦈 Empresta no !agiota com juros de %d%% ao dia no prazo e %d%% no atraso (o normal é %d%% e %d%%)", rate, lateRate, debtRate, debtLateRate)
+}
+
+func (p profession) collectionEvery() time.Duration {
+	if p.collectEvery == 0 {
+		return debtArrestEvery
+	}
+	return p.collectEvery
 }
 
 func (d debt) rateAt(t time.Time) int64 {
@@ -129,11 +160,13 @@ func (b *bot) requestDebt(ctx context.Context, evt *events.Message, lender types
 
 	now := time.Now()
 	var (
-		funds    int64
-		existing *debt
+		funds     int64
+		existing  *debt
+		lenderJob profession
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { funds, _, err = b.wallets.balance(gctx, chat, lenderAcc); return err })
+	g.Go(func() (err error) { lenderJob, err = b.professionOf(gctx, chat, lenderAcc); return err })
 	g.Go(func() (err error) {
 		existing, err = b.wallets.debtBetween(gctx, chat, borrowerAcc, lenderAcc, now)
 		return err
@@ -160,7 +193,8 @@ func (b *bot) requestDebt(ctx context.Context, evt *events.Message, lender types
 	}
 
 	term := time.Duration(days) * debtCompoundEvery
-	r := &debtRequest{chat: chat, borrower: borrowerAcc, lender: lenderAcc, amount: amount, term: term, expires: now.Add(offerWindow)}
+	rate, lateRate := lenderJob.loanRates()
+	r := &debtRequest{chat: chat, borrower: borrowerAcc, lender: lenderAcc, amount: amount, term: term, rate: rate, lateRate: lateRate, expires: now.Add(offerWindow)}
 	key := offerKey(chat, lenderAcc)
 	if !b.storeDebtRequest(ctx, key, r) {
 		text := fmt.Sprintf("@%s já tem um pedido ou proposta esperando resposta. Espera aceitar, recusar ou passar o tempo dele ⏳", lender.User)
@@ -169,17 +203,24 @@ func (b *bot) requestDebt(ctx context.Context, evt *events.Message, lender types
 	}
 	time.AfterFunc(offerWindow, func() { b.expireDebtRequest(ctx, key, r) })
 
-	atDue := newDebt(chat, borrowerAcc, lenderAcc, amount, term, now)
+	atDue := r.debt(now)
 	text := fmt.Sprintf("🙏 @%s quer pegar %s emprestado com @%s\n"+
 		"📈 Juros de %d%% ao dia, compostos, e prazo de %s: no vencimento a dívida vai tá em %s\n"+
-		"🔥 Se atrasar, os juros sobem pra %d%% ao dia e @%s pode !matar, !prender, !sequestrar ou !processar @%s pra cobrar, sem ser crime\n\n"+
+		"🔥 Se atrasar, os juros sobem pra %d%% ao dia e @%s pode !matar, !prender, !sequestrar ou !processar @%s pra cobrar, sem ser crime%s\n\n"+
 		"@%s, manda !aceitar pra emprestar ou !recusar pra negar. O pedido vale por %s",
 		borrower.User, coins(amount), lender.User,
-		debtRate, countLabel(int(days), "dia", "dias"), coins(atDue.accrued(atDue.due).amount),
-		debtLateRate, lender.User, borrower.User,
+		rate, countLabel(int(days), "dia", "dias"), coins(atDue.accrued(atDue.due).amount),
+		lateRate, lender.User, borrower.User, garnishWarning(lenderJob),
 		lender.User, formatWait(offerWindow))
 	_, err := b.sendMentions(ctx, chat, text, []types.JID{borrower, lender})
 	return err
+}
+
+func garnishWarning(lenderJob profession) string {
+	if lenderJob.garnish == 0 {
+		return ""
+	}
+	return fmt.Sprintf(". E como é %s de profissão, %d%% de todo !trabalhar vai direto pra dívida até quitar", lenderJob.name, lenderJob.garnish)
 }
 
 func (b *bot) storeDebtRequest(ctx context.Context, key string, r *debtRequest) bool {
@@ -193,7 +234,7 @@ func (b *bot) storeDebtRequest(ctx context.Context, key string, r *debtRequest) 
 	}
 	state := debtRequestState{
 		Chat: r.chat, Borrower: storeAccount(r.borrower), Lender: storeAccount(r.lender),
-		Amount: r.amount, Term: r.term, Expires: r.expires,
+		Amount: r.amount, Term: r.term, Rate: r.rate, LateRate: r.lateRate, Expires: r.expires,
 	}
 	b.keepGame(ctx, debtRequestKind, key, state, r.expires)
 	return true
@@ -224,7 +265,10 @@ func (b *bot) restoreDebtRequest(ctx context.Context, saved savedGame) error {
 	}
 	r := &debtRequest{
 		chat: state.Chat, borrower: state.Borrower.account(), lender: state.Lender.account(),
-		amount: state.Amount, term: state.Term, expires: state.Expires,
+		amount: state.Amount, term: state.Term, rate: state.Rate, lateRate: state.LateRate, expires: state.Expires,
+	}
+	if r.rate == 0 {
+		r.rate, r.lateRate = debtRate, debtLateRate
 	}
 	if _, pending := b.debtRequests.LoadOrStore(saved.key, r); pending {
 		return fmt.Errorf("já tem outro pedido de empréstimo pra %s", saved.key)
@@ -235,7 +279,7 @@ func (b *bot) restoreDebtRequest(ctx context.Context, saved savedGame) error {
 
 func (b *bot) acceptDebtRequest(ctx context.Context, key string, r *debtRequest) error {
 	b.forgetDebtRequest(ctx, key, r)
-	d := newDebt(r.chat, r.borrower, r.lender, r.amount, r.term, time.Now())
+	d := r.debt(time.Now())
 	text, err := b.lendText(ctx, d)
 	if err != nil {
 		return fmt.Errorf("fechar empréstimo: %w", err)
@@ -312,20 +356,20 @@ func (b *bot) debtStatus(ctx context.Context, evt *events.Message) error {
 	}
 	for _, d := range owes {
 		people = append(people, d.lender.jid)
-		lines = append(lines, fmt.Sprintf("• %s pra @%s, %s", coins(d.amount), d.lender.jid.User, d.deadlineText(now)))
+		lines = append(lines, fmt.Sprintf("• %s pra @%s, %s, %s", coins(d.amount), d.lender.jid.User, d.deadlineText(now), d.rateText(now)))
 	}
 	if len(lent) > 0 {
 		lines = append(lines, "", "🤝 Te devem:")
 	}
 	for _, d := range lent {
 		people = append(people, d.debtor.jid)
-		line := fmt.Sprintf("• @%s, %s, %s", d.debtor.jid.User, coins(d.amount), d.deadlineText(now))
+		line := fmt.Sprintf("• @%s, %s, %s, %s", d.debtor.jid.User, coins(d.amount), d.deadlineText(now), d.rateText(now))
 		if d.overdue(now) {
 			line += ". Pode !matar, !prender, !sequestrar ou !processar pra cobrar"
 		}
 		lines = append(lines, line)
 	}
-	lines = append(lines, "", fmt.Sprintf("_Juros de %d%% ao dia dentro do prazo e %d%% depois. Pra pagar: !agiota pagar @pessoa 100 (ou tudo)_", debtRate, debtLateRate))
+	lines = append(lines, "", "_Pra pagar: !agiota pagar @pessoa 100 (ou tudo)_")
 	_, err = b.sendMentions(ctx, chat, strings.TrimPrefix(strings.Join(lines, "\n"), "\n"), people)
 	return err
 }
@@ -335,6 +379,10 @@ func (d debt) deadlineText(now time.Time) string {
 		return fmt.Sprintf("⚠️ atrasado há %s", formatWait(now.Sub(d.due)))
 	}
 	return "vence em " + formatWait(d.due.Sub(now))
+}
+
+func (d debt) rateText(now time.Time) string {
+	return fmt.Sprintf("juros de %d%% ao dia", d.rateAt(now))
 }
 
 func (b *bot) payDebt(ctx context.Context, evt *events.Message, args []string, mentions []types.JID) error {
@@ -443,6 +491,63 @@ func (b *bot) rivalsWithDebt(ctx context.Context, chat types.JID, attacker, targ
 	return attackerJob, targetJob, owed, nil
 }
 
+func (p profession) collectionEdge(owed *debt) float64 {
+	if owed == nil {
+		return 0
+	}
+	return p.collectBonus
+}
+
+func (b *bot) salaryLien(ctx context.Context, chat types.JID, debtor account, now time.Time) (debtLien, error) {
+	owes, _, err := b.wallets.debtsOf(ctx, chat, debtor, now)
+	if err != nil {
+		return debtLien{}, fmt.Errorf("ler dívidas: %w", err)
+	}
+	owes = slices.DeleteFunc(owes, func(d debt) bool { return !d.overdue(now) })
+	jobs := make([]profession, len(owes))
+	g, gctx := errgroup.WithContext(ctx)
+	for i, d := range owes {
+		g.Go(func() (err error) { jobs[i], err = b.professionOf(gctx, chat, d.lender); return err })
+	}
+	if err := g.Wait(); err != nil {
+		return debtLien{}, err
+	}
+	i := slices.IndexFunc(jobs, func(job profession) bool { return job.garnish > 0 })
+	if i < 0 {
+		return debtLien{}, nil
+	}
+	return debtLien{lender: owes[i].lender, percent: jobs[i].garnish}, nil
+}
+
+func garnishPay(ctx context.Context, tx *sql.Tx, chat types.JID, debtor account, lien debtLien, earned int64, now time.Time) (debtGarnish, error) {
+	cut := earned * lien.percent / 100
+	if cut <= 0 {
+		return debtGarnish{}, nil
+	}
+	left, paid, err := settleDebt(ctx, tx, chat, debtor, lien.lender, cut, now)
+	if errors.Is(err, errNoDebt) || errors.Is(err, errNoFunds) {
+		return debtGarnish{}, nil
+	}
+	return debtGarnish{lender: lien.lender, paid: paid, left: left.amount}, err
+}
+
+func (g debtGarnish) people() []types.JID {
+	if g.paid == 0 {
+		return nil
+	}
+	return []types.JID{g.lender.jid}
+}
+
+func (g debtGarnish) text() string {
+	if g.paid == 0 {
+		return ""
+	}
+	if g.left == 0 {
+		return fmt.Sprintf("\n🦈 @%s tava de olho no seu salário: %s foram direto pra dívida, que agora tá quitada 🤝", g.lender.jid.User, coins(g.paid))
+	}
+	return fmt.Sprintf("\n🦈 @%s tava de olho no seu salário: %s foram direto pra dívida, e ainda falta %s", g.lender.jid.User, coins(g.paid), coins(g.left))
+}
+
 func debtCollectionText(owed *debt) string {
 	return fmt.Sprintf("\n💸 Foi cobrança: @%s deve %s pra @%s e o prazo venceu há %s, então não conta como crime",
 		owed.debtor.jid.User, coins(owed.amount), owed.lender.jid.User, formatWait(time.Since(owed.due)))
@@ -511,27 +616,32 @@ func (s *walletStore) debtsOf(ctx context.Context, chat types.JID, acc account, 
 }
 
 func (s *walletStore) repayDebt(ctx context.Context, chat types.JID, debtor, lender account, amount int64, now time.Time) (left debt, paid int64, err error) {
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
-		row := tx.QueryRowContext(ctx, debtColumns+" WHERE chat = ? AND devedor = ? AND credor = ?", chat.String(), debtor.key, lender.key)
-		d, err := scanDebt(row, chat)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errNoDebt
-		}
-		if err != nil {
-			return err
-		}
-		left = d.accrued(now)
-		paid = min(amount, left.amount)
-		if err := openWallet(ctx, tx, chat, lender); err != nil {
-			return err
-		}
-		if err := moveCoins(ctx, tx, chat, debtor, lender, paid); err != nil {
-			return err
-		}
-		left.amount -= paid
-		return storeDebt(ctx, tx, left)
+	err = s.inTx(ctx, func(tx *sql.Tx) (err error) {
+		left, paid, err = settleDebt(ctx, tx, chat, debtor, lender, amount, now)
+		return err
 	})
 	return left, paid, err
+}
+
+func settleDebt(ctx context.Context, tx *sql.Tx, chat types.JID, debtor, lender account, amount int64, now time.Time) (debt, int64, error) {
+	row := tx.QueryRowContext(ctx, debtColumns+" WHERE chat = ? AND devedor = ? AND credor = ?", chat.String(), debtor.key, lender.key)
+	d, err := scanDebt(row, chat)
+	if errors.Is(err, sql.ErrNoRows) {
+		return debt{}, 0, errNoDebt
+	}
+	if err != nil {
+		return debt{}, 0, err
+	}
+	left := d.accrued(now)
+	paid := min(amount, left.amount)
+	if err := openWallet(ctx, tx, chat, lender); err != nil {
+		return debt{}, 0, err
+	}
+	if err := moveCoins(ctx, tx, chat, debtor, lender, paid); err != nil {
+		return debt{}, 0, err
+	}
+	left.amount -= paid
+	return left, paid, storeDebt(ctx, tx, left)
 }
 
 const debtColumns = "SELECT devedor, devedor_jid, credor, credor_jid, divida, juros, juros_atraso, desde, vence_em FROM dividas"

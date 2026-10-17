@@ -86,7 +86,7 @@ func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 	}
 	sentence, every := copJob.sentence(suspectJob), copJob.arrestEvery
 	if copJob.jailTime == 0 {
-		sentence, every = profession{jailTime: baseJail}.sentence(suspectJob), debtArrestEvery
+		sentence, every = profession{jailTime: baseJail}.sentence(suspectJob), copJob.collectionEvery()
 	}
 	a, err := b.wallets.arrest(ctx, chat, copAcc, suspectAcc, cooldown{column: "prisao_em", every: copJob.hasted(every)}, copJob.abuse(arrestAbuse), sentence, 1, owed != nil, true, time.Now())
 	if err != nil {

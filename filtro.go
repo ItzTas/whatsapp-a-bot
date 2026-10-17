@@ -286,7 +286,7 @@ func (b *bot) ownerCommands() []botCommand {
 				{"!modo ativar consentimento", "submodo do romance: nesta conversa, o !casar e o !namorar viram pedido, respondido com !aceitar ou !recusar. Com a economia ligada, o casamento tem festa, dote, conta conjunta e pensão no divórcio"},
 				{"!modo ativar baixarlinks", "submodo do utilidades: nesta conversa, o bot baixa sozinho os vídeos, imagens e gifs dos links que mandarem"},
 				{"!modo ativar ia iaenxerida", "os submodos só funcionam com o modo de cima ligado, e o tudo não liga nenhum deles"},
-				{"!modo ativar moderacao", "nesta conversa, os admins podem usar o !ban, o !promover, o !rebaixar, o !mutar, o !desmutar, o !algemar, o !desalgemar, o !advertir, o !perdoar e o !boasvindas (todo mundo pode ver o !advertencias), e o bot apaga as mensagens de quem tá mutado, reage com 🔒 nas de quem tá algemado e manda a mensagem de boas-vindas quando alguém entra"},
+				{"!modo ativar moderacao", "nesta conversa, os admins podem usar o !ban, o !promover, o !rebaixar, o !mutar, o !desmutar, o !advertir, o !perdoar e o !boasvindas (todo mundo pode ver o !advertencias), e o bot apaga as mensagens de quem tá mutado e manda a mensagem de boas-vindas quando alguém entra"},
 				{"!modo desativar jogos", "desliga o modo de novo (funciona com qualquer modo)"},
 				{"!modo ativar jogos -- <nome do grupo>", "ativa (ou desativa) os modos no grupo com esse nome, mandando de qualquer conversa"},
 			},

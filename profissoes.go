@@ -1668,6 +1668,7 @@ var professions = []profession{
 	{
 		name: "agiota", emoji: "💰", title: "é agiota", area: areaCrime, min: 120, max: 280, every: 28 * time.Minute,
 		bust: 0.2, interest: 3, jailFactor: 50, trialEdge: -1,
+		lendRate: 3, lendLateRate: 5, garnish: 30, collectBonus: 0.15, collectEvery: 20 * time.Minute, collectVotes: 2,
 		tasks: []string{
 			"emprestou cinquenta e cobrou duzentos na semana seguinte", "cobrou juros sobre os juros dos juros",
 			"aceitou a TV do cliente como pagamento da parcela", "bateu na porta no dia do pagamento com a calculadora na mão",
@@ -1961,7 +1962,7 @@ var professions = []profession{
 		aliases: []string{"mae de santo", "pai de santo", "macumbeira", "macumbeiro", "ialorixa", "babalorixa"},
 		min:     100, max: 200, every: 20 * time.Minute,
 		faith: faith{
-			blessings: []string{"protecao", "sorte", "purificacao", "maoboa"}, curses: []string{"olhogordo", "azar", "encosto", "lerdeza"}, hexChance: 0.7,
+			blessings: []string{"protecao", "sorte", "purificacao", "maoboa", "abrecaminho"}, curses: []string{"olhogordo", "azar", "encosto", "lerdeza"}, hexChance: 0.7,
 			blessRite: "acendeu uma vela branca pra", curseRite: "fez um despacho na encruzilhada pra",
 		},
 		tasks: []string{
@@ -1990,7 +1991,7 @@ var professions = []profession{
 		name: "benzedeira", emoji: "🌿", title: "é benzedeira", area: areaFe, aliases: []string{"benzedeiro", "rezadeira", "rezadeiro", "curandeira"},
 		min: 60, max: 130, every: 14 * time.Minute,
 		faith: faith{
-			blessings: []string{"purificacao", "protecao", "fartura"}, curses: []string{"olhogordo"}, hexChance: 0.4,
+			blessings: []string{"purificacao", "protecao", "fartura", "achado"}, curses: []string{"olhogordo"}, hexChance: 0.4,
 			blessRite: "passou um raminho de arruda em", curseRite: "rogou uma praga em",
 		},
 		tasks: []string{
@@ -2003,7 +2004,7 @@ var professions = []profession{
 		name: "xamã", emoji: "🪶", title: "é xamã", area: areaFe, aliases: []string{"xama", "paje", "druida"},
 		min: 100, max: 190, every: 22 * time.Minute, breakoutBonus: 0.15,
 		faith: faith{
-			blessings: []string{"libertacao", "fartura", "sorte", "pressa", "maoboa"}, curses: []string{"jejum", "encosto", "panema"}, hexChance: 0.6,
+			blessings: []string{"libertacao", "fartura", "sorte", "pressa", "maoboa", "faro"}, curses: []string{"jejum", "encosto", "panema"}, hexChance: 0.6,
 			blessRite: "fez uma roda de tambor por", curseRite: "invocou os espíritos da floresta contra",
 		},
 		tasks: []string{

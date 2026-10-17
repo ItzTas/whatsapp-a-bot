@@ -177,7 +177,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   sobra do arredondamento vai pra maior aposta); se ninguém acertou ou o bolão é cancelado, todo
   mundo recebe de volta. Fechar, dar resultado e cancelar é só pra quem abriu, admin ou dono.
 - O `!agiota` (`agiota.go`, com `!emprestar` de alias) é o empréstimo entre pessoas, e o agiota é
-  quem empresta; o bot não empresta nada (a tabela antiga `emprestimos` ficou sem uso). Quem pede
+  quem empresta; o empréstimo do banco é outro comando, o `!emprestimo` (abaixo). Quem pede
   manda `!agiota @pessoa <valor> [dias]` e o pedido fica em `debtRequests` (um por quem empresta, na
   mesma chave do `itemOffers`, então o `!aceitar` e o `!recusar` atendem os dois) até a pessoa
   responder. Aceito, a dívida vai pra tabela `dividas` (uma por par devedor/credor) e os juros
@@ -186,6 +186,29 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `!processar` quem deve (`rivalsWithDebt`) mesmo sem a profissão certa e sem `crime_em`; é cobrança, então
   não marca crime, não tem chance de ir preso na hora e o `!prender` não zera o `crime_em` do
   devedor. A imunidade do presidente continua valendo no `!prender`.
+  - A profissão `agiota` mexe nesse sistema pelos campos `lend*`, `collect*` e `garnish` da
+    profissão de quem empresta. Os juros (`loanRates`, `lendRate`/`lendLateRate` somados no
+    `debtRate`/`debtLateRate`) são lidos no pedido, guardados no `debtRequest` (e no save) e
+    gravados na linha da `dividas`, então trocar de profissão depois não muda dívida antiga. O
+    `collectBonus` soma na chance do `!matar` e do `!sequestrar` de cobrança (`collectionEdge`),
+    o `collectEvery` troca o `debtArrestEvery` do `!prender` de cobrança e o `collectVotes` soma
+    votos pra culpado no `!processar` por calote. O `garnish` desconta uma porcentagem do que o
+    devedor atrasado ganha no `!trabalhar` e paga a dívida na mesma transação (`salaryLien`, lido
+    em paralelo no `trabalhar`, e `garnishPay` → `settleDebt`, o mesmo miolo do `repayDebt`); com
+    mais de um credor desses, só o de vencimento mais antigo desconta.
+- O `!emprestimo` (`emprestimo.go`) é o empréstimo do banco: o bot empresta moedas novas e as
+  moedas pagas de volta somem (ralo). Fica na tabela `emprestimos` (refeita na migração `00080`),
+  um por pessoa por conversa, e reaproveita o `debt` do `!agiota` sem credor (o `lender` fica
+  vazio), então os juros compostos também saem do `debt.accrued`: `loanRate` por dia até o
+  `vence_em` e `loanLateRate` depois. O limite (`loanLimit`) é o `max` do `!trabalhar` da
+  profissão vezes `loanLimitShifts`, entre `loanLimitFloor` e `loanLimitCap`, então o presidente e
+  os imóveis com `payBonus` pegam mais. Com o prazo vencido, o `runLoanSeizures` (iniciado junto do
+  `runAuctions`) penhora o saldo a cada `loanSeizeEvery`: o `seizeLoan` empurra o `penhora_em`
+  antes de cobrar (então reiniciar não penhora duas vezes), tira até a dívida toda pelo
+  `settleLoan` (o mesmo miolo do `!emprestimo pagar`) e anuncia na conversa, respeitando o modo
+  `economia` e o `allowedIn` de quem deve. Saldo zerado não gera aviso. O `!emprestimo` não tem
+  nada de cobrança na marra: quem empresta é o banco, então não libera `!matar`, `!prender` nem
+  nada parecido.
 - As `!acoes` guardam o preço por conversa em `acoes_precos` (os saldos também são por conversa);
   o passeio aleatório avança um passo a cada `stockStepEvery` quando alguém consulta, e as
   posições ficam em `acoes_posicoes`. As empresas vivem em código (`stockCompanies` em
@@ -631,6 +654,15 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   `dailyBonus`, `payBonus` (porcentagem a mais no `min`/`max` do `!trabalhar`, aplicada no
   `housed`) e cobra IPTU (`tax`) no imposto diário. Nunca reordene a lista: o nível é o índice.
   O `staff` de cada nível é o número de vagas de empregado (`!empregados`); sem imóvel, nenhuma.
+  O `storage` de cada nível é quantos itens cabem guardados em casa (`guardados.go`): o
+  `!imovel guardar`, o `!imovel tirar` e o `!imovel guardados` mexem na tabela `guardados`, que tem
+  as mesmas colunas do `inventarios` (qualidade na chave e `usos`). As funções de mochila têm uma
+  versão com a tabela de parâmetro (`loadStacks`, `takeGradesFrom`, `addGradesTo`), e o `shiftItems`
+  passa item entre as duas levando a qualidade e o desgaste (`usos`) junto, pra guardar e tirar não
+  zerar o desgaste da ferramenta. Item guardado não tá na mochila, então nada que lê o `inventarios`
+  enxerga ele: não é furtado, não é apreendido, não entra nas vendas em lote e não dá efeito nenhum
+  (passivas, arma, ferramenta) até voltar pra mochila. O nível do imóvel só sobe, então o espaço
+  nunca encolhe embaixo de quem já guardou.
 - Os empregados (`empregados.go`) são fictícios e vivem em código (`staff`), e só o `id` vai pra
   coluna `tipo` da tabela `empregados`, uma linha por empregado contratado (cada um com o próprio
   `coletado_em`, então contratar outro do mesmo tipo não herda as horas dos antigos). Cada tipo
@@ -731,10 +763,13 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   pronta homenageia quem mais doou pra ela (`obras_concluidas`). `!doar @pessoa` continua sendo o
   `!dar`.
 - As zoeiras pagas (`zoar.go`) ficam em `zoeiras` (`chat`, `alvo`, `tipo`, `autor`, `ate`), uma
-  por tipo e alvo, e pagar de novo soma o tempo. O `palhaco` é a reação 🤡 do `reactIfClowned`
-  no `handleMessage`, o `apelido` tranca o `!apelido` (`nicknameLocked`, só quem pagou muda) e a
+  por tipo e alvo, e pagar de novo soma o tempo. O `palhaco` é a reação 🤡 do `reactToAilments`, o `apelido` tranca o `!apelido` (`nicknameLocked`, só quem pagou muda) e a
   `maldicao` corta o ganho do `!trabalhar` pela metade. O `!zoar limpar` apaga as zoeiras da
   própria pessoa.
+- O `!reagir @pessoa <emoji>` (`reagir.go`, modo `zoeira`) grava o emoji na tabela `reacoes`
+  (`chat`, `id`/`id_alt`, `emoji`), um por pessoa por conversa, e marcar de novo troca o emoji. O
+  `reactIfMarked` reage com ele em toda mensagem da pessoa no `handleMessage`; como uma mensagem só
+  guarda uma reação do bot, quando ele reage o `reactToAilments` não roda.
 - As bênçãos e maldições (`encantos.go`) vivem em código (`charms`, com `curse` separando as duas)
   e só o `id` vai pra tabela `encantos` (`chat`, `alvo`, `tipo`, `autor`, `ate`), uma por tipo e
   alvo; lançar de novo só renova o prazo (`MAX`), não soma. Nunca renomeie um `id`. O efeito é o
@@ -755,6 +790,16 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
     leva dois `%s` (quem joga e o alvo). Todo item com `bless` ou `hex` que não é de luxo cai no
     tipo `Bênçãos e maldições`, e o `!abencoar`/`!amaldicoar` sem marcar ninguém mostram os itens
     de cada encanto (`itemsCarrying`).
+  - As bênçãos de extração mexem nas quatro extrações por um tempo, pelos campos `gather*` da
+    profissão que o `forage` aplica antes do `equip`: a `maoboa` (`barrenHauls` e `gatherGrade`),
+    o `faro` (`gatherLuck`, que soma no `plainLuck`, então a caixa de relíquia não conta no sorteio
+    extra), o `achado` (`gatherRare`, o `boostRare` das ferramentas) e o `abrecaminho`
+    (`gatherJunk`, o `trimJunk`). As três últimas duram 2 horas e saem de itens da `!loja` com
+    `bless` (Figa de guiné, Vela pra São Longuinho e Banho de abre-caminho), além da `faith` do
+    xamã, da benzedeira e da mãe de santo. Elas ficam fora da conta de tempo de se pagar das
+    ferramentas. O preço do item é calibrado pelo ganho extra na venda em 2 horas de uma extração
+    sem parar: com ferramenta base ele quase empata, e com ferramenta épica dá lucro. Então mexer
+    no `loot` ou nas ferramentas pede conferir esses preços também.
   - O Espelho da Iara (relíquia, `mirrorItem`) liga o `mirror` da profissão pelo `flex`: o `canCast`
     deixa lançar qualquer bênção ou maldição (com a espera do `charmCooldown` normal) e o `hexOdds`
     fica com o maior entre a `hexChance` da profissão e o `mirrorHexChance`. Ele também devolve
@@ -782,6 +827,12 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
     (`hexBackfire` ou espelho), o `landCharm` grava o alvo original como `autor`, então quem jogou
     paga pra ele; o Dízimo em si mesmo (`autor = alvo`) é ignorado pelo trigger. O `purges()` é só
     a `purificacao`.
+- O `reactToAilments` (`status.go`), chamado no `handleMessage`, reage em toda mensagem de quem tá
+  com algum status ruim, se o modo `economia` tiver ligado. O `walletStore.ailments` lê tudo numa
+  consulta só. Como o WhatsApp só aceita uma reação do bot por mensagem, vale o primeiro da lista do
+  `ailments.emoji`: morto ⚰️, preso 🔒, refém 🪢, palhaço do `!zoar` 🤡, amaldiçoado (o emoji da
+  maldição do `encantos`, ou 🧿 pra `maldicao` do `!zoar`), drogado 😵‍💫 e saúde em até um terço
+  do `maxHealth` 🤕. Status novo é só entrar nessa lista, na posição da prioridade.
 - O `mensagens.db` guarda no máximo 2 anos ou 1 milhão de mensagens (`mensagens.go`), com poda
   periódica.
 - O `!retrospectiva`, o `!horario` e o `!primeiramsg` leem só o `mensagens.db` e o `risadas`, sem

@@ -82,7 +82,7 @@ func (b *bot) sequestrar(ctx context.Context, evt *events.Message) error {
 	}
 	odds := kidnapOdds{
 		lawful:  owed != nil,
-		success: kidnapperJob.kidnapOdds(victimJob),
+		success: kidnapperJob.kidnapOdds(victimJob, owed),
 		caught:  victimJob.caughtOdds(),
 		jail:    profession{jailTime: baseJail}.sentence(kidnapperJob),
 	}
@@ -105,8 +105,8 @@ func (b *bot) sequestrar(ctx context.Context, evt *events.Message) error {
 	return err
 }
 
-func (p profession) kidnapOdds(victim profession) float64 {
-	return clampChance(kidnapChance + p.kidnapBonus - victim.guard - p.curfew())
+func (p profession) kidnapOdds(victim profession, owed *debt) float64 {
+	return clampChance(kidnapChance + p.kidnapBonus + p.collectionEdge(owed) - victim.guard - p.curfew())
 }
 
 func (p profession) caughtOdds() float64 {

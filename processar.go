@@ -168,7 +168,7 @@ func (b *bot) releaseTrialCooldown(ctx context.Context, chat types.JID, acc acco
 	}
 }
 
-func (s trialSides) extraVotes() (guilty, innocent int) {
+func (s trialSides) extraVotes(debt bool) (guilty, innocent int) {
 	lean := func(edge int, own, other *int) {
 		if edge >= 0 {
 			*own += edge
@@ -178,6 +178,9 @@ func (s trialSides) extraVotes() (guilty, innocent int) {
 	}
 	lean(s.accuserJob.trialEdge, &guilty, &innocent)
 	lean(s.defendantJob.trialEdge, &innocent, &guilty)
+	if debt {
+		guilty += s.accuserJob.collectVotes
+	}
 	return guilty, innocent
 }
 
@@ -201,6 +204,9 @@ func (r *trialCase) edgeLines() []string {
 			edge, side = -edge, p.other
 		}
 		lines = append(lines, fmt.Sprintf("%s @%s %s: +%s pra %s", p.job.emoji, p.who.User, p.job.title, countLabel(edge, "voto", "votos"), side))
+	}
+	if votes := r.sides.accuserJob.collectVotes; r.debt && votes > 0 {
+		lines = append(lines, fmt.Sprintf("🦈 @%s cobra calote de profissão: +%s pra culpado", r.accuser.User, countLabel(votes, "voto", "votos")))
 	}
 	return lines
 }
@@ -325,7 +331,7 @@ func (b *bot) trialVerdict(ctx context.Context, chat types.JID, round *trialCase
 	}
 
 	votedGuilty, votedInnocent, weighted := juryTally(jury, b.juryJobs(ctx, chat, round.sides.economy, jury))
-	extraGuilty, extraInnocent := round.sides.extraVotes()
+	extraGuilty, extraInnocent := round.sides.extraVotes(round.debt)
 	guilty, innocent := votedGuilty+extraGuilty, votedInnocent+extraInnocent
 	header := fmt.Sprintf("🧑‍⚖️ *Sentença*\nJúri: %d culpado, %d inocente\n", votedGuilty, votedInnocent)
 	if accuserPaid {

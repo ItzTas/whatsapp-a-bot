@@ -357,6 +357,13 @@ func (p profession) forage(a activity) activity {
 	if p.barrenHauls != 0 {
 		a.loot = barrenLoot(a.loot, p.barrenHauls)
 	}
+	if p.gatherRare > 0 {
+		a.loot = boostRare(a.loot, p.gatherRare)
+	}
+	if p.gatherJunk > 0 {
+		a.loot = trimJunk(a.loot, p.gatherJunk)
+	}
+	a.plainLuck += p.gatherLuck
 	a.gradeLuck += p.gatherGrade
 	a.rotten = p.rotten
 	return a

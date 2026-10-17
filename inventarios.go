@@ -10,6 +10,11 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
+const (
+	backpackTable = "inventarios"
+	stashTable    = "guardados"
+)
+
 var errNoItems = errors.New("item insuficiente")
 
 type rowsQuerier interface {
@@ -46,9 +51,13 @@ func (s *walletStore) inventory(ctx context.Context, chat types.JID, acc account
 	return loadInventory(ctx, s.db, chat, acc)
 }
 
-func loadInventory(ctx context.Context, q rowsQuerier, chat types.JID, acc account) (stacks []stack, err error) {
+func loadInventory(ctx context.Context, q rowsQuerier, chat types.JID, acc account) ([]stack, error) {
+	return loadStacks(ctx, q, backpackTable, chat, acc)
+}
+
+func loadStacks(ctx context.Context, q rowsQuerier, table string, chat types.JID, acc account) (stacks []stack, err error) {
 	rows, err := q.QueryContext(ctx,
-		"SELECT item, qualidade, quantidade FROM inventarios WHERE chat = ? AND pessoa = ? ORDER BY item, qualidade",
+		"SELECT item, qualidade, quantidade FROM "+table+" WHERE chat = ? AND pessoa = ? ORDER BY item, qualidade",
 		chat.String(), acc.key,
 	)
 	if err != nil {
@@ -338,10 +347,14 @@ func addItems(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id s
 }
 
 func addGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, grades []grade) error {
+	return addGradesTo(ctx, tx, backpackTable, chat, acc, id, grades)
+}
+
+func addGradesTo(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc account, id string, grades []grade) error {
 	for _, g := range grades {
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO inventarios (chat, pessoa, item, qualidade, quantidade) VALUES (?, ?, ?, ?, ?)
-			 ON CONFLICT (chat, pessoa, item, qualidade) DO UPDATE SET quantidade = inventarios.quantidade + excluded.quantidade`,
+			"INSERT INTO "+table+` (chat, pessoa, item, qualidade, quantidade) VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT (chat, pessoa, item, qualidade) DO UPDATE SET quantidade = `+table+`.quantidade + excluded.quantidade`,
 			chat.String(), acc.key, id, g.quality, g.quantity,
 		)
 		if err != nil {
@@ -365,7 +378,11 @@ func spendItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id 
 }
 
 func takeGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, quantity int64) ([]grade, error) {
-	held, err := heldGrades(ctx, tx, chat, acc, id)
+	return takeGradesFrom(ctx, tx, backpackTable, chat, acc, id, quantity)
+}
+
+func takeGradesFrom(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc account, id string, quantity int64) ([]grade, error) {
+	held, err := gradesIn(ctx, tx, table, chat, acc, id)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +399,7 @@ func takeGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id
 			break
 		}
 		n := min(quantity, g.quantity)
-		if err := takeGrade(ctx, tx, chat, acc, id, grade{g.quality, n}, n == g.quantity); err != nil {
+		if err := takeGrade(ctx, tx, table, chat, acc, id, grade{g.quality, n}, n == g.quantity); err != nil {
 			return nil, err
 		}
 		taken = append(taken, grade{g.quality, n})
@@ -391,14 +408,14 @@ func takeGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id
 	return taken, nil
 }
 
-func takeGrade(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string, g grade, whole bool) error {
+func takeGrade(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc account, id string, g grade, whole bool) error {
 	if whole {
-		_, err := tx.ExecContext(ctx, "DELETE FROM inventarios WHERE chat = ? AND pessoa = ? AND item = ? AND qualidade = ?",
+		_, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE chat = ? AND pessoa = ? AND item = ? AND qualidade = ?",
 			chat.String(), acc.key, id, g.quality)
 		return err
 	}
 	_, err := tx.ExecContext(ctx,
-		"UPDATE inventarios SET quantidade = quantidade - ? WHERE chat = ? AND pessoa = ? AND item = ? AND qualidade = ?",
+		"UPDATE "+table+" SET quantidade = quantidade - ? WHERE chat = ? AND pessoa = ? AND item = ? AND qualidade = ?",
 		g.quantity, chat.String(), acc.key, id, g.quality,
 	)
 	return err
@@ -412,9 +429,9 @@ func holdsItem(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id 
 	return held, err
 }
 
-func heldGrades(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string) (grades []grade, err error) {
+func gradesIn(ctx context.Context, tx *sql.Tx, table string, chat types.JID, acc account, id string) (grades []grade, err error) {
 	rows, err := tx.QueryContext(ctx,
-		"SELECT qualidade, quantidade FROM inventarios WHERE chat = ? AND pessoa = ? AND item = ? ORDER BY qualidade",
+		"SELECT qualidade, quantidade FROM "+table+" WHERE chat = ? AND pessoa = ? AND item = ? ORDER BY qualidade",
 		chat.String(), acc.key, id,
 	)
 	if err != nil {
