@@ -245,15 +245,19 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   (`sellNumbered` → `sellBatch` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
   todos os que vêm depois dele.
 - A qualidade (`qualidade.go`) é a coluna `qualidade` do `inventarios`, que faz parte da chave, então
-  cada qualidade de um item é uma linha própria. Os níveis ficam em `qualities` (de `-2` podre a `2`
-  excelente, com o `0` normal), cada um com a porcentagem do `value` que vale (`price`) e o peso no
-  sorteio; os pesos são montados pra média dar 100%, então a calibragem das ferramentas não muda.
+  cada qualidade de um item é uma linha própria. Os níveis ficam em `qualities` (de `-3` horrível a `3`
+  lendária, com o `0` normal), cada um com a porcentagem do `value` que vale (`price`), o selo
+  (`badge`) e o peso no sorteio. A horrível e a lendária têm peso bem baixo, então só aparecem por
+  sorte ou com muito sorteio extra pro lado delas. Os pesos são montados pra média dar 100%, mas o
+  "melhor de N" das ferramentas depende da distribuição inteira, então mexer em porcentagem ou peso
+  pede recalibrar as ferramentas.
   Só a extração sorteia qualidade (`rollQuality` no `roll`), e só pra item `gradable()`: sem efeito
   nenhum (nada de `gear`, caixa, baú, relíquia, luxo, ilegal, encanto, `trade`, `heist`...). Todo
   o resto entra como normal pelo `addItems`. O `grade` da ferramenta (`gear`, somado no `equip`) e
   o `craft.grade` da profissão dão sorteios extras de qualidade naquela extração (positivo fica com
   a melhor, negativo com a pior), e o `rotten` (hoje
-  só o caçador de bússola, pra ele não lucrar com a espera curta de extração) deixa tudo podre.
+  só o caçador de bússola, pra ele não lucrar com a espera curta de extração) deixa tudo com a pior
+  qualidade (`worstQuality`, a primeira da lista).
   O `loadInventory` junta as linhas numa `stack` por item, com as qualidades em `grades`, então o
   resto do código continua vendo um item só; a `!mochila` mostra uma linha por qualidade. O
   `takeItems`/`takeGrades` sempre tira da pior qualidade pra melhor, e quem passa item de uma

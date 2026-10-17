@@ -444,7 +444,7 @@ func (p profession) perks() []string {
 		{p.haste > 0, fmt.Sprintf("🐌 Espera %d%% mais no %s", p.haste, hasteCommands)},
 		{p.boxLuck > 0, fmt.Sprintf("📦 Abre caixa e baú no !usar com %dx mais sorte: fica com o item mais raro de %d sorteios", p.boxLuck+1, p.boxLuck+1)},
 		{p.compassLure > 0, fmt.Sprintf("🧭 Acha a Bússola do relicário %dx mais fácil no %s", p.compassLure, extractionCommands())},
-		{p.rotten, fmt.Sprintf("🪰 Tudo que acha no %s vem com qualidade podre (%d%% do valor)", extractionCommands(), rottenQuality.tier().percent)},
+		{p.rotten, fmt.Sprintf("🪰 Tudo que acha no %s vem com qualidade %s (%d%% do valor)", extractionCommands(), worstQuality().tier().name, worstQuality().tier().percent)},
 		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},

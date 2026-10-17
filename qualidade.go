@@ -8,24 +8,24 @@ import (
 
 type quality int
 
-const (
-	rottenQuality quality = -2
-	normalQuality quality = 0
-)
+const normalQuality quality = 0
 
 type qualityTier struct {
 	level   quality
 	name    string
+	badge   string
 	percent int64
 	weight  int
 }
 
 var qualities = []qualityTier{
-	{rottenQuality, "podre", 40, 10},
-	{-1, "ruim", 70, 20},
-	{normalQuality, "normal", 100, 40},
-	{1, "boa", 130, 20},
-	{2, "excelente", 160, 10},
+	{-3, "horrível", "💀", 10, 10},
+	{-2, "podre", "⭐", 40, 95},
+	{-1, "ruim", "⭐⭐", 70, 205},
+	{normalQuality, "normal", "⭐⭐⭐", 100, 385},
+	{1, "boa", "⭐⭐⭐⭐", 130, 200},
+	{2, "excelente", "⭐⭐⭐⭐⭐", 160, 100},
+	{3, "lendária", "🌟", 250, 5},
 }
 
 type grade struct {
@@ -49,15 +49,12 @@ func (q quality) tier() qualityTier {
 	return qualities[q.index()]
 }
 
-func (q quality) stars() string {
-	return strings.Repeat("⭐", q.index()+1)
-}
-
 func (q quality) tag() string {
 	if q == normalQuality {
 		return ""
 	}
-	return fmt.Sprintf(" %s _%s_", q.stars(), q.tier().name)
+	t := q.tier()
+	return fmt.Sprintf(" %s _%s_", t.badge, t.name)
 }
 
 func (q quality) price(value int64) int64 {
@@ -70,12 +67,12 @@ func (q quality) summary(it item) string {
 	}
 	r := rarities[it.rarity]
 	t := q.tier()
-	return fmt.Sprintf("%s %s · %s %s (%d%% do valor) · vale %s", r.emoji, r.name, q.stars(), t.name, t.percent, coins(q.price(it.value)))
+	return fmt.Sprintf("%s %s · %s %s (%d%% do valor) · vale %s", r.emoji, r.name, t.badge, t.name, t.percent, coins(q.price(it.value)))
 }
 
 func rollQuality(luck int, rotten bool) quality {
 	if rotten {
-		return rottenQuality
+		return worstQuality()
 	}
 	pick := func() quality {
 		return qualities[weightedIndex(len(qualities), func(i int) int { return qualities[i].weight })].level
@@ -89,6 +86,10 @@ func rollQuality(luck int, rotten bool) quality {
 		q = keep(q, pick())
 	}
 	return q
+}
+
+func worstQuality() quality {
+	return qualities[0].level
 }
 
 func (it item) gradable() bool {
@@ -146,7 +147,7 @@ func restoreGrades(states []gradeState, quantity int64) []grade {
 func qualityGuide() string {
 	parts := make([]string, len(qualities))
 	for i, t := range qualities {
-		parts[i] = fmt.Sprintf("%s %s %d%%", t.level.stars(), t.name, t.percent)
+		parts[i] = fmt.Sprintf("%s %s %d%%", t.badge, t.name, t.percent)
 	}
 	return strings.Join(parts, " · ")
 }
