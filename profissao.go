@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -156,6 +157,7 @@ type profession struct {
 	finds        []string
 	findChance   float64
 	findBonus    float64
+	fixedFinds   bool
 	equipped     bool
 	peak         peak
 
@@ -363,6 +365,10 @@ func clampChance(c float64) float64 {
 	return min(max(c, 0.05), 0.95)
 }
 
+func fineChance(f float64) string {
+	return strings.ReplaceAll(strconv.FormatFloat(f*100, 'f', -1, 64), ".", ",")
+}
+
 func percent(f float64) int {
 	return int(f*100 + 0.5)
 }
@@ -394,7 +400,8 @@ func (p profession) perks() []string {
 		{p.bust > 0 && p.bustFine > 0, fmt.Sprintf("💥 Em %d%% das vezes dá ruim e ainda perde até %s", percent(p.bust), coins(p.bustFine))},
 		{p.peak.bonus > 0, fmt.Sprintf("⏰ Ganha +%d%% entre %dh e %dh", p.peak.bonus, p.peak.from, p.peak.to)},
 		{p.doubling() > 0, fmt.Sprintf("🍀 %d%% de chance de ganhar em dobro", percent(p.doubling()))},
-		{findChance > 0, fmt.Sprintf("🎁 %d%% de chance de achar um item trabalhando: %s", percent(findChance), findsText(finds))},
+		{findChance > 0 && !p.fixedFinds, fmt.Sprintf("🎁 %d%% de chance de achar um item trabalhando: %s", percent(findChance), findsText(finds))},
+		{p.fixedFinds, fmt.Sprintf("🎁 Trabalhando não acha nada, só tem %s%% de chance de achar %s, e nada aumenta essa chance", fineChance(findChance), findsText(finds))},
 		{p.robEvery > 0, "🦹 Rouba a cada " + formatWait(p.robEvery)},
 		{p.robBonus > 0, fmt.Sprintf("🦹 +%d%% de chance no !roubar", percent(p.robBonus))},
 		{p.theftEvery > 0, "🥷 Furta a cada " + formatWait(p.theftEvery)},

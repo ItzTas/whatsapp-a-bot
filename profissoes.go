@@ -1137,11 +1137,10 @@ var professions = []profession{
 	},
 	{
 		name: "caçador de bússola", emoji: "🧭", title: "é caçador de bússola do relicário", area: areaCampo,
-		aliases: []string{"caçador de bússola do relicário", "bussoleiro"},
-		min: 20, max: 60, every: 28 * time.Minute,
+		aliases: []string{"caçador de bússola do relicário", "bussoleiro"}, min: 20, max: 60, every: 28 * time.Minute,
 		bust: 0.45, bustFine: 120, salePercent: 40, betJinx: 0.15,
 		jailFactor: 50, escapeBonus: -0.15, breakoutBonus: -0.15, reportBonus: -0.2, heistBonus: -0.1, trialEdge: -1,
-		gatherFaster: 50, compassLure: 10,
+		gatherFaster: 50, compassLure: 10, finds: []string{"bussola-do-relicario"}, findChance: 0.005, fixedFinds: true,
 		tasks: []string{
 			"passou o dia girando no meio da praça esperando a agulha apontar pra algum lugar",
 			"vendeu um mapa \"original\" do relicário pra um turista", "seguiu a agulha de uma bússola até a casa da sogra",

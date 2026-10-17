@@ -24,6 +24,9 @@ func tradeTool(a int) (item, bool) {
 }
 
 func (p profession) loot() ([]string, float64) {
+	if p.fixedFinds {
+		return p.finds, p.findChance
+	}
 	if len(p.finds) > 0 {
 		return p.finds, p.findChance + p.findBonus
 	}
@@ -50,6 +53,12 @@ func tradePerks(p profession) []string {
 	tool, ok := tradeTool(p.area)
 	if !ok || p.divine {
 		return nil
+	}
+	if p.fixedFinds && p.equipped {
+		return []string{fmt.Sprintf("🛠️ Trabalha com %s: o !trabalhar paga %d%% a mais (já conta acima)", tool.label(), tradePayBonus)}
+	}
+	if p.fixedFinds {
+		return []string{fmt.Sprintf("🛠️ Com %s na mochila (tem na !loja), o !trabalhar paga %d%% a mais", tool.label(), tradePayBonus)}
 	}
 	if p.equipped {
 		return []string{fmt.Sprintf("🛠️ Trabalha com %s: o !trabalhar paga %d%% a mais e a chance de achar item sobe %d pontos (já conta acima)", tool.label(), tradePayBonus, percent(tradeFindBonus))}
