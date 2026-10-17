@@ -152,8 +152,8 @@ var catalog = []item{
 	{id: "escamas-do-boitata", name: "Escamas do Boitatá", emoji: "🐍", rarity: relic, value: 30_000, aliases: []string{"boitata"},
 		flex: &flex{effect: "quem tenta !roubar, !furtar, !sequestrar ou !matar você tem 25% menos chance", apply: func(p profession) profession { p.guard += 0.25; return p }}},
 	{id: "coroa-de-dom-pedro", name: "Coroa de Dom Pedro", emoji: "🤴", rarity: relic, value: 30_000, aliases: []string{"dom pedro", "coroa imperial"},
-		flex: &flex{effect: "o !daily rende 50% a mais e o seu voto conta 2 a mais no !votar, no !impeachment e no júri do !processar", apply: func(p profession) profession {
-			p.dailyBonus += 50
+		flex: &flex{effect: "o !daily rende 200% a mais e o seu voto conta 2 a mais no !votar, no !impeachment e no júri do !processar", apply: func(p profession) profession {
+			p.dailyBonus += 200
 			p.voteWeight = p.ballotWeight() + 2
 			return p
 		}}},
