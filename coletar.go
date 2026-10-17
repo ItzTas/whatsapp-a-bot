@@ -17,16 +17,17 @@ type drop struct {
 }
 
 type activity struct {
-	command  string
-	emoji    string
-	cooldown cooldown
-	tool     string
-	breaks   float64
-	luck     int
-	loot     []drop
-	found    []string
-	empty    []string
-	tired    string
+	command   string
+	emoji     string
+	cooldown  cooldown
+	tool      string
+	breaks    float64
+	luck      int
+	plainLuck int
+	loot      []drop
+	found     []string
+	empty     []string
+	tired     string
 }
 
 var fishing = activity{
@@ -42,7 +43,7 @@ var fishing = activity{
 		{"escama-de-sereia", 1}, {"sardinha", 90}, {"traira", 70}, {"pacu", 60}, {"estrela-do-mar", 40},
 		{"celular-afogado", 40}, {"piranha", 35}, {"agua-viva", 30}, {"atum", 25}, {"arraia", 20},
 		{"garrafa-com-mensagem", 12}, {"dourado", 10}, {"peixe-espada", 7}, {"tridente", 1},
-		{"dente-de-megalodonte", 1}, {"boto-cor-de-rosa", 1},
+		{"dente-de-megalodonte", 1}, {"boto-cor-de-rosa", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
 	},
 	found: []string{
 		"🎣 @%[1]s jogou a linha e fisgou %[2]s",
@@ -71,7 +72,7 @@ var mining = activity{
 		{"esmeralda", 15}, {"safira", 12}, {"rubi", 10}, {"fossil", 8}, {"diamante", 6}, {"bau-do-tesouro", 2},
 		{"meteorito", 2}, {"areia", 110}, {"granito", 100}, {"quartzo", 70}, {"ouro-de-tolo", 60}, {"topazio", 35},
 		{"geodo", 30}, {"opala", 12}, {"jade", 12}, {"petroleo", 10}, {"urna", 8}, {"uranio", 3},
-		{"diamante-rosa", 1}, {"idolo-de-ouro", 1}, {"pedra-filosofal", 1},
+		{"diamante-rosa", 1}, {"idolo-de-ouro", 1}, {"pedra-filosofal", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
 	},
 	found: []string{
 		"⛏️ @%[1]s cavou fundo na mina e achou %[2]s",
@@ -105,7 +106,7 @@ var scavenging = activity{
 		{"barbie", 30}, {"rolex-do-paraguai", 25}, {"manequim", 20}, {"urubu", 15}, {"disco-de-vinil", 15},
 		{"maquina-de-escrever", 12}, {"notebook-positivo", 10}, {"game-boy", 8}, {"lata-de-ninho", 15},
 		{"brinco-de-ouro", 5}, {"carta-holografica", 4}, {"cofre-esquecido", 2}, {"bilhete-premiado", 1},
-		{"mala-de-dinheiro", 1}, {"taca-jules-rimet", 1},
+		{"mala-de-dinheiro", 1}, {"taca-jules-rimet", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
 	},
 	found: []string{
 		"🗑️ @%[1]s revirou o lixão e achou %[2]s",
@@ -123,7 +124,7 @@ var scavenging = activity{
 }
 
 var bugging = activity{
-	command:  "!cacar",
+	command:  "!catar",
 	emoji:    "🦋",
 	cooldown: cooldown{column: "inseto_em", every: 10 * time.Minute},
 	tool:     "rede-de-insetos",
@@ -135,7 +136,7 @@ var bugging = activity{
 		{"cigarra", 50}, {"vaga-lume", 45}, {"casa-de-marimbondo", 35}, {"louva-a-deus", 35}, {"bicho-pau", 30},
 		{"favo-de-mel", 30}, {"escorpiao", 30}, {"caranguejeira", 20}, {"besouro-rinoceronte", 12},
 		{"casulo-de-seda", 12}, {"borboleta-azul", 10}, {"abelha-rainha", 5}, {"mosquito-no-ambar", 4},
-		{"escaravelho-de-ouro", 1}, {"fada", 1}, {"grilo-falante", 1}, {"saci-na-garrafa", 1},
+		{"escaravelho-de-ouro", 1}, {"fada", 1}, {"grilo-falante", 1}, {"saci-na-garrafa", 1}, {"relicario", 2}, {"bussola-do-relicario", 1},
 	},
 	found: []string{
 		"🦋 @%[1]s correu no mato com a rede e pegou %[2]s",
@@ -167,15 +168,19 @@ func activityNamed(command string) activity {
 }
 
 type gear struct {
-	activities []string
-	tool       bool
-	sturdy     int64
-	grace      int64
-	luck       int
-	faster     int64
-	fewerJunk  int64
-	spent      bool
-	metal      bool
+	activities  []string
+	tool        bool
+	sturdy      int64
+	grace       int64
+	luck        int
+	faster      int64
+	fewerJunk   int64
+	moreRare    int64
+	relicLure   int
+	skipsRelics bool
+	spent       bool
+	metal       bool
+	alwaysFinds bool
 }
 
 func (g *gear) fits(a activity) bool {
@@ -192,14 +197,19 @@ type kit struct {
 
 func (a activity) equip(bag []stack) kit {
 	k := kit{activity: a, armed: a.tool == "" || slices.ContainsFunc(bag, func(s stack) bool { return s.item.id == a.tool })}
-	var toolValue int64
+	best, hasTool := a.bestTool(bag)
+	var metalOnly bool
 	for _, s := range bag {
 		g := s.item.gear
-		if !g.fits(a) {
+		if !g.fits(a) || g.tool && s.item.id != best.id {
 			continue
 		}
 		k.worn = append(k.worn, s.item)
-		k.luck += g.luck
+		if g.skipsRelics {
+			k.plainLuck += g.luck
+		} else {
+			k.luck += g.luck
+		}
 		k.cooldown.every = k.cooldown.every * time.Duration(100-g.faster) / 100
 		if g.spent {
 			k.spent = append(k.spent, s.item)
@@ -207,18 +217,38 @@ func (a activity) equip(bag []stack) kit {
 		if g.fewerJunk > 0 {
 			k.loot = trimJunk(k.loot, g.fewerJunk)
 		}
-		if g.metal {
-			k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { it, _ := itemByID(d.item); return !it.metal })
+		if g.moreRare > 0 {
+			k.loot = boostRare(k.loot, g.moreRare)
 		}
-		if g.tool && a.tool != "" && s.item.value > toolValue {
-			toolValue = s.item.value
-			k.tool = s.item.id
-			k.breaks = a.breaks * float64(100-g.sturdy) / 100
-			k.grace = g.grace
-			k.armed = true
+		if g.relicLure > 0 {
+			k.loot = lureRelics(k.loot, g.relicLure)
+		}
+		if g.alwaysFinds {
+			k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { return d.item == "" })
+		}
+		metalOnly = metalOnly || g.metal
+	}
+	if metalOnly {
+		k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { it, _ := itemByID(d.item); return !it.metal })
+	}
+	if !hasTool || a.tool == "" {
+		return k
+	}
+	k.tool = best.id
+	k.breaks = a.breaks * float64(100-best.gear.sturdy) / 100
+	k.grace = best.gear.grace
+	k.armed = true
+	return k
+}
+
+func (a activity) bestTool(bag []stack) (item, bool) {
+	var best item
+	for _, s := range bag {
+		if s.item.gear.fits(a) && s.item.gear.tool && s.item.value > best.value {
+			best = s.item
 		}
 	}
-	return k
+	return best, best.id != ""
 }
 
 func trimJunk(loot []drop, percent int64) []drop {
@@ -233,6 +263,28 @@ func trimJunk(loot []drop, percent int64) []drop {
 	return trimmed
 }
 
+func boostRare(loot []drop, percent int64) []drop {
+	boosted := slices.Clone(loot)
+	for i, d := range boosted {
+		factor := int64(100)
+		if it, _ := itemByID(d.item); d.item != "" && it.rarity >= rare {
+			factor += percent
+		}
+		boosted[i].weight = int(int64(d.weight) * factor)
+	}
+	return boosted
+}
+
+func lureRelics(loot []drop, factor int) []drop {
+	lured := slices.Clone(loot)
+	for i, d := range lured {
+		if it, _ := itemByID(d.item); it.relicOdds > 0 {
+			lured[i].weight *= factor
+		}
+	}
+	return lured
+}
+
 func gearPerk(g *gear) string {
 	parts := []struct {
 		on   bool
@@ -243,9 +295,13 @@ func gearPerk(g *gear) string {
 		{g.sturdy > 0 && g.sturdy < 100, fmt.Sprintf("quebra %d%% menos", g.sturdy)},
 		{g.grace > 0, fmt.Sprintf("não quebra nos primeiros %d usos", g.grace)},
 		{g.luck > 0, fmt.Sprintf("dá %dx mais sorte no que acha", g.luck+1)},
+		{g.skipsRelics, "mas essa sorte não ajuda a achar o Relicário perdido"},
 		{g.faster > 0, fmt.Sprintf("espera %d%% menos", g.faster)},
 		{g.fewerJunk > 0, fmt.Sprintf("vem %d%% menos item comum e mão vazia", g.fewerJunk)},
+		{g.moreRare > 0, fmt.Sprintf("vem %d%% mais item raro, épico e lendário", g.moreRare)},
+		{g.relicLure > 0, fmt.Sprintf("deixa %dx mais fácil achar o Relicário perdido", g.relicLure)},
 		{g.metal, "só sai item de metal, então nunca vem de mão vazia"},
+		{g.alwaysFinds, "nunca vem de mão vazia"},
 		{g.spent, "gasta 1 a cada vez"},
 	}
 	var found []string
@@ -267,6 +323,11 @@ func (a activity) roll() haul {
 	found := a.drop()
 	for range a.luck {
 		if other := a.drop(); other.value > found.value {
+			found = other
+		}
+	}
+	for range a.plainLuck {
+		if other := a.drop(); other.relicOdds == 0 && other.value > found.value {
 			found = other
 		}
 	}
@@ -304,6 +365,9 @@ func (a activity) report(g gathering, person types.JID) string {
 	text := fmt.Sprintf(pickOne(a.empty), person.User)
 	if g.found.id != "" {
 		text = fmt.Sprintf(pickOne(a.found), person.User, g.found.label()) + "\n" + g.found.summary()
+	}
+	if g.found.relicOdds > 0 {
+		text += fmt.Sprintf("\n\n🏛️ Achado raríssimo! Abre com !usar %s e reza: em %d%% das vezes sai uma relíquia", foldLetters(g.found.name), percent(g.found.relicOdds))
 	}
 	if len(g.worn) > 0 {
 		text += "\n\n🧰 Com " + wornList(g.worn, g.spent)

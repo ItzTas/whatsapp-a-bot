@@ -17,6 +17,7 @@ import (
 const (
 	presidentTaxPercent   = 5
 	presidentAid          = 200
+	presidentBoxItem      = "caixa-misteriosa"
 	presidentPardons      = 2
 	presidentSeizePercent = 10
 	workDecreeMaxCut      = 50
@@ -156,10 +157,10 @@ var (
 		syntax:  "!decreto fianca 20", about: "cobra imposto em cima de cada !fianca paga, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto fianca também)",
 	}
 	gatherDecree = percentDecree{
-		names: []string{"extracao", "pescar", "pesca", "minerar", "mineracao", "vasculhar", "cacar", "coleta"}, column: "extracao_pct", lo: -decreeSwing, hi: decreeSwing,
-		raised: "o !pescar, o !minerar, o !vasculhar e o !cacar esperam %d%% mais", lowered: "o !pescar, o !minerar, o !vasculhar e o !cacar esperam %d%% menos",
-		revoked: "o !pescar, o !minerar, o !vasculhar e o !cacar voltam à espera normal",
-		syntax:  "!decreto extracao -30", about: "muda a espera do !pescar, do !minerar, do !vasculhar e do !cacar",
+		names: []string{"extracao", "pescar", "pesca", "minerar", "mineracao", "vasculhar", "catar", "cacar", "insetos", "coleta"}, column: "extracao_pct", lo: -decreeSwing, hi: decreeSwing,
+		raised: "o !pescar, o !minerar, o !vasculhar e o !catar esperam %d%% mais", lowered: "o !pescar, o !minerar, o !vasculhar e o !catar esperam %d%% menos",
+		revoked: "o !pescar, o !minerar, o !vasculhar e o !catar voltam à espera normal",
+		syntax:  "!decreto extracao -30", about: "muda a espera do !pescar, do !minerar, do !vasculhar e do !catar",
 	}
 	casinoDecree = percentDecree{
 		names: []string{"cassino", "premio", "premios"}, column: "cassino_pct", lo: -decreeSwing, hi: decreeSwing, popular: true,
@@ -199,6 +200,11 @@ var (
 		spent:  "💸 O auxílio deste mandato já saiu. Agora é cada um por si",
 		syntax: "!decreto auxilio", about: fmt.Sprintf("dá %s de auxílio pra cada um da conversa, com moeda nova", coins(presidentAid)),
 	}
+	boxOnce = onceDecree{
+		names: []string{"caixa", "caixas", "caixamisteriosa", "presente", "presentes"}, column: "caixa_feita", limit: 1, label: "caixa misteriosa",
+		spent:  "📦 As caixas misteriosas deste mandato já foram distribuídas. Acabou o estoque do Planalto",
+		syntax: "!decreto caixa", about: "dá uma caixa misteriosa pra cada um da conversa, saída direto do almoxarifado do governo",
+	}
 	amnestyOnce = onceDecree{
 		names: []string{"anistia"}, column: "anistia_feita", limit: 1, label: "anistia",
 		spent:  "🕊️ A anistia deste mandato já foi dada",
@@ -219,7 +225,7 @@ var (
 		spent:  "📈 A intervenção no mercado deste mandato já foi feita",
 		syntax: "!decreto acoes FOFC3 20", about: fmt.Sprintf("sobe ou desce na hora o preço de uma ação, de -%d%% a +%d%% (depois o mercado volta a andar sozinho)", stockDecreeSwing, stockDecreeSwing),
 	}
-	onceDecrees = []onceDecree{taxOnce, aidOnce, amnestyOnce, pardonOnce, seizeOnce, stockOnce}
+	onceDecrees = []onceDecree{taxOnce, aidOnce, boxOnce, amnestyOnce, pardonOnce, seizeOnce, stockOnce}
 )
 
 func decreeColumns() []string {
@@ -442,6 +448,7 @@ func (b *bot) decrees() map[string]decree {
 	}{
 		{taxOnce, b.taxDecree},
 		{aidOnce, b.aidDecree},
+		{boxOnce, b.boxDecree},
 		{amnestyOnce, b.amnestyDecree},
 		{pardonOnce, b.pardonDecree},
 		{seizeOnce, b.seizeDecree},
@@ -627,6 +634,35 @@ func (b *bot) aidDecree(ctx context.Context, call decreeCall) (string, error) {
 		onceSpent: aidOnce.spentText(call.p.decrees),
 		onceIdle:  "💸 Não tem ninguém com carteira na conversa pra receber o auxílio. Fica guardado pra depois",
 		onceDone:  fmt.Sprintf("💸 *Auxílio presidencial!* @%s deu %s pra %s. Moeda nova, saída direto da gráfica 🖨️", user, coins(presidentAid), countLabel(int(paid), "pessoa", "pessoas")),
+	}[outcome], nil
+}
+
+func (b *bot) boxDecree(ctx context.Context, call decreeCall) (string, error) {
+	var given int64
+	outcome, err := b.spendDecree(ctx, call, boxOnce, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO inventarios (chat, pessoa, item, quantidade)
+			 SELECT chat, pessoa, ?, 1 FROM carteiras WHERE chat = ? AND pessoa != ?
+			 ON CONFLICT (chat, pessoa, item) DO UPDATE SET quantidade = inventarios.quantidade + excluded.quantidade`,
+			presidentBoxItem, call.chat.String(), call.p.president.key,
+		)
+		if err != nil {
+			return err
+		}
+		if given, err = res.RowsAffected(); err != nil || given > 0 {
+			return err
+		}
+		return errDecreeIdle
+	})
+	if err != nil {
+		return "", err
+	}
+	box, _ := itemByID(presidentBoxItem)
+	return map[onceOutcome]string{
+		onceSpent: boxOnce.spentText(call.p.decrees),
+		onceIdle:  "📦 Não tem ninguém com carteira na conversa pra receber caixa. As caixas ficam guardadas pra depois",
+		onceDone: fmt.Sprintf("📦 *Caixas presidenciais!* @%s mandou uma %s pra %s. Tá na mochila, é só dar !abrir caixa 🎉",
+			call.p.president.jid.User, box.label(), countLabel(int(given), "pessoa", "pessoas")),
 	}[outcome], nil
 }
 

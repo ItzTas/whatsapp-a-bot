@@ -181,10 +181,31 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   em `itens.go`) e só o `id` de cada item vai pro banco. Nunca renomeie um `id` existente: os
   itens com o id antigo somem das mochilas. As propostas do `!vender @pessoa` são efêmeras
   (`itemOffers`) e só trocam item e moedas na hora do `!aceitar`.
-- Item com `relic` (hoje a Vara de Iemanjá e a Picareta de Serra Pelada) não sai por meio
-  nenhum: fica fora da loja, das atividades, da `!luxo` e das caixas e baús (`randomItemOf`
-  ignora). Só o `!criar` e o `!milagre` de deus criam, e depois ele passa de mão em mão. Se a
-  pessoa tem mais de uma ferramenta da mesma atividade, o `equip` usa a de maior `value`.
+- Relíquia é uma raridade própria (`relic`, acima da `legendary`), não uma lendária: ferramenta
+  relíquia nunca quebra (`sturdy: 100`), tem `moreRare: 100` e nunca volta de mão vazia (`alwaysFinds`, que tira a entrada vazia do loot no `equip`); ferramenta lendária tem
+  `sturdy: 97` e `grace: 100`. Item com `rarity: relic` (hoje a
+  Vara de Iemanjá, a Picareta de Serra Pelada, a Rede do Curupira, o Saco do Homem do Saco, a
+  Vela do Negrinho do Pastoreio, a Excalibur e as passivas Muiraquitã, Gorro do Saci, Chapéu de Lampião, Escamas do Boitatá, Coroa
+  de Dom Pedro e Santo Graal) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
+  de caixa com `relicOdds` (hoje o Relicário perdido), que no `roll` troca o prêmio por uma
+  relíquia aleatória nessa chance, e do `!criar` e do `!milagre` de deus; depois passa de mão em
+  mão. A caixa com `relicOdds` também não sai de outra caixa e só cai nas extrações (`loot` das
+  `activities`, peso 2). Equipamento com `relicLure` (hoje a Bússola do relicário, que sai de
+  caixa comum e, com peso 1, das extrações) multiplica esse peso no `equip` (`lureRelics`) e, com `spent`, é gasto na próxima
+  extração. O filtro de metal do Ímã tira a caixa de relíquia do sorteio, mesmo com a bússola. O
+  `randomItemOf` pula tudo que é `unboxable()` (luxo, ilegal, relíquia e
+  caixa de relíquia). Ferramentas (`gear` com `tool`) não somam entre si: se a pessoa tem mais de
+  uma da mesma atividade, o `equip` só aplica a de maior `value` (`bestTool`), e as outras ficam
+  paradas na mochila. Os acessórios (`gear` sem `tool`, como isca, capacete e bússola) continuam
+  valendo junto com ela. A sorte de acessório com `skipsRelics` (a isca) vai pro `plainLuck` do
+  `roll`, e nesses sorteios extras a caixa de relíquia é ignorada. A Excalibur é arma legal: o `bestWeapon` lê toda arma do `catalog` (não só as
+  ilegais), mas ela não é apreendida porque o `seizeContraband` só pega item `illegal`. O
+  `!vasculhar` não tem ferramenta base, então a relíquia dele (o Saco do Homem do Saco) é acessório,
+  sem `tool` e sem `sturdy`. A Vela do Negrinho do Pastoreio também é acessório, mas vale nas
+  quatro extrações: não substitui a ferramenta, só soma sorte e tira a mão vazia do sorteio
+  (`alwaysFinds`). As relíquias passivas usam o mesmo `flex` dos itens de luxo (o
+  `passives` lê qualquer item com `flex`), mas nunca levam `keep`: o `luxuryGoods` põe na `!luxo`
+  todo épico ou acima com `keep` que não é da loja.
 - O tipo de cada item (`itemCategories` em `itens.go`) não é um campo: é a primeira regra da lista
   que bate com os campos do item (`pet`, `arms`, `heist`, `gift`, o loot das `activities`...), e o
   que não bate em nada vira `Raridades`. O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
@@ -316,7 +337,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   tabelas, e o `inaugurate` zera todas as colunas (`decreeColumns`). O `professionOf` pendura os
   decretos da conversa na profissão (`job.decrees`), então os ganchos leem `job.decrees.level(...)`
   e mostram `job.decrees.note(...)`: `daily`, `juros` (pontos na taxa do `!poupar`), `pena` (no `sentence`, então vale pra toda ida pra cadeia),
-  `extracao` (espera do `!pescar`, `!minerar`, `!vasculhar` e `!cacar`) e o toque de recolher (`curfew()`,
+  `extracao` (espera do `!pescar`, `!minerar`, `!vasculhar` e `!catar`) e o toque de recolher (`curfew()`,
   tirado da chance de `!roubar`, `!furtar`, `!sequestrar`, `!matar` e `!assalto`). Quem não lê a
   profissão chama `b.wallets.decrees`: o `trabalho`/`salario` (`workCooldown`/`payFor`), o `pix`
   (taxa de quem recebe no `!transferir`, que vai pro presidente, a não ser que ele esteja
@@ -347,6 +368,7 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   (`onPrize`). O `tudo`, o `metade` e o `%` já contam a taxa da aposta
   (`stakeAfterLevy`); o dobrar do `!blackjack` não paga taxa. Os
   de uma vez são `imposto`, `auxilio` (`presidentAid` de moeda nova pra cada carteira da conversa),
+  `caixa` (uma `presidentBoxItem`, a caixa misteriosa comum, na mochila de cada carteira da conversa),
   `anistia` (zera `preso_ate` e o `crime_em` dentro da `crimeWindow`), `indulto @pessoa`
   (`presidentPardons` por mandato), `confisco @pessoa` (`presidentSeizePercent` do saldo pro
   presidente) e `acoes <ticker> <pct>` (mexe direto no `acoes_precos`, e a reversão do passeio
@@ -426,6 +448,10 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
     não importa), antes do `charmed`. Os que acabam têm `bless`, o `id` de uma bênção do `charms`:
     o `!usar` gasta o item e grava a bênção em `encantos` com a própria pessoa de autor
     (`savor`, pelo mesmo `grantCharm` do `!abencoar`). Item de luxo novo precisa de um dos dois.
+  - A chance de ganhar em dobro no `!trabalhar` não soma: a da profissão, a da Bolsa de grife e a
+    da bênção Sorte entram com `max` no `doubleChance`, e só a Muiraquitã (relíquia) soma por
+    cima, no campo próprio `relicDouble`. O sorteio e os `perks()` leem o total pelo
+    `doubling()`. Fonte nova de dobro usa `max`, nunca `+=`.
 - O `!mercadonegro` (`mercadonegro.go`) vende os itens com `illegal` do `catalog`: armas (campo
   `arms`) e drogas (campo `high`). O estoque do dia sai do `dailyRand` (o mesmo sorteio da
   `!luxo`, com outro sal), e cada item tem um preço do dia entre `blackMarketMinPercent` e

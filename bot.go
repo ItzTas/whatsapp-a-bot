@@ -1308,11 +1308,11 @@ func (b *bot) commands() []botCommand {
 			run: b.gather(scavenging),
 		},
 		{
-			name:     "cacar",
-			aliases:  []string{"cacada", "insetos", "borboletas"},
+			name:     "catar",
+			aliases:  []string{"cacar", "cacada", "insetos", "borboletas"},
 			category: economia,
 			help: []usage{
-				{"!cacar", fmt.Sprintf("sai com a rede atrás de inseto, de pernilongo a fada no pote 🦋 Precisa de rede de insetos (tem na !loja) e dá pra caçar a cada %s", formatWait(bugging.cooldown.every))},
+				{"!catar", fmt.Sprintf("sai com a rede atrás de inseto, de pernilongo a fada no pote 🦋 Precisa de rede de insetos (tem na !loja) e dá pra catar a cada %s", formatWait(bugging.cooldown.every))},
 			},
 			run: b.gather(bugging),
 		},

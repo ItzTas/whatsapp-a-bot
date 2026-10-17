@@ -21,7 +21,7 @@ func (b *bot) loja(ctx context.Context, evt *events.Message) error {
 	lines = append(lines, categoryGroups(stock, func(it item) item { return it }, shopLine)...)
 	lines = append(lines, "",
 		"_Compra com !comprar <item>, tipo !comprar vara de pesca ou !comprar todynho 5. Os bichinhos ficam no !petshop_",
-		fmt.Sprintf("_O resto dos itens só sai no !pescar, no !minerar, no !vasculhar, no !cacar ou em caixa, as coisas finas ficam na !luxo e o que é proibido, no !mercadonegro. Vendendo pro mercado, ele paga %d%% do valor_", marketSalePercent))
+		fmt.Sprintf("_O resto dos itens só sai no !pescar, no !minerar, no !vasculhar, no !catar ou em caixa, as coisas finas ficam na !luxo e o que é proibido, no !mercadonegro. Vendendo pro mercado, ele paga %d%% do valor_", marketSalePercent))
 	return b.sendText(ctx, evt.Info.Chat, strings.Join(lines, "\n"))
 }
 

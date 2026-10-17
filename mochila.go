@@ -24,7 +24,7 @@ func (b *bot) mochila(ctx context.Context, evt *events.Message) error {
 
 func backpackText(person types.JID, held []stack) string {
 	if len(held) == 0 {
-		return fmt.Sprintf("🎒 A mochila de @%s tá vazia 🪹\n\n_Dá pra conseguir itens com !vasculhar, !pescar, !minerar e !cacar, ou comprando na !loja_", person.User)
+		return fmt.Sprintf("🎒 A mochila de @%s tá vazia 🪹\n\n_Dá pra conseguir itens com !vasculhar, !pescar, !minerar e !catar, ou comprando na !loja_", person.User)
 	}
 	var units, worth, market int64
 	for _, s := range held {
@@ -154,6 +154,9 @@ func unusableText(it item) string {
 }
 
 func effectText(it item, e itemEffect) string {
+	if e.prize.rarity == relic {
+		return fmt.Sprintf("\n\n🏛️ *RELÍQUIA!* Saiu %s, uma das coisas mais raras que existem\n%s", e.prize.label(), e.prize.summary())
+	}
 	if e.prize.id != "" {
 		return fmt.Sprintf("\n\n✨ Saiu %s\n%s", e.prize.label(), e.prize.summary())
 	}

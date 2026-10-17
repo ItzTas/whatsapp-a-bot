@@ -45,9 +45,9 @@ var charms = []charm{
 			return p
 		}},
 	{id: "sorte", name: "Sorte", emoji: "🍀", hold: 3 * time.Hour, aliases: []string{"trevo", "boa sorte"},
-		effect: "+20% de chance de ganhar em dobro no !trabalhar e 20% de volta quando perde no !apostar e no !cassino",
+		effect: "20% de chance de ganhar em dobro no !trabalhar (não soma com a da profissão nem com a da bolsa, vale a maior) e 20% de volta quando perde no !apostar e no !cassino",
 		apply: func(p profession) profession {
-			p.doubleChance += 0.2
+			p.doubleChance = max(p.doubleChance, 0.2)
 			p.cashback += 20
 			return p
 		}},
@@ -96,6 +96,7 @@ var charms = []charm{
 			p.heistBonus -= 0.2
 			p.betJinx += 0.2
 			p.doubleChance = 0
+			p.relicDouble = 0
 			return p
 		}},
 	{id: "jejum", name: "Jejum", emoji: "🍽️", curse: true, hold: 12 * time.Hour, aliases: []string{"fome", "seca"},

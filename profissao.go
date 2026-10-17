@@ -85,11 +85,12 @@ func (p peak) active(now time.Time) bool {
 }
 
 type craft struct {
-	activity string
-	faster   int64
-	luck     int
-	noTool   bool
-	noBreak  bool
+	activity  string
+	faster    int64
+	luck      int
+	fewerJunk int64
+	noTool    bool
+	noBreak   bool
 }
 
 func (c craft) apply(a activity) activity {
@@ -98,6 +99,9 @@ func (c craft) apply(a activity) activity {
 	}
 	a.cooldown.every = a.cooldown.every * time.Duration(100-c.faster) / 100
 	a.luck = c.luck
+	if c.fewerJunk > 0 {
+		a.loot = trimJunk(a.loot, c.fewerJunk)
+	}
 	if c.noTool {
 		a.tool = ""
 	}
@@ -119,6 +123,7 @@ func (c craft) describe() string {
 	}{
 		{c.faster > 0, fmt.Sprintf("espera %d%% menos", c.faster)},
 		{c.luck > 0, fmt.Sprintf("tem %dx mais sorte no que acha", c.luck+1)},
+		{c.fewerJunk > 0, fmt.Sprintf("vem %d%% menos item comum e mão vazia", c.fewerJunk)},
 		{c.noTool && tool.id != "", "nem precisa de " + tool.label()},
 		{c.noBreak && !c.noTool && tool.id != "", tool.label() + " nunca quebra"},
 	}
@@ -146,6 +151,7 @@ type profession struct {
 
 	bustFine     int64
 	doubleChance float64
+	relicDouble  float64
 	finds        []string
 	findChance   float64
 	findBonus    float64
@@ -276,7 +282,7 @@ func (p profession) work(now time.Time) shift {
 		s.amount += s.amount * p.peak.bonus / 100
 		s.peaked = true
 	}
-	if rand.Float64() < p.doubleChance {
+	if rand.Float64() < p.doubling() {
 		s.amount *= 2
 		s.doubled = true
 	}
@@ -343,6 +349,10 @@ func (p profession) shopPrice(cost int64) int64 {
 	return cost * (100 - p.discount) / 100
 }
 
+func (p profession) doubling() float64 {
+	return p.doubleChance + p.relicDouble
+}
+
 func clampChance(c float64) float64 {
 	return min(max(c, 0.05), 0.95)
 }
@@ -377,7 +387,7 @@ func (p profession) perks() []string {
 		{p.bust > 0 && p.bustFine == 0, fmt.Sprintf("😬 Em %d%% das vezes dá ruim e não ganha nada", percent(p.bust))},
 		{p.bust > 0 && p.bustFine > 0, fmt.Sprintf("💥 Em %d%% das vezes dá ruim e ainda perde até %s", percent(p.bust), coins(p.bustFine))},
 		{p.peak.bonus > 0, fmt.Sprintf("⏰ Ganha +%d%% entre %dh e %dh", p.peak.bonus, p.peak.from, p.peak.to)},
-		{p.doubleChance > 0, fmt.Sprintf("🍀 %d%% de chance de ganhar em dobro", percent(p.doubleChance))},
+		{p.doubling() > 0, fmt.Sprintf("🍀 %d%% de chance de ganhar em dobro", percent(p.doubling()))},
 		{findChance > 0, fmt.Sprintf("🎁 %d%% de chance de achar um item trabalhando: %s", percent(findChance), findsText(finds))},
 		{p.robEvery > 0, "🦹 Rouba a cada " + formatWait(p.robEvery)},
 		{p.robBonus > 0, fmt.Sprintf("🦹 +%d%% de chance no !roubar", percent(p.robBonus))},

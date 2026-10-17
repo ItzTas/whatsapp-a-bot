@@ -26,7 +26,7 @@ const (
 	heistKind    = "assalto"
 )
 
-var heistCooldown = cooldown{column: "assalto_em", every: 2 * time.Hour}
+var heistCooldown = cooldown{column: "assalto_em", every: 30 * time.Minute}
 
 type heistCrew struct {
 	mu      sync.Mutex

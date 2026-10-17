@@ -1024,7 +1024,7 @@ var professions = []profession{
 	},
 	{
 		name: "pescador", emoji: "🎣", title: "é pescador", area: areaCampo, min: 60, max: 140, every: 20 * time.Minute,
-		craft: craft{activity: "!pescar", faster: 50},
+		craft: craft{activity: "!pescar", faster: 50, fewerJunk: 30},
 		tasks: []string{
 			"pescou uma tilápia e contou pra todo mundo que era um tubarão", "passou a madrugada no pesqueiro e vendeu tudo na feira",
 			"consertou a rede dos pescadores do porto", "levou turista pra pescar e o turista só pegou insolação",
@@ -1049,7 +1049,7 @@ var professions = []profession{
 	},
 	{
 		name: "garimpeiro", emoji: "💎", title: "é garimpeiro", area: areaCampo, min: 80, max: 180, every: 20 * time.Minute,
-		bust: 0.1, bustFine: 50, craft: craft{activity: "!minerar", luck: 1},
+		bust: 0.1, bustFine: 50, craft: craft{activity: "!minerar", luck: 1, fewerJunk: 40},
 		tasks: []string{
 			"bateou cascalho o dia inteiro e achou umas pepitas", "jurou que uma pedra amarela era ouro e conseguiu vender",
 			"achou um cristal e disse que ele tinha energia", "voltou do rio com o bolso cheio de areia brilhante",
@@ -1062,7 +1062,7 @@ var professions = []profession{
 	},
 	{
 		name: "minerador", emoji: "⛏️", title: "é minerador", area: areaCampo, min: 80, max: 160, every: 20 * time.Minute,
-		craft: craft{activity: "!minerar", faster: 30, noBreak: true},
+		craft: craft{activity: "!minerar", faster: 30, fewerJunk: 30, noBreak: true},
 		tasks: []string{
 			"quebrou pedra o turno inteiro na mina", "tirou carvão suficiente pra um churrasco de 50 pessoas",
 			"achou um veio de cobre e vendeu pro ferro-velho", "desceu na mina de capacete com lanterna e voltou preto de pó",
@@ -1085,7 +1085,7 @@ var professions = []profession{
 	},
 	{
 		name: "apicultor", emoji: "🐝", title: "é apicultor", area: areaCampo, min: 80, max: 160, every: 20 * time.Minute,
-		bust: 0.1, guard: 0.2, craft: craft{activity: "!cacar", luck: 1},
+		bust: 0.1, guard: 0.2, craft: craft{activity: "!catar", luck: 1, fewerJunk: 25},
 		tasks: []string{
 			"colheu mel e vendeu na feira em pote de maionese", "tirou um enxame do telhado da vizinha",
 			"vendeu própolis dizendo que cura até dor de cotovelo", "fez vela de cera e vendeu como artesanato",
@@ -1112,7 +1112,7 @@ var professions = []profession{
 	},
 	{
 		name: "mergulhador", emoji: "🤿", title: "é mergulhador", area: areaCampo, min: 60, max: 130, every: 20 * time.Minute,
-		craft: craft{activity: "!pescar", luck: 1, noTool: true},
+		craft: craft{activity: "!pescar", luck: 1, fewerJunk: 30, noTool: true},
 		tasks: []string{
 			"soldou o casco de um navio debaixo d'água", "achou a aliança que o noivo deixou cair do barco",
 			"limpou o aquário gigante do shopping", "levou turista pra ver tartaruga e não apareceu nenhuma",
@@ -1123,7 +1123,7 @@ var professions = []profession{
 	{
 		name: "caçador de tesouro", emoji: "🗺️", title: "é caçador de tesouro", area: areaCampo, aliases: []string{"caçador"},
 		min: 130, max: 250, every: 28 * time.Minute,
-		bust: 0.2, bustFine: 80, craft: craft{activity: "!vasculhar", luck: 2},
+		bust: 0.2, bustFine: 80, craft: craft{activity: "!vasculhar", luck: 2, fewerJunk: 40},
 		tasks: []string{
 			"seguiu um mapa do tesouro desenhado num guardanapo", "passou o detector de metal na praia e achou 3 tampinhas e um brinco",
 			"cavou o quintal da avó atrás das moedas que o vô escondeu", "achou um baú no sótão cheio de foto antiga",
@@ -1137,7 +1137,7 @@ var professions = []profession{
 	},
 	{
 		name: "jardineiro", emoji: "🌷", title: "é jardineiro", area: areaCampo, min: 70, max: 150, every: 16 * time.Minute,
-		findChance: 0.2, finds: []string{"rosa", "buque", "sapo", "casca-de-banana"}, craft: craft{activity: "!cacar", faster: 30},
+		findChance: 0.2, finds: []string{"rosa", "buque", "sapo", "casca-de-banana"}, craft: craft{activity: "!catar", faster: 30},
 		tasks: []string{
 			"podou a cerca viva em formato de dinossauro", "cortou a grama do condomínio inteiro",
 			"salvou a samambaia da avó que tava morrendo", "plantou um pé de manga que só vai dar fruta daqui 5 anos",
@@ -1236,7 +1236,7 @@ var professions = []profession{
 	{
 		name: "dono de ferro-velho", emoji: "🔩", title: "tem um ferro-velho", area: areaComercio, min: 70, max: 130, every: 20 * time.Minute,
 		salePercent: 75,
-		craft:       craft{activity: "!vasculhar", luck: 1},
+		craft:       craft{activity: "!vasculhar", luck: 1, fewerJunk: 25},
 		tasks: []string{
 			"comprou geladeira velha a 20 reais e vendeu o motor a 200", "desmontou um fusca inteiro com uma chave de fenda",
 			"pesou uma pilha de latinha na balança viciada", "achou peça de carro rara no meio da sucata",
@@ -1796,7 +1796,7 @@ var professions = []profession{
 	{
 		name: "catador de recicláveis", emoji: "♻️", title: "cata recicláveis", area: areaServicos, aliases: []string{"catador", "reciclador"},
 		min: 40, max: 100, every: 16 * time.Minute,
-		craft: craft{activity: "!vasculhar", luck: 1},
+		craft: craft{activity: "!vasculhar", luck: 1, fewerJunk: 30},
 		tasks: []string{
 			"juntou três sacos de latinha depois do show", "empurrou a carroça cheia de papelão ladeira acima",
 			"separou o lixo do condomínio que ninguém separa", "achou uma geladeira inteira jogada no terreno",

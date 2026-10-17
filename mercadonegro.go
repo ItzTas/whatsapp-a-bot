@@ -107,6 +107,9 @@ func weaponPerk(it item) string {
 	if it.heist > 0 {
 		text += fmt.Sprintf(". No !assalto soma +%d%% pra equipe, e é gasta lá", percent(it.heist))
 	}
+	if !it.illegal {
+		return text
+	}
 	return text + ". A polícia apreende se você for preso"
 }
 
@@ -475,7 +478,12 @@ func seizeContraband(ctx context.Context, tx *sql.Tx, chat types.JID, acc accoun
 }
 
 func (s *walletStore) bestWeapon(ctx context.Context, chat types.JID, acc account) (best item, err error) {
-	ids := contrabandIDs(func(it item) bool { return it.arms != nil })
+	var ids []any
+	for _, it := range catalog {
+		if it.arms != nil {
+			ids = append(ids, it.id)
+		}
+	}
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT item FROM inventarios WHERE chat = ? AND pessoa = ? AND item IN ("+sqlPlaceholders(len(ids))+")",
 		append([]any{chat.String(), acc.key}, ids...)...,
