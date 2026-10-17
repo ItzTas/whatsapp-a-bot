@@ -52,6 +52,7 @@ type robbery struct {
 type workday struct {
 	wait  time.Duration
 	paid  int64
+	tax   int64
 	abuse powerAbuse
 }
 
@@ -93,7 +94,7 @@ func (s *walletStore) richest(ctx context.Context, chat types.JID, limit int) (w
 	return wallets, rows.Err()
 }
 
-func (s *walletStore) claim(ctx context.Context, chat types.JID, acc account, cd cooldown, amount int64, now time.Time) (wait time.Duration, err error) {
+func (s *walletStore) claim(ctx context.Context, chat types.JID, acc account, cd cooldown, amount int64, levy pixLevy, now time.Time) (wait time.Duration, tax int64, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
@@ -107,16 +108,20 @@ func (s *walletStore) claim(ctx context.Context, chat types.JID, acc account, cd
 			wait = next.Sub(now)
 			return nil
 		}
+		tax = levy.cut(amount)
 		_, err = tx.ExecContext(ctx,
 			"UPDATE carteiras SET saldo = saldo + ?, "+cd.column+" = ? WHERE chat = ? AND pessoa = ?",
-			amount, now.Unix(), chat.String(), acc.key,
+			amount-tax, now.Unix(), chat.String(), acc.key,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		return payLevy(ctx, tx, chat, levy, tax)
 	})
-	return wait, err
+	return wait, tax, err
 }
 
-func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd cooldown, abuse abuser, amount int64, find string, now time.Time) (w workday, err error) {
+func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd cooldown, abuse abuser, amount int64, find string, levy pixLevy, now time.Time) (w workday, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		var err error
 		if w.wait, w.abuse, err = stampOrAbuse(ctx, tx, chat, acc, cd, abuse, now); err != nil || w.wait > 0 {
@@ -128,8 +133,12 @@ func (s *walletStore) work(ctx context.Context, chat types.JID, acc account, cd 
 			return err
 		}
 		w.paid = max(amount, -balance)
-		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", w.paid, chat.String(), acc.key)
-		if err != nil || find == "" {
+		w.tax = levy.cut(max(w.paid, 0))
+		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", w.paid-w.tax, chat.String(), acc.key)
+		if err != nil {
+			return err
+		}
+		if err := payLevy(ctx, tx, chat, levy, w.tax); err != nil || find == "" {
 			return err
 		}
 		return addItems(ctx, tx, chat, acc, find, 1)
@@ -373,14 +382,10 @@ func (s *walletStore) redeem(ctx context.Context, chat types.JID, acc account, n
 			"UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?",
 			sv.amount+sv.interest-tax, chat.String(), acc.key,
 		)
-		if err != nil || tax == 0 {
+		if err != nil {
 			return err
 		}
-		if err := openWallet(ctx, tx, chat, levy.president); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", tax, chat.String(), levy.president.key)
-		return err
+		return payLevy(ctx, tx, chat, levy, tax)
 	})
 	return sv, tax, err
 }

@@ -10,6 +10,7 @@ import (
 
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/errgroup"
 )
 
 const maxPurchase = 100
@@ -62,14 +63,28 @@ func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
 	}
 
 	acc := b.account(ctx, person)
-	job, err := b.professionOf(ctx, chat, acc)
-	if err != nil {
+	var (
+		job     profession
+		p       presidency
+		elected bool
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { job, err = b.professionOf(gctx, chat, acc); return err })
+	g.Go(func() (err error) { p, elected, err = b.wallets.presidency(gctx, chat, time.Now()); return err })
+	if err := g.Wait(); err != nil {
 		return err
 	}
+	var levy pixLevy
+	people := []types.JID{person}
+	if elected && acc.key != p.president.key {
+		levy = pixLevy{president: p.president, percent: p.decrees.level(shopTaxDecree)}
+		people = append(people, p.president.jid)
+	}
 	cost := job.shopPrice(it.value * quantity)
-	balance, err := b.wallets.buyItem(ctx, chat, acc, it, quantity, cost)
+	tax := levy.cut(cost)
+	balance, err := b.wallets.buyItem(ctx, chat, acc, it, quantity, cost, levy)
 	if errors.Is(err, errNoFunds) {
-		return b.sendText(ctx, chat, fmt.Sprintf("Você não tem moeda pra isso: %s fica %s. Confere no !saldo", quantityLabel(it, quantity), coins(cost)))
+		return b.sendText(ctx, chat, fmt.Sprintf("Você não tem moeda pra isso: %s fica %s. Confere no !saldo", quantityLabel(it, quantity), coins(cost+tax)))
 	}
 	if err != nil {
 		return fmt.Errorf("comprar item: %w", err)
@@ -82,7 +97,14 @@ func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
 	if job.discount > 0 {
 		text += fmt.Sprintf(", com %d%% de desconto porque %s", job.discount, job.title)
 	}
-	text += job.decrees.note(pricesDecree) + "\n💰 Saldo: " + coins(balance)
-	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
+	text += shopTaxText(tax, levy) + "\n💰 Saldo: " + coins(balance)
+	_, err = b.sendMentions(ctx, chat, text, people)
 	return err
+}
+
+func shopTaxText(tax int64, levy pixLevy) string {
+	if tax == 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da compra foram pro bolso de @%s, por decreto", coins(tax), levy.percent, levy.president.jid.User)
 }

@@ -67,11 +67,12 @@ func loadInventory(ctx context.Context, q rowsQuerier, chat types.JID, acc accou
 	return stacks, rows.Err()
 }
 
-func (s *walletStore) buyItem(ctx context.Context, chat types.JID, acc account, it item, quantity, cost int64) (balance int64, err error) {
+func (s *walletStore) buyItem(ctx context.Context, chat types.JID, acc account, it item, quantity, cost int64, levy pixLevy) (balance int64, err error) {
+	tax := levy.cut(cost)
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
-			cost, chat.String(), acc.key, cost,
+			cost+tax, chat.String(), acc.key, cost+tax,
 		).Scan(&balance)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errNoFunds
@@ -79,7 +80,10 @@ func (s *walletStore) buyItem(ctx context.Context, chat types.JID, acc account, 
 		if err != nil {
 			return err
 		}
-		return addItems(ctx, tx, chat, acc, it.id, quantity)
+		if err := addItems(ctx, tx, chat, acc, it.id, quantity); err != nil {
+			return err
+		}
+		return payLevy(ctx, tx, chat, levy, tax)
 	})
 	return balance, err
 }
@@ -183,6 +187,13 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc account, a
 			return nil
 		}
 		g.haul, g.worn, g.spent = k.roll(), k.worn, k.spent
+		if k.grace > 0 {
+			uses, err := wearTool(ctx, tx, chat, acc, k.tool)
+			if err != nil {
+				return err
+			}
+			g.broke = g.broke && uses > k.grace
+		}
 		for _, it := range k.spent {
 			if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
 				return err
@@ -197,9 +208,22 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc account, a
 			return nil
 		}
 		g.broken, _ = itemByID(k.tool)
-		return takeItems(ctx, tx, chat, acc, k.tool, 1)
+		if err := takeItems(ctx, tx, chat, acc, k.tool, 1); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, "UPDATE inventarios SET usos = 0 WHERE chat = ? AND pessoa = ? AND item = ?",
+			chat.String(), acc.key, k.tool)
+		return err
 	})
 	return g, err
+}
+
+func wearTool(ctx context.Context, tx *sql.Tx, chat types.JID, acc account, id string) (uses int64, err error) {
+	err = tx.QueryRowContext(ctx,
+		"UPDATE inventarios SET usos = usos + 1 WHERE chat = ? AND pessoa = ? AND item = ? RETURNING usos",
+		chat.String(), acc.key, id,
+	).Scan(&uses)
+	return uses, err
 }
 
 func (s *walletStore) stealItem(ctx context.Context, chat types.JID, thief, victim account, cd cooldown, now time.Time,

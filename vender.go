@@ -102,7 +102,6 @@ func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 	if job.salePercent > 0 {
 		bonus = fmt.Sprintf("\n%s Como @%s %s, o mercado pagou %d%% em vez de %d%%", job.emoji, person.User, job.title, job.salePercent, marketSalePercent)
 	}
-	bonus += job.decrees.note(pricesDecree)
 	text := fmt.Sprintf("💸 @%s vendeu %s %s por %s%s\n💰 Saldo: %s\n\n_Vendendo pra alguém do grupo com !vender @pessoa dá pra cobrar o valor cheio (%s)_",
 		person.User, quantityLabel(it, quantity), pickOne(buyers), coins(payout), bonus, coins(balance), coins(it.value*quantity))
 	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})

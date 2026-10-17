@@ -83,31 +83,32 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 }
 
 func (b *bot) daily(ctx context.Context, evt *events.Message) error {
-	job, err := b.professionOf(ctx, evt.Info.Chat.ToNonAD(), b.account(ctx, evt.Info.Sender))
+	chat := evt.Info.Chat.ToNonAD()
+	person := evt.Info.Sender.ToNonAD()
+	acc := b.account(ctx, person)
+	now := time.Now()
+	job, p, err := b.workTerms(ctx, chat, acc, now)
 	if err != nil {
 		return err
 	}
 	amount := dailyMin + rand.Int64N(dailyMax-dailyMin+1)
 	amount += amount * job.dailyBonus / 100
 	amount += amount * job.decrees.level(dailyDecree) / 100
-	return b.claimCoins(ctx, evt, dailyCooldown, amount,
-		"🎁 @%s pegou o daily e ganhou %s",
-		"⏳ @%s já pegou o daily hoje. Volta em %s",
-		job.decrees.note(dailyDecree))
-}
-
-func (b *bot) claimCoins(ctx context.Context, evt *events.Message, cd cooldown, amount int64, done, waiting, note string) error {
-	chat := evt.Info.Chat.ToNonAD()
-	person := evt.Info.Sender.ToNonAD()
-	wait, err := b.wallets.claim(ctx, chat, b.account(ctx, person), cd, amount, time.Now())
+	levy := p.incomeLevy(acc)
+	wait, tax, err := b.wallets.claim(ctx, chat, acc, dailyCooldown, amount, levy, now)
 	if err != nil {
 		return fmt.Errorf("pegar moedas: %w", err)
 	}
-	text := fmt.Sprintf(done, person.User, coins(amount)) + note
 	if wait > 0 {
-		text = fmt.Sprintf(waiting, person.User, formatWait(wait))
+		_, err = b.sendMentions(ctx, chat, fmt.Sprintf("⏳ @%s já pegou o daily hoje. Volta em %s", person.User, formatWait(wait)), []types.JID{person})
+		return err
 	}
-	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
+	text := fmt.Sprintf("🎁 @%s pegou o daily e ganhou %s", person.User, coins(amount)) + job.decrees.note(dailyDecree) + incomeTaxText(tax, levy)
+	people := []types.JID{person}
+	if tax > 0 {
+		people = append(people, levy.president.jid)
+	}
+	_, err = b.sendMentions(ctx, chat, text, people)
 	return err
 }
 
@@ -192,7 +193,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	if refund > 0 {
 		text += fmt.Sprintf("\n🧾 Mas a profissão devolveu %s", coins(refund))
 	}
-	text += betLevyText(stake, bet.levy) + "\n💰 Saldo: " + coins(balance)
+	text += betLevyText(stake, payout, bet.levy) + "\n💰 Saldo: " + coins(balance)
 	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
 	return err
 }

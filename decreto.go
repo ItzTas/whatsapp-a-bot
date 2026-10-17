@@ -22,11 +22,13 @@ const (
 	workDecreeMaxCut      = 50
 	workDecreeMaxRaise    = 20
 	decreeSwing           = 50
-	pricesDecreeSwing     = 30
+	shopTaxDecreeMax      = 20
 	pixDecreeMax          = 10
 	betTaxDecreeMax       = 10
 	interestDecreeMax     = 10
 	savingsTaxDecreeMax   = 50
+	bailTaxDecreeMax      = 30
+	incomeTaxDecreeMax    = 30
 	stockDecreeSwing      = 30
 	curfewPenalty         = 0.15
 	termOverText          = "🏛️ O mandato acabou bem agora, então o decreto não valeu. Só quem ganhar a próxima eleição (!votar) baixa decreto de novo"
@@ -123,11 +125,17 @@ var (
 		revoked: "a poupança volta a render sem imposto",
 		syntax:  "!decreto iof 20", about: "cobra imposto em cima dos juros do !poupar na hora do resgate, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto poupanca também)",
 	}
-	pricesDecree = percentDecree{
-		names: []string{"loja", "precos", "inflacao"}, column: "loja_pct", lo: -pricesDecreeSwing, hi: pricesDecreeSwing,
-		raised: "os preços da !loja e do !vender sobem %d%%", lowered: "os preços da !loja e do !vender caem %d%%",
-		revoked: "os preços da !loja e do !vender voltam ao normal",
-		syntax:  "!decreto loja 10", about: "inflação (ou deflação, com número negativo): muda o preço do !comprar e o quanto o mercado paga no !vender",
+	incomeTaxDecree = percentDecree{
+		names: []string{"renda", "impostorenda", "impostotrabalho", "impostotrampo", "impostosalario", "impostodaily", "impostodiario"}, column: "renda_pct", hi: incomeTaxDecreeMax,
+		raised:  "o !trabalhar e o !daily pagam %d%% de imposto de renda, e ele vai pro presidente",
+		revoked: "o !trabalhar e o !daily voltam a pagar sem imposto",
+		syntax:  "!decreto renda 10", about: "cobra imposto em cima do que o !trabalhar e o !daily pagam, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto trabalho ou !decreto imposto daily também)",
+	}
+	shopTaxDecree = percentDecree{
+		names: []string{"loja", "compra", "compras", "impostocompra", "impostocompras", "impostoloja"}, column: "loja_pct", hi: shopTaxDecreeMax,
+		raised:  "o !comprar cobra %d%% de imposto em cima da compra, e ele vai pro presidente",
+		revoked: "o !comprar volta a cobrar sem imposto",
+		syntax:  "!decreto loja 10", about: "cobra imposto em cima de cada !comprar da !loja e do !petshop, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto compra também)",
 	}
 	pixDecree = percentDecree{
 		names: []string{"pix", "transferencia", "taxa"}, column: "pix_pct", hi: pixDecreeMax,
@@ -142,10 +150,10 @@ var (
 		syntax:  "!decreto pena 20", about: "muda quanto tempo dura a cadeia de quem for preso",
 	}
 	bailDecree = percentDecree{
-		names: []string{"fianca"}, column: "fianca_pct", lo: -decreeSwing, hi: decreeSwing,
-		raised: "o !fianca sai %d%% mais caro", lowered: "o !fianca sai %d%% mais barato",
-		revoked: "o !fianca volta ao preço normal",
-		syntax:  "!decreto fianca 20", about: "muda o preço de sair da cadeia com o !fianca",
+		names: []string{"fianca", "impostofianca", "taxafianca"}, column: "fianca_pct", hi: bailTaxDecreeMax,
+		raised:  "o !fianca cobra %d%% de imposto em cima da fiança, e ele vai pro presidente",
+		revoked: "o !fianca volta a cobrar sem imposto",
+		syntax:  "!decreto fianca 20", about: "cobra imposto em cima de cada !fianca paga, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto fianca também)",
 	}
 	gatherDecree = percentDecree{
 		names: []string{"extracao", "pescar", "pesca", "minerar", "mineracao", "vasculhar", "cacar", "coleta"}, column: "extracao_pct", lo: -decreeSwing, hi: decreeSwing,
@@ -161,11 +169,11 @@ var (
 	}
 	betTaxDecree = percentDecree{
 		names: []string{"apostas", "aposta", "impostoaposta", "impostoapostas", "taxaaposta", "taxaapostas"}, column: "apostas_pct", hi: betTaxDecreeMax,
-		raised:  "toda aposta no cassino paga mais %d%% de taxa, ganhe ou perca, e ela vai pro presidente",
+		raised:  "o cassino cobra %d%% de taxa pro presidente: quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou",
 		revoked: "as apostas do cassino voltam a não pagar taxa",
-		syntax:  "!decreto apostas 5", about: "cobra uma taxa em cima de cada aposta no !apostar, !cassino, !blackjack, !crash, !corrida e !roleta, ganhe ou perca, e ela vai pro bolso do presidente",
+		syntax:  "!decreto apostas 5", about: "cobra uma taxa no !apostar, !cassino, !blackjack, !crash, !corrida e !roleta, que vai pro bolso do presidente: quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou",
 	}
-	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, pricesDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, casinoDecree, betTaxDecree}
+	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, casinoDecree, betTaxDecree}
 
 	betsDecree = toggleDecree{
 		names: []string{"bets", "jogatina"}, column: "cassino_fechado", emoji: "🚫🎰",
@@ -356,6 +364,13 @@ func (p presidency) payFor(s shift) shift {
 		s.amount += s.amount * p.decrees.level(payDecree) / 100
 	}
 	return s
+}
+
+func (p presidency) incomeLevy(acc account) pixLevy {
+	if p.president.key == acc.key {
+		return pixLevy{}
+	}
+	return pixLevy{president: p.president, percent: p.decrees.level(incomeTaxDecree)}
 }
 
 func (b *bot) decreto(ctx context.Context, evt *events.Message) error {
@@ -872,32 +887,116 @@ func (l pixLevy) cut(amount int64) int64 {
 	return amount * l.percent / 100
 }
 
-func (s *walletStore) settleBet(ctx context.Context, chat types.JID, acc account, stake, payout int64, levy pixLevy) (balance int64, err error) {
-	fee := levy.cut(stake)
-	err = s.inTx(ctx, func(tx *sql.Tx) error {
-		err := tx.QueryRowContext(ctx,
-			"UPDATE carteiras SET saldo = saldo - ? + ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
-			stake+fee, payout, chat.String(), acc.key, stake+fee,
-		).Scan(&balance)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errNoFunds
+func (l pixLevy) onBet(stake, payout int64) int64 {
+	if payout <= stake {
+		return l.cut(stake)
+	}
+	return l.cut(payout)
+}
+
+type heldLevy struct {
+	pixLevy
+	paid int64
+}
+
+type heldLevySave struct {
+	President storedAccount `json:"president"`
+	Percent   int64         `json:"percent"`
+	Paid      int64         `json:"paid"`
+}
+
+type prizeLevy struct {
+	pixLevy
+	fee int64
+}
+
+func (w wager) held() heldLevy {
+	return heldLevy{pixLevy: w.levy, paid: w.levy.cut(w.stake)}
+}
+
+func (h heldLevy) saved() heldLevySave {
+	return heldLevySave{President: storeAccount(h.president), Percent: h.percent, Paid: h.paid}
+}
+
+func (s heldLevySave) held() heldLevy {
+	return heldLevy{pixLevy: pixLevy{president: s.President.account(), percent: s.Percent}, paid: s.Paid}
+}
+
+func (h heldLevy) onPrize(stake, payout int64) prizeLevy {
+	if payout <= stake {
+		return prizeLevy{pixLevy: h.pixLevy}
+	}
+	return prizeLevy{pixLevy: h.pixLevy, fee: max(h.cut(payout)-h.paid, 0)}
+}
+
+func (p prizeLevy) text() string {
+	if p.fee == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (📜 menos %s de taxa pro presidente, por decreto)", coins(p.fee))
+}
+
+func (s *walletStore) payPrize(ctx context.Context, chat types.JID, acc account, payout int64, levy prizeLevy) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := openWallet(ctx, tx, chat, acc); err != nil {
+			return err
 		}
-		if err != nil || fee == 0 {
+		_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", payout-levy.fee, chat.String(), acc.key)
+		if err != nil || levy.fee == 0 {
 			return err
 		}
 		if err := openWallet(ctx, tx, chat, levy.president); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", fee, chat.String(), levy.president.key)
+		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", levy.fee, chat.String(), levy.president.key)
 		return err
+	})
+}
+
+func (s *walletStore) settleBet(ctx context.Context, chat types.JID, acc account, stake, payout int64, levy pixLevy) (balance int64, err error) {
+	due := stake + levy.cut(stake)
+	fee := levy.onBet(stake, payout)
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx,
+			"UPDATE carteiras SET saldo = saldo - ? + ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
+			stake+fee, payout, chat.String(), acc.key, due,
+		).Scan(&balance)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errNoFunds
+		}
+		if err != nil {
+			return err
+		}
+		return payLevy(ctx, tx, chat, levy, fee)
 	})
 	return balance, err
 }
 
-func betLevyText(stake int64, levy pixLevy) string {
-	fee := levy.cut(stake)
+func payLevy(ctx context.Context, tx *sql.Tx, chat types.JID, levy pixLevy, fee int64) error {
+	if fee == 0 {
+		return nil
+	}
+	if err := openWallet(ctx, tx, chat, levy.president); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", fee, chat.String(), levy.president.key)
+	return err
+}
+
+func incomeTaxText(tax int64, levy pixLevy) string {
+	if tax == 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n📜 Desse valor, %s (%d%%) foram de imposto de renda pro bolso de @%s, por decreto", coins(tax), levy.percent, levy.president.jid.User)
+}
+
+func betLevyText(stake, payout int64, levy pixLevy) string {
+	fee := levy.onBet(stake, payout)
 	if fee == 0 {
 		return ""
+	}
+	if payout > stake {
+		return fmt.Sprintf("\n📜 Desse prêmio, %s (%d%% de tudo que levou) foram de taxa pro bolso do presidente, por decreto", coins(fee), levy.percent)
 	}
 	return fmt.Sprintf("\n📜 E mais %s (%d%%) de taxa da aposta foram pro bolso do presidente, por decreto", coins(fee), levy.percent)
 }

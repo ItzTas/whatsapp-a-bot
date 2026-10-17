@@ -31,6 +31,7 @@ type crashBet struct {
 	acc    account
 	stake  int64
 	boost  int64
+	levy   heldLevy
 	target int64
 	cashed int64
 }
@@ -57,6 +58,7 @@ type crashSaveBet struct {
 	Account storedAccount `json:"account"`
 	Stake   int64         `json:"stake"`
 	Boost   int64         `json:"boost"`
+	Levy    heldLevySave  `json:"levy"`
 	Target  int64         `json:"target"`
 	Cashed  int64         `json:"cashed"`
 }
@@ -105,7 +107,7 @@ func (b *bot) betCrash(ctx context.Context, evt *events.Message, args []string) 
 	if !joined {
 		go b.runCrash(ctx, chat, round, crashWindow)
 	}
-	bet := &crashBet{acc: acc, stake: placed.stake, boost: placed.boost, target: target}
+	bet := &crashBet{acc: acc, stake: placed.stake, boost: placed.boost, levy: placed.held(), target: target}
 	refusal, err = b.enterCrash(ctx, chat, round, bet, placed.levy)
 	if err != nil {
 		return err
@@ -118,7 +120,7 @@ func (b *bot) betCrash(ctx context.Context, evt *events.Message, args []string) 
 	if joined {
 		text = fmt.Sprintf("%s. Decola em %s 🚀", bet.entry(), formatSeconds(crashWindow-time.Since(round.opened)))
 	}
-	text += betLevyText(bet.stake, placed.levy)
+	text += betLevyText(bet.stake, 0, placed.levy)
 	_, err = b.sendMentions(ctx, chat, text, []types.JID{acc.jid})
 	return err
 }
@@ -160,7 +162,7 @@ func (b *bot) cashOutCrash(ctx context.Context, evt *events.Message) (bool, erro
 		_, err := b.sendMentions(ctx, chat, refusal, mentions)
 		return true, err
 	}
-	balance, err := b.payStake(ctx, chat, bet.acc, bet.payout())
+	balance, err := b.payStake(ctx, chat, bet.acc, bet.payout(), bet.prizeLevy())
 	if err != nil {
 		return true, fmt.Errorf("pagar saque do !crash: %w", err)
 	}
@@ -214,7 +216,7 @@ func (b *bot) flyCrash(ctx context.Context, chat types.JID, round *crashRound) {
 
 func (b *bot) payCrash(ctx context.Context, chat types.JID, bets []*crashBet) {
 	for _, bet := range bets {
-		if err := b.wallets.credit(ctx, chat, []account{bet.acc}, bet.payout()); err != nil {
+		if err := b.wallets.payPrize(ctx, chat, bet.acc, bet.payout(), bet.prizeLevy()); err != nil {
 			b.client.Log.Errorf("pagar saque automático do !crash pra %s: %v", bet.acc.jid, err)
 		}
 	}
@@ -258,7 +260,7 @@ func (b *bot) restoreCrash(ctx context.Context, saved savedGame) error {
 	}
 	bets := make([]*crashBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &crashBet{acc: bet.Account.account(), stake: bet.Stake, boost: bet.Boost, target: bet.Target, cashed: bet.Cashed}
+		bets[i] = &crashBet{acc: bet.Account.account(), stake: bet.Stake, boost: bet.Boost, levy: bet.Levy.held(), target: bet.Target, cashed: bet.Cashed}
 	}
 	round := b.trackCrash(ctx, state.Chat, &crashRound{opened: state.Opened, start: state.Start, point: state.Point, bets: bets})
 	wait := crashWindow - time.Since(round.opened)
@@ -331,7 +333,7 @@ func (r *crashRound) ends() time.Time {
 func (r *crashRound) saved(chat types.JID) crashSave {
 	bets := make([]crashSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = crashSaveBet{Account: storeAccount(bet.acc), Stake: bet.stake, Boost: bet.boost, Target: bet.target, Cashed: bet.cashed}
+		bets[i] = crashSaveBet{Account: storeAccount(bet.acc), Stake: bet.stake, Boost: bet.boost, Levy: bet.levy.saved(), Target: bet.target, Cashed: bet.cashed}
 	}
 	return crashSave{Chat: chat, Opened: r.opened, Start: r.start, Point: r.point, Bets: bets}
 }
@@ -437,8 +439,12 @@ func (bet *crashBet) payout() int64 {
 	return casinoPrize(bet.stake, bet.stake*bet.cashed/100, bet.boost)
 }
 
+func (bet *crashBet) prizeLevy() prizeLevy {
+	return bet.levy.onPrize(bet.stake, bet.payout())
+}
+
 func (bet *crashBet) tag() string {
-	return prizeTag(bet.stake, bet.payout(), bet.boost)
+	return prizeTag(bet.stake, bet.payout(), bet.boost) + bet.prizeLevy().text()
 }
 
 func (bet *crashBet) entry() string {

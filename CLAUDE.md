@@ -181,6 +181,10 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   em `itens.go`) e só o `id` de cada item vai pro banco. Nunca renomeie um `id` existente: os
   itens com o id antigo somem das mochilas. As propostas do `!vender @pessoa` são efêmeras
   (`itemOffers`) e só trocam item e moedas na hora do `!aceitar`.
+- Item com `relic` (hoje a Vara de Iemanjá e a Picareta de Serra Pelada) não sai por meio
+  nenhum: fica fora da loja, das atividades, da `!luxo` e das caixas e baús (`randomItemOf`
+  ignora). Só o `!criar` e o `!milagre` de deus criam, e depois ele passa de mão em mão. Se a
+  pessoa tem mais de uma ferramenta da mesma atividade, o `equip` usa a de maior `value`.
 - O tipo de cada item (`itemCategories` em `itens.go`) não é um campo: é a primeira regra da lista
   que bate com os campos do item (`pet`, `arms`, `heist`, `gift`, o loot das `activities`...), e o
   que não bate em nada vira `Raridades`. O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
@@ -311,24 +315,36 @@ vira uma goroutine em `bot.handleMessage` (`bot.go`), que segue esta ordem:
   O menu, a ajuda do `commands()`, o "em vigor" e o "sobrando" do `!presidente` saem dessas
   tabelas, e o `inaugurate` zera todas as colunas (`decreeColumns`). O `professionOf` pendura os
   decretos da conversa na profissão (`job.decrees`), então os ganchos leem `job.decrees.level(...)`
-  e mostram `job.decrees.note(...)`: `daily`, `juros` (pontos na taxa do `!poupar`), `loja`
-  (`shopPrice` e `marketPercent`), `pena` (no `sentence`, então vale pra toda ida pra cadeia),
+  e mostram `job.decrees.note(...)`: `daily`, `juros` (pontos na taxa do `!poupar`), `pena` (no `sentence`, então vale pra toda ida pra cadeia),
   `extracao` (espera do `!pescar`, `!minerar`, `!vasculhar` e `!cacar`) e o toque de recolher (`curfew()`,
   tirado da chance de `!roubar`, `!furtar`, `!sequestrar`, `!matar` e `!assalto`). Quem não lê a
   profissão chama `b.wallets.decrees`: o `trabalho`/`salario` (`workCooldown`/`payFor`), o `pix`
   (taxa de quem recebe no `!transferir`, que vai pro presidente, a não ser que ele esteja
   na transferência), o `iof` (porcentagem dos juros do `!poupar` cobrada no `redeem` e paga pro
   presidente, a não ser que seja ele resgatando; o `!decreto imposto poupanca` cai nele porque o
-  `pickDecree` tenta antes as duas primeiras palavras juntas), a `fianca` (preço do `!fianca`) e
+  `pickDecree` tenta antes as duas primeiras palavras juntas), a `renda` (porcentagem do que o
+  `!trabalhar` e o `!daily` pagam, tirada no `work`/`claim` com o `incomeLevy` e paga pro
+  presidente, a não ser que seja ele ganhando; o `!decreto imposto trabalho` e o
+  `!decreto imposto daily` caem nela pelo mesmo motivo do `iof`), a `loja` (imposto em cima do
+  `!comprar` da `!loja` e do `!petshop`, cobrado no `buyItem` junto do preço e pago pro presidente,
+  a não ser que seja ele comprando; o `!decreto imposto compra` cai nela pelo mesmo motivo do
+  `iof`, e a `!luxo` e o `!mercadonegro` não pagam), a `fianca` (imposto em cima do preço do
+  `!fianca`, cobrado de quem paga no `buyExit` pelo `levy` do `exit` e pago pro presidente na
+  mesma transação, a não ser que seja ele pagando; o `!decreto imposto fianca` cai nela pelo mesmo
+  motivo do `iof`, e o `!hospital` e o `!resgate` não pagam) e
   os três do cassino, lidos no `placeBet`,
   que só os jogos de cassino usam no lugar do `placeStake` (bolão, leilão e jokenpo continuam): o
-  `bets` fecha o cassino, o `cassino` muda o lucro de quem ganha e o `apostas` cobra uma taxa em
-  cima de cada aposta, ganhe ou perca, que vai pro presidente (ele mesmo não paga; o
+  `bets` fecha o cassino, o `cassino` muda o lucro de quem ganha e o `apostas` cobra uma taxa que
+  vai pro presidente: quem perde (ou empata) paga a porcentagem em cima da aposta e quem ganha paga
+  em cima de tudo que levou, aposta inclusa (`onBet`; ele mesmo não paga; o
   `!decreto imposto aposta` cai nele pelo mesmo motivo do `iof`). O `placeBet`
   devolve um `wager` com o `boost` do decreto da hora da aposta, que fica guardado na aposta (e no
   save da rodada) e é aplicado no pagamento pelo `casinoPrize`, com o `prizeTag` na resposta, e
   com o `levy` da taxa, que o `settleBet` (ou o `holdBet`, nos jogos que seguram a aposta) desconta
-  junto da aposta, na mesma transação. O `tudo`, o `metade` e o `%` já contam a taxa
+  junto da aposta, na mesma transação. Nos jogos que seguram a aposta, a taxa em cima da aposta
+  sai na hora e fica guardada na aposta (`heldLevy`, também no save da rodada); se ganhar, o
+  `payPrize` desconta do prêmio o que falta pra completar a porcentagem de tudo que levou
+  (`onPrize`). O `tudo`, o `metade` e o `%` já contam a taxa da aposta
   (`stakeAfterLevy`); o dobrar do `!blackjack` não paga taxa. Os
   de uma vez são `imposto`, `auxilio` (`presidentAid` de moeda nova pra cada carteira da conversa),
   `anistia` (zera `preso_ate` e o `crime_em` dentro da `crimeWindow`), `indulto @pessoa`

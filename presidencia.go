@@ -268,7 +268,7 @@ func presidentialPowers() []string {
 		fmt.Sprintf("🧟 Pode !reviver quem foi morto com pelo menos %d%% de chance", percent(presidentRevive)),
 		fmt.Sprintf("🛡️ Segurança presidencial: quem tenta !roubar, !furtar, !sequestrar ou !matar o presidente tem mais %d%% de chance de errar", percent(presidentGuard)),
 		"⚖️ Imunidade: ninguém prende o presidente enquanto durar o mandato, nem com !prender, nem com !denunciar, nem pego no flagra. Quem tava preso sai da cadeia ao tomar posse",
-		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, na poupança, nos preços, no pix, na cadeia e na !fianca, fecha o cassino, mexe nos prêmios do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Manda !decreto pra ver a lista",
+		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, cobra imposto de renda, mexe na poupança, nos preços, no pix, na cadeia e na !fianca, fecha o cassino, mexe nos prêmios do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Manda !decreto pra ver a lista",
 	}
 }
 

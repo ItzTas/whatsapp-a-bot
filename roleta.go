@@ -151,7 +151,7 @@ func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, f
 	if fired {
 		result = fmt.Sprintf("💸 @%s perdeu %s", bet.shooter.User, coins(bet.stake))
 	}
-	return result + betLevyText(bet.stake, bet.levy) + "\n💰 Saldo: " + coins(balance)
+	return result + betLevyText(bet.stake, payout, bet.levy) + "\n💰 Saldo: " + coins(balance)
 }
 
 func roletaPayout(stake int64, fired bool, chambersLeft int) int64 {

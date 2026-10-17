@@ -26,7 +26,7 @@ type exit struct {
 	notHeld  string
 	paid     string
 	paidSelf string
-	note     string
+	levy     pixLevy
 }
 
 func exitPrice(balance int64, left time.Duration) int64 {
@@ -35,15 +35,18 @@ func exitPrice(balance int64, left time.Duration) int64 {
 }
 
 func (b *bot) fianca(ctx context.Context, evt *events.Message) error {
-	decreed, err := b.wallets.decrees(ctx, evt.Info.Chat.ToNonAD(), time.Now())
+	p, elected, err := b.wallets.presidency(ctx, evt.Info.Chat.ToNonAD(), time.Now())
 	if err != nil {
-		return err
+		return fmt.Errorf("ler presidência: %w", err)
 	}
-	level := decreed.level(bailDecree)
+	var levy pixLevy
+	if elected {
+		levy = pixLevy{president: p.president, percent: p.decrees.level(bailDecree)}
+	}
 	return b.buyExit(ctx, evt, exit{
 		left:     b.wallets.sentenceLeft,
-		price:    func(balance int64, left time.Duration) int64 { return exitPrice(balance, left) * (100 + level) / 100 },
-		note:     decreed.note(bailDecree),
+		price:    exitPrice,
+		levy:     levy,
 		release:  "UPDATE carteiras SET preso_ate = 0 WHERE chat = ? AND pessoa = ? AND preso_ate > ?",
 		notHeld:  "🤨 @%s nem tá preso(a). Fiança de quê?",
 		paid:     "🔓 @%s pagou %s de fiança e @%s saiu da cadeia agora mesmo. O dinheiro foi pro governo e não volta",
@@ -68,12 +71,19 @@ func (b *bot) buyExit(ctx context.Context, evt *events.Message, ex exit) error {
 	if err != nil {
 		return fmt.Errorf("ler saldo: %w", err)
 	}
+	if payerAcc.key == ex.levy.president.key {
+		ex.levy = pixLevy{}
+	}
 	price := ex.price(balance, left)
-	err = b.wallets.spend(ctx, chat, payerAcc, price, func(tx *sql.Tx) error {
-		return releaseHeld(ctx, tx, ex.release, chat, heldAcc, now)
+	tax := ex.levy.cut(price)
+	err = b.wallets.spend(ctx, chat, payerAcc, price+tax, func(tx *sql.Tx) error {
+		if err := releaseHeld(ctx, tx, ex.release, chat, heldAcc, now); err != nil {
+			return err
+		}
+		return payLevy(ctx, tx, chat, ex.levy, tax)
 	})
 	if errors.Is(err, errNoFunds) {
-		return b.sendText(ctx, chat, fmt.Sprintf("Sai por %s e você não tem tudo isso. Confere no !saldo", coins(price)))
+		return b.sendText(ctx, chat, fmt.Sprintf("Sai por %s%s e você não tem tudo isso. Confere no !saldo", coins(price+tax), exitTaxShare(tax)))
 	}
 	if errors.Is(err, errNotHeld) {
 		_, err := b.sendMentions(ctx, chat, fmt.Sprintf(ex.notHeld, held.User), []types.JID{held})
@@ -86,9 +96,26 @@ func (b *bot) buyExit(ctx context.Context, evt *events.Message, ex exit) error {
 	if payerAcc.key == heldAcc.key {
 		text = fmt.Sprintf(ex.paidSelf, payer.User, coins(price))
 	}
-	text += ex.note
-	_, err = b.sendMentions(ctx, chat, text, []types.JID{payer, held})
+	people := []types.JID{payer, held}
+	if tax > 0 {
+		people = append(people, ex.levy.president.jid)
+	}
+	_, err = b.sendMentions(ctx, chat, text+exitTaxText(tax, ex.levy), people)
 	return err
+}
+
+func exitTaxShare(tax int64) string {
+	if tax == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (contando %s de imposto pro presidente, por decreto)", coins(tax))
+}
+
+func exitTaxText(tax int64, levy pixLevy) string {
+	if tax == 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da fiança foram pro bolso de @%s, por decreto", coins(tax), levy.percent, levy.president.jid.User)
 }
 
 func releaseHeld(ctx context.Context, tx *sql.Tx, statement string, chat types.JID, acc account, now time.Time) error {

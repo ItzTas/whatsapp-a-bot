@@ -42,6 +42,7 @@ var fishing = activity{
 		{"escama-de-sereia", 1}, {"sardinha", 90}, {"traira", 70}, {"pacu", 60}, {"estrela-do-mar", 40},
 		{"celular-afogado", 40}, {"piranha", 35}, {"agua-viva", 30}, {"atum", 25}, {"arraia", 20},
 		{"garrafa-com-mensagem", 12}, {"dourado", 10}, {"peixe-espada", 7}, {"tridente", 1},
+		{"dente-de-megalodonte", 1}, {"boto-cor-de-rosa", 1},
 	},
 	found: []string{
 		"🎣 @%[1]s jogou a linha e fisgou %[2]s",
@@ -70,6 +71,7 @@ var mining = activity{
 		{"esmeralda", 15}, {"safira", 12}, {"rubi", 10}, {"fossil", 8}, {"diamante", 6}, {"bau-do-tesouro", 2},
 		{"meteorito", 2}, {"areia", 110}, {"granito", 100}, {"quartzo", 70}, {"ouro-de-tolo", 60}, {"topazio", 35},
 		{"geodo", 30}, {"opala", 12}, {"jade", 12}, {"petroleo", 10}, {"urna", 8}, {"uranio", 3},
+		{"diamante-rosa", 1}, {"idolo-de-ouro", 1}, {"pedra-filosofal", 1},
 	},
 	found: []string{
 		"⛏️ @%[1]s cavou fundo na mina e achou %[2]s",
@@ -103,6 +105,7 @@ var scavenging = activity{
 		{"barbie", 30}, {"rolex-do-paraguai", 25}, {"manequim", 20}, {"urubu", 15}, {"disco-de-vinil", 15},
 		{"maquina-de-escrever", 12}, {"notebook-positivo", 10}, {"game-boy", 8}, {"lata-de-ninho", 15},
 		{"brinco-de-ouro", 5}, {"carta-holografica", 4}, {"cofre-esquecido", 2}, {"bilhete-premiado", 1},
+		{"mala-de-dinheiro", 1}, {"taca-jules-rimet", 1},
 	},
 	found: []string{
 		"🗑️ @%[1]s revirou o lixão e achou %[2]s",
@@ -132,7 +135,7 @@ var bugging = activity{
 		{"cigarra", 50}, {"vaga-lume", 45}, {"casa-de-marimbondo", 35}, {"louva-a-deus", 35}, {"bicho-pau", 30},
 		{"favo-de-mel", 30}, {"escorpiao", 30}, {"caranguejeira", 20}, {"besouro-rinoceronte", 12},
 		{"casulo-de-seda", 12}, {"borboleta-azul", 10}, {"abelha-rainha", 5}, {"mosquito-no-ambar", 4},
-		{"escaravelho-de-ouro", 1}, {"fada", 1},
+		{"escaravelho-de-ouro", 1}, {"fada", 1}, {"grilo-falante", 1}, {"saci-na-garrafa", 1},
 	},
 	found: []string{
 		"🦋 @%[1]s correu no mato com a rede e pegou %[2]s",
@@ -167,6 +170,7 @@ type gear struct {
 	activities []string
 	tool       bool
 	sturdy     int64
+	grace      int64
 	luck       int
 	faster     int64
 	fewerJunk  int64
@@ -181,12 +185,14 @@ func (g *gear) fits(a activity) bool {
 type kit struct {
 	activity
 	armed bool
+	grace int64
 	worn  []item
 	spent []item
 }
 
 func (a activity) equip(bag []stack) kit {
 	k := kit{activity: a, armed: a.tool == "" || slices.ContainsFunc(bag, func(s stack) bool { return s.item.id == a.tool })}
+	var toolValue int64
 	for _, s := range bag {
 		g := s.item.gear
 		if !g.fits(a) {
@@ -204,9 +210,11 @@ func (a activity) equip(bag []stack) kit {
 		if g.metal {
 			k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { it, _ := itemByID(d.item); return !it.metal })
 		}
-		if g.tool && a.tool != "" {
+		if g.tool && a.tool != "" && s.item.value > toolValue {
+			toolValue = s.item.value
 			k.tool = s.item.id
 			k.breaks = a.breaks * float64(100-g.sturdy) / 100
+			k.grace = g.grace
 			k.armed = true
 		}
 	}
@@ -231,7 +239,9 @@ func gearPerk(g *gear) string {
 		text string
 	}{
 		{g.tool, "serve de ferramenta"},
-		{g.sturdy > 0, fmt.Sprintf("quebra %d%% menos", g.sturdy)},
+		{g.sturdy >= 100, "nunca quebra"},
+		{g.sturdy > 0 && g.sturdy < 100, fmt.Sprintf("quebra %d%% menos", g.sturdy)},
+		{g.grace > 0, fmt.Sprintf("não quebra nos primeiros %d usos", g.grace)},
 		{g.luck > 0, fmt.Sprintf("dá %dx mais sorte no que acha", g.luck+1)},
 		{g.faster > 0, fmt.Sprintf("espera %d%% menos", g.faster)},
 		{g.fewerJunk > 0, fmt.Sprintf("vem %d%% menos item comum e mão vazia", g.fewerJunk)},

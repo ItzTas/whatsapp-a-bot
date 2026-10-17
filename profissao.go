@@ -333,15 +333,14 @@ func (p profession) trialCooldown() cooldown {
 }
 
 func (p profession) marketPercent() int64 {
-	sale := p.salePercent
-	if sale == 0 {
-		sale = marketSalePercent
+	if p.salePercent == 0 {
+		return marketSalePercent
 	}
-	return sale * (100 + p.decrees.level(pricesDecree)) / 100
+	return p.salePercent
 }
 
 func (p profession) shopPrice(cost int64) int64 {
-	return cost * (100 - p.discount) / 100 * (100 + p.decrees.level(pricesDecree)) / 100
+	return cost * (100 - p.discount) / 100
 }
 
 func clampChance(c float64) float64 {
@@ -490,11 +489,12 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 	s := p.payFor(job.work(now))
-	w, err := b.wallets.work(ctx, chat, acc, cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}, job.abuse(workAbuse), s.amount, s.found.id, now)
+	levy := p.incomeLevy(acc)
+	w, err := b.wallets.work(ctx, chat, acc, cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}, job.abuse(workAbuse), s.amount, s.found.id, levy, now)
 	if err != nil {
 		return fmt.Errorf("trabalhar: %w", err)
 	}
-	text := s.text(job, person.User, w.paid) + w.abuse.note("Abusou do poder e trabalhou sem descansar")
+	text := s.text(job, person.User, w.paid) + incomeTaxText(w.tax, levy) + w.abuse.note("Abusou do poder e trabalhou sem descansar")
 	if w.wait > 0 {
 		text = fmt.Sprintf("😮‍💨 @%s ainda tá cansado do último trampo. Volta em %s", person.User, formatWait(w.wait))
 	}
@@ -502,7 +502,11 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 	if job.cursed && w.wait == 0 {
 		text += "\n🧿 Tem uma praga do !zoar em cima de você: o trampo pagou metade. Pra se livrar: !zoar limpar"
 	}
-	_, err = b.sendMentions(ctx, chat, text, []types.JID{person})
+	people := []types.JID{person}
+	if w.tax > 0 {
+		people = append(people, levy.president.jid)
+	}
+	_, err = b.sendMentions(ctx, chat, text, people)
 	return err
 }
 

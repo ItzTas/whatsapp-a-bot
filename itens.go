@@ -78,6 +78,7 @@ type item struct {
 	gear    *gear
 	trade   *trade
 	metal   bool
+	relic   bool
 }
 
 type stack struct {
@@ -107,7 +108,11 @@ var catalog = []item{
 	{id: "vara-de-carbono", name: "Vara de carbono", emoji: "🎣", rarity: rare, value: 1500, shop: true, aliases: []string{"carbono"},
 		gear: &gear{activities: []string{"!pescar"}, tool: true, sturdy: 60, luck: 1}},
 	{id: "picareta-de-diamante", name: "Picareta de diamante", emoji: "💎", rarity: rare, value: 1800, shop: true,
-		gear: &gear{activities: []string{"!minerar"}, tool: true, sturdy: 60, luck: 1, faster: 25, fewerJunk: 60}},
+		gear: &gear{activities: []string{"!minerar"}, tool: true, sturdy: 60, grace: 10, luck: 1, faster: 25, fewerJunk: 60}},
+	{id: "vara-de-iemanja", name: "Vara de Iemanjá", emoji: "🌊", rarity: legendary, value: 25_000, relic: true, aliases: []string{"iemanja", "vara lendaria"},
+		gear: &gear{activities: []string{"!pescar"}, tool: true, sturdy: 100, luck: 3, faster: 50, fewerJunk: 90}},
+	{id: "picareta-de-serra-pelada", name: "Picareta de Serra Pelada", emoji: "⚒️", rarity: legendary, value: 25_000, relic: true, aliases: []string{"serra pelada", "picareta lendaria"},
+		gear: &gear{activities: []string{"!minerar"}, tool: true, sturdy: 100, luck: 3, faster: 50, fewerJunk: 90}},
 	{id: "capacete", name: "Capacete com lanterna", emoji: "⛑️", rarity: uncommon, value: 600, shop: true, aliases: []string{"lanterna"},
 		gear: &gear{activities: []string{"!minerar"}, faster: 30}},
 	{id: "luva-de-borracha", name: "Luva de borracha", emoji: "🧤", rarity: uncommon, value: 350, shop: true, aliases: []string{"luva"},
@@ -349,6 +354,10 @@ var catalog = []item{
 	{id: "bilhete-premiado", name: "Bilhete premiado da Mega-Sena", emoji: "🤑", rarity: legendary, value: 5000, aliases: []string{"mega", "mega sena"},
 		prizes: []prize{{50, 2000}, {35, 5000}, {15, 15000}}, use: "🤑 @%s foi na lotérica com o bilhete premiado que achou no lixo e saiu de lá gritando"},
 
+	{id: "mala-de-dinheiro", name: "Mala de dinheiro de político", emoji: "💼", rarity: legendary, value: 6000, aliases: []string{"propina"},
+		prizes: []prize{{50, 3000}, {35, 6000}, {15, 12000}}, use: "💼 @%s abriu a mala de dinheiro que achou no lixão e tinha um bilhete dentro: propina do vereador, não mexer"},
+	{id: "taca-jules-rimet", name: "Taça Jules Rimet", emoji: "🏆", rarity: legendary, value: 7000, keep: true, metal: true, aliases: []string{"jules rimet", "rimet"},
+		use: "🏆 @%s levantou a taça Jules Rimet que tava no lixão. No fim das contas ninguém derreteu ela"},
 	{id: "lambari", name: "Lambari", emoji: "🐟", rarity: common, value: 20},
 	{id: "tilapia", name: "Tilápia", emoji: "🐟", rarity: common, value: 35,
 		use: "🐟 @%s fritou a tilápia e comeu com limão e farofa"},
@@ -399,6 +408,9 @@ var catalog = []item{
 	{id: "tridente", name: "Tridente de Netuno", emoji: "🔱", rarity: legendary, value: 6000, keep: true, aliases: []string{"tridente", "netuno"},
 		use: "🔱 @%s levantou o tridente e o mar ficou agitado até na piscina do prédio"},
 
+	{id: "dente-de-megalodonte", name: "Dente de megalodonte", emoji: "🦷", rarity: legendary, value: 5500, aliases: []string{"megalodonte", "megalodon"}},
+	{id: "boto-cor-de-rosa", name: "Boto-cor-de-rosa", emoji: "🐬", rarity: legendary, value: 7000, keep: true, aliases: []string{"boto"},
+		use: "🐬 @%s levou o boto-cor-de-rosa pra festa junina e ele saiu de lá de chapéu, namorando metade da cidade"},
 	{id: "pedra", name: "Pedra", emoji: "🪨", rarity: common, value: 2, keep: true,
 		use: "🪨 @%s ficou 10 minutos olhando pra pedra. Ela não fez nada. Que pedra boa"},
 	{id: "carvao", name: "Carvão", emoji: "⚫", rarity: common, value: 15,
@@ -437,6 +449,10 @@ var catalog = []item{
 	{id: "uranio", name: "Urânio", emoji: "☢️", rarity: epic, value: 2000, metal: true, keep: true,
 		use: "☢️ @%s segurou o urânio com a mão. Agora brilha no escuro"},
 
+	{id: "diamante-rosa", name: "Diamante rosa", emoji: "💗", rarity: legendary, value: 6000},
+	{id: "idolo-de-ouro", name: "Ídolo de ouro", emoji: "🗿", rarity: legendary, value: 6500, metal: true, aliases: []string{"idolo"}},
+	{id: "pedra-filosofal", name: "Pedra filosofal", emoji: "🔴", rarity: legendary, value: 8000, keep: true, aliases: []string{"filosofal"},
+		use: "🔴 @%s encostou a pedra filosofal no prato de feijão e ele virou ouro. Agora não dá pra comer"},
 	{id: "folha-seca", name: "Folha seca", emoji: "🍂", rarity: common, value: 1, aliases: []string{"folha"}},
 	{id: "teia-de-aranha", name: "Teia de aranha", emoji: "🕸️", rarity: common, value: 2, aliases: []string{"teia"}},
 	{id: "pernilongo", name: "Pernilongo", emoji: "🦟", rarity: common, value: 1, aliases: []string{"muriçoca", "carapanã"},
@@ -490,6 +506,10 @@ var catalog = []item{
 	{id: "fada", name: "Fada no pote", emoji: "🧚", rarity: legendary, value: 7000, keep: true,
 		use: "🧚 @%s abriu o pote e a fada saiu voando e jogou purpurina no grupo inteiro"},
 
+	{id: "grilo-falante", name: "Grilo falante", emoji: "🦗", rarity: legendary, value: 6000, keep: true,
+		use: "🦗 @%s perguntou pro grilo falante se devia mandar mensagem pro ex e ele respondeu que não"},
+	{id: "saci-na-garrafa", name: "Saci na garrafa", emoji: "🌪️", rarity: legendary, value: 7500, keep: true, aliases: []string{"saci"},
+		use: "🌪️ @%s abriu a garrafa e o saci saiu num redemoinho, deu nó no cadarço de todo mundo e sumiu com o cachimbo do vô"},
 	{id: "perfume", name: "Perfume do Paraguai", emoji: "🧴", rarity: common, value: 25, aliases: []string{"perfume"},
 		use: "🧴 @%s passou o perfume do Paraguai e o cheiro durou exatos 4 minutos"},
 	{id: "fone", name: "Fone que só funciona de um lado", emoji: "🎧", rarity: common, value: 20, keep: true, aliases: []string{"fone"},
@@ -974,7 +994,7 @@ func weightedIndex(n int, weight func(i int) int) int {
 }
 
 func randomItemOf(r int) item {
-	return pickOne(slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return it.rarity != r || it.luxury || it.illegal }))
+	return pickOne(slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return it.rarity != r || it.luxury || it.illegal || it.relic }))
 }
 
 func (it item) roll() itemEffect {
@@ -1048,6 +1068,9 @@ func perk(it item) string {
 }
 
 func sources(it item) []string {
+	if it.relic {
+		return []string{"o !criar ou o !milagre de deus"}
+	}
 	var found []string
 	if it.shop {
 		found = append(found, it.store())

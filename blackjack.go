@@ -40,6 +40,7 @@ type blackjackHand struct {
 	acc        account
 	stake      int64
 	boost      int64
+	levy       heldLevy
 	deck       []blackjackCard
 	player     []blackjackCard
 	dealer     []blackjackCard
@@ -55,6 +56,7 @@ type blackjackSave struct {
 	Account    storedAccount       `json:"account"`
 	Stake      int64               `json:"stake"`
 	Boost      int64               `json:"boost"`
+	Levy       heldLevySave        `json:"levy"`
 	Deck       []blackjackSaveCard `json:"deck"`
 	Player     []blackjackSaveCard `json:"player"`
 	Dealer     []blackjackSaveCard `json:"dealer"`
@@ -71,6 +73,7 @@ type blackjackReport struct {
 	acc    account
 	text   string
 	payout int64
+	levy   prizeLevy
 	over   bool
 }
 
@@ -144,7 +147,7 @@ func (b *bot) dealBlackjack(ctx context.Context, chat types.JID, acc account, ar
 	key := blackjackKey(chat, acc)
 	hand := b.trackBlackjack(ctx, chat, key, newBlackjackHand(acc, bet))
 	report := hand.report("")
-	report.text += betLevyText(stake, bet.levy)
+	report.text += betLevyText(stake, 0, bet.levy)
 	if report.over {
 		return b.sendBlackjack(ctx, chat, report)
 	}
@@ -178,6 +181,7 @@ func (b *bot) restoreBlackjack(ctx context.Context, saved savedGame) error {
 		acc:        state.Account.account(),
 		stake:      state.Stake,
 		boost:      state.Boost,
+		levy:       state.Levy.held(),
 		deck:       loadBlackjackCards(state.Deck),
 		player:     loadBlackjackCards(state.Player),
 		dealer:     loadBlackjackCards(state.Dealer),
@@ -192,7 +196,7 @@ func (b *bot) restoreBlackjack(ctx context.Context, saved savedGame) error {
 }
 
 func (b *bot) refundBlackjack(ctx context.Context, chat types.JID, acc account, stake int64, open *blackjackHand) error {
-	if _, err := b.payStake(ctx, chat, acc, stake); err != nil {
+	if _, err := b.payStake(ctx, chat, acc, stake, prizeLevy{}); err != nil {
 		return fmt.Errorf("devolver aposta repetida do !blackjack: %w", err)
 	}
 	return b.showBlackjack(ctx, chat, open, blackjackBusy)
@@ -259,7 +263,7 @@ func (b *bot) sendBlackjack(ctx context.Context, chat types.JID, report blackjac
 		_, err := b.sendMentions(ctx, chat, report.text, mentions)
 		return err
 	}
-	balance, err := b.payStake(ctx, chat, report.acc, report.payout)
+	balance, err := b.payStake(ctx, chat, report.acc, report.payout, report.levy)
 	if err != nil {
 		return fmt.Errorf("pagar !blackjack: %w", err)
 	}
@@ -279,8 +283,8 @@ func (b *bot) holdBet(ctx context.Context, chat types.JID, acc account, stake in
 	return err == nil, err
 }
 
-func (b *bot) payStake(ctx context.Context, chat types.JID, acc account, payout int64) (int64, error) {
-	if err := b.wallets.credit(ctx, chat, []account{acc}, payout); err != nil {
+func (b *bot) payStake(ctx context.Context, chat types.JID, acc account, payout int64, levy prizeLevy) (int64, error) {
+	if err := b.wallets.payPrize(ctx, chat, acc, payout, levy); err != nil {
 		return 0, err
 	}
 	balance, _, err := b.wallets.balance(ctx, chat, acc)
@@ -292,7 +296,7 @@ func blackjackKey(chat types.JID, acc account) string {
 }
 
 func newBlackjackHand(acc account, bet wager) *blackjackHand {
-	h := &blackjackHand{acc: acc, stake: bet.stake, boost: bet.boost, deck: newBlackjackDeck(), lastAction: time.Now()}
+	h := &blackjackHand{acc: acc, stake: bet.stake, boost: bet.boost, levy: bet.held(), deck: newBlackjackDeck(), lastAction: time.Now()}
 	h.player = []blackjackCard{h.draw(), h.draw()}
 	h.dealer = []blackjackCard{h.draw(), h.draw()}
 	h.over = isNatural(h.player) || isNatural(h.dealer)
@@ -323,6 +327,7 @@ func (h *blackjackHand) saved(chat types.JID) blackjackSave {
 		Account:    storeAccount(h.acc),
 		Stake:      h.stake,
 		Boost:      h.boost,
+		Levy:       h.levy.saved(),
 		Deck:       saveBlackjackCards(h.deck),
 		Player:     saveBlackjackCards(h.player),
 		Dealer:     saveBlackjackCards(h.dealer),
@@ -430,7 +435,8 @@ func (h *blackjackHand) report(note string) blackjackReport {
 		return blackjackReport{acc: h.acc, text: board + "\n\n👉 Manda " + h.choices()}
 	}
 	payout, result := h.outcome()
-	return blackjackReport{acc: h.acc, text: board + "\n\n" + result, payout: payout, over: true}
+	levy := h.levy.onPrize(h.stake, payout)
+	return blackjackReport{acc: h.acc, text: board + "\n\n" + result + levy.text(), payout: payout, levy: levy, over: true}
 }
 
 func (h *blackjackHand) choices() string {

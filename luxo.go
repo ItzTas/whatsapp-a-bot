@@ -101,7 +101,7 @@ func (b *bot) buyLuxury(ctx context.Context, evt *events.Message, it item, quant
 		return b.sendText(ctx, chat, fmt.Sprintf("Dá pra levar de 1 a %d de uma vez", luxuryMaxPurchase))
 	}
 	cost := luxuryPrice(it) * quantity
-	balance, err := b.wallets.buyItem(ctx, chat, b.account(ctx, person), it, quantity, cost)
+	balance, err := b.wallets.buyItem(ctx, chat, b.account(ctx, person), it, quantity, cost, pixLevy{})
 	if errors.Is(err, errNoFunds) {
 		return b.sendText(ctx, chat, fmt.Sprintf("Você não tem moeda pra isso: %s fica %s. Confere no !saldo", quantityLabel(it, quantity), coins(cost)))
 	}
