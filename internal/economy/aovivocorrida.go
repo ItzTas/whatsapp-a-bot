@@ -151,9 +151,13 @@ func (b *bot) winGrab(ctx context.Context, evt *events.Message, ev *liveEvent, s
 	}
 	who := "@" + acc.JID.User
 	lines := []string{fmt.Sprintf("🏆 *%s*: %s pegou primeiro!", sc.title, who), "", strings.ReplaceAll(core.PickOne(end.texts), "{@}", who)}
-	if res := results[0]; len(res.lines) > 0 {
-		lines = append(lines, "", strings.Join(res.lines, "\n"))
+	o := results[0]
+	if o.failed {
+		lines = append(lines, "", liveFailure)
 	}
-	_, err = b.SendMentions(ctx, ev.chat, strings.Join(lines, "\n"), append([]types.JID{acc.JID}, results[0].freed...))
+	if len(o.lines) > 0 {
+		lines = append(lines, "", strings.Join(o.lines, "\n"))
+	}
+	_, err = b.SendMentions(ctx, ev.chat, strings.Join(lines, "\n"), append([]types.JID{acc.JID}, o.freed...))
 	return err
 }

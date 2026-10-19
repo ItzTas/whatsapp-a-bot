@@ -31,6 +31,7 @@ const (
 	liveSaveEvery  = 10 * time.Minute
 	liveGrace      = 30 * time.Second
 	liveJobLimit   = 4
+	liveFailure    = "⚠️ deu erro na hora de pagar, avisa o dono do bot"
 )
 
 type liveFormat int
@@ -147,6 +148,19 @@ func liveHour(now time.Time) bool {
 	return hour >= liveFirstHour && hour < liveLastHour
 }
 
+func liveIdle(last, now time.Time) time.Duration {
+	local := now.In(core.BrazilTime)
+	opening := time.Date(local.Year(), local.Month(), local.Day(), liveFirstHour, 0, 0, 0, core.BrazilTime)
+	return now.Sub(later(last, opening.Add(-liveRest)))
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
+}
+
 type liveBoard struct {
 	events sync.Map
 	polls  sync.Map
@@ -197,12 +211,7 @@ func (l *liveBoard) cue(chat types.JID, acc core.Account, now time.Time) liveCue
 	c := l.chat(chat, now)
 	_, known := c.players[acc.Key]
 	c.players[acc.Key] = livePlayer{JID: acc.JID, Seen: now}
-	for key, p := range c.players {
-		if now.Sub(p.Seen) > livePlayerSpan {
-			delete(c.players, key)
-		}
-	}
-	cue := liveCue{due: rand.Float64() < liveOdds(now.Sub(c.last)), players: c.roster(), recent: slices.Clone(c.recent)}
+	cue := liveCue{due: rand.Float64() < liveOdds(liveIdle(c.last, now)), players: c.roster(now), recent: slices.Clone(c.recent)}
 	if known && now.Sub(c.saved) < liveSaveEvery {
 		return cue
 	}
@@ -216,7 +225,7 @@ func (l *liveBoard) peek(chat types.JID, now time.Time) ([]types.JID, []string) 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	c := l.chat(chat, now)
-	return c.roster(), slices.Clone(c.recent)
+	return c.roster(now), slices.Clone(c.recent)
 }
 
 func (l *liveBoard) opened(chat types.JID, id string, now time.Time) liveChatSave {
@@ -242,7 +251,8 @@ func (l *liveBoard) restore(chat types.JID, s liveChatSave) {
 	l.chats[chat] = &liveChat{last: s.Last, players: players, recent: s.Recent, saved: time.Now()}
 }
 
-func (c *liveChat) roster() []types.JID {
+func (c *liveChat) roster(now time.Time) []types.JID {
+	maps.DeleteFunc(c.players, func(_ string, p livePlayer) bool { return now.Sub(p.Seen) > livePlayerSpan })
 	keys := make([]string, 0, len(c.players))
 	for key := range c.players {
 		keys = append(keys, key)
@@ -273,7 +283,6 @@ type liveEvent struct {
 	labels   []string
 	poll     types.MessageID
 	ballots  map[string]liveBallot
-	keep     func()
 	timer    *time.Timer
 	closed   bool
 }
@@ -286,8 +295,8 @@ type liveHitter struct {
 }
 
 type liveBallot struct {
-	Voter  types.JID `json:"voter"`
-	Choice int       `json:"choice"`
+	Voter core.StoredAccount `json:"voter"`
+	Label string             `json:"label"`
 }
 
 type liveSave struct {
@@ -362,7 +371,9 @@ func (b *bot) openLive(ctx context.Context, chat types.JID, formats []liveFormat
 	}
 	b.keepLiveChat(ctx, chat, b.live.opened(chat, entry.id, now))
 	if err := entry.format.rules().show(b, ctx, ev, players); err != nil {
-		b.live.events.CompareAndDelete(chat, ev)
+		if ev.close() {
+			b.releaseLive(ctx, ev)
+		}
 		return false, fmt.Errorf("mostrar o evento ao vivo %s: %w", entry.id, err)
 	}
 	b.trackLive(ctx, ev, time.Until(ev.expires))
@@ -402,7 +413,7 @@ func (b *bot) keepLiveChat(ctx context.Context, chat types.JID, state liveChatSa
 }
 
 func (b *bot) trackLive(ctx context.Context, ev *liveEvent, wait time.Duration) {
-	poll, ok := ev.arm(func() { b.keepLive(ctx, ev) }, func() { b.expireLive(ctx, ev) }, wait)
+	poll, ok := ev.arm(func() { b.expireLive(ctx, ev) }, wait)
 	if !ok {
 		return
 	}
@@ -412,13 +423,12 @@ func (b *bot) trackLive(ctx context.Context, ev *liveEvent, wait time.Duration) 
 	b.keepLive(ctx, ev)
 }
 
-func (ev *liveEvent) arm(keep, expire func(), wait time.Duration) (types.MessageID, bool) {
+func (ev *liveEvent) arm(expire func(), wait time.Duration) (types.MessageID, bool) {
 	ev.mu.Lock()
 	defer ev.mu.Unlock()
 	if ev.closed {
 		return "", false
 	}
-	ev.keep = keep
 	ev.timer = time.AfterFunc(wait, expire)
 	return ev.poll, true
 }
@@ -463,7 +473,7 @@ func (s liveSave) event() *liveEvent {
 		ev.hitters[acc.Key] = &liveHitter{acc: acc, damage: h.Damage, hits: h.Hits, last: h.Last}
 	}
 	for _, v := range s.Ballots {
-		ev.ballots[v.Voter.User] = v
+		ev.ballots[v.Voter.Key] = v
 	}
 	return ev
 }
@@ -558,7 +568,13 @@ type liveTurn struct {
 	effects []effect
 }
 
-func (b *bot) playLive(ctx context.Context, chat types.JID, turns []liveTurn) ([]eventResult, error) {
+type liveOutcome struct {
+	eventResult
+	failed bool
+	held   string
+}
+
+func (b *bot) playLive(ctx context.Context, chat types.JID, turns []liveTurn) ([]liveOutcome, error) {
 	jobs := make([]Profession, len(turns))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(liveJobLimit)
@@ -568,32 +584,42 @@ func (b *bot) playLive(ctx context.Context, chat types.JID, turns []liveTurn) ([
 	if err := g.Wait(); err != nil {
 		return nil, fmt.Errorf("ler as profissões do evento ao vivo: %w", err)
 	}
-	results := make([]eventResult, len(turns))
+	outcomes := make([]liveOutcome, len(turns))
 	for i, t := range turns {
 		run := eventRun{chat: chat, acc: t.acc, job: jobs[i], stake: jobs[i].shiftValue() * t.weight / 100, now: time.Now()}
 		res, err := b.Wallets.playEvent(ctx, run, eventPlay{ending: ending{effects: t.effects}})
 		if err != nil {
-			return nil, err
+			b.Client.Log.Errorf("pagar %s no evento ao vivo em %s: %v", t.acc.JID, chat, err)
+			outcomes[i].failed = true
+			continue
 		}
-		results[i] = res
+		outcomes[i].eventResult = res
 	}
-	return results, nil
+	return outcomes, nil
 }
 
-func liveLine(head string, res eventResult) string {
-	if res.gone {
-		return head + ": ⚰️ tava morto e ficou de fora"
+func liveLine(head string, o liveOutcome) string {
+	notes := []struct {
+		on   bool
+		text string
+	}{
+		{o.failed, liveFailure},
+		{o.held != "", o.held},
+		{o.gone, "⚰️ tava morto e ficou de fora"},
+		{len(o.lines) == 0, "saiu no zero a zero"},
 	}
-	if len(res.lines) == 0 {
-		return head + ": saiu no zero a zero"
+	for _, n := range notes {
+		if n.on {
+			return head + ": " + n.text
+		}
 	}
-	return head + "\n" + strings.Join(res.lines, "\n")
+	return head + "\n" + strings.Join(o.lines, "\n")
 }
 
-func liveFreed(results []eventResult) []types.JID {
+func liveFreed(outcomes []liveOutcome) []types.JID {
 	var freed []types.JID
-	for _, res := range results {
-		freed = append(freed, res.freed...)
+	for _, o := range outcomes {
+		freed = append(freed, o.freed...)
 	}
 	return freed
 }

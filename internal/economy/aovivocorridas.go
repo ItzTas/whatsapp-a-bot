@@ -45,9 +45,9 @@ var grabScenarios = []grabScenario{
 		missed: []string{"A polícia rodoviária chegou e isolou a carga. Hoje ninguém come picanha"},
 	},
 	{
-		id:    "corrida-cofre",
-		title: "O cofre no terreno baldio",
-		lock:  "O cofre abre com o resultado de",
+		id:     "corrida-cofre",
+		title:  "O cofre no terreno baldio",
+		lock:   "O cofre abre com o resultado de",
 		riddle: arithmetic,
 		intros: []string{
 			"Acharam um cofre velho no meio do mato do terreno baldio. Tem um teclado numérico enferrujado e um bilhete colado: \"a senha é a conta\"",
@@ -172,9 +172,9 @@ var grabScenarios = []grabScenario{
 		missed: []string{"A promoção acabou e o gerente admitiu que era só pra atrair cliente"},
 	},
 	{
-		id:    "corrida-cachorro-madame",
-		title: "O cachorro da madame",
-		lock:  "Pra achar o cachorro no meio da bicharada,",
+		id:     "corrida-cachorro-madame",
+		title:  "O cachorro da madame",
+		lock:   "Pra achar o cachorro no meio da bicharada,",
 		riddle: counting("🐶", "🐱", "🐭", "🐰", "🐹"),
 		intros: []string{
 			"Cartaz em todo poste: \"procura-se Lulu da Pomerânia, recompensa generosa\". E não é que o Lulu tá ali na praça?",
@@ -203,9 +203,9 @@ var grabScenarios = []grabScenario{
 		missed: []string{"O técnico do banco chegou, desligou a máquina e colou um papel de \"fora de serviço\""},
 	},
 	{
-		id:    "corrida-carta-pokemon",
-		title: "A carta rara no lixo",
-		lock:  "Pra provar que entende do assunto, desembaralha o nome do Pokémon",
+		id:     "corrida-carta-pokemon",
+		title:  "A carta rara no lixo",
+		lock:   "Pra provar que entende do assunto, desembaralha o nome do Pokémon",
 		riddle: scrambled("pikachu", "charizard", "mewtwo", "snorlax", "gengar", "bulbasaur"),
 		intros: []string{
 			"Uma mãe jogou fora a coleção de cartas do filho que tá na faculdade. A caixa tá na calçada esperando o lixeiro",

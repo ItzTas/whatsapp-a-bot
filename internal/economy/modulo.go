@@ -47,7 +47,7 @@ func (b *bot) Register() {
 	b.AddObserver("responder !crash", b.answerCrash)
 	b.AddCommandFilter(b.answerCrashCommand)
 	b.AddObserver("responder evento", b.answerEvent)
-	b.AddObserver("responder enquete ao vivo", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.live.polls) })
+	b.AddObserver("responder enquete ao vivo", b.answerLiveVote)
 	b.AddGuard(b.economyGuard)
 	b.AddAfterCommand(b.stirLive)
 	b.OnModeOff(core.ModeEconomy, b.haltEvents)

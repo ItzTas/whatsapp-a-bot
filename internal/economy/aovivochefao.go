@@ -120,6 +120,12 @@ func (ev *liveEvent) strike(acc core.Account, damage int64, now time.Time) bossH
 	return bossHit{dealt: dealt, health: ev.health, life: ev.life, felled: ev.health == 0 && ev.shut()}
 }
 
+func (ev *liveEvent) vitals() (health, life int64) {
+	ev.mu.Lock()
+	defer ev.mu.Unlock()
+	return ev.health, ev.life
+}
+
 func (ev *liveEvent) ranking() ([]liveHitter, int64) {
 	ev.mu.Lock()
 	defer ev.mu.Unlock()
@@ -136,8 +142,9 @@ func (b *bot) showBoss(ctx context.Context, ev *liveEvent, players []types.JID) 
 	if !ok {
 		return fmt.Errorf("chefão %s não existe", ev.scenario)
 	}
-	rules := fmt.Sprintf("❤️ %s\n⚔️ Todo mundo pode *!atacar*, uma vez a cada %s. Se cair em até %s, quem bateu divide o prêmio pelo dano que deu. Se escapar, quem bateu paga o pato",
-		lifeBar(ev.health, ev.life), core.FormatWait(bossRest), core.FormatWait(bossWindow))
+	health, life := ev.vitals()
+	rules := fmt.Sprintf("❤️ %s\n⚔️ Todo mundo pode *!atacar*, uma vez a cada %s. Se cair em até %s, todo mundo que bateu leva prêmio, maior pra quem deu mais dano. Se escapar, quem bateu paga o pato",
+		lifeBar(health, life), core.FormatWait(bossRest), core.FormatWait(bossWindow))
 	text := liveHeader("👹", sc.title, sc.rarity) + "\n\n" + core.PickOne(sc.intros) + "\n\n" + rules + liveCall(players)
 	_, err := b.SendMentions(ctx, ev.chat, text, players)
 	return err
@@ -233,7 +240,7 @@ func (b *bot) escapeBoss(ctx context.Context, ev *liveEvent) error {
 	return b.reportBoss(ctx, ev, head+"\n\n"+core.PickOne(sc.defeat.texts), hitters, results)
 }
 
-func (b *bot) reportBoss(ctx context.Context, ev *liveEvent, head string, hitters []liveHitter, results []eventResult) error {
+func (b *bot) reportBoss(ctx context.Context, ev *liveEvent, head string, hitters []liveHitter, results []liveOutcome) error {
 	blocks := []string{head}
 	mentions := liveFreed(results)
 	for i, h := range hitters {

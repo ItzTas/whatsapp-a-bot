@@ -62,7 +62,7 @@ func (b *bot) economyCommands() []core.Command {
 			Category:     core.LiveCategory,
 			BarredInJail: true,
 			Help: []core.Usage{
-				{"!atacar", fmt.Sprintf("só vale com um chefão ao vivo no grupo 👹 Cada golpe tira de %d a %d de vida (mais com arma na profissão, e às vezes sai crítico), uma vez a cada %s, e o chefão pode revidar. Se ele cair em até %s, quem bateu divide o prêmio pelo dano e quem deu mais dano ainda leva um troféu. Se escapar, quem bateu paga o pato", bossHitMin, bossHitMax, core.FormatWait(bossRest), core.FormatWait(bossWindow))},
+				{"!atacar", fmt.Sprintf("só vale com um chefão ao vivo no grupo 👹 Cada golpe tira de %d a %d de vida (mais com arma na profissão, e às vezes sai crítico), uma vez a cada %s, e o chefão pode revidar. Se ele cair em até %s, todo mundo que bateu leva prêmio, maior pra quem deu mais dano, e quem deu mais dano ainda leva um troféu. Se escapar, quem bateu paga o pato", bossHitMin, bossHitMax, core.FormatWait(bossRest), core.FormatWait(bossWindow))},
 			},
 			Run: b.atacar,
 		},

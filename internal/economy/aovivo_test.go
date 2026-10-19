@@ -2,6 +2,7 @@ package economy
 
 import (
 	"context"
+	"crypto/sha256"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -234,6 +235,17 @@ func TestLiveOdds(t *testing.T) {
 	}
 }
 
+func TestLiveIdle(t *testing.T) {
+	day := time.Date(2026, 10, 19, 0, 0, 0, 0, core.BrazilTime)
+	opening := day.Add(liveFirstHour * time.Hour)
+	if idle := liveIdle(day.Add(-48*time.Hour), opening); idle != liveRest {
+		t.Errorf("a noite não conta: na abertura o relógio tá no fim do descanso, deu %s", idle)
+	}
+	if idle := liveIdle(opening.Add(time.Hour), opening.Add(3*time.Hour)); idle != 2*time.Hour {
+		t.Errorf("de dia conta desde o último evento, deu %s", idle)
+	}
+}
+
 func TestLiveRoster(t *testing.T) {
 	var board liveBoard
 	chat := types.NewJID("120363000000000002", types.GroupServer)
@@ -329,15 +341,42 @@ func TestBossShare(t *testing.T) {
 }
 
 func TestMajority(t *testing.T) {
-	ballots := []liveBallot{{Choice: 1}, {Choice: 1}, {Choice: 0}}
-	if pick, votes := majority(ballots, 3); pick != 1 || votes != 2 {
+	if pick, votes := majority([]int{1, 1, 0}, 3); pick != 1 || votes != 2 {
 		t.Errorf("maioria: %d com %d votos", pick, votes)
 	}
-	tied := []liveBallot{{Choice: 0}, {Choice: 2}}
 	for range 20 {
-		if pick, votes := majority(tied, 3); pick == 1 || votes != 1 {
+		if pick, votes := majority([]int{0, 2}, 3); pick == 1 || votes != 1 {
 			t.Fatalf("empate só sorteia entre as empatadas: %d com %d votos", pick, votes)
 		}
+	}
+}
+
+func TestVoteBallots(t *testing.T) {
+	sc := voteScenarios[0]
+	ev := newLiveEvent(types.NewJID("120363000000000004", types.GroupServer), liveEntry{format: voteFormat, id: sc.id}, liveCrowd, time.Now())
+	if len(ev.labels) != len(sc.choices) {
+		t.Fatalf("uma opção na enquete por escolha: %v", ev.labels)
+	}
+	hash := func(label string) [][]byte {
+		h := sha256.Sum256([]byte(label))
+		return [][]byte{h[:]}
+	}
+	person := core.Account{Key: "5511900000020@s.whatsapp.net", JID: types.NewJID("123456789", types.HiddenUserServer)}
+	if !ev.ballot(person, hash(ev.labels[0])) || !ev.ballot(person, hash(ev.labels[1])) {
+		t.Fatal("voto válido não entrou")
+	}
+	if ev.ballot(person, hash("opção que não existe")) {
+		t.Error("voto em opção desconhecida entrou")
+	}
+	casts := ev.casts()
+	if len(casts) != 1 || casts[0].Label != ev.labels[1] || sc.choiceOf(casts[0].Label) != 1 {
+		t.Errorf("a mesma conta vota uma vez só e vale o último voto: %+v", casts)
+	}
+	if !ev.ballot(person, nil) || len(ev.casts()) != 0 {
+		t.Error("tirar o voto apaga a cédula")
+	}
+	if ev.close(); ev.ballot(person, hash(ev.labels[0])) {
+		t.Error("enquete fechada não aceita voto")
 	}
 }
 
