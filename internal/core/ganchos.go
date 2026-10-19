@@ -45,6 +45,7 @@ type hooks struct {
 func (b *Bot) registerCore() {
 	b.AddOwnerCommands(b.filterCommands)
 	b.AddCommands(b.helpCommands)
+	b.AddJob(b.announceUpdate)
 }
 
 func (b *Bot) AddCommands(provide func() []Command) {

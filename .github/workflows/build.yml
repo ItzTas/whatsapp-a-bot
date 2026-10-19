@@ -17,6 +17,10 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - run: git log --reverse --no-merges --format='%H%x1f%s%x1f%b%x1e' > internal/core/versoes/commits.txt
 
       - uses: actions/setup-go@v7
         with:

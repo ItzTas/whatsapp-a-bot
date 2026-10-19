@@ -115,6 +115,7 @@ func run(ctx context.Context) (err error) {
 		}
 	})
 
+	b.PrepareUpdate(sessionCtx)
 	if err := connect(sessionCtx, client); err != nil {
 		return err
 	}

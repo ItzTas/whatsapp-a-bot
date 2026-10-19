@@ -285,7 +285,7 @@ func (b *Bot) filterCommands() []Command {
 				{"!modo ativar iainventa", "submodo do ia: nesta conversa, a IA responde os comandos que não existem como se existissem"},
 				{"!modo ativar consentimento", "submodo do romance: nesta conversa, o !casar e o !namorar viram pedido, respondido com !aceitar ou !recusar. Com a economia ligada, o casamento tem festa, dote, conta conjunta e pensão no divórcio"},
 				{"!modo ativar baixarlinks", "submodo do utilidades: nesta conversa, o bot baixa sozinho os vídeos, imagens e gifs dos links que mandarem"},
-				{"!modo ativar anuncios", "submodo da economia: nesta conversa, o bot avisa o resultado da loteria e do bicho, o imposto, o fim do leilão, a penhora do empréstimo e o procurado do dia. Cada grupo liga o seu, mesmo com a economia vinculada"},
+				{"!modo ativar anuncios", "submodo da economia: nesta conversa, o bot avisa o resultado da loteria e do bicho, o imposto, o fim do leilão, a penhora do empréstimo e o procurado do dia, e mostra as novidades quando o bot é atualizado (só pra quem já tinha ligado antes). Cada grupo liga o seu, mesmo com a economia vinculada"},
 				{"!modo ativar dicas", "submodo da economia: nesta conversa, o bot solta de tempos em tempos uma dica da economia ou de um comando que pouca gente conhece"},
 				{"!modo ativar aovivo", "submodo da economia: nesta conversa, o bot solta de vez em quando um evento ao vivo pro grupo todo (corrida do !pegar, chefão do !atacar ou enquete coletiva), puxado pelos comandos da economia"},
 				{"!modo ativar ia iaenxerida", "os submodos só funcionam com o modo de cima ligado, e o tudo não liga nenhum deles"},

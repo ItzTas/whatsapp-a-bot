@@ -5,3 +5,4 @@ sessao.db-*
 mensagens.db
 mensagens.db-*
 .env
+/internal/core/versoes/commits.txt
