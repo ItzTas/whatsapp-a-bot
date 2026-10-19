@@ -133,3 +133,25 @@ Presidente, decretos, impeachment, renúncia e golpe.
   (o `UPDATE` exige o presidente da abertura ainda no cargo, senão falha com `errCoupVacant`); o
   presidente derrubado só perde o cargo. Se der errado, os golpistas passam pelo `jailCrew` do
   `!assalto`. O `inaugurate` zera `golpe_em` e `golpista`.
+- A ditadura (`ditadura.go`) é o `tyrannyDecree`, um decreto do `toggleDecrees` com `lasting`: o
+  `toggleDecreeRun` recusa desligar quando ele já tá ligado, então só cai com o fim do mandato, o
+  `!golpe`, a morte do ditador ou o `!renunciar` (o `resign` zera a coluna `ditadura`). Com ela
+  ligada, o `decrees.limits` troca o teto dos decretos de imposto pelo `tyrantHi` (ou o piso pelo
+  `tyrantLo`, no `cassino`), e tanto o `level` quanto a validação do `percentDecreeRun` leem os
+  limites por ele. Quando a ditadura cai, o `level` volta a cortar no teto normal sozinho. O
+  `!impeachment` não abre e, se a ditadura sair no meio da votação, o `impeachmentResult` anula. O
+  `!golpe` lê `coupMin()`/`coupEvery()` dos decretos (`tyrantCoupMin`, `tyrantCoupEvery`), e o
+  mínimo da abertura fica guardado no `need` da conspiração (e no save). A revolta (coluna
+  `revolta`) sobe no `stirRevolt` a cada imposto cobrado pro ditador, chamado pelo `payLevy`, pelo
+  `payPrize` e pelo `transferWithPix`, somando o `excess` do `PixLevy` (o quanto o nível passa do
+  limite normal, pelo `abuse`, também salvo no `heldLevySave`). O `!decreto exercito [batalhões]`
+  (`armyDecree`, só na ditadura) cobra `battalionPercent` do saldo (piso `battalionFloor`) por
+  batalhão, um ralo, e empurra a coluna `exercito_ate` em `battalionTime` por batalhão, até
+  `armyBattalions`. A proteção cai em linha reta até o `exercito_ate` (`decrees.army`). As duas
+  entram pelo `tyrannical`, aplicado no `ProfessionOf` logo depois do `presidential()` (os
+  `decrees` são pendurados antes): `cordon` mais o exército menos a revolta (`revoltMax` no
+  máximo), então valem no `!matar`, no `!sequestrar` e no `!golpe` pelo `violenceGuard()`. A morte
+  derruba o ditador: o `bury` chama o `deposeTyrant`, que joga o `mandato_ate` pra agora e abre a
+  vaga, e todo texto de morte mostra o `deposedText` quando o `death.deposed` vem marcado. As
+  colunas `revolta` e `exercito_ate` entram no `decreeColumns()` pelo `tyrannyColumns`, então o
+  `inaugurate` e o `seize` também zeram as duas.

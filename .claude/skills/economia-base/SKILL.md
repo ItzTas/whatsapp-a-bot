@@ -49,7 +49,8 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   ou `tudo`, calculado e limitado pelo saldo de cada um no `smite`) de todo membro do grupo, ou só
   de quem foi marcado, e as moedas somem. O `!criar <item> [quantidade]` (`criar.go`) põe
   qualquer item do `catalog` na mochila do deus (até `creationMax` de uma vez), inclusive os de
-  luxo e os ilegais, sem cobrar nada.
+  luxo e os ilegais, sem cobrar nada. Com o submodo `aovivo` ligado, o `!aovivo` solta um evento
+  ao vivo na hora (skill `economia-aovivo`).
 - O `!economia resetar intervalos` (dono, em `economia.go`) zera as colunas `*_em` de espera da
   `carteiras` (`resetCooldowns`), da conversa toda ou só de quem foi marcado. Ele também zera
   `preso_ate`, `morto_ate` e `crime_em` e apaga a linha de `sequestros` de quem é refém, então

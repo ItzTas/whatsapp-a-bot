@@ -122,7 +122,8 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
    podem ficar com a mensagem; senão o comando é procurado nos `AddCommands` de todos os módulos, o
    `enabledCommand` escolhe entre os que têm aquele nome e estão com o modo ligado, e ele só executa
    se nenhuma guarda (`AddGuard`) barrar. A guarda da economia (`economyGuard`) segura quem tá
-   morto, preso ou refém. Comando que não existe vai pro `AddUnknownCommand` (o `iainventa`). O
+   morto, preso ou refém. Depois do `Run`, os `AddAfterCommand` recebem o comando que rodou: o
+   `stirLive` da economia usa ele pra soltar os eventos ao vivo. Comando que não existe vai pro `AddUnknownCommand` (o `iainventa`). O
    filtro de comando do romance é o `answerProposal` (`consentimento.go`), que vê se o
    `!aceitar`/`!recusar` (ou `!aceito`/`!recuso`) responde um pedido de casamento ou namoro; sem
    pedido pendente, a mensagem segue pro comando da economia. O da economia é o
@@ -214,6 +215,8 @@ O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar cont
   títulos, implantes, obras.
 - `economia-igrejas`: igrejas dos jogadores, doutrinas, dízimo e cofre.
 - `economia-eventos`: eventos com escolha do `!trabalhar`, das extrações e dos crimes, e o `!eventos`.
+- `economia-aovivo`: submodo `aovivo`, eventos ao vivo pro grupo todo (corrida do `!pegar`, chefão
+  do `!atacar` e enquete coletiva) e o `!aovivo` do deus.
 - `encantos-e-zoeiras`: bênçãos e maldições, `!zoar`, `!reagir`, reações de status.
 - `romance`: submodo `consentimento`, `!casar`/`!namorar` e conta conjunta.
 - `tarefas-agendadas`: loteria, lembretes, aniversários, advertências e boas-vindas.
