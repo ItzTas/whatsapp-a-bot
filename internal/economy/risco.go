@@ -3,9 +3,9 @@ package economy
 import "math"
 
 const (
-	stakeRiskFloor = 1_000
-	stakeRiskStep  = 0.025
-	stakeRiskMax   = 0.1
+	stakeRiskFloor = 500
+	stakeRiskStep  = 0.035
+	stakeRiskMax   = 0.15
 )
 
 func stakeRisk(stake int64) float64 {
