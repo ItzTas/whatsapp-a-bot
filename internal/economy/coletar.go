@@ -41,7 +41,7 @@ type activity struct {
 var fishing = activity{
 	command:  "!pescar",
 	emoji:    "🎣",
-	cooldown: cooldown{column: "pesca_em", every: 10 * time.Minute},
+	cooldown: cooldown{column: "pesca_em", every: 12 * time.Minute},
 	hazard: hazard{chance: 0.04, harm: 20, wounds: []string{
 		"escorregou na pedra lisa do rio e bateu a cabeça", "fisgou a própria orelha com o anzol",
 		"foi puxado pra dentro do rio por um peixe gigante e quase se afogou", "pisou numa arraia escondida na areia",
@@ -77,7 +77,7 @@ var fishing = activity{
 var mining = activity{
 	command:  "!minerar",
 	emoji:    "⛏️",
-	cooldown: cooldown{column: "mineracao_em", every: 10 * time.Minute},
+	cooldown: cooldown{column: "mineracao_em", every: 12 * time.Minute},
 	hazard: hazard{chance: 0.07, harm: 30, wounds: []string{
 		"levou uma pedra na cabeça quando o teto da mina cedeu", "acertou a picareta no próprio pé",
 		"respirou poeira demais e saiu tossindo da mina", "ficou preso num desmoronamento e saiu cavando com a mão",
@@ -113,7 +113,7 @@ var mining = activity{
 var scavenging = activity{
 	command:  "!vasculhar",
 	emoji:    "🗑️",
-	cooldown: cooldown{column: "lixao_em", every: 10 * time.Minute},
+	cooldown: cooldown{column: "lixao_em", every: 12 * time.Minute},
 	hazard: hazard{chance: 0.06, harm: 20, wounds: []string{
 		"cortou a mão num caco de vidro escondido no lixo", "levou uma mordida de um rato do tamanho de um gato",
 		"pisou num prego enferrujado e vai ter que tomar antitetânica", "brigou com um urubu e perdeu",
@@ -154,7 +154,7 @@ var scavenging = activity{
 var bugging = activity{
 	command:  "!catar",
 	emoji:    "🦋",
-	cooldown: cooldown{column: "inseto_em", every: 10 * time.Minute},
+	cooldown: cooldown{column: "inseto_em", every: 12 * time.Minute},
 	hazard: hazard{chance: 0.05, harm: 20, wounds: []string{
 		"levou uma ferroada de marimbondo bem no olho", "foi picado pela caranguejeira que tava escondida no tronco",
 		"pisou num formigueiro de formiga-de-fogo", "cutucou uma colmeia e levou 30 picadas",

@@ -118,8 +118,8 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   `stirEvent` dela, e o primeiro que abrir segura os outros (só cabe um evento pendente por pessoa).
   Extração nova entra sozinha, porque ele percorre o `activities`.
 - As ferramentas de extração que não são relíquia (rara, épica e lendária de `!pescar`,
-  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje uns **110 minutos** (de 105 na
-  rara a 130 na lendária, numa simulação com todos os sorteios), contando o que a
+  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje uns **130 minutos** (de 125 na
+  rara a 155 na lendária, numa simulação com todos os sorteios), contando o que a
   pessoa recebe vendendo no `!vender`, não o valor cheio dos itens. O tempo é o `value` da
   ferramenta dividido pelo líquido por hora: o valor médio do melhor item entre `luck + 1`
   sorteios do `loot` montado pelo `equip` (item `gradable()` vezes a qualidade média da melhor de
@@ -127,15 +127,15 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   `mythicSalePercent` nos míticos, sem o `salePercent` de profissão), menos `breaks` vezes o `value` cheio da ferramenta (a reposição sai pelo preço da
   loja), vezes os usos por hora da espera. O ajuste é nos atributos do `gear` (`luck`,
   `fewerJunk`, `moreRare`), não no preço nem na espera: o `faster` é o mesmo pra toda ferramenta
-  de extração da mesma raridade, hoje 0 na rara (10 minutos, igual à base), 40 na épica (6), 50
-  na lendária (5) e 80 na relíquia (2). O `grade` também é fixo por raridade: 1 na rara, 2 na
+  de extração da mesma raridade, hoje 0 na rara (12 minutos, igual à base), 40 na épica (7,2), 50
+  na lendária (6) e 80 na relíquia (2,4). O `grade` também é fixo por raridade: 1 na rara, 2 na
   épica, 3 na lendária e 4 na relíquia. Ferramenta nova ou mudança no `loot` de uma
   atividade precisa recalibrar as ferramentas dela pra esse tempo. As ferramentas base (Vara de
-  pesca, Picareta e Rede de insetos) ficam de fora e se pagam em uns 50 minutos. Como o `loot`
+  pesca, Picareta e Rede de insetos) ficam de fora e se pagam em uns 60 minutos. Como o `loot`
   da mina vale mais, as picaretas têm um `luck` a menos que a vara e a rede da mesma raridade.
   As relíquias de extração que fazem o papel da ferramenta (Vara de Iemanjá, Picareta de Serra
   Pelada, Rede do Curupira e o Saco do Homem do Saco, que é acessório porque o `!vasculhar` não
-  tem ferramenta base) seguem a mesma conta com outro tempo, hoje **30 minutos**, usando o `value`
+  tem ferramenta base) seguem a mesma conta com outro tempo, hoje **36 minutos**, usando o `value`
   delas como preço; como nunca quebram, não têm custo de quebra. Os míticos entram nessa conta
   (só elas acham), então mexer em mítico também pede recalibrar as relíquias de extração. A Vela
   do Negrinho do Pastoreio fica de fora, porque só soma em cima da ferramenta que a pessoa já tem.

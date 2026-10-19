@@ -93,7 +93,7 @@ func TestGatherBacklog(t *testing.T) {
 	}
 
 	t.Run("a espera parada vira tentativas, até uma hora", func(t *testing.T) {
-		for idle, want := range map[time.Duration]int{25 * time.Minute: 2, 10 * time.Hour: 6} {
+		for idle, want := range map[time.Duration]int{25 * time.Minute: 2, 10 * time.Hour: 5} {
 			acc := fresh(t, "lixao_em", idle, nil)
 			g, err := s.gather(ctx, chat, acc, scavenging, crater{}, now)
 			if err != nil {
