@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -424,8 +425,24 @@ func (h *blackjackHand) stand() {
 		return
 	}
 	for total, _ := blackjackTotal(h.dealer); total < blackjackDealerMin; total, _ = blackjackTotal(h.dealer) {
-		h.dealer = append(h.dealer, h.draw())
+		h.dealer = append(h.dealer, h.dealerDraw())
 	}
+}
+
+func (h *blackjackHand) dealerDraw() blackjackCard {
+	top := len(h.deck) - 1
+	if !h.busts(h.deck[top]) || rand.Float64() >= StakeRisk(h.stake) {
+		return h.draw()
+	}
+	if i := slices.IndexFunc(h.deck, func(c blackjackCard) bool { return !h.busts(c) }); i >= 0 {
+		h.deck[i], h.deck[top] = h.deck[top], h.deck[i]
+	}
+	return h.draw()
+}
+
+func (h *blackjackHand) busts(card blackjackCard) bool {
+	total, _ := blackjackTotal(append(slices.Clip(h.dealer), card))
+	return total > blackjackTarget
 }
 
 func (h *blackjackHand) report(note string) blackjackReport {

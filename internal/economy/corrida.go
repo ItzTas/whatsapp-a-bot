@@ -293,14 +293,18 @@ func newRaceRound() *raceRound {
 }
 
 func pickRaceWinner(horses []raceHorse) int {
-	roll := rand.Float64()
+	var total float64
+	for _, horse := range horses {
+		total += horse.chance
+	}
+	roll := rand.Float64() * total
 	for i, horse := range horses {
 		roll -= horse.chance
 		if roll < 0 {
 			return i
 		}
 	}
-	return len(horses) - 1
+	return slices.IndexFunc(horses, func(horse raceHorse) bool { return horse.chance > 0 })
 }
 
 func raceFrames(winner int) [][]int {
@@ -329,10 +333,24 @@ func (r *raceRound) start() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.started = true
+	r.rig()
 	r.ends = time.Now().Add(raceTick * time.Duration(len(r.frames)-1))
 	r.over = len(r.bets) == 0
 	r.record()
 	return !r.over
+}
+
+func (r *raceRound) rig() {
+	for _, bet := range r.bets {
+		if bet.horse != r.winner || rand.Float64() >= StakeRisk(bet.stake) {
+			continue
+		}
+		others := slices.Clone(r.horses)
+		others[r.winner].chance = 0
+		r.winner = pickRaceWinner(others)
+		r.frames = raceFrames(r.winner)
+		return
+	}
 }
 
 func (r *raceRound) save() {

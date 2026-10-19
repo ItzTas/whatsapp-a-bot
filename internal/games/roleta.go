@@ -59,10 +59,10 @@ func newRevolver() *revolver {
 	return &revolver{chambers: roletaChambers, bullet: rand.IntN(roletaChambers)}
 }
 
-func (r *revolver) pull() (fired bool, chambersLeft int) {
+func (r *revolver) pull(rig float64) (fired bool, chambersLeft int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.bullet == 0 {
+	if r.bullet == 0 || rand.Float64() < rig {
 		r.chambers, r.bullet = roletaChambers, rand.IntN(roletaChambers)
 		r.record()
 		return true, r.chambers
@@ -112,7 +112,7 @@ func (b *bot) roleta(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 
-	fired, chambersLeft := gun.pull()
+	fired, chambersLeft := gun.pull(economy.StakeRisk(bet.stake))
 	payoff := b.payRoletaBet(ctx, chat, bet, fired, chambersLeft)
 	select {
 	case <-ctx.Done():

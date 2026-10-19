@@ -559,9 +559,13 @@ func (s *walletStore) animalResults(ctx context.Context, now time.Time) (results
 }
 
 func (s *walletStore) recordAnimalDraw(ctx context.Context, at, now time.Time) error {
+	draw, err := s.riggedAnimalDraw(ctx, at)
+	if err != nil {
+		return err
+	}
 	res, err := s.db.ExecContext(ctx,
 		"INSERT INTO bicho_resultados (sorteio, milhar) VALUES (?, ?) ON CONFLICT (sorteio) DO NOTHING",
-		at.Unix(), rand.IntN(animalNumbers),
+		at.Unix(), draw,
 	)
 	if err != nil {
 		return err
@@ -572,6 +576,30 @@ func (s *walletStore) recordAnimalDraw(ctx context.Context, at, now time.Time) e
 	}
 	_, err = s.db.ExecContext(ctx, "DELETE FROM bicho_resultados WHERE sorteio < ?", now.Add(-animalResultsKept).Unix())
 	return err
+}
+
+func (s *walletStore) riggedAnimalDraw(ctx context.Context, at time.Time) (int, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT pessoa, jid, sorteio, tipo, palpite, valor, sorte FROM bicho_apostas WHERE sorteio = ?",
+		at.Unix(),
+	)
+	if err != nil {
+		return 0, err
+	}
+	tickets, err := scanAnimalTickets(rows)
+	if err != nil {
+		return 0, err
+	}
+	draw := rand.IntN(animalNumbers)
+	for _, t := range tickets {
+		if !t.bet.hits(draw) || rand.Float64() >= StakeRisk(t.bet.stake) {
+			continue
+		}
+		for t.bet.hits(draw) {
+			draw = rand.IntN(animalNumbers)
+		}
+	}
+	return draw, nil
 }
 
 func (s *walletStore) payAnimalDraw(ctx context.Context, pending pendingDraw) (r animalDrawResult, err error) {

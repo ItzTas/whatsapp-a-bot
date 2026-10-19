@@ -37,7 +37,10 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   horário em Unix). As extrações são as `animalDraws` (hora em BRT e nome). O `runAnimalGame`,
   iniciado junto do `runLottery`, grava a cada `core.ReminderTick` o resultado da última extração
   que já passou (`recordAnimalDraw`, que também apaga os resultados mais velhos que
-  `animalResultsKept`) e paga as apostas vencidas que o `dueDraws` acha (o mesmo da loteria, com a
+  `animalResultsKept`; o milhar sai do `riggedAnimalDraw`, que lê as apostas daquela extração em
+  todas as economias e, pra cada uma que ia acertar, sorteia o `StakeRisk` do valor e, se cair,
+  sorteia de novo até ela errar, escondido como o resto do vício do cassino na skill
+  `economia-base`) e paga as apostas vencidas que o `dueDraws` acha (o mesmo da loteria, com a
   tabela de parâmetro). O `payAnimalDraw` pega o milhar pelo `animalResultOf`, um `INSERT ... ON
   CONFLICT DO UPDATE ... RETURNING`, então cada extração é sorteada uma vez só e reiniciar não muda
   o número; depois apaga as apostas com `DELETE ... RETURNING` e credita os prêmios na mesma

@@ -128,7 +128,20 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `richFall.text` e do `noteLoss` no caminho que tira o dinheiro.
 - Os jogos de cassino (`casinoGames`) sempre deixam uma vantagem pequena pra casa: o `!apostar`
   ganha só `coinWinChance` das vezes, e o `!cassino` transforma `slotHouseCut` das vitórias em
-  derrota (gira de novo até sair sem par), sem mudar a tabela de prêmios do `Help`. Por cima disso
+  derrota (gira de novo até sair sem par), sem mudar a tabela de prêmios do `Help`. Nos dois, quanto
+  maior a aposta de uma vez, maior a chance de perder: o `StakeRisk` (`risco.go`) soma
+  `stakeRiskStep` a cada 10x acima de `stakeRiskFloor`, até `stakeRiskMax`, na chance de
+  `jinxed` do `gamble` (a mesma do Azar, mas sem passar pelo `jinxProof`). No `!blackjack` a
+  mesma chance (com a aposta já dobrada, se dobrou) entra no `dealerDraw`: quando a carta do topo
+  ia fazer a banca estourar, ela é trocada por uma do baralho que não estoura. Nos jogos de
+  resultado compartilhado o vício muda a rodada de todo mundo: no `!crash`, o `rig` da decolagem
+  sorteia pela maior aposta e, se cair, fica com o menor de dois `drawCrashPoint`; na `!corrida`, o
+  `rig` da largada tira o cavalo vencedor quando ele é de quem caiu no sorteio e refaz os `frames`;
+  na `!roleta` (pacote `games`), o `pull` recebe o `StakeRisk` da aposta e dispara na câmara da
+  vez; e no `!bicho` o `riggedAnimalDraw` sorteia de novo o milhar (skill `economia-dinheiro`).
+  Também é escondido,
+  como a série: nada no `Help`, nas dicas, no `Tag`, nos `perks()`, nas respostas da IA nem no
+  trailer `Novidade:` dos commits fala disso. Por cima disso
   vem a série de apostas (`serie.go`, colunas `aposta_serie` e `aposta_lucro` da `carteiras`): o
   `NoteBet`, chamado no fim de toda aposta (pelo `tallyBet` e pelo `!roleta`), soma o resultado no
   `aposta_lucro` e conta mais uma aposta enquanto a pessoa segue no lucro. Quando uma perda leva

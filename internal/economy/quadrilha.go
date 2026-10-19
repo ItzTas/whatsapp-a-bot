@@ -60,6 +60,7 @@ type gangRobbery struct {
 	shield    time.Duration
 	alarmed   bool
 	silent    bool
+	jackpot   int64
 	success   bool
 	bruise    injury
 }
@@ -260,7 +261,7 @@ func (b *bot) runGang(ctx context.Context, chat types.JID, victim core.Account, 
 	}
 	hurtText, freed := r.injuries()
 	people := append(accountJIDs(append(members, victim)), freed...)
-	if _, err := b.SendMentions(ctx, chat, r.text()+hurtText, people); err != nil || r.poor || r.shield > 0 {
+	if _, err := b.SendMentions(ctx, chat, jackpotText(victim.JID, r.jackpot)+r.text()+hurtText, people); err != nil || r.poor || r.shield > 0 {
 		return err
 	}
 	b.stirCrewEvent(ctx, chat, r.survivors(), eventSpot{place: "!quadrilha", won: r.success, victim: victim.JID})
@@ -298,17 +299,21 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.A
 		if err := stampGang(ctx, tx, chat, r.gangsters, now); err != nil {
 			return err
 		}
+		if r.jackpot, err = freshJackpot(ctx, tx, chat, victim, victimBalance, now); err != nil {
+			return err
+		}
+		r.chance = jackpotOdds(chance, r.jackpot)
 		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, gangAlarmChance(len(r.gangsters))); err != nil {
 			return err
 		}
-		if err := r.settle(ctx, tx, chat, victimBalance, chance); err != nil {
+		if err := r.settle(ctx, tx, chat, victimBalance, r.chance); err != nil {
 			return err
 		}
 		if err := r.brawl(ctx, tx, chat, risk, now); err != nil {
 			return err
 		}
 		if r.success {
-			return raiseShield(ctx, tx, chat, victim, now)
+			return robbedVictim(ctx, tx, chat, victim, now)
 		}
 		return r.jailBroke(ctx, tx, chat, now)
 	})
@@ -337,7 +342,7 @@ func (r *gangRobbery) settle(ctx context.Context, tx *ledgerTx, chat types.JID, 
 		return nil
 	}
 	if r.success = rand.Float64() < chance; r.success {
-		share := exposed(victimBalance, gangLootMin+rand.Int64N(gangLootMax-gangLootMin+1)) / int64(len(r.gangsters))
+		share := looted(victimBalance, r.jackpot, gangLootMin+rand.Int64N(gangLootMax-gangLootMin+1)) / int64(len(r.gangsters))
 		return payGang(ctx, tx, chat, r.victim, r.gangsters, share)
 	}
 	return indemnify(ctx, tx, chat, r.victim, r.gangsters)

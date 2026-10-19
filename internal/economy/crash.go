@@ -1,6 +1,7 @@
 package economy
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -310,8 +311,12 @@ func (b *bot) refundCrash(ctx context.Context, chat types.JID, round *crashRound
 }
 
 func newCrashRound() *crashRound {
+	return &crashRound{opened: time.Now(), point: drawCrashPoint()}
+}
+
+func drawCrashPoint() int64 {
 	u := 1 - rand.Float64()
-	return &crashRound{opened: time.Now(), point: min(crashCap, max(crashFloor, int64(crashHouse/u)))}
+	return min(crashCap, max(crashFloor, int64(crashHouse/u)))
 }
 
 func (r *crashRound) launch(now time.Time) bool {
@@ -323,7 +328,15 @@ func (r *crashRound) launch(now time.Time) bool {
 		return false
 	}
 	r.start = now
+	r.rig()
 	return true
+}
+
+func (r *crashRound) rig() {
+	biggest := slices.MaxFunc(r.bets, func(a, b *crashBet) int { return cmp.Compare(a.stake, b.stake) })
+	if rand.Float64() < StakeRisk(biggest.stake) {
+		r.point = min(r.point, drawCrashPoint())
+	}
 }
 
 func (r *crashRound) cancel() []*crashBet {

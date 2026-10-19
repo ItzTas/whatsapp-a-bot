@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow/types"
@@ -47,6 +48,9 @@ func (b *bot) NoteBet(ctx context.Context, chat types.JID, acc core.Account, sta
 	}
 	if err := b.Wallets.noteStreak(ctx, chat, acc, payout-stake); err != nil {
 		b.Client.Log.Warnf("anotar série de apostas de %s: %v", acc.JID, err)
+	}
+	if err := b.Wallets.noteJackpot(ctx, chat, acc, payout-stake, time.Now()); err != nil {
+		b.Client.Log.Warnf("anotar prêmio de aposta de %s: %v", acc.JID, err)
 	}
 }
 

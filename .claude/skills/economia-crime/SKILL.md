@@ -240,6 +240,15 @@ Cadeia, flagrante, morte, saúde e tribunal.
   rico perde mais moedas que pobre, mas uma fatia bem menor do saldo. O `robHaul` de quem rouba
   multiplica depois das faixas. O `exposureText` mostra o máximo de um `!roubar` no `!saldo` e no
   `!tu`. Roubo novo que tire porcentagem do saldo de alguém passa pelo `exposed`.
+- Quem acabou de ganhar muito em aposta vira alvo fácil (`alvofacil.go`, colunas `premio_aposta` e
+  `premio_aposta_em` da `carteiras`). O `NoteBet` chama o `noteJackpot`, que guarda o lucro de
+  toda aposta de pelo menos `jackpotMin`, somando com o prêmio anterior se ele ainda tá dentro da
+  `jackpotWindow`. No `!roubar` (`rob`) e na `!quadrilha` (`gangRob`), o `freshJackpot` lê o
+  prêmio dentro da transação (limitado ao saldo, zero se já venceu): a chance ganha
+  `jackpotRobBonus` (`jackpotOdds`) e o `looted` tira a porcentagem do prêmio cheia, sem as
+  faixas do `exposed`, e o resto do saldo pelas faixas. O roubo que dá certo zera o prêmio junto
+  do escudo (`robbedVictim`), e o `jackpotText` avisa na resposta. Não confundir com o evento
+  `bolada` (`bolada.go`), que olha o saldo em memória e não mexe em roubo.
 - O abuso de poder (`abuseKinds` em `prender.go`) deixa usar um comando mesmo com a espera dele
   pendente. Hoje tem quatro tipos: prisão (`!prender`), trabalho (`!trabalhar`), roubo (`!roubar`) e
   sequestro (`!sequestrar`). Cada `abuseKind` tem a coluna de espera dele na `carteiras` (`abuso_em`,

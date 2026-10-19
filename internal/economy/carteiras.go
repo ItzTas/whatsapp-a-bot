@@ -50,6 +50,7 @@ type robbery struct {
 	poor     bool
 	alarmed  bool
 	silent   bool
+	jackpot  int64
 	success  bool
 	amount   int64
 	jail     time.Duration
@@ -319,7 +320,7 @@ func (s *walletStore) payShare(ctx context.Context, chat types.JID, payer core.A
 }
 
 func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, abuse abuser, risk crimeRisk, caught flagrant, now time.Time, minVictim int64,
-	outcome func(thiefBalance, victimBalance int64) (success bool, amount int64)) (r robbery, err error) {
+	outcome func(thiefBalance, victimBalance, jackpot int64) (success bool, amount int64)) (r robbery, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range []core.Account{thief, victim} {
 			if err := openWallet(ctx, tx, chat, acc); err != nil {
@@ -344,6 +345,9 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if err := markCrime(ctx, tx, chat, thief, now); err != nil {
 			return err
 		}
+		if r.jackpot, err = freshJackpot(ctx, tx, chat, victim, victimBalance, now); err != nil {
+			return err
+		}
 		err = tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), thief.Key).Scan(&thiefBalance)
 		if err != nil {
 			return err
@@ -358,7 +362,7 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 			return err
 		}
 		if r.success {
-			return raiseShield(ctx, tx, chat, victim, now)
+			return robbedVictim(ctx, tx, chat, victim, now)
 		}
 		if r.alarmed || r.scuffle.criminal.died || thiefBalance >= brokeThief || rand.Float64() >= caught.odds {
 			return nil
@@ -382,11 +386,11 @@ func jailRobber(ctx context.Context, tx *ledgerTx, chat types.JID, thief core.Ac
 }
 
 func (r *robbery) settle(ctx context.Context, tx *ledgerTx, chat types.JID, thief, victim core.Account, thiefBalance, victimBalance int64,
-	outcome func(thiefBalance, victimBalance int64) (success bool, amount int64)) error {
+	outcome func(thiefBalance, victimBalance, jackpot int64) (success bool, amount int64)) error {
 	if r.alarmed {
 		return nil
 	}
-	if r.success, r.amount = outcome(thiefBalance, victimBalance); r.success {
+	if r.success, r.amount = outcome(thiefBalance, victimBalance, r.jackpot); r.success {
 		if err := moveCoins(ctx, tx, chat, victim, thief, r.amount); err != nil {
 			return err
 		}
