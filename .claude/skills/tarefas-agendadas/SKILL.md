@@ -1,6 +1,6 @@
 ---
 name: tarefas-agendadas
-description: "Rotinas que rodam sozinhas e moderação (!loteria/runLottery, !lembrete/runReminders, !aniversario/runBirthdays, !advertir e boas-vindas b.welcome, !fixar/!desfixar e runPins). Carregue antes de mexer em algum desses ou ao criar uma rotina nova em segundo plano."
+description: "Rotinas que rodam sozinhas e moderação (!loteria/runLottery, !bicho/runAnimalGame, !lembrete/runReminders, !aniversario/runBirthdays, !advertir e boas-vindas b.welcome, !fixar/!desfixar e runPins, Campo gravitacional do Bendegó runGravity). Carregue antes de mexer em algum desses ou ao criar uma rotina nova em segundo plano."
 user-invocable: false
 ---
 
@@ -8,9 +8,15 @@ user-invocable: false
 
 Coisas que o bot faz sozinho, fora do fluxo de uma mensagem.
 
+- O Campo gravitacional do Meteorito do Bendegó também é rotina: o `runGravity`, a cada
+  `core.ReminderTick`, paga o acumulado da `campo_gravitacional` que tá esperando há
+  `gravityEvery` (6h) e anuncia pelo `announce` (skill `economia-itens`).
 - A `!loteria` é a exceção: os bilhetes ficam no banco e o sorteio diário roda em
   `runLottery`, que começa pelo `StartJobs` depois de conectar. O resultado sai pelo `announce`
-  da economia: em todo grupo vinculado com o modo `economia` ligado (skill `economia-base`).
+  da economia: em todo grupo vinculado com o submodo `anuncios` ligado (skill `economia-base`).
+- O `!bicho` segue o mesmo caminho: as apostas ficam no banco e o `runAnimalGame`, iniciado junto
+  do `runLottery`, sorteia as extrações do dia e paga quem acertou, anunciando pelo mesmo
+  `announce` (skill `economia-dinheiro`).
 - Os `!lembrete` também ficam no banco (`lembretes`, com quem criou em `criador`/`criador_alt`)
   e saem pelo `runReminders`, iniciado junto do `runLottery`. Cada lembrete guarda o `proximo`
   envio e é reagendado antes de ser mandado; se o bot ficou fora do ar por mais de

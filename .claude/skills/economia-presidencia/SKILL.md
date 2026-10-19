@@ -1,6 +1,6 @@
 ---
 name: economia-presidencia
-description: "Presidência do bot (presidencia.go, tabela presidencias, eleição do !votar, poderes presidential(), imunidade untouchable, !decreto com percentDecrees/toggleDecrees/onceDecrees e os impostos de decreto PixLevy/levy, !impeachment, !renunciar e decretos que sobram, !golpe). Carregue antes de mexer em presidente, decreto, imposto de decreto ou eleição."
+description: "Presidência do bot (presidencia.go, tabela presidencias, eleição do !votar, poderes presidential(), imunidade presidentImmunity, segurança cordon, !decreto com percentDecrees/toggleDecrees/onceDecrees e os impostos de decreto PixLevy/levy, !impeachment, !renunciar e decretos que sobram, !golpe). Carregue antes de mexer em presidente, decreto, imposto de decreto ou eleição."
 user-invocable: false
 ---
 
@@ -11,15 +11,24 @@ Presidente, decretos, impeachment, renúncia e golpe.
 - A presidência (`presidencia.go`) fica na tabela `presidencias`, uma linha por conversa (`pessoa`/`jid`,
   `mandato_ate`, as cargas de abuso e as colunas dos decretos). O `!votar @pessoa`
   só abre eleição se não tem mandato em andamento; a urna é efêmera (`elections`, uma por conversa),
-  fica aberta `electionWindow` e precisa de `electionQuorum` votos, com empate na sorte. Quem ganha
-  fica `termLength` no cargo. Os poderes entram pelo `ProfessionOf`, que aplica `presidential()` na
-  profissão de quem é presidente (`min`/`max` do `!trabalhar` vezes `presidentPayFactor`, `dailyBonus` somado de `presidentDailyBonus`, mais `guard`, `releaseChance` e `reviveChance` mínimos e, se não for da polícia,
+  fica aberta `electionWindow` e precisa de `electionQuorum` votos. Empate no topo com quórum abre o
+  segundo turno (`runoffBetween`/`openRunoff`): uma eleição nova no lugar da antiga, com os votos
+  zerados, `runoff` só com os empatados (o `castBallot` recusa outro nome com `outside`), aberta
+  `runoffWindow` (`closes()`), sem quórum e salva no `KeepGame` com o `Runoff`. Empate no segundo
+  turno vai pra sorte. Quem ganha fica `termLength` no cargo. Os poderes entram pelo `ProfessionOf`, que aplica `presidential()` na
+  profissão de quem é presidente (`min`/`max` do `!trabalhar` somados de `presidentPayBonus` por cento, `dailyBonus` somado de `presidentDailyBonus`, mais `cordon`, `releaseChance` e `reviveChance` mínimos e, se não for da polícia,
   `jailTime`/`arrestEvery` próprios), então valem sozinhos em todo comando que lê a profissão. O
-  presidente tem imunidade: `!prender` e `!denunciar` recusam com o `immunityText`, a chance de ser
-  pego no `!sequestrar` e no `!matar` vira zero, o `jailCrew` do `!assalto` pula ele, o `noSnitch`
-  não vale pra ele e o `inaugurate` zera o `preso_ate` de quem toma posse. Caminho novo que mande
-  alguém pra cadeia precisa checar o `untouchable()` da profissão (presidente ou subornado), ou o
-  `slipsAway()` se for flagrante na hora. Tudo some quando o `mandato_ate`
+  `cordon` (`presidentGuard`) é a segurança presidencial: fica fora do `guard`, então não protege
+  contra `!roubar`, `!furtar` nem `!quadrilha`, e só entra onde a conta usa o `violenceGuard()`
+  (`guard + cordon`: `!sequestrar`, `!matar` e a chance do `!golpe`). O presidente pode ser preso,
+  mas tem imunidade parcial: o `immunity()` da profissão devolve `presidentImmunity`. No `!prender`
+  e no `!denunciar` ela vai no `arrestOdds` do `walletStore.arrest`, sorteada depois da chance da
+  denúncia; se segurar, o `arrest` volta com `immune`, ninguém é preso, o `crime_em` continua (dá
+  pra tentar de novo) e a resposta é o `immunityText`. No flagrante na hora, o `flagrantOdds` da
+  profissão multiplica a chance de ser pego por `1 - immunity()`, e a batida do `!mercadonegro`
+  (`raidOdds`) também. O `noSnitch` não vale pra ele e o `inaugurate` zera o `preso_ate` de quem
+  toma posse. Caminho novo que mande alguém pra cadeia precisa passar pelo `arrestShield` (só o
+  subornado) e pelo `immunity()`, ou pelo `flagrantOdds` se for flagrante na hora. Tudo some quando o `mandato_ate`
   passa, porque toda leitura da presidência filtra por ele, menos os decretos depois de uma renúncia
   (`!renunciar`, abaixo).
 - O `!decreto` (`decreto.go`) é só do presidente e lê três tabelas em código, cada decreto com os
@@ -49,11 +58,12 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `fianca` (imposto em cima do preço do `!fianca`, cobrado de quem paga no `buyExit` pelo `levy` do
   `exit` e pago pro presidente na mesma transação, a não ser que seja ele pagando; o `!decreto
   imposto fianca` cai nela pelo mesmo motivo do `iof`, e o `!hospital` e o `!resgate` não pagam) e
-  os três do cassino, lidos no `PlaceBet`, que só os jogos de cassino usam no lugar do `PlaceStake`
-  (bolão, leilão e jokenpo continuam): o `bets` fecha o cassino, o `cassino` muda o lucro de quem
-  ganha e o `apostas` cobra uma taxa que vai pro presidente: quem perde (ou empata) paga a
+  o `cassino`, lido no `PlaceBet`, que só os jogos de cassino usam no lugar do `PlaceStake`
+  (bolão, leilão e jokenpo continuam). Ele é um decreto só, com o sinal decidindo: positivo (até
+  `casinoDecreeMaxRaise`) aumenta o lucro de quem ganha, e negativo (até `-betTaxDecreeMax`) vira
+  uma taxa que vai pro presidente (`casinoLevy`, que inverte o nível): quem perde (ou empata) paga a
   porcentagem em cima da aposta e quem ganha paga em cima de tudo que levou, aposta inclusa
-  (`onBet`; ele mesmo não paga; o `!decreto imposto aposta` cai nele pelo mesmo motivo do `iof`). O
+  (`onBet`; ele mesmo não paga; o `!decreto imposto aposta` e o `!decreto taxa aposta` caem no `taxedRun`, que trata o número como taxa e põe o sinal de menos). O
   `PlaceBet` devolve um `wager` com o `Boost` da hora da aposta (`PrizeBoost`: o `decree` do decreto
   e o `luck` da profissão, o `casinoLuck` do Baralho do Zé Pelintra), que fica guardado na aposta (e
   no save da rodada, em `Boost` e `Luck`) e é aplicado no pagamento pelo `Boost.Pay`, com o

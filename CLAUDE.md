@@ -105,11 +105,12 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
 3. A mensagem é gravada no `mensagens.db` (é dela que saem ranking, medidores, IA, etc.). Depois
    os reatores (`AddReactor`) tentam reagir, e o primeiro que reagir encerra: o `reactIfMarked`
    da `jokes` vem antes do `reactToAilments` da `economy`. O `AddAfterMessage` (o
-   `announcePayouts`) roda no fim, com `defer`.
+   `settleMissions`, o `announceAssemblies` e o `announcePayouts`) roda no fim, com `defer`.
 4. Os observadores (`AddObserver`) recebem a mensagem como possível resposta dos jogos em
    andamento: `answerBmc`, `answerVdd`, `AnswerPoll`, `answerImpostor`, `answerEspiao`,
    `answerForca`, `answerTermo`, `answerGuess`, `answerVelha` e `answerBatata` na `games`, e o
-   tribunal, `answerBlackjack` e `answerCrash` na `economy`. `AnswerPoll` conta os votos das
+   tribunal, `answerBlackjack`, `answerCrash` e `answerEvent` (a escolha dos eventos) na `economy`.
+   `AnswerPoll` conta os votos das
    enquetes do `!quemfalou`, `!quiz`, `!impostor`, `!espiao`, `!processar`/`!processaria`
    (`trialPolls`) e `!2verdades1mentira` (`mentiraPolls`). `answerGuess`
    (`internal/games/adivinha.go`) atende os jogos de "quem mandar a resposta primeiro ganha",
@@ -124,10 +125,12 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
    morto, preso ou refém. Comando que não existe vai pro `AddUnknownCommand` (o `iainventa`). O
    filtro de comando do romance é o `answerProposal` (`consentimento.go`), que vê se o
    `!aceitar`/`!recusar` (ou `!aceito`/`!recuso`) responde um pedido de casamento ou namoro; sem
-   pedido pendente, a mensagem segue pro comando da economia.
+   pedido pendente, a mensagem segue pro comando da economia. O da economia é o
+   `answerCrashCommand` (`crash.go`), que faz o `!sacar` sacar do `!crash` de quem tá no foguete;
+   quem não tá segue o caminho normal.
 
-As tarefas em segundo plano (`runLottery`, `runReminders`, `runBirthdays`, `runTaxes`,
-`runAuctions`, `runLoanSeizures` e `runPins`) entram pelo `AddJob` e começam no `StartJobs`, depois de
+As tarefas em segundo plano (`runLottery`, `runAnimalGame`, `runReminders`, `runBirthdays`, `runTaxes`,
+`runAuctions`, `runLoanSeizures`, `runWanted`, `runGravity` e `runPins`) entram pelo `AddJob` e começam no `StartJobs`, depois de
 conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderação).
 
 ### Comandos, categorias e modos
@@ -202,12 +205,15 @@ O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar cont
 `economia-*`):
 
 - `economia-base`: carteiras, profissões, deus, `ProfessionOf`, ralos, reset de intervalos.
-- `economia-itens`: catálogo, raridades, qualidade, ferramentas, lojas, vendas, mercado negro.
+- `economia-itens`: catálogo, raridades, qualidade, ferramentas, lojas, vendas, mercado negro,
+  primordiais e o Meteorito do Bendegó.
 - `economia-crime`: cadeia, fuga, sequestro, morte, saúde, assalto, suborno, tribunal.
 - `economia-presidencia`: presidente, decretos, impeachment, renúncia, golpe.
+- `economia-fama`: redes do `!postar`, seguidores, níveis de fama, `!fama` e `!publi`.
 - `economia-dinheiro`: leilão, bolão, agiota, empréstimo, ações, imposto, imóveis, empregados,
-  títulos, obras.
+  títulos, implantes, obras.
 - `economia-igrejas`: igrejas dos jogadores, doutrinas, dízimo e cofre.
+- `economia-eventos`: eventos com escolha do `!trabalhar`, das extrações e dos crimes, e o `!eventos`.
 - `encantos-e-zoeiras`: bênçãos e maldições, `!zoar`, `!reagir`, reações de status.
 - `romance`: submodo `consentimento`, `!casar`/`!namorar` e conta conjunta.
 - `tarefas-agendadas`: loteria, lembretes, aniversários, advertências e boas-vindas.

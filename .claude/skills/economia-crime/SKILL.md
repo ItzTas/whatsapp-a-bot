@@ -1,6 +1,6 @@
 ---
 name: economia-crime
-description: "Crime e justiça da economia (!prender, !fugir, !libertar, !denunciar, !sequestrar e !venderrefem, !matar, !recompensa, !reviver, morte bury/die, saúde saude.go e !hospital, !assalto, !quadrilha, abuso de poder abuseKinds, fiança/hospital/resgate buyExit, !subornar, tribunal do !processar/!processaria, baseJail/lockUp/sentence, crime_em). Carregue antes de mexer em qualquer um desses comandos ou num caminho novo de cadeia, morte ou flagrante."
+description: "Crime e justiça da economia (!prender, !fugir, !libertar, !denunciar, !sequestrar e !venderrefem, !matar, !recompensa e o procurado do dia runWanted, !reviver, morte bury/die, saúde saude.go e !hospital, !assalto, !quadrilha, abuso de poder abuseKinds, fiança/hospital/resgate buyExit, !subornar, tribunal do !processar/!processaria, baseJail/lockUp/sentence, crime_em). Carregue antes de mexer em qualquer um desses comandos ou num caminho novo de cadeia, morte ou flagrante."
 user-invocable: false
 ---
 
@@ -44,8 +44,12 @@ Cadeia, flagrante, morte, saúde e tribunal.
   economia (`economyGuard`) enquanto quem mandou tá preso ou em cativeiro (hoje `!apostar`,
   `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roubar`, `!furtar`, `!sequestrar`,
   `!venderrefem`, `!matar`, `!assalto`, `!quadrilha` e `!libertar`).
+  A troca de profissão do `!profissao <nome>` também chama o `holdIfJailed` e o `holdIfHostage`
+  (o comando não tem `BarredInJail` porque ver a lista e os detalhes continua liberado).
 - O `!fugir` (`fugir.go`) tenta tirar quem tá preso da cadeia, com chance `escapeChance` mais o
-  `escapeBonus` da profissão (negativo pra polícia), uma tentativa a cada `escapeCooldown`
+  `escapeBonus` da profissão (negativo pra polícia) menos o `escape` do nível de fama
+  (`celebrity()`, skill `economia-fama`), tudo no `escapeOdds`, que também vale pra quem ajuda no
+  `!fugir @pessoa` e pra fuga do `!assalto`, uma tentativa a cada `escapeCooldown`
   (coluna `fuga_em`). Fugir zera o `preso_ate` e marca o `crime_em`, então a polícia pode
   prender de novo; falhar soma `escapePenalty` ao `preso_ate`. Quem não tá preso mas tá em
   cativeiro (vendido ou não) tenta fugir do sequestro, com chance `breakoutChance` mais o
@@ -57,8 +61,8 @@ Cadeia, flagrante, morte, saúde e tribunal.
     chances da profissão de quem ajuda e a espera `fuga_em` dela; quem tá preso ou em cativeiro
     não ajuda ninguém. Na cadeia, dar certo zera o `preso_ate` e marca o `crime_em` dos dois
     (`bustOut`); dar errado marca o `crime_em` de quem ajudou e tem `rescueCaught` de chance de ele
-    ir preso na hora, por `baseJail` ajustado pelo `jailFactor`, com `lockUp` (zero pra quem
-    `slipsAway()`). No cativeiro, dar certo apaga a linha de `sequestros` e falhar não tem castigo.
+    ir preso na hora, por `baseJail` ajustado pelo `jailFactor`, com `lockUp` (passada pelo
+    `flagrantOdds` de quem ajudou). No cativeiro, dar certo apaga a linha de `sequestros` e falhar não tem castigo.
 - O `!libertar` (`libertar.go`) é o `!fugir` feito por outra pessoa: só funciona pra profissão
   com `releaseChance` (juiz, advogado, delegado), em quem tá preso ou em cativeiro (a cadeia vem
   primeiro), uma tentativa a cada `releaseCooldown` (coluna `libertacao_em`). Dar certo zera o
@@ -68,9 +72,15 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `presidentFineDiscount` de desconto (`releaseFineShare` da profissão).
 - O `!denunciar` (`denunciar.go`) é o `!prender` de quem não é da polícia: usa o mesmo
   `walletStore.arrest` (mesma checagem de `crime_em`, mesmo resgate de refém), mas com chance
-  `reportChance` mais o `reportBonus` de quem denuncia, cadeia `baseJail` e espera
+  `reportChance` mais o `reportBonus` de quem denuncia mais o `snitch` do nível de fama de quem é
+  denunciado (`reportOddsOn`; o `reportOdds` sozinho é só pro texto da profissão), cadeia `baseJail` e espera
   `reportCooldown` (coluna `denuncia_em`). O `!prender` passa chance 1 pro `arrest`. Profissão
-  com `noSnitch` (bandido) não denuncia: quem tenta vai preso na hora.
+  com `noSnitch` (bandido) não denuncia: quem tenta é castigado na hora pelo `punishSnitch`, que
+  sorteia um `snitchFate` com a mesma chance: cadeia (`jailSnitch`, `snitchSentence` com `lockUp`),
+  morte (`killSnitch`, pelo `die`) ou cativeiro (`captureSnitch`, linha em `sequestros` por
+  `hostageHold` com quem foi denunciado de `sequestrador`, então o `!prender` nele solta o X-9).
+  Se o X-9 já é refém ou quem foi denunciado já tem um refém, o cativeiro vira cadeia. Os três
+  soltam o refém que o X-9 tiver.
 - O `!sequestrar` (`sequestrar.go`) guarda o refém na tabela `sequestros` (`refem`/`refem_jid`,
   `sequestrador` e `ate`), um refém por sequestrador, por `hostageHold`; linha vencida é
   ignorada e apagada na próxima tentativa. A chance é `kidnapChance` mais o `kidnapBonus` de quem
@@ -82,7 +92,8 @@ Cadeia, flagrante, morte, saúde e tribunal.
   sequestrador) que só fecha depois de `hostageSaleWait`; até lá o `!prender` ou o `!fugir` melam o
   negócio, e o preço e o tempo que sobra são lidos no fechamento. Na venda, paga, com moedas
   novas, o ganho da profissão do refém vezes `hostagePriceFactor`, mais o `ransomBonus` de quem
-  vende, e troca o `sequestrador` por `NULL` e corta o `ate` pra no máximo `soldHostageHold` a
+  vende e o `ransom` do nível de fama do refém (as duas porcentagens somam no `ransomOf`, que
+  recebe a profissão do refém), e troca o `sequestrador` por `NULL` e corta o `ate` pra no máximo `soldHostageHold` a
   partir da venda: o refém continua barrado até lá, mas a polícia não solta mais.
 - O `!matar` (`matar.go`) só funciona pra profissão com `killChance` (bandido, açougueiro,
   assaltante de banco, sequestrador e matador de aluguel). A chance é o `killChance` menos o
@@ -96,14 +107,36 @@ Cadeia, flagrante, morte, saúde e tribunal.
   enterro de `reapLossMinPercent` a `reapLossMaxPercent` por cento creditado no matador (`heir`);
   enquanto tá morta, o
   `economyGuard` barra qualquer comando da categoria de economia (`holdIfDead`), não só os com
-  `BarredInJail`. Se der errado, tem `killCaughtChance` de ir preso na hora (mais
-  `copVictimCaught` se a vítima tem `jailTime`), por `baseJail` ajustado pelo `jailFactor`.
+  `BarredInJail`. Na mesma transação, depois do `claimBounty`, o `ripImplant` tem uma chance
+  baixa de arrancar um implante da vítima e pôr na mochila de quem matou, desgastado (veja os
+  implantes na skill `economia-dinheiro`); o
+  Braço-canhão, implante clandestino, soma `killChance` e libera o `!matar` como uma arma, e a
+  droga com `kill` no `high` (hoje o Pó de anjo) faz o mesmo enquanto tá batendo. Se der
+  errado, tem `killCaughtChance` de ir preso na hora (mais `copVictimCaught` se a vítima tem
+  `jailTime`), por `baseJail` ajustado pelo `jailFactor`.
 - A `!recompensa @pessoa <valor>` (`recompensa.go`) desconta o valor de quem bota na hora e guarda
   na tabela `recompensas` (`chat`, `alvo`, `autor`, `valor`, `em`), uma linha por autor e alvo
   (botar de novo soma). Quando o `!matar` dá certo, o `kill` chama o `claimBounty` na mesma
   transação: soma tudo que tem na cabeça da vítima, apaga as linhas e credita no matador, então
   vale também pra cobrança do `!agiota` e pro deus. A `!recompensa retirar @pessoa` devolve só a
   parte de quem mandou. Nenhum outro jeito de morrer (overdose, saúde zerada) paga a recompensa.
+  - O procurado do dia (`procurado.go`) é uma recompensa do próprio bot: o `runWanted`, a partir
+    das `wantedHour` (BRT), pega cada economia que ainda não tem linha em `procurados` (`chat`,
+    `dia`), marca o dia, apaga a recompensa que o bot tinha botado antes (linha com `autor` =
+    `wantedAuthor`, que nenhum `!recompensa retirar` alcança) e bota de `wantedMin` a `wantedMax`
+    moedas novas em alguém sorteado entre quem tá vivo e usou `!daily`, `!trabalhar` ou `!roubar`
+    nas últimas `wantedActive`. O aviso sai pelo `announce`, então só nos grupos com o
+    submodo `anuncios`, e o `!recompensa` sem marcação mostra o procurado do dia embaixo da lista. Quem mata leva pelo `claimBounty` de sempre, junto do
+    resto da cabeça.
+  - O Quepe da Volante (relíquia passiva, `posse` na profissão) caça o procurado do dia. O
+    `!matar` lê em paralelo com o `rivalsWithDebt` o prêmio do bot na cabeça da vítima
+    (`wantedPrize`, pela chave da conta), e com `posse` e prêmio é caçada (`manhunt`): libera o
+    `!matar` pra qualquer profissão, com pelo menos `posseKillChance` menos o `guard` da vítima,
+    e é legal como a cobrança do `!agiota` (`lawful`, sem `crime_em` e sem flagrante, texto do
+    `lawfulKillText`). Se der certo, o `posseReward` credita de novo o prêmio do bot em moeda
+    nova, antes do `claimBounty` apagar as linhas. O `hunts` soma `posseLampiaoBonus` no
+    `killOdds` (e na caçada) quando a vítima tem o Chapéu de Lampião (`lampiaoItem`), lido pelo
+    `luxuries` da profissão dela.
 - O `!reviver` (`reviver.go`) tira a morte antes do prazo: só funciona pra profissão com
   `reviveChance` (necromante) ou pro presidente (`presidentRevive` mínimo), em quem tem `morto_ate`
   no futuro, uma tentativa a cada `reviveCooldown` (coluna `ressurreicao_em`). Dar certo zera o
@@ -121,7 +154,9 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `takeDrug` e o `hurt` da saúde zerada. Caminho novo de morte usa o `die` e mostra o `funeralText`.
 - A saúde (`saude.go`) fica nas colunas `saude`/`saude_em` da `carteiras`: vale o número guardado
   mais 1 ponto a cada `healthRegenEvery` desde o `saude_em`, até `MaxHealth`, calculado na leitura
-  (`readHealth`), sem nada rodando em segundo plano. Quem muda a saúde grava os dois juntos
+  (`readHealth`), sem nada rodando em segundo plano. Um enfermeiro do `!empregados` encurta esse
+  intervalo (`regenEvery`, com o `care` do melhor enfermeiro), e como é lido na hora, contratar ou
+  demitir muda também o tempo que já passou desde o `saude_em`. Quem muda a saúde grava os dois juntos
   (`setHealth`). O `!trabalhar` das profissões com `hazard` (as perigosas de obra, transporte,
   cozinha, campo, polícia, crime...) e as quatro extrações (o `hazard` de cada `activity`)
   sorteiam um ferimento (`hazard.roll`, dano de `harm/2` a `harm`), e o `hurt` aplica na mesma
@@ -129,12 +164,29 @@ Cadeia, flagrante, morte, saúde e tribunal.
   cai pela porcentagem de `safety`, até `maxSafety`: no trampo, o `safety` da profissão (o Kit EPI,
   pelo `flex`); nas extrações, o `safety` do `gear` que cabe nela (capacete, luva de borracha,
   boia salva-vidas e roupa de apicultor), somado no `equip`. Saúde zerada mata pelo `die`. Item
-  com `heal` (Curativo e Kit de primeiros socorros, tipo `Saúde`) é gasto no `!usar` e cura na
-  hora (`walletStore.heal`, que recusa com a saúde cheia sem gastar), e o `!hospital` de quem tá
+  com `heal` (tipo `Saúde`) cura na hora no `!usar` (`walletStore.heal`, que recusa com a saúde
+  cheia sem gastar). O Curativo e o Kit de primeiros socorros acabam no primeiro uso; os que têm
+  `doses` (Garrafada da benzedeira, Maleta de médico, Ampola de adrenalina e Água benta de
+  Aparecida) gastam uma dose por uso no `spendDose`, contada na coluna `usos` do `inventarios`
+  pelo `wearTool` (a mesma do desgaste das ferramentas, então o `moveItems` leva as doses gastas
+  junto), e só tiram a unidade da mochila na última, zerando o `usos` pra próxima. O `!usar`
+  mostra quantas doses sobram na unidade aberta (`dosesText`). O `!hospital` de quem tá
   vivo e machucado (`treat`) enche a saúde cobrando o `hospitalPrice` vezes a fração que falta
   (`carePrice`). O `!saude` mostra a saúde e a chance de se machucar em cada lugar, já com a
   proteção. Profissão perigosa nova é só ganhar um `hazard`; os `wounds` entram logo depois do
   `@pessoa` (tipo "caiu do andaime"), então começam com verbo no passado.
+- Os crimes também ferem (`ferimentos.go`): cada um tem um `crimeRisk` (`robRisk`, `theftRisk`,
+  `kidnapRisk`, `killRisk`, `heistRisk`, `gangRisk`, listados em `crimeRisks` pro `!saude`) com o
+  `self` de quem comete e o `victim` de quem sofre. O `self` vale em toda tentativa que saiu de fato
+  (alarme e cadeado contam como dar errado), com a chance vezes `botchedRiskFactor` quando dá
+  errado, passa pelo `hurt` e mata se zerar a saúde, como no trampo: quem morre assim não é preso
+  no flagrante, não aparece no `fate` do `!assalto` e não dispara evento. O `victim` só vale quando
+  o crime machuca alguém de fato: no `!roubar`, no `!sequestrar` e na `!quadrilha` quando dá certo,
+  e no `!matar` quando falha sem o colete segurar (tiro de raspão); o `!furtar` e o `!assalto` não
+  têm vítima. A vítima passa pelo `bruise`, que nunca deixa a saúde abaixo de 1, pra roubo não
+  virar um `!matar` sem recompensa nem cadeia. O `clash` aplica os dois na transação do crime, e o
+  `by`/`on` zeram o lado de quem é deus. Crime novo ganha um `crimeRisk`, entra no `crimeRisks` e
+  chama o `clash` (ou o `hurt` por pessoa, nos crimes em equipe) depois de decidir o resultado.
 - O `!assalto` (`assalto.go`) junta uma equipe de `heistSize` pessoas em `heistCrews` (uma por
   conversa, efêmera): quem manda primeiro abre, e se a equipe não fechar em `heistWindow` o
   assalto é cancelado. A espera é só checada ao entrar (`cooldownLeft`) e carimbada pra todo mundo
@@ -152,9 +204,17 @@ Cadeia, flagrante, morte, saúde e tribunal.
   desfeita. A espera é a do `!roubar` (`robCooldown()` de cada um), checada ao entrar e carimbada
   pra todo mundo na hora do roubo, junto do `crime_em`. A chance é `robSuccessChance` mais o
   `robBonus` de cada um mais `gangHelp` por pessoa a mais, menos o `guard` da vítima e o toque de
-  recolher. O alarme da vítima protege igual ao `!roubar`. Se der certo, a quadrilha leva de
-  `gangLootMin` a `gangLootMax` por cento do saldo da vítima, dividido igual, e a parte de cada um cresce o `robHaul` da profissão dele (hoje só o Chapéu de Lampião, o mesmo que aumenta o que leva no `!roubar`); se der errado, cada
+  recolher. O alarme da vítima (`soundAlarm`, em `carteiras.go`) dispara menos que no `!roubar`:
+  lá a chance é `alarmChance`, e aqui o `gangAlarmChance` tira `alarmGangCut` por pessoa a mais. Se der certo, a quadrilha leva de
+  `gangLootMin` a `gangLootMax` por cento do saldo da vítima, passado pelas faixas do `exposed` (veja o valor de roubo abaixo), dividido igual, e a parte de cada um cresce o `robHaul` da profissão dele (hoje só o Chapéu de Lampião, o mesmo que aumenta o que leva no `!roubar`); se der errado, cada
   um paga de 10% a 20% do próprio saldo pra vítima. Ninguém vai preso na hora.
+- O valor de roubo (`exposed` em `economia.go`) é o quanto do saldo um roubo consegue levar. A
+  porcentagem sorteada (`robLootMin` a `robLootMax` no `!roubar`, `gangLootMin` a `gangLootMax` na
+  `!quadrilha`) vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, como imposto de
+  renda (3/4 até 10 mil, metade até 100 mil, 1/4 até 1 milhão e 1/10 dali pra frente), então
+  rico perde mais moedas que pobre, mas uma fatia bem menor do saldo. O `robHaul` de quem rouba
+  multiplica depois das faixas. O `exposureText` mostra o máximo de um `!roubar` no `!saldo` e no
+  `!tu`. Roubo novo que tire porcentagem do saldo de alguém passa pelo `exposed`.
 - O abuso de poder (`abuseKinds` em `prender.go`) deixa usar um comando mesmo com a espera dele
   pendente. Hoje tem quatro tipos: prisão (`!prender`), trabalho (`!trabalhar`), roubo (`!roubar`) e
   sequestro (`!sequestrar`). Cada `abuseKind` tem a coluna de espera dele na `carteiras` (`abuso_em`,
@@ -175,13 +235,15 @@ Cadeia, flagrante, morte, saúde e tribunal.
   tratamento da saúde (`treat`).
 - O `!subornar pagar` (`suborno.go`) cobra `bribePercent` do saldo, com piso `bribeFloor`, e as
   moedas somem. Em troca grava `propina_ate` na `carteiras` por `bribeHold` (pagar de novo soma o
-  tempo), e o `paidOff` marca `bribed` na profissão. Enquanto vale, o `untouchable()` (que junta
-  presidente e subornado) barra a cadeia como a imunidade do presidente: o `arrestShield` recusa o
-  `!prender` e o `!denunciar`, a chance de flagrante no `!sequestrar` e no `!matar` e a batida do
-  `!mercadonegro` viram zero e o `jailCrew` do `!assalto` pula a pessoa. O X-9 do `noSnitch`
-  continua valendo, porque quem entrega é a quadrilha. O flagrante na hora (`!sequestrar`, `!matar`,
-  `!fugir @pessoa` e o `jailCrew` do `!assalto`) checa o `slipsAway()`, que junta o `untouchable()`
-  com o `elusive` do Gorro do Saci; o Gorro só escapa do flagrante, não do `!prender`, do
-  `!denunciar` nem da batida do `!mercadonegro`. No `!processar`, o `trialBribes` lê a
+  tempo), e o `paidOff` marca `bribed` na profissão. Enquanto vale, o `bribed` barra a cadeia de vez (o
+  presidente, ao contrário, só tem a imunidade parcial do `immunity()`, skill
+  `economia-presidencia`): o `arrestShield` recusa o `!prender` e o `!denunciar`, a batida do
+  `!mercadonegro` vira zero e o `flagrantOdds` zera a chance de ser pego na hora. O X-9 do
+  `noSnitch` continua valendo, porque quem entrega é a quadrilha. O flagrante na hora
+  (`!sequestrar`, `!matar`, `!fugir @pessoa`, o `jailCrew` do `!assalto`, o desvio da `!igreja` e o
+  `nabbed` dos eventos) passa pelo `flagrantOdds(chance)`: zero pra subornado e pro `elusive` do
+  Gorro do Saci, a chance vezes `1 - immunity()` pro presidente e a chance cheia pro resto. No
+  `jailCrew`, quem escapou assim fica com `shielded`, que escolhe o texto do `fate`. O Gorro só
+  escapa do flagrante, não do `!prender`, do `!denunciar` nem da batida do `!mercadonegro`. No `!processar`, o `trialBribes` lê a
   propina dos dois lados na hora da sentença: se só um pagou, o `riggedVerdict` dá a vitória pra
   ele sem olhar a enquete (nem o quórum); se os dois pagaram, o júri decide normalmente.

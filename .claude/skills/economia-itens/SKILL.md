@@ -1,6 +1,6 @@
 ---
 name: economia-itens
-description: "Itens da economia (catalog em itens.go, inventarios, raridades, relíquias e míticos, qualidade.go, ferramentas de extração e a calibração do tempo de se pagar, equip/loot/roll, tipos itemCategories, números #12, vendas em lote do !vender, !loja e ofertas do dia, !luxo, !mercadonegro, !petshop, resets/limiter do !usar). Carregue antes de mexer em item, loja, mochila, extração (!pescar, !minerar, !vasculhar, !catar) ou venda."
+description: "Itens da economia (catalog em itens.go, inventarios, raridades, relíquias, míticos e primordiais, Meteorito do Bendegó em bendego.go com Rocha celeste, fragmentos, cratera e campo gravitacional, !primordial, qualidade.go, ferramentas de extração e a calibração do tempo de se pagar, equip/loot/roll, tipos itemCategories, números #12, vendas em lote do !vender, favoritos do !favoritar, !loja e ofertas do dia, !luxo, !mercadonegro, !petshop, resets/limiter do !usar). Carregue antes de mexer em item, loja, mochila, extração (!pescar, !minerar, !vasculhar, !catar) ou venda."
 user-invocable: false
 ---
 
@@ -18,20 +18,22 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   Vara de Iemanjá, a Picareta de Serra Pelada, a Rede do Curupira, o Saco do Homem do Saco, a
   Vela do Negrinho do Pastoreio, a Excalibur e as passivas Muiraquitã, Gorro do Saci, Chapéu de Lampião, Escamas do Boitatá, Coroa
   de Dom Pedro, Santo Graal, Baralho do Zé Pelintra, Espelho da Iara, Lamparina do Lobisomem, Foice da
-  Comadre Morte e Livro de São Cipriano) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
+  Comadre Morte, Livro de São Cipriano, Chapéu do Boto, Coração do Corpo-Seco, Quepe da Volante, Carranca do Velho Chico e Búzios encantados) fica fora da loja, das atividades, da `!luxo` e das caixas e baús comuns. Ele só sai
   de caixa com `relicOdds` (hoje o Relicário perdido), que no `roll` troca o prêmio por uma
   relíquia aleatória nessa chance, do `!leilao` nos dias de relíquia e do `!criar` e do `!milagre` de deus; depois passa de mão em
   mão, mas nunca pelo `!furtar` (o `theftChoice` tira as relíquias do sorteio e o furto mirado
   numa relíquia é recusado). A caixa com `relicOdds` também não sai de outra caixa e só cai nas extrações (`loot` das
   `activities`, peso 2). Equipamento com `relicLure` (hoje a Bússola do relicário, que sai de
   caixa comum e, com peso 1, das extrações) multiplica esse peso no `equip` (`lureRelics`) e, com `spent`, é gasto na próxima
-  extração. O filtro de metal do Ímã tira a caixa de relíquia do sorteio, mesmo com a bússola. O
+  extração. Sem equipamento com `relicLure`, o `equip` passa toda a `luck` (ferramenta, acessórios
+  e `craft` da profissão) pro `plainLuck`, então a sorte só ajuda a achar a caixa de relíquia com a
+  bússola equipada; sem ela, só o sorteio principal acha. O filtro de metal do Ímã tira a caixa de relíquia do sorteio, mesmo com a bússola. O
   `randomItemOf` pula tudo que é `unboxable()` (luxo, ilegal, relíquia, mítico e
   caixa de relíquia). Ferramentas (`gear` com `tool`) não somam entre si: se a pessoa tem mais de
   uma da mesma atividade, o `equip` só aplica a de maior `value` (`bestTool`), e as outras ficam
   paradas na mochila. Os acessórios (`gear` sem `tool`, como isca, capacete e bússola) continuam
   valendo junto com ela. A sorte de acessório com `skipsRelics` (a isca) vai pro `plainLuck` do
-  `roll`, e nesses sorteios extras a caixa de relíquia é ignorada. A Excalibur é arma legal: o `bestWeapon` lê toda arma do `catalog` (não só as
+  `roll` mesmo com a bússola, e nesses sorteios extras a caixa de relíquia é ignorada. A Excalibur é arma legal: o `bestWeapon` lê toda arma do `catalog` (não só as
   ilegais), mas ela não é apreendida porque o `seizeContraband` só pega item `illegal`. O
   `!vasculhar` não tem ferramenta base, então a relíquia dele (o Saco do Homem do Saco) é acessório,
   sem `tool` e sem `sturdy`. A Vela do Negrinho do Pastoreio também é acessório, mas vale nas
@@ -43,18 +45,67 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   `core.BrazilTime`) dá verdadeiro, e aí soma em quase tudo (crimes, com o `killChance` liberando o
   `!matar` pra qualquer um, proteção, fuga, ganho e espera do `!trabalhar`, `haste`, achados,
   `!daily`, poupança, cassino, caixas, refém e `!acoes`). Como o `ProfessionOf` monta a profissão
-  a cada comando, o efeito liga e desliga sozinho, sem estado guardado.
+  a cada comando, o efeito liga e desliga sozinho, sem estado guardado. As relíquias que mexem
+  num sistema de outra skill ficam documentadas lá: o Chapéu do Boto na `economia-fama`, o
+  Coração do Corpo-Seco nos implantes da `economia-dinheiro`, o Quepe da Volante no procurado do
+  dia da `economia-crime`, a Carranca do Velho Chico na Casa assombrada da `encantos-e-zoeiras` e os
+  Búzios encantados na `economia-eventos`.
+  Cada efeito novo precisa de uma linha própria nos `perks()` (ou no `famePerks` e parecidos),
+  porque o `luxuryPerks` só lista o nome da relíquia com "já conta nas vantagens acima".
 - Mítico é outra raridade própria (`mythic`, entre a `legendary` e a `relic`): são itens de
   extração que só servem pra vender (sem `use`, sem `keep`, sem efeito), dois por atividade, com
-  peso 1 no `loot`. Eles só saem com relíquia: o `equip` tira os míticos do `loot` quando nenhum
-  item equipado naquela extração é relíquia, então a ferramenta relíquia da atividade (ou o Saco
-  do Homem do Saco) e a Vela do Negrinho do Pastoreio liberam eles, e o `source` da atividade
-  mostra quais relíquias liberam no "Onde conseguir". São `unboxable()`, então não saem de caixa
-  nem de baú, mas têm qualidade e podem ser furtados. Na venda pro mercado, o `marketPercentOf`
+  peso 1 no `loot`. Eles só saem com relíquia ou acima: o `equip` tira os míticos do `loot` quando
+  nenhum item equipado naquela extração é relíquia ou primordial e a atividade não tem `mythics`
+  (a cratera do Bendegó), então a ferramenta relíquia da atividade (ou o Saco do Homem do Saco), a
+  Vela do Negrinho do Pastoreio e o Meteorito do Bendegó liberam eles, e o `source` da atividade
+  mostra quais itens liberam no "Onde conseguir". São `unboxable()`, então não saem de caixa nem de
+  baú comum (só da Rocha celeste, a única caixa com peso de mítico), mas têm qualidade e podem ser
+  furtados. Na venda pro mercado, o `marketPercentOf`
   paga pelo menos `mythicSalePercent` (hoje 90%) por eles, ou o `salePercent` da profissão se for
   maior; ele é aplicado dentro do `marketPayoutOf` e do `marketPayout`, então vale no `!vender`
   (todas as formas), no valor de mercado da `!mochila` e no `!item`.
   O `!vender inuteis` vende mítico junto com o resto.
+- Primordial (`primordial`, ⚫) é a raridade mais alta, acima da `relic`, com tipo próprio
+  (⚫ Primordiais, o primeiro do `itemCategories`). Ela herda as travas da relíquia pelas
+  comparações com `>=`: é `unboxable()`, não tem qualidade (`gradable()`), não se furta (`!furtar`
+  mirado e `theftChoice`), libera os míticos quando tá equipada na extração e fica fora do
+  `findable` dos eventos. O que olha só a relíquia com `==` continua sem pegar ela: o `relics()`
+  (Relicário perdido e dias de relíquia do `!leilao`) e o tipo 🏛️ Relíquias. O "Onde conseguir"
+  dela sai do `primordialSources` (no `sources`), e o `effectText` tem aviso próprio pra prêmio
+  primordial. Item primordial nunca leva `keep`, senão o `luxuryGoods` põe ele na `!luxo`. O
+  `loot` das caixas é lido pelo `lootWeight`, porque a maioria só tem posição até a lendária.
+  Cada primordial tem um poder que vale só de ter (`passive`) e uma habilidade (`active`), os dois
+  no `primalPowers` (`bendego.go`), que também liga o subcomando do `!primordial <item>` ao `run`
+  dela; o `effectPerk` mostra o `gear` mais os dois textos (`primalPower.perk`). Primordial novo
+  com habilidade entra nesse mapa. Hoje são três, todos em `bendego.go`:
+  - A Rocha celeste (`skyRockID`) cai em qualquer extração com uma relíquia de extração equipada
+    (`extractionRelic`: relíquia com `gear` de uma atividade só, então a Vela do Negrinho do
+    Pastoreio não conta). Ela não tá no `loot` das atividades: é o `starfall` do `equip` que liga
+    uma chance fixa de `starfallOdds` (0,1%) no `pick`, antes do sorteio normal, então nem a sorte
+    da ferramenta nem o `boostRare` mudam essa chance, e as ferramentas relíquia não precisam de
+    recalibragem. Ela é caixa: `loot` só de lendário e mítico (o `randomItemOf` aceita qualquer
+    mítico, que de outro jeito nunca sai de caixa) e, com `shardOdds` (50%), troca o prêmio pelo
+    `shard` dela, o Fragmento do Bendegó.
+  - O fragmento tem `forms` (o item que ele monta) e `shards` (quantos precisa). A montagem é no
+    `addGradesTo`, só na mochila: toda entrada de item passa pelo `assembleShards`, que troca cada
+    `shards` fragmentos por um Meteorito do Bendegó na mesma transação, venha de onde vier (caixa,
+    `!dar`, `!vender @pessoa`, `!criar`, `!milagre`, tirar do imóvel). Ele grava o aviso em
+    `montagens_avisos`, e o `announceAssemblies` (`AddAfterMessage`) manda no grupo depois da
+    resposta do comando. Fragmento guardado no imóvel não monta.
+  - O Meteorito do Bendegó (`bendegoID`) é acessório das quatro extrações com `pull` (o `equip`
+    soma em `kit.pull`, e o `gather` sorteia esses itens a mais com `find`, que não quebra
+    ferramenta) e `alwaysFinds`, então toda extração traz 2 itens; a gravidade aparece no
+    `report`, e os avisos de mítico, Relicário e Rocha celeste saem do `findNotes`, uma vez cada.
+    O Campo gravitacional: no `!trabalhar` (`walletStore.work`), o `pullGravity` tira
+    `gravityPercent` (3%) do ganho de quem não tem Bendegó, se alguém da economia tem, e soma em
+    `campo_gravitacional`; o `runGravity` reparte o acumulado entre os donos de hoje a cada
+    `gravityEvery` (6h, contadas da primeira puxada depois do último pagamento) e avisa pelo
+    `announce`. A habilidade é a cratera (`!primordial bendego`, espera `cratera_em` de 24h): fica
+    `craterOpen` (1h) no `sync.Map` `craters` do grupo, salva com `KeepGame` (`craterKind`). No
+    `!minerar` desse grupo, o `crater.dig` liga `mythics` (libera mítico sem relíquia) e soma
+    `craterLuck` no `plainLuck`, e o `payToll` cobra `craterToll` (20%) do valor de mercado de cada
+    achado, até onde o saldo der, e passa pro dono (o próprio dono não paga). A cratera não dá a
+    chance da Rocha celeste a quem não tem relíquia.
 - As ferramentas de extração que não são relíquia (rara, épica e lendária de `!pescar`,
   `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje **135 minutos**, contando o que a
   pessoa recebe vendendo no `!vender`, não o valor cheio dos itens. O tempo é o `value` da
@@ -77,11 +128,19 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   (só elas acham), então mexer em mítico também pede recalibrar as relíquias de extração. A Vela
   do Negrinho do Pastoreio fica de fora, porque só soma em cima da ferramenta que a pessoa já tem.
 - O tipo de cada item (`itemCategories` em `itens.go`) não é um campo: é a primeira regra da lista
-  que bate com os campos do item (`pet`, `arms`, `heist`, `gift`, o loot das `activities`...), e o
+  que bate com os campos do item (`pet`, `arms`, `heist`, `gift`, `networks`, o loot das `activities`...), e o
   que não bate em nada vira `Raridades`. O `Contrabando` pega o ilegal que não é arma nem droga, e
-  o `Vantagens` pega os itens com `flex` que não são relíquia, luxo nem ilegais. O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
+  o `Vantagens` pega os itens com `flex` que não são relíquia, luxo nem ilegais. O `Aparelhos` pega
+  os itens com `networks` (Celular e Computador), que liberam as redes do `!postar` (skill
+  `economia-fama`) e não têm qualidade (`gradable()`). O `!item`, o `!item <tipo>`, a `!mochila` e a `!loja`
   agrupam por ele (`categoryGroups`), com a raridade na bolinha da linha. Item novo cai no tipo
   sozinho; tipo novo é só entrar na lista, na posição certa, porque a ordem decide o empate.
+  A linha da `!loja` e do `!petshop` (`shopLine` em `loja.go`) mostra a bolinha, o nome da
+  raridade, o preço e um resumo curto (`brief`), nunca o `perk()` inteiro, que fica só no
+  `!item <nome>`. O `brief` sai dos campos do item, na mesma ordem do `effectPerk` (o `gearBrief`
+  resume o `gear` em poucas palavras), e item sem efeito (comida, presente) fica sem resumo. Os
+  `flex` usam o `flex.brief` quando o `effect` é comprido demais pra uma linha, senão o próprio
+  `effect`; item de loja novo com `flex` de efeito longo precisa de `brief`.
   O `!vender tipo <tipo>` (ou `categoria`) vende tudo o que a pessoa tem daquele tipo, menos os
   ilegais, pelo mesmo `sellBatch` do `!vender #12`. A palavra `tipo` é obrigatória porque vários
   nomes de tipo já acham item sozinhos (`!vender pesca` vende a Vara de pesca).
@@ -97,6 +156,17 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
     qualidade.
   Os ilegais nunca entram. Efeito novo precisa ir pro `effectPerk()`, e não pro `usePerk()`,
   senão o item vira bugiganga (ou inútil) e é vendido.
+- Os favoritos (`favoritar.go`, tabela `favoritos` com `chat`, `pessoa` e `item`) marcam um item
+  inteiro, não uma qualidade, e a marca fica mesmo se o item sair da mochila. O `!favoritar <item>`,
+  `#12 #40` ou `tudo` (só o que tá na mochila) e o `!desfavoritar` (o mesmo, sobre os favoritos)
+  passam pelo `pickFavorites`. Favorito não sai em venda nenhuma: o `heldForSale` (que troca o
+  `heldItem` no `!vender <item>`, no `!vender @pessoa` e no `!mercadonegro vender`) recusa com o
+  `favoriteRefusal`, e as vendas em lote recebem os favoritos no `salePick` (o `sellBatch` lê
+  junto com a mochila pelo `shelf`): o `#12` dá problema, e o `tipo`, os `inuteis` e as
+  `bugigangas` deixam eles de fora com o aviso do `favoritesKept`. A exceção é o
+  `!vender duplicados`, que ignora os favoritos e vende as cópias, sempre deixando 1. O `!dar`, o
+  `!usar` e o `!furtar` não olham os favoritos. A `!mochila` mostra ⭐ do lado (`favoriteMark`).
+  Venda nova de item precisa passar pelo `heldForSale` ou receber os favoritos.
 - O número de cada item (`#12`) é a posição dele no `catalog` (`item.number()`/`itemByNumber`), não
   vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
   todos com `#`, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
@@ -120,7 +190,9 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   resto do código continua vendo um item só; a `!mochila` mostra uma linha por qualidade. O
   `takeItems`/`takeGrades` sempre tira da pior qualidade pra melhor, e quem passa item de uma
   pessoa pra outra (`!dar`, `!vender @pessoa`, `!furtar`) usa o `moveItems` ou o
-  `addGrades` pra levar a mesma qualidade junto. O `sellItems` calcula o pagamento dentro da
+  `addGrades` pra levar a mesma qualidade junto. O `moveItems` também leva o desgaste (`usos`, lido
+  pelo `wearIn` e gravado com `MAX` pelo `keepWear`), então passar ferramenta ou implante pra outra
+  pessoa não zera o desgaste; quem recebe fica com o maior dos dois. O `sellItems` calcula o pagamento dentro da
   transação, com as qualidades que saíram de fato (`marketSale.percent`, não um valor pronto). Valor da mochila usa
   `stack.worth()`, nunca `quantity * value`.
 - A loja de luxo (`luxo.go`) sorteia `luxuryStockSize` itens por dia e conversa (semente do dia
@@ -152,7 +224,11 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   três ferramentas lendárias de extração e a Bússola do relicário) chega pelo `hotGearArrivals`. As
   ferramentas (`hotTool`) dividem um sorteio só: com `hotToolChance` vem uma delas, sorteada entre
   todas, então nunca aparecem duas no mesmo dia. O resto da muamba tem `hotGearChance` de chegar,
-  cada item num sorteio próprio do `dailyRand`. Só tem uma de cada por dia e conversa: o
+  cada item num sorteio próprio do `dailyRand`. Todo dia chega também um implante (item com
+  `graft`, sorteado entre todos com o sal `muamba:implante`), na seção própria do `!mercadonegro`;
+  ele fica fora do estoque comum mesmo quando é ilegal, e o `oneOfAKind` (muamba ou implante) é o
+  que limita a uma unidade. O implante clandestino na mochila é contrabando (apreendido, comprado
+  pelo receptador); o legal segue as regras da muamba. Só tem uma de cada por dia e conversa: o
   `claimHotGear` grava a compra na tabela `muambas` (`chat`, `dia`, `item`, `comprador`) na mesma
   transação da cobrança e falha com `errSoldOut` se alguém já levou; batida também conta como
   vendida, porque a mercadoria se perde. Ela não é ilegal: não é apreendida, o receptador
@@ -168,13 +244,28 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   - A droga é gasta no `!usar` (`takeDrug`) e guarda o efeito nas colunas `droga`/`droga_ate` da
     `carteiras`; o `standing` só devolve a droga enquanto o `droga_ate` não passou, e o `drugged`
     aplica o `high` na profissão. Só um efeito vale por vez: usar outra troca o efeito e soma
-    `drugMixOverdose` à chance de overdose, que mata pelo `die`.
+    `drugMixOverdose` à chance de overdose, que mata pelo `die`. Os campos do `high` são
+    todos aplicados no `drugged` e descritos no `effects()`: `pay`, `crime` (`robBonus` e
+    `theftBonus`), `escape` (`escapeBonus` e `breakoutBonus`), `heist`, `cashback`, `revive`,
+    `kidnap` (`kidnapBonus`), `kill` (`killChance`, então droga com `kill` libera o `!matar`
+    igual arma, e o `lethalDrugs` entra na recusa do `!matar`), `guard`, `rush` (corta o `every`
+    e o `haste` em porcentagem, igual a bênção Pressa) e `luck` (`gatherLuck`). As épicas
+    (Ayahuasca, Anabolizante, Pedra azul) e as lendárias (Pó de anjo, Pílula NZT) dão efeitos
+    fortes, mas com overdose alta. Campo novo no `high` precisa entrar no `drugged` e no `effects()`.
   - O `walletStore.arrest` (`!prender` e `!denunciar`) apreende tudo o que é ilegal da mochila de
     quem vai preso (`seizeContraband`), e a batida também. Os outros caminhos de cadeia não
-    apreendem.
+    apreendem. O `arrest` também arranca os implantes clandestinos (`seizeImplants`, veja a skill
+    `economia-dinheiro`), mas a batida não.
 - Os bichinhos do `!petshop` (`petshop.go`) são itens normais do `catalog` com `shop` e `pet`: o
   `!loja` pula eles, o `!comprar` compra igual (com a mensagem de levar pra casa) e o `sources`
   aponta pro `!petshop` (`item.store()`). Bicho novo é só entrar no `catalog` com `pet: true`.
+  Eles têm um efeito bem fraco no `!daily`: o `daily` lê os bichos da pessoa (`walletStore.holding`,
+  o mesmo `SELECT DISTINCT` do `passives`, em paralelo com o `workTerms`) e o `fetchGift` sorteia
+  cada tipo de bicho uma vez, com `fetchChance` (`petFetchChance` vezes a raridade + 1: 1% no
+  comum, 2% no incomum, 3% no raro, 4% no épico). O primeiro que acerta traz um item comum
+  (`petGifts`: comum, sem bicho e sem nada `unboxable()`), no máximo um por dia, e o `claim` põe
+  ele na mochila na mesma transação das moedas, com qualidade normal. O texto do efeito fica no
+  `petPerk`, dentro do `effectPerk`, então aparece no `!petshop` e no `!item`.
 - Item com `shop` e `rotating` é oferta do dia (`rotatingStock` em `loja.go`): a `!loja` tira ele da
   lista fixa e mostra só os `rotatingShopSize` sorteados do dia na seção "⏳ Só hoje" (o
   `dailyRand` com o sal `loja`, trocando à meia-noite de BRT), e o `!comprar` recusa quando ele não

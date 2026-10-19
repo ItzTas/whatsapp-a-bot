@@ -1,6 +1,6 @@
 ---
 name: economia-base
-description: "Base da economia do bot (carteiras, chave canônica b.Account, profissões em profissoes.go/profissao.go, ProfessionOf/standing, deus.go, oficio.go e o !trabalhar, ralos de dinheiro, walletStore.spend, !economia resetar intervalos, vínculo de economia entre grupos com !economia vincular, ledgerDB e ledgers em vinculos.go). Carregue antes de mexer em qualquer comando ou arquivo da economia, junto da skill economia-* do assunto."
+description: "Base da economia do bot (carteiras, chave canônica b.Account, profissões em profissoes.go/profissao.go, ProfessionOf/standing, deus.go, oficio.go e o !trabalhar, ralos de dinheiro, walletStore.spend, !economia resetar intervalos, vínculo de economia entre grupos com !economia vincular, ledgerDB e ledgers em vinculos.go, missões diárias do !missoes em missoes.go). Carregue antes de mexer em qualquer comando ou arquivo da economia, junto da skill economia-* do assunto."
 user-invocable: false
 ---
 
@@ -62,8 +62,13 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   coisa na mesma transação, use `walletStore.spend` (debita com `debitBalance` e chama o resto).
 - O `ProfessionOf` lê tudo de uma vez (`walletStore.standing`) e aplica, depois do
   `presidential()`, o imóvel (`housed`), o segurança do `!seguranca` (`escorted`, coluna
-  `seguranca_ate`) e a maldição do `!zoar` (`hexed`). Efeito novo que mude `guard`, ganho ou
-  bônus de alguém por fora da profissão entra nesse mesmo ponto.
+  `seguranca_ate`) e a maldição do `!zoar` (`hexed`). Os implantes do `!implante` (`implanted`,
+  lidos em paralelo pelo `walletStore.body`) entram logo depois dos itens com `flex` (`adorned`).
+  Os seguidores do `!postar` (`famed`, lidos em paralelo pelo `walletStore.audience`, skill
+  `economia-fama`) entram antes dos encantos, então toda profissão lida pelo `ProfessionOf` sabe
+  o nível de fama da pessoa (`celebrity()`).
+  Efeito novo que mude `guard`, ganho ou bônus de alguém por fora da profissão entra nesse mesmo
+  ponto.
 - Grupos podem dividir uma economia só (`vinculos.go`, tabela `economia_vinculos` com `chat` e
   `economia`). O `!economia vincular <nome do grupo>` (dono, achado pelo `b.GroupNamed` do `core`)
   faz a conversa atual usar a economia do outro grupo, e quem já usava a economia dela vai junto.
@@ -79,6 +84,23 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   mercado negro e leilão do dia). O estado em memória dos jogos (`sync.Map` de eleição, tribunal,
   crash...) continua por grupo, e o `!milagre`/`!castigo` sem marcação pegam só quem tá no grupo
   atual.
-- As rotinas da economia (`runTaxes`, `runLottery`, `runAuctions`, `runLoanSeizures`) pulam as
+- As missões diárias (`missoes.go`, tabela `missoes`) são `missionsPerDay` metas por pessoa,
+  sorteadas de `missionGoals` com o `dailyRand` (semente da economia + `acc.Key`), então mudam à
+  meia-noite e não ficam guardadas: o banco só guarda o progresso de cada uma (`progresso`/`meta`)
+  no `dia` de hoje, e apaga os dias velhos da pessoa na próxima escrita. Cada comando que conta pra
+  uma missão chama `b.advance(chat, acc, goal, quantidade)` depois que a ação deu certo
+  (`!trabalhar`, extrações, ganho no `!apostar`/`!cassino`, `!roubar`/`!furtar` bem-sucedido,
+  venda pro mercado no `!vender` e compra no `!comprar` da loja). O `advance` só enfileira em
+  memória (`missionLog`) se a meta for de hoje daquela pessoa; o `settleMissions`, registrado no
+  `AddAfterMessage` antes do `announcePayouts`, grava o progresso, paga a recompensa
+  (`target / step * pay`) na hora em que a missão fecha e avisa no grupo depois da resposta do
+  comando. Quem fecha todas leva `missionBonus` e uma `missionPrizeItem`. A recompensa entra direto
+  no saldo, sem imposto nem dízimo. Missão nova precisa de `id` em `missionGoals` e do `advance` no
+  comando, e as metas em moeda usam `step` de 100 pra recompensa ficar proporcional.
+- As rotinas da economia (`runTaxes`, `runLottery`, `runAnimalGame`, `runAuctions`, `runLoanSeizures`, `runWanted`, `runGravity`) pulam as
   linhas de grupo congelado (`ledgers.linked`) e anunciam com o `announce`: manda em todo grupo da
-  economia que tá com o modo `economia` ligado e onde quem aparece no aviso passa no `AllowedIn`.
+  economia que tá com o submodo `anuncios` (`core.ModeAnnouncements`, filho da `economia`) ligado e
+  onde quem aparece no aviso passa no `AllowedIn` (o `announce` aceita mais de uma pessoa em destaque, como os ganhadores do `!bicho`: todas são marcadas e passam juntas pelo `AllowedIn`). O submodo é por grupo, como todo modo: grupos
+  vinculados dividem as carteiras, mas cada um liga o `anuncios` dele, e sem ele a rotina roda do
+  mesmo jeito (cobra, sorteia, paga), só não avisa. Aviso automático novo da economia passa pelo
+  `announce`, nunca pelo `SendText` direto.

@@ -1,6 +1,6 @@
 ---
 name: economia-igrejas
-description: "Igrejas da economia (igreja.go e igrejacofre.go, !igreja fundar/entrar/sair/lista/doutrinas/ofertar/reformar/milagre/desviar, doutrinas em código, templos e a força da doutrina, tabela igrejas, fiéis em carteiras.igreja, dízimo payTithe no !trabalhar e no !daily, cofre, desvio como crime, sucessão do líder). Carregue antes de mexer em igreja, doutrina, templo, dízimo ou cofre."
+description: "Igrejas da economia (igreja.go e igrejacofre.go, !igreja fundar/entrar/sair/lista/doutrinas/ofertar/reformar/dizimo/milagre/desviar, doutrinas em código, templos e a força da doutrina, tabela igrejas, fiéis em carteiras.igreja, dízimo payTithe no !trabalhar e no !daily, cofre, desvio como crime, sucessão do líder). Carregue antes de mexer em igreja, doutrina, templo, dízimo ou cofre."
 user-invocable: false
 ---
 
@@ -33,7 +33,11 @@ user-invocable: false
 - O efeito de cada doutrina cresce com o templo: o `effect` e o `apply` recebem a `power` do
   templo (em porcentagem, 100 no primeiro nível) e calculam cada número com o `scaled`. Doutrina
   nova precisa dos dois usando o mesmo número base, senão o texto mente sobre o efeito.
-- O dízimo (`tithe` da doutrina, em porcentagem) sai só do `!trabalhar` e do `!daily`. O
+- O dízimo é por igreja, na coluna `dizimo` da `igrejas` (em porcentagem). Ela começa `NULL`, que
+  vale o `tithe` da doutrina (o padrão); as consultas leem `COALESCE(i.dizimo, unsetTithe)` e o
+  `titheOr` da doutrina resolve. O líder muda com `!igreja dizimo <porcentagem>` (`setTithe`, de 0
+  a `churchTitheMax`), e o valor resolvido chega no `ProfessionOf` como `churchTithe`, pro
+  `churchPerks`. O dízimo sai só do `!trabalhar` e do `!daily`. O
   `payTithe` lê a igreja dentro da transação do `work`/`claim` e credita o cofre, e o saldo
   entra já líquido (o ganho menos o imposto de renda do decreto e menos o dízimo, os dois em cima
   do bruto). Por isso o trigger `encantos_no_ganho` e a penhora do `garnish` agem em cima do

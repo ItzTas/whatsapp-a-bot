@@ -73,6 +73,25 @@ Encantos, zoeiras pagas e as reações automáticas do bot.
     no `runTaxes` só é avisado na próxima mensagem. Quando a praga volta (`hexBackfire` ou espelho),
     o `landCharm` grava o alvo original como `autor`, então quem jogou paga pra ele; o Dízimo em si
     mesmo (`autor = alvo`) é ignorado pelo trigger. O `purges()` é só a `purificacao`.
+  - A maldição `assombracao` (🏚️ Casa assombrada, `assombracao.go`, da bruxa e do exorcista)
+    assombra o imóvel e dura `hauntHold` (7 dias, bem mais que as outras). Só pega em quem tem
+    imóvel: o `cast` confere o alvo antes de gastar a espera (`needsHome`, falha com
+    `errHomeless`), e se a praga voltar (`hexBackfire` ou espelho) pra quem não tem casa, o
+    `landCharm` marca `vacant` e não grava nada. O `apply` (`haunted`) inverte o que o imóvel dá
+    (proteção, `dailyBonus` e `payBonus` viram o contrário, lendo o `p.estate` que o `housed` já
+    pôs) e o `taxPayers` dobra o IPTU (`iptu`, `hauntTaxFactor`). A `purificacao` não tira ela
+    (`purgeCurses` pula o `haunts()`): o espírito só sai no fim do prazo ou no
+    `!imovel exorcizar` (`exorcize`), que passa `hauntRansomDays` dias de IPTU do saldo de quem
+    tá assombrado pro `autor` do encanto (não é ralo) e apaga a linha. O texto de como se livrar
+    sai do `c.cure()`, que troca o `cureText` por esse caminho.
+  - A Carranca do Velho Chico (relíquia passiva, `carrancaItem`) segura o espírito sem apagar o
+    encanto: o `apply` dela (`warded`) liga o `warded` e soma `carrancaBoost` por cento do que o
+    imóvel dá (proteção, `dailyBonus` e `payBonus`), e como o `adorned` roda antes do `charmed`, o
+    `haunted` vê o `warded` e não inverte nada. O IPTU dobrado olha o mesmo: o `!imposto` usa o
+    `hauntedHome()` e o `taxPayers` tem um `NOT EXISTS` da Carranca no `inventarios`. O
+    `hauntedHomeText` do `!imovel` mostra o espírito rondando a casa sem entrar. A maldição continua
+    gravada, então perder a Carranca antes do fim do prazo faz o espírito voltar a valer na hora.
+    É diferente do Espelho da Iara, que só devolve a praga na hora em que alguém lança.
 - O `reactToAilments` (`status.go`), o reator da economia (`AddReactor`), reage em toda mensagem de
   quem tá com algum status ruim, se o modo `economia` tiver ligado. O `walletStore.ailments` lê tudo
   numa consulta só. Como o WhatsApp só aceita uma reação do bot por mensagem, vale o primeiro da
