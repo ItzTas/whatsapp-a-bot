@@ -18,7 +18,7 @@ const (
 	betWindowCap      = 500_000
 	betWindow         = 2 * time.Hour
 	stopLossPercent   = 70
-	stopLossWindow    = boxJinxWindow
+	stopLossWindow    = 2 * time.Hour
 )
 
 type betOutcome struct {

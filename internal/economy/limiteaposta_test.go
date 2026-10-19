@@ -46,7 +46,7 @@ func TestBetRuleRefusals(t *testing.T) {
 		{betRule(0, 0, []betOutcome{{net: 2_000, leaves: time.Hour}}), 1_000, "só aceita até 70% do saldo"},
 		{betRule(400_000, 0, nil), 1_000_000, "já apostou 🪙 400.000 moedas, e o limite é 🪙 500.000 moedas"},
 		{betRule(betWindowCap, 30*time.Minute, nil), 1_000_000, "Dá pra apostar de novo daqui a 30min"},
-		{betRule(0, 0, []betOutcome{{net: -5_000, leaves: time.Hour}}), 5_000, "já perdeu 🪙 5.000 moedas em aposta nas últimas 4h, e a casa não deixa ninguém perder mais de 70% do que tinha nesse tempo. Agora dá pra apostar no máximo 🪙 2.000 moedas"},
+		{betRule(0, 0, []betOutcome{{net: -5_000, leaves: time.Hour}}), 5_000, "já perdeu 🪙 5.000 moedas em aposta nas últimas 2h, e a casa não deixa ninguém perder mais de 70% do que tinha nesse tempo. Agora dá pra apostar no máximo 🪙 2.000 moedas"},
 		{betRule(0, 0, []betOutcome{{net: -7_000, leaves: time.Hour}}), 3_000, "perder mais de 70% do que tinha nesse tempo. Dá pra apostar de novo daqui a 1h"},
 	}
 	for _, c := range cases {
@@ -69,8 +69,8 @@ func TestStopLoss(t *testing.T) {
 		{"perdeu 70% do que tinha", 3_000, []betOutcome{{net: -7_000, leaves: time.Hour}}, 0, time.Hour},
 		{"perdeu tudo", 0, []betOutcome{{net: -10_000, leaves: time.Hour}}, 0, time.Hour},
 		{"ganhou antes de perder", 3_000, []betOutcome{{net: 4_000, leaves: time.Hour}, {net: -7_000, leaves: 2 * time.Hour}}, 1_200, 0},
-		{"reabre quando a perda grande sai da janela", 3_000, []betOutcome{{net: -6_000, leaves: time.Hour}, {net: -1_000, leaves: 3 * time.Hour}}, 0, time.Hour},
-		{"reabre só quando sai a perda que segura", 2_000, []betOutcome{{net: -500, leaves: 10 * time.Minute}, {net: -7_500, leaves: 3 * time.Hour}}, 0, 3 * time.Hour},
+		{"reabre quando a perda grande sai da janela", 3_000, []betOutcome{{net: -6_000, leaves: time.Hour}, {net: -1_000, leaves: 90 * time.Minute}}, 0, time.Hour},
+		{"reabre só quando sai a perda que segura", 2_000, []betOutcome{{net: -500, leaves: 10 * time.Minute}, {net: -7_500, leaves: 90 * time.Minute}}, 0, 90 * time.Minute},
 		{"saldo novo depois da perda", 13_000, []betOutcome{{net: -7_000, leaves: time.Hour}}, 7_000, 0},
 		{"lucro na janela não aperta", 10_000, []betOutcome{{net: 50_000, leaves: time.Hour}}, 7_000, 0},
 	}
@@ -100,7 +100,7 @@ func TestBetOutcomesWindow(t *testing.T) {
 		at  time.Duration
 	}{
 		{gambler, -9_000, -stopLossWindow - time.Minute},
-		{gambler, -3_000, -3 * time.Hour},
+		{gambler, -3_000, -stopLossWindow + time.Hour},
 		{gambler, 1_000, -time.Hour},
 		{other, -50_000, -time.Hour},
 	} {
@@ -116,7 +116,7 @@ func TestBetOutcomesWindow(t *testing.T) {
 		t.Fatalf("apostas da janela = %+v, want a perda de 3000 e depois o ganho de 1000", outcomes)
 	}
 	if leaves := outcomes[0].leaves; leaves < 59*time.Minute || leaves > 61*time.Minute {
-		t.Fatalf("a perda de 3h atrás sai da janela em %v, want ~1h", leaves)
+		t.Fatalf("a perda de 1h atrás sai da janela em %v, want ~1h", leaves)
 	}
 }
 

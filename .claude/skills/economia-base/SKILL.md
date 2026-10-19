@@ -190,7 +190,7 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `!bicho`), e apaga as linhas da pessoa que já saíram da janela. O `betRuleOf` soma a janela
   (`wagered`, que também diz em quanto tempo a aposta mais velha sai, o `freed`) e monta a regra. O
   `most` também passa pelo stop-loss: o `betRuleOf` lê em paralelo os resultados das últimas
-  `stopLossWindow` (4h, a mesma janela da `apostas_recentes` do `NoteBet`) com o `betOutcomes`, e o
+  `stopLossWindow` (2h, dentro das 4h que a `apostas_recentes` do `NoteBet` guarda) com o `betOutcomes`, e o
   `room` deixa apostar só o que falta pro prejuízo líquido da janela (`lost`, que fica negativo com
   lucro) chegar em `stopLossPercent` (70%) do que a pessoa tinha (saldo + `lost`). Bateu, o `most` vira
   zero e o `reopens` diz quando a perda que segura sai da janela, supondo o saldo de agora. Saldo novo
