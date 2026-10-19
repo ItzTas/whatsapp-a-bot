@@ -2,6 +2,7 @@ package economy
 
 import (
 	"context"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"time"
@@ -9,6 +10,13 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
+
+const bundlePacePercent = 150
+
+func bundled(a activity) activity {
+	a.cooldown.every = a.cooldown.every * bundlePacePercent / 100
+	return a
+}
 
 func (b *bot) extracao(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
@@ -25,7 +33,7 @@ func (b *bot) extracao(ctx context.Context, evt *events.Message) error {
 		spots  []eventSpot
 	)
 	for _, a := range activities {
-		x, err := b.extract(ctx, chat, person, acc, job, a, now)
+		x, err := b.extract(ctx, chat, person, acc, job, bundled(a), now)
 		if err != nil {
 			return err
 		}
@@ -46,8 +54,9 @@ func (b *bot) extracao(ctx context.Context, evt *events.Message) error {
 	if _, err := b.SendMentions(ctx, chat, strings.Join(texts, "\n\n")+job.decrees.note(gatherDecree), people); err != nil {
 		return err
 	}
-	for _, spot := range spots {
-		b.stirEvent(ctx, evt, spot)
+	if len(spots) == 0 {
+		return nil
 	}
+	b.stirEvent(ctx, evt, spots[rand.IntN(len(spots))])
 	return nil
 }

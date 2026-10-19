@@ -938,7 +938,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"extrair", "extracoes"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!extracao", fmt.Sprintf("faz todas as extrações de uma vez (%s) e junta tudo numa resposta só 🧺 Cada uma segue as regras dela: precisa da ferramenta, respeita a própria espera e pode machucar. A que não dá pra fazer agora só avisa, e as outras saem normal", extractionCommands())},
+				{"!extracao", fmt.Sprintf("faz todas as extrações de uma vez (%s) e junta tudo numa resposta só 🧺 Cada uma segue as regras dela: precisa da ferramenta, respeita a própria espera e pode machucar. A que não dá pra fazer agora só avisa, e as outras saem normal. Mas a preguiça cobra: pelo atalho cada espera fica %d%% maior (e junta menos tentativas enquanto você tá fora), e no máximo uma das extrações solta evento", extractionCommands(), bundlePacePercent-100)},
 			},
 			Run: b.extracao,
 		},

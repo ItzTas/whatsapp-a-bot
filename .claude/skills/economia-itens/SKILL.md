@@ -113,10 +113,14 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
 - O `!extracao` (`extracao.go`) roda as quatro `activities` em sequência, cada uma pelo mesmo
   `b.extract` do handler `gather` (espera, ferramenta, missão, carreira e ferimento de cada uma), e
   junta os relatórios numa resposta só, com o aviso do decreto uma vez no fim. É em sequência porque
-  as quatro mexem na mesma mochila (Vela, bússola, iscas). Se a pessoa morre num ferimento, as
-  extrações seguintes não rodam e nenhum evento sai; senão, cada extração que rodou tenta o
-  `stirEvent` dela, e o primeiro que abrir segura os outros (só cabe um evento pendente por pessoa).
-  Extração nova entra sozinha, porque ele percorre o `activities`.
+  as quatro mexem na mesma mochila (Vela, bússola, iscas). O atalho é mais fraco que os comandos
+  separados de propósito: o `bundled` multiplica a espera de cada atividade por `bundlePacePercent`
+  (150%) antes do `extract`, e como o `backlog` divide o tempo parado por essa espera, quem usa o
+  `!extracao` também junta menos tentativas por hora. A espera maior só vale pro atalho: o carimbo
+  é o mesmo, então o `!pescar` sozinho continua liberando na espera normal. Se a pessoa morre num
+  ferimento, as extrações seguintes não rodam e nenhum evento sai; senão, o `stirEvent` roda uma
+  vez só, com uma das extrações que rodaram sorteada. Extração nova entra sozinha, porque ele
+  percorre o `activities`.
 - As ferramentas de extração que não são relíquia (rara, épica e lendária de `!pescar`,
   `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje uns **130 minutos** (de 125 na
   rara a 155 na lendária, numa simulação com todos os sorteios), contando o que a
