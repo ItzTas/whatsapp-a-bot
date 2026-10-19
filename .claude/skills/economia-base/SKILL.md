@@ -132,7 +132,8 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   maior a aposta de uma vez, maior a chance de perder: o `stakeRisk` (`risco.go`) soma
   `stakeRiskStep` a cada 10x acima de `stakeRiskFloor`, até `stakeRiskMax`. Os jogos que passam
   pelo `PlaceBet` leem essa chance pelo `PrizeBoost.Risk`, que soma a ela o calor da série (veja
-  abaixo, limitado a `streakHeatMax`). No `!apostar` e no `!cassino` ela entra na chance de `jinxed` do `gamble` (a mesma do
+  abaixo, limitado a `streakHeatMax`) e `decreeRiskStep` por ponto do decreto `cassino` positivo (skill
+  `economia-presidencia`). No `!apostar` e no `!cassino` ela entra na chance de `jinxed` do `gamble` (a mesma do
   Azar, mas sem passar pelo `jinxProof`). No `!blackjack` a
   mesma chance (com a aposta já dobrada, se dobrou) entra no `dealerDraw`: quando a carta do topo
   ia fazer a banca estourar, ela é trocada por uma do baralho que não estoura. Nos jogos de

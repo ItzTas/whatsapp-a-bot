@@ -67,7 +67,9 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `PlaceBet` devolve um `wager` com o `Boost` da hora da aposta (`PrizeBoost`: o `decree` do decreto
   e o `luck` da profissão, o `casinoLuck` do Baralho do Zé Pelintra), que fica guardado na aposta (e
   no save da rodada, em `Boost` e `Luck`) e é aplicado no pagamento pelo `Boost.Pay`, com o
-  `Boost.Tag` na resposta. O `Boost` também leva o `rescued`, sorteado ali mesmo com o `rescueOdds`
+  `Boost.Tag` na resposta. O lucro a mais tem preço escondido: o `Boost.Risk` soma
+  `decreeRiskStep` de chance de perder por ponto do `decree` (+10% de lucro, +4,5% de chance de
+  perder), e nada no `Help`, no `Tag` ou no menu do `!decreto` fala disso. O `Boost` também leva o `rescued`, sorteado ali mesmo com o `rescueOdds`
   da profissão (hoje só o Baralho, 20%) e salvo em `Rescued`: na derrota, o `Boost.Rescue` devolve a
   aposta inteira (no `!crash` e na `!corrida`, quem perdeu recebe pelo `payRescues` no fim da
   rodada). O `wager` vem também com o `Levy` da taxa, que o `SettleBet` (ou o `holdBet`, nos jogos

@@ -27,6 +27,7 @@ type eventRun struct {
 	job    Profession
 	place  string
 	stake  int64
+	haul   int64
 	now    time.Time
 	dead   bool
 	freed  []types.JID
@@ -185,6 +186,27 @@ func (e loseEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (str
 		return "", err
 	}
 	return "💸 Perdeu " + Coins(lost), nil
+}
+
+type skimEffect struct{ lo, hi int64 }
+
+func skim(lo, hi int64) effect { return skimEffect{lo, hi} }
+
+func (e skimEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string, error) {
+	if run.haul <= 0 {
+		return "", nil
+	}
+	var balance int64
+	err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", run.chat.String(), run.acc.Key).Scan(&balance)
+	if err != nil {
+		return "", err
+	}
+	lost := min(run.haul*between(e.lo, e.hi)/100, max(balance, 0))
+	if lost <= 0 {
+		return "", nil
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ?", lost, run.chat.String(), run.acc.Key)
+	return fmt.Sprintf("💸 Perdeu %s, %d%% da bolada", Coins(lost), lost*100/run.haul), err
 }
 
 type gainEffect struct {

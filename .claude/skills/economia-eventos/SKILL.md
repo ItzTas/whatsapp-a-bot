@@ -44,11 +44,16 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
 - **Bolada** (`bolada.go`). O `stirWindfall`, registrado no `AddAfterCommand`, lê o saldo de quem mandou
   qualquer comando da economia num grupo e guarda no `windfallBoard`, em memória, a base de onde a pessoa
   partiu (`purse`): a base vale por `windfallWindow`, desce junto quando o saldo cai e, se o saldo subir
-  `windfallShare`% da base (no mínimo `windfallFloor`), a base vira o saldo de agora e, com a mesma conta
-  do `eventLuck` usando `windfallChance`, abre um evento com o `place` `windfallPlace` (`bolada`) e `won`
+  `windfallShare`% da base (no mínimo `windfallFloor` e no máximo `windfallCeiling`, pra rico não
+  precisar de uma bolada do tamanho do saldo), a base vira o saldo de agora e, com a mesma conta
+  do `eventLuck` usando o `windfallOdds` (vale `windfallChance` até `windfallRiseFrom` de bolada e sobe
+  em linha reta até `windfallChanceMax` em `windfallRiseTo`, então bolada maior chama mais evento), abre um evento com o `place` `windfallPlace` (`bolada`) e `won`
   verdadeiro. Por ser lido depois do comando, pega ganho de qualquer lugar (trampo, aposta, roubo,
-  milagre, Pix). O livro é o `windfallEvents` (`eventosbolada.go`, "Dinheiro chama ladrão"): gente
-  tentando roubar quem ficou rico, e o `bolada-casa` só cabe pra quem tem imóvel (`homeOwner`).
+  milagre, Pix). O quanto subiu desde a base vai no `haul` do `eventSpot` (salvo no `eventSave` e
+  passado pro `eventRun`), que é o que o efeito `skim` morde. O livro é o `windfallEvents`
+  (`eventosbolada.go`, "Dinheiro chama ladrão"): gente tentando roubar quem ficou rico, o
+  `bolada-casa` só cabe pra quem tem imóvel (`homeOwner`) e o `bolada-leao` cobra a parte da bolada
+  com `skim`, em vez de tirar do saldo inteiro com `lose`.
 - **Cassino furioso** (`cassinofurioso.go`). O `stirCasinoWrath`, também no `AddAfterCommand`, roda
   depois de `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida` e `!roleta` e só faz alguma coisa
   com o decreto `cassino` positivo (o prêmio a mais; a taxa negativa não conta). A chance cresce com o
@@ -84,7 +89,9 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   item ou de saldo desfaz tudo (`errEventVoid`) e o evento passa batido. Desfecho com `next` abre a etapa na
   hora, com outra enquete.
 - **Efeitos** (`eventoefeitos.go`), todos pelas funções de sempre: `earn` (porcentagem do `shiftValue`, o
-  ganho médio de um trampo da profissão), `lose` (`burnBalance`, some), `gain`/`forfeit` (itens),
+  ganho médio de um trampo da profissão), `lose` (`burnBalance`, some), `skim` (porcentagem do
+  `haul`, o quanto a bolada rendeu, limitada ao saldo; some, e só faz algo no `windfallPlace`, até
+  100%), `gain`/`forfeit` (itens),
   `findLoot` (o loot da extração, ou os achados da profissão em qualquer outro lugar), `injure` (`hurt`),
   `heal`, `buzz` (fica sob efeito da droga pelo `getHigh` do `mercadonegro.go`, o mesmo do `!usar`, com
   overdose), `nabbed` (cadeia de flagrante pelo `baseJail` com `sentence` e `lockUp`, com a chance de

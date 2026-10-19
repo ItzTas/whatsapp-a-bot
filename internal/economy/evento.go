@@ -106,6 +106,7 @@ type eventSpot struct {
 	place  string
 	won    bool
 	victim types.JID
+	haul   int64
 }
 
 type eventCase struct {
@@ -359,6 +360,7 @@ type eventSave struct {
 	Won      bool               `json:"won"`
 	Target   types.JID          `json:"target"`
 	Stake    int64              `json:"stake"`
+	Haul     int64              `json:"haul"`
 	Options  []int              `json:"options"`
 	Prices   []int64            `json:"prices"`
 	Labels   []string           `json:"labels"`
@@ -614,13 +616,13 @@ func (ev *pendingEvent) play(sc listedScenario, pick int, job Profession) eventP
 }
 
 func (ev *pendingEvent) run(job Profession) eventRun {
-	return eventRun{chat: ev.chat, acc: ev.acc, victim: ev.victim, job: job, place: ev.spot.place, stake: ev.stake, now: time.Now()}
+	return eventRun{chat: ev.chat, acc: ev.acc, victim: ev.victim, job: job, place: ev.spot.place, stake: ev.stake, haul: ev.spot.haul, now: time.Now()}
 }
 
 func (ev *pendingEvent) saved() eventSave {
 	return eventSave{
 		Chat: ev.chat, Account: core.StoreAccount(ev.acc), IDs: ev.ids, Victim: core.StoreAccount(ev.victim),
-		Scenario: ev.scenario, Place: ev.spot.place, Won: ev.spot.won, Target: ev.spot.victim, Stake: ev.stake,
+		Scenario: ev.scenario, Place: ev.spot.place, Won: ev.spot.won, Target: ev.spot.victim, Stake: ev.stake, Haul: ev.spot.haul,
 		Options: ev.options, Prices: ev.prices, Labels: ev.labels, Messages: ev.messages, Expires: ev.expires,
 	}
 }
@@ -628,7 +630,7 @@ func (ev *pendingEvent) saved() eventSave {
 func (s eventSave) pending(key string) *pendingEvent {
 	return &pendingEvent{
 		key: key, chat: s.Chat, acc: s.Account.Account(), ids: s.IDs, victim: s.Victim.Account(), scenario: s.Scenario,
-		spot: eventSpot{place: s.Place, won: s.Won, victim: s.Target}, stake: s.Stake, options: s.Options,
+		spot: eventSpot{place: s.Place, won: s.Won, victim: s.Target, haul: s.Haul}, stake: s.Stake, options: s.Options,
 		prices: s.Prices, labels: s.Labels, messages: s.Messages, expires: s.Expires,
 	}
 }

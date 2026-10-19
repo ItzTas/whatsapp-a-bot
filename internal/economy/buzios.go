@@ -64,6 +64,7 @@ func (refreshEffect) fortune() int  { return 1 }
 func (buzzEffect) fortune() int     { return 0 }
 func (plantEffect) fortune() int    { return 0 }
 func (loseEffect) fortune() int     { return -1 }
+func (skimEffect) fortune() int     { return -1 }
 func (forfeitEffect) fortune() int  { return -1 }
 func (injureEffect) fortune() int   { return -1 }
 func (stainEffect) fortune() int    { return -1 }

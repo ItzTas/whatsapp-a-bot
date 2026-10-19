@@ -225,5 +225,39 @@ var windfallEvents = eventBook{
 			},
 			idle: ending{texts: []string{"{@} não fez nada, e a quadrilha, por sorte, foi presa por outro crime antes de chegar"}},
 		},
+		{
+			id:    "bolada-leao",
+			title: "O leão quer a parte dele",
+			intros: []string{
+				"Chegou uma carta com o carimbo do leão na casa de {@}: 'identificamos um aumento patrimonial repentino. Favor acertar a mordida'",
+				"Mal deu tempo de gastar e o fiscal já tava batendo na porta de {@}, de prancheta na mão: 'essa bolada aí foi declarada?'",
+			},
+			choices: []choice{
+				{label: "🧾 Declarar tudo direitinho", risk: lowRisk, endings: []ending{
+					{weight: 75, texts: []string{"{@} pagou o imposto da bolada certinho e ainda ganhou um 'parabéns pela honestidade' por carta"}, effects: []effect{skim(15, 25)}},
+					{weight: 25, texts: []string{"O fiscal fez a conta errado a favor de {@} e foi embora sem cobrar nada. Ninguém vai avisar ele"}},
+				}},
+				{label: "🙈 Fingir que não viu a carta", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"A carta foi pro lixo, o fiscal esqueceu e {@} seguiu a vida com a bolada inteira"}},
+					{weight: 35, texts: []string{"O leão não esquece. Veio a multa por atraso, e com juros"}, effects: []effect{skim(30, 45)}},
+					{weight: 20, texts: []string{"O leão bloqueou a conta de {@} e só soltou depois de morder um pedação da bolada"}, effects: []effect{skim(50, 65)}},
+				}},
+				{label: "🧮 Chamar um contador esperto", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O contador achou dedução até no pão de queijo. {@} pagou só uma mordidinha"}, effects: []effect{skim(5, 10)}},
+					{weight: 30, texts: []string{"O contador achou uma restituição esquecida de anos atrás e {@} saiu ganhando"}, effects: []effect{earn(50, 150)}},
+					{weight: 20, texts: []string{"O contador inventou tanta dedução que a Receita caiu em cima de {@} com multa"}, effects: []effect{skim(30, 50)}},
+				}},
+				{label: "🏝️ Mandar a bolada pras Ilhas Cayman", risk: highRisk, endings: []ending{
+					{weight: 40, texts: []string{"A bolada sumiu num paraíso fiscal e o leão ficou só olhando. {@} agora tem conta offshore"}},
+					{weight: 40, texts: []string{"O doleiro sumiu com uma parte no caminho, e o leão ainda mordeu o resto por evasão"}, effects: []effect{skim(55, 75), stain()}},
+					{weight: 20, texts: []string{"A Federal pegou a remessa no meio do caminho e {@} saiu do banco algemado"}, effects: []effect{skim(40, 60), nabbed()}},
+				}},
+				{label: "🕴️ Dar uma carteirada", risk: midRisk, needs: lawman, endings: []ending{
+					{weight: 60, texts: []string{"{@} mostrou o distintivo, o fiscal engoliu seco e arquivou o processo"}},
+					{weight: 40, texts: []string{"O fiscal anotou o nome de {@} e mandou pra corregedoria junto com a cobrança"}, effects: []effect{skim(15, 25), stain()}},
+				}},
+			},
+			idle: ending{texts: []string{"{@} deixou a carta na mesa tanto tempo que ela virou descanso de copo. O leão, por enquanto, não voltou"}},
+		},
 	},
 }

@@ -138,6 +138,8 @@ func checkPlaces(t *testing.T, sc listedScenario, label string, fx effect) {
 			idle = !tooled(p)
 		case refundEffect:
 			idle = !slices.Contains(victimPlaces, p)
+		case skimEffect:
+			idle = p != windfallPlace
 		}
 		if idle {
 			t.Errorf("%s/%s: %T não faz nada em %s", sc.id, label, fx, p)
@@ -179,7 +181,7 @@ func checkEffect(t *testing.T, sc listedScenario, label string, fx effect, ids m
 		if ids[v.id] == 0 || v.after <= 0 {
 			t.Errorf("%s/%s: plant de evento desconhecido %q ou sem prazo", sc.id, label, v.id)
 		}
-	case earnEffect, loseEffect, injureEffect, refundEffect, fansEffect, unfollowEffect:
+	case earnEffect, loseEffect, skimEffect, injureEffect, refundEffect, fansEffect, unfollowEffect:
 		checkRange(t, sc, label, fx)
 	}
 }
@@ -194,6 +196,11 @@ func checkRange(t *testing.T, sc listedScenario, label string, fx effect) {
 		bounds["lose"] = [2]int64{v.lo, v.hi}
 		if v.hi > 30 {
 			t.Errorf("%s/%s: lose acima de 30%% do saldo", sc.id, label)
+		}
+	case skimEffect:
+		bounds["skim"] = [2]int64{v.lo, v.hi}
+		if v.hi > 100 {
+			t.Errorf("%s/%s: skim acima de 100%% da bolada", sc.id, label)
 		}
 	case injureEffect:
 		bounds["injure"] = [2]int64{v.lo, v.hi}
@@ -280,14 +287,14 @@ func TestEventEffects(t *testing.T) {
 	}
 
 	all := []effect{
-		earn(50, 150), lose(5, 10), gain(2, "baseado"), forfeit("baseado", 1), findLoot(), injure(5, 10), heal(5),
+		earn(50, 150), lose(5, 10), skim(10, 20), gain(2, "baseado"), forfeit("baseado", 1), findLoot(), injure(5, 10), heal(5),
 		buzz("baseado"), nabbed(), stain(), enchant("sorte"), enchant("azar"), enchant("purificacao"), grudge("dizimo"), grudge("assombracao"), refresh(), delay(time.Minute),
 		breakTool(), plant("teste", time.Hour), refund(5, 10), fans(5, 10), unfollow(5, 10), repealCasino(), injure(200, 200), perish(),
 	}
 	for _, place := range eventPlaces {
 		reset(t, "")
 		for _, fx := range all {
-			run := eventRun{chat: chat, acc: acc, victim: victim, job: job, place: place, stake: 100, now: time.Now()}
+			run := eventRun{chat: chat, acc: acc, victim: victim, job: job, place: place, stake: 100, haul: 5000, now: time.Now()}
 			if _, err := s.playEvent(ctx, run, eventPlay{ending: ending{effects: []effect{fx}}}); err != nil {
 				t.Errorf("%s: efeito %T: %v", place, fx, err)
 			}
@@ -303,7 +310,7 @@ func TestEventEffects(t *testing.T) {
 		for _, ch := range sc.choices {
 			for _, e := range ch.endings {
 				reset(t, ch.uses)
-				run := eventRun{chat: chat, acc: acc, victim: victim, job: job, place: place, stake: 100, now: time.Now()}
+				run := eventRun{chat: chat, acc: acc, victim: victim, job: job, place: place, stake: 100, haul: 5000, now: time.Now()}
 				res, err := s.playEvent(ctx, run, eventPlay{choice: &ch, price: ch.price.of(10000), ending: e})
 				if err != nil {
 					t.Errorf("%s/%s: %v", sc.id, ch.label, err)

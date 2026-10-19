@@ -6,6 +6,7 @@ const (
 	stakeRiskFloor = 500
 	stakeRiskStep  = 0.035
 	stakeRiskMax   = 0.15
+	decreeRiskStep = 0.0045
 )
 
 func stakeRisk(stake int64) float64 {
@@ -16,5 +17,5 @@ func stakeRisk(stake int64) float64 {
 }
 
 func (pb PrizeBoost) Risk(stake int64) float64 {
-	return stakeRisk(stake) + float64(min(pb.heat, streakHeatMax))/100
+	return stakeRisk(stake) + float64(min(pb.heat, streakHeatMax))/100 + float64(pb.decree)*decreeRiskStep
 }
