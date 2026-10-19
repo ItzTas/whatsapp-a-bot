@@ -33,7 +33,10 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `jailTime` das profissões que prendem também é ele), e o `jailFactor` da profissão de quem é preso
   e o decreto de pena somam ou tiram uma porcentagem desse tempo (`sentence`); caminho novo de
   cadeia usa o `baseJail` e não um tempo próprio; o `arrestEvery` é a espera entre prisões (coluna
-  `prisao_em`). A saída da cadeia fica em `preso_ate` na `carteiras`. Toda ida pra cadeia
+  `prisao_em`). O `tipoff` de quem vai preso (hoje só o Scanner da polícia, muamba do
+  `!mercadonegro`) tira chance do `arrestOdds` do `!prender` (inclusive o do calote do `!agiota`):
+  quando ele acerta, o `arrest` volta com `dismissed`, a espera de quem prendeu já foi gasta e o
+  `crime_em` continua, então dá pra tentar de novo. O `!denunciar` não olha o `tipoff`. A saída da cadeia fica em `preso_ate` na `carteiras`. Toda ida pra cadeia
   (`!prender`, `!denunciar`, X-9, pego no `!matar`, no `!sequestrar`, no `!assalto` e no desvio da
   `!igreja`) cobra uma
   multa de `fineMinPercent` a `fineMaxPercent` por cento do saldo e corta `arrestEaseCut` por cento

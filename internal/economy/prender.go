@@ -92,7 +92,7 @@ func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 	if copJob.jailTime == 0 {
 		sentence, every = Profession{jailTime: baseJail}.sentence(suspectJob), copJob.collectionEvery()
 	}
-	a, err := b.Wallets.arrest(ctx, chat, copAcc, suspectAcc, cooldown{column: "prisao_em", every: copJob.hasted(every)}, copJob.abuse(arrestAbuse), sentence, arrestOdds{chance: 1, immunity: suspectJob.immunity()}, owed != nil, true, time.Now())
+	a, err := b.Wallets.arrest(ctx, chat, copAcc, suspectAcc, cooldown{column: "prisao_em", every: copJob.hasted(every)}, copJob.abuse(arrestAbuse), sentence, arrestOdds{chance: 1 - suspectJob.tipoff, immunity: suspectJob.immunity()}, owed != nil, true, time.Now())
 	if err != nil {
 		return fmt.Errorf("prender: %w", err)
 	}
@@ -112,7 +112,7 @@ func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 
 func debtArrestText(a arrest, copJob, suspectJob Profession, sentence time.Duration, owed *debt) string {
 	cop, suspect := owed.lender.JID, owed.debtor.JID
-	if a.held > 0 || a.wait > 0 || a.immune {
+	if a.held > 0 || a.wait > 0 || a.immune || a.dismissed {
 		return arrestText(a, copJob, suspectJob, sentence, cop, suspect)
 	}
 	return fmt.Sprintf("⚖️ @%s cansou de esperar e mandou prender @%s por calote! Fica %s na cadeia, sem poder apostar, roubar nem furtar", cop.User, suspect.User, core.FormatWait(sentence)) +
@@ -173,6 +173,9 @@ func arrestText(a arrest, copJob, suspectJob Profession, sentence time.Duration,
 	}
 	if a.immune {
 		return immunityText(cop, suspect) + a.abuse.note("Abusou do poder e pulou a papelada, mas a imunidade segurou mesmo assim")
+	}
+	if a.dismissed {
+		return fmt.Sprintf("📡 @%s ouviu no scanner que a viatura de @%s tava chegando e meteu o pé antes! O crime continua na ficha, então dá pra tentar de novo depois da papelada", suspect.User, cop.User) + a.abuse.note("Abusou do poder e pulou a papelada, mas o suspeito escapou mesmo assim")
 	}
 	if a.abuse.used {
 		return fmt.Sprintf("😈 %s @%s abusou do poder, pulou a papelada e prendeu @%s pelo crime de %s atrás! Fica %s na cadeia, sem poder apostar, roubar nem furtar. %s", copJob.badge(), cop.User, suspect.User, core.FormatWait(a.crimeAgo), core.FormatWait(sentence), a.abuse.nextText()) + jailFactorText(suspect, suspectJob) + paidFineText(a.fine, cop)

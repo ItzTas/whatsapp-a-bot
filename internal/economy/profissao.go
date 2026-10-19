@@ -196,6 +196,7 @@ type Profession struct {
 	escapeBonus   float64
 	releaseChance float64
 	elusive       bool
+	tipoff        float64
 
 	reportBonus float64
 	noSnitch    bool
@@ -480,6 +481,7 @@ func (p Profession) perks() []string {
 		{p.heistBonus < 0, fmt.Sprintf("🤦 Atrapalha o !assalto: a equipe perde %d%% de chance", percent(-p.heistBonus))},
 		{p.jailFactor > 0, fmt.Sprintf("⛓️ Quando é preso no !prender ou no !assalto, fica %d%% mais tempo na cadeia", p.jailFactor)},
 		{p.jailFactor < 0, fmt.Sprintf("🗝️ Quando é preso no !prender ou no !assalto, fica %d%% menos tempo na cadeia", -p.jailFactor)},
+		{p.tipoff > 0, fmt.Sprintf("📡 Escuta a frequência da polícia: %d%% de chance de escapar quando alguém tenta te !prender", percent(p.tipoff))},
 		{p.elusive, "👻 Fica invisível quando o crime dá errado: nunca é pego(a) na hora no !sequestrar, no !matar, no !fugir @pessoa nem no !assalto"},
 		{p.escapeBonus > 0, fmt.Sprintf("🏃 +%d%% de chance no !fugir da cadeia e de escapar quando o !assalto dá errado", percent(p.escapeBonus))},
 		{p.escapeBonus < 0, fmt.Sprintf("👀 %d%% menos chance no !fugir e de escapar quando o !assalto dá errado: todo mundo fica de olho", percent(-p.escapeBonus))},

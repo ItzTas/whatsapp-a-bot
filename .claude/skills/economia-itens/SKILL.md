@@ -220,8 +220,11 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   `!luxo`, com outro sal), e cada item tem um preço do dia entre `blackMarketMinPercent` e
   `blackMarketMaxPercent` do `value`. O receptador (`!mercadonegro vender`) paga
   `blackMarketBuyback` por cento desse preço, e o `!vender` comum recusa item ilegal. Além do estoque
-  do dia, a muamba (`hotGear`: ferramenta lendária com `tool` e equipamento com `relicLure`, hoje as
-  três ferramentas lendárias de extração e a Bússola do relicário) chega pelo `hotGearArrivals`. As
+  do dia, a muamba (`hotGear`: ferramenta lendária com `tool`, equipamento com `relicLure` e item com
+  `hot`, hoje as três ferramentas lendárias de extração, a Bússola do relicário e o Scanner da
+  polícia) chega pelo `hotGearArrivals`. O item com `hot` é `unboxable()`, então só sai da muamba
+  (e do `!criar`/`!milagre`). O Scanner da polícia vale pelo `flex` e soma `scannerTipoff` no
+  `tipoff` da profissão, a chance de escapar do `!prender` (skill `economia-crime`). As
   ferramentas (`hotTool`) dividem um sorteio só: com `hotToolChance` vem uma delas, sorteada entre
   todas, então nunca aparecem duas no mesmo dia. O resto da muamba tem `hotGearChance` de chegar,
   cada item num sorteio próprio do `dailyRand`. Todo dia chega também um implante (item com

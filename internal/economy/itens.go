@@ -31,6 +31,7 @@ const (
 	alarmItemID     = "alarme"
 	vestItemID      = "colete"
 	forgedReleaseID = "alvara-falso"
+	scannerTipoff   = 0.25
 )
 
 type limiter struct {
@@ -118,6 +119,7 @@ type item struct {
 	upgrades  string
 	graft     *implant
 	networks  []string
+	hot       bool
 }
 
 type stack struct {
@@ -1082,6 +1084,8 @@ var catalog = append([]item{
 		forms: bendegoID, shards: 4},
 	{id: bendegoID, name: "Meteorito do Bendegó", emoji: "☄️", rarity: primordial, value: 150_000, aliases: []string{"bendego"},
 		gear: &gear{activities: []string{"!pescar", "!minerar", "!vasculhar", "!catar"}, pull: 1, alwaysFinds: true}},
+	{id: "scanner-da-policia", name: "Scanner da polícia", emoji: "📡", rarity: epic, value: 6_000, hot: true, aliases: []string{"scanner", "escuta da policia", "radio da policia"},
+		flex: &flex{effect: fmt.Sprintf("fica na frequência da polícia: %d%% de chance de ouvir a viatura chegando e escapar quando alguém tenta te !prender", percent(scannerTipoff)), apply: func(p Profession) Profession { p.tipoff += scannerTipoff; return p }}},
 }, implantGoods()...)
 
 func itemByID(id string) (item, bool) {
@@ -1398,7 +1402,7 @@ func weightedIndex(n int, weight func(i int) int) int {
 }
 
 func (it item) unboxable() bool {
-	return it.luxury || it.illegal || it.rarity >= mythic || it.relicOdds > 0 || it.upgrades != "" || it.graft != nil
+	return it.luxury || it.illegal || it.hot || it.rarity >= mythic || it.relicOdds > 0 || it.upgrades != "" || it.graft != nil
 }
 
 func upgradeOf(base item) (item, bool) {

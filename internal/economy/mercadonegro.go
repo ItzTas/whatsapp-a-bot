@@ -154,7 +154,7 @@ func hotTool(it item) bool {
 }
 
 func hotGear(it item) bool {
-	return hotTool(it) || (it.gear != nil && it.gear.relicLure > 0)
+	return hotTool(it) || it.hot || (it.gear != nil && it.gear.relicLure > 0)
 }
 
 func oneOfAKind(it item) bool {
@@ -337,7 +337,7 @@ func lethalDrugs() string {
 func hotGearLabels() string {
 	var labels []string
 	for _, it := range catalog {
-		if hotGear(it) && !it.gear.tool {
+		if hotGear(it) && !hotTool(it) {
 			labels = append(labels, it.label())
 		}
 	}
