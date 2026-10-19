@@ -217,7 +217,7 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `!roubar` (veja abaixo).
 - Roubo de saldo tem duas travas (`escudo.go`, `ficha.go`):
   - O escudo: quando um `!roubar` ou uma `!quadrilha` dá certo, o `raiseShield` grava
-    `escudo_ate` (agora mais `robShield`) na vítima, e enquanto ele não passa o `shieldOn` barra
+    `escudo_ate` (agora mais `robShield`, ou menos se ela tá marcada como alvo fácil, veja abaixo) na vítima, e enquanto ele não passa o `shieldOn` barra
     os dois antes de carimbar espera ou marcar crime de alguém. A `!quadrilha` checa o escudo
     também ao abrir (`shieldLeft`). O `!furtar` não olha o escudo. O `!saldo` e o `!tu` mostram o
     tempo que falta (`shieldText`).
@@ -244,10 +244,14 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `premio_aposta_em` da `carteiras`). O `NoteBet` chama o `noteJackpot`, que guarda o lucro de
   toda aposta de pelo menos `jackpotMin`, somando com o prêmio anterior se ele ainda tá dentro da
   `jackpotWindow`. No `!roubar` (`rob`) e na `!quadrilha` (`gangRob`), o `freshJackpot` lê o
-  prêmio dentro da transação (limitado ao saldo, zero se já venceu): a chance ganha
-  `jackpotRobBonus` (`jackpotOdds`) e o `looted` tira a porcentagem do prêmio cheia, sem as
-  faixas do `exposed`, e o resto do saldo pelas faixas. O roubo que dá certo zera o prêmio junto
-  do escudo (`robbedVictim`), e o `jackpotText` avisa na resposta. Não confundir com o evento
+  prêmio dentro da transação (limitado ao saldo, zero se já venceu): a espera do roubo de quem
+  ataca cai `jackpotWaitCut` (`jackpotPace`, lido antes do `stampOrAbuse` no `rob` e no
+  `robWait` da entrada da `!quadrilha`, que acha a vítima pelo `gangVictim`), a chance ganha
+  `jackpotRobBonus` (`jackpotOdds`), o alarme dela perde `jackpotAlarmCut` de chance de disparar
+  (`jackpotAlarm`, por cima do `alarmChance` ou do `gangAlarmChance`) e o `looted` tira a porcentagem do prêmio cheia, sem as
+  faixas do `exposed`, e o resto do saldo pelas faixas. O roubo que dá certo não apaga o prêmio:
+  a marca fica até a `jackpotWindow` acabar, e o escudo que a vítima ganha é o `jackpotShield`,
+  `robShield` com `jackpotShieldCut` a menos. O `jackpotText` avisa na resposta. Não confundir com o evento
   `bolada` (`bolada.go`), que olha o saldo em memória e não mexe em roubo.
 - O abuso de poder (`abuseKinds` em `prender.go`) deixa usar um comando mesmo com a espera dele
   pendente. Hoje tem quatro tipos: prisão (`!prender`), trabalho (`!trabalhar`), roubo (`!roubar`) e

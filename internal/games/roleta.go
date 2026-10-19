@@ -112,7 +112,7 @@ func (b *bot) roleta(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 
-	fired, chambersLeft := gun.pull(economy.StakeRisk(bet.stake))
+	fired, chambersLeft := gun.pull(bet.boost.Risk(bet.stake))
 	payoff := b.payRoletaBet(ctx, chat, bet, fired, chambersLeft)
 	select {
 	case <-ctx.Done():

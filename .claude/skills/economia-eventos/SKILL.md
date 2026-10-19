@@ -61,7 +61,10 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   presidente.
 - **Escolha do evento.** O `pickScenario` dá prioridade a um evento marcado com `plant` que já venceu
   (`eventos_marcados`), senão sorteia pelo `weight` entre os que cabem (`fits`: `places`, `areas`, `jobs`,
-  `when` e pelo menos 2 opções liberadas). O peso é o da raridade (`commonEvent`, `rareEvent`,
+  `when` e pelo menos 2 opções liberadas). Os lugares dos livros especiais (apostas, `tudo`, `bolada` e
+  os do cassino furioso, juntos no `sealedPlaces`) são fechados: lá só sai evento que cita o lugar no
+  `places` (`covers`), então os Gerais, os Raros universais e os de área ou profissão nunca aparecem
+  neles. Livro especial novo com gatilho próprio entra no `sealedPlaces`. O peso é o da raridade (`commonEvent`, `rareEvent`,
   `legendaryEvent`) ajustado pelo quanto o evento é específico: evento de profissão (`jobs`) pesa
   `jobEventWeight` por cento e evento universal (sem `places` nem `areas`, os Gerais e boa parte dos Raros)
   pesa `universalEventWeight` por cento, pra que cada atividade mostre mais os eventos dela do que os gerais.

@@ -20,6 +20,7 @@ func (b *Bot) Typing(ctx context.Context, chat types.JID) (stop func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
+		defer b.Rescue(ctx, chat)
 		defer close(done)
 		ticker := time.NewTicker(typingRefresh)
 		defer ticker.Stop()

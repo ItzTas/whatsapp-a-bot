@@ -258,6 +258,7 @@ func (b *bot) dropJokenpo(prompts [2]*core.PrivatePrompt) {
 }
 
 func (b *bot) runJokenpo(ctx context.Context, match *jokenpoMatch, prompts [2]*core.PrivatePrompt) {
+	defer b.Rescue(ctx, match.chat)
 	defer b.dropJokenpo(prompts)
 	if !match.wasInvited() && !b.startJokenpo(ctx, match) {
 		return

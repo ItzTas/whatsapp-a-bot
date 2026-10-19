@@ -186,6 +186,7 @@ func (i *impeachment) partialText() string {
 }
 
 func (b *bot) closeImpeachment(ctx context.Context, chat types.JID, i *impeachment) {
+	defer b.Rescue(ctx, chat)
 	select {
 	case <-ctx.Done():
 		return

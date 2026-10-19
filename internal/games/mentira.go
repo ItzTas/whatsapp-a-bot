@@ -137,11 +137,13 @@ func (s mentiraState) game(chat types.JID) *mentiraGame {
 }
 
 func (b *bot) playMentira(ctx context.Context, game *mentiraGame, step func(context.Context, *mentiraGame)) {
+	defer b.Rescue(ctx, game.chat)
 	defer b.releaseMentira(ctx, game)
 	step(ctx, game)
 }
 
 func (b *bot) writeMentira(ctx context.Context, game *mentiraGame, prompt *core.PrivatePrompt) {
+	defer b.Rescue(ctx, game.chat)
 	defer b.releaseMentira(ctx, game)
 	defer b.DropPrivate(prompt)
 	if !game.wasInvited() && !b.inviteMentira(ctx, game) {

@@ -279,6 +279,14 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   tem o desconto da profissão. Item de loja com `days` (dias da semana, em BRT) só aparece no "Só
   hoje" nesses dias (`weekdayStock`), fora das vagas sorteadas, e o `!comprar` recusa nos outros
   (`onSale`); hoje só a Tele Sena, aos domingos.
+- Item com `carry` tem um limite por mochila (hoje só o Alarme, com `alarmCarry` = 3). Quem a
+  pessoa escolhe passar recusa antes de mexer em qualquer coisa: o `roomFor` devolve `errBagFull` no
+  `buyItem` (`!comprar` e `!luxo`), no `moveItems` (`!dar` e `!vender @pessoa`) e no `shiftItems`
+  quando tira do imóvel, e cada comando responde com o `carryRefusal`. O resto (caixa, evento,
+  achado do `!trabalhar`, `!criar`, `!milagre`) passa pelo `trimCarry` no `addGradesTo`, que tira o
+  que sobrou do limite. No `!furtar`, ladrão que já tá no limite tira o item da vítima e joga fora
+  (`dumped`). Quem já tinha mais que o limite antes dele existir fica com o que tem até o próximo
+  item entrar.
 - O `resets` (zerar esperas no `!usar`) sempre vem com um `limit` (`limiter` em `itens.go`), que é
   a espera própria entre usos e os textos dela: a `caffeine` (coluna `cafeina_em`) do café, do
   energético e do chimarrão, e o `disguise` (coluna `disfarce_em`) do Kit disfarce, que zera o

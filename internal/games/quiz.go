@@ -118,6 +118,7 @@ func (b *bot) restoreQuiz(ctx context.Context, saved core.SavedGame) error {
 }
 
 func (b *bot) revealQuiz(ctx context.Context, chat types.JID, pollID types.MessageID, round *quizRound) {
+	defer b.Rescue(ctx, chat)
 	defer b.QuizChats.Delete(chat)
 	select {
 	case <-ctx.Done():

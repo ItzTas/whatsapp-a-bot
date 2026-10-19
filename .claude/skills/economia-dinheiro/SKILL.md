@@ -172,7 +172,8 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   imóvel somado aos outros bônus e ocupa uma vaga da casa, porque não tem prazo pra acabar. Consulta que precisa dos tipos contratados junto da carteira
   usa o `staffKinds` (um `GROUP_CONCAT`, com a carteira no alias `c`) e o `kindsOf`. Nunca renomeie um `id`: o empregado com o id antigo some. O `!contratar` é um
   atalho do `!empregados contratar`: os dois chamam o `hire`, que só muda quantas palavras pula
-  antes do nome do empregado.
+  antes do nome do empregado. Do mesmo jeito, o `!coletar empregados` (`coletar`) chama o
+  `collectStaff` do `!empregados coletar`.
 - Os títulos (`titulos` em `titulo.go`) são diferentes do `!apelido`: cada um tem um dono só por
   conversa (tabela `titulos`, PK `chat`, `titulo`), e o equipado fica na coluna `titulo` da
   `carteiras`, que aparece no `!saldo` e no `!ricos` (`titleBadge`). Tomar de alguém custa

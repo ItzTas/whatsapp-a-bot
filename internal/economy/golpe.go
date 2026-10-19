@@ -213,6 +213,7 @@ func (c *coup) partialText() string {
 }
 
 func (b *bot) closeCoup(ctx context.Context, chat types.JID, c *coup) {
+	defer b.Rescue(ctx, chat)
 	select {
 	case <-ctx.Done():
 		return

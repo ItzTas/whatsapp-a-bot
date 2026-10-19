@@ -1,0 +1,158 @@
+package main
+
+import (
+	"testing"
+)
+
+func TestWhitelistGate(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+
+	wantSilence(t, b.say(chat, ana, "!comandos"))
+	wantReply(t, b.say(chat, b.owner, "!whitelist"), "O grupo *Galera* entrou na whitelist")
+	wantReply(t, b.say(chat, ana, "!comandos"), "!comandos")
+}
+
+func TestOwnerCommandsIgnoreOthers(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+
+	wantSilence(t, b.say(chat, ana, "!whitelist"))
+	wantSilence(t, b.say(chat, ana, "!comandos"))
+}
+
+func TestMessagesRecordedOnlyWhereAllowed(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	open := b.group("Galera", ana)
+	closed := b.group("Trabalho", ana)
+	b.say(open, b.owner, "!whitelist")
+
+	b.say(open, ana, "bom dia")
+	b.say(open, ana, "alguém aí?")
+	b.say(closed, ana, "ninguém me ouve")
+
+	counts := map[string]int{}
+	rows, err := b.db.QueryContext(b.ctx, "SELECT chat, COUNT(*) FROM mensagens WHERE remetente = ? GROUP BY chat", ana.jid.User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var chat string
+		var n int
+		if err := rows.Scan(&chat, &n); err != nil {
+			t.Fatal(err)
+		}
+		counts[chat] = n
+	}
+	if counts[open.String()] != 2 || counts[closed.String()] != 0 {
+		t.Fatalf("esperava 2 mensagens no grupo liberado e nenhuma no outro, ficou %v", counts)
+	}
+}
+
+func TestModeGatesCommands(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.say(chat, b.owner, "!whitelist")
+
+	wantSilence(t, b.say(chat, ana, "!daily"))
+	wantReply(t, b.say(chat, b.owner, "!modo ativar economia"), "Modo *economia* ativado")
+	wantReply(t, b.say(chat, ana, "!daily"), "@"+ana.jid.User+" pegou o daily")
+	wantReply(t, b.say(chat, b.owner, "!modo desativar economia"), "Modo *economia* desativado")
+	wantSilence(t, b.say(chat, ana, "!saldo"))
+}
+
+func TestDailyOncePerDay(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.setup(chat, "economia")
+
+	wantReply(t, b.say(chat, ana, "!daily"), "pegou o daily e ganhou")
+	earned := b.balance(ana)
+	if earned <= 0 {
+		t.Fatalf("o daily não pôs moeda na carteira, saldo %d", earned)
+	}
+	wantReply(t, b.say(chat, ana, "!diario"), "já pegou o daily hoje")
+	if got := b.balance(ana); got != earned {
+		t.Fatalf("o segundo daily mudou o saldo de %d pra %d", earned, got)
+	}
+}
+
+func TestTransfer(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "economia")
+	b.say(chat, ana, "!daily")
+	start := b.balance(ana)
+
+	wantReply(t, b.say(chat, ana, "!pix "+mentionTag(bia)+" 10", bia), "mandou")
+	if got := b.balance(ana); got != start-10 {
+		t.Fatalf("Ana devia ficar com %d, ficou com %d", start-10, got)
+	}
+	if got := b.balance(bia); got != 10 {
+		t.Fatalf("Bia devia receber 10, tem %d", got)
+	}
+	wantReply(t, b.say(chat, bia, "!transferir "+mentionTag(ana)+" 999999", ana), "Você só tem")
+	wantReply(t, b.say(chat, bia, "!saldo"), "@"+bia.jid.User+" tem")
+}
+
+func TestExclusiveModePausesEconomy(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.setup(chat, "economia")
+
+	wantReply(t, b.say(chat, b.owner, "!modo ativar cidadedorme"), "Modo *cidadedorme* ativado")
+	wantSilence(t, b.say(chat, ana, "!daily"))
+	wantReply(t, b.say(chat, b.owner, "!modo desativar cidadedorme"), "Modo *cidadedorme* desativado")
+	wantReply(t, b.say(chat, ana, "!daily"), "pegou o daily")
+}
+
+func TestMarriageWithConsent(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "romance consentimento")
+
+	wantReply(t, b.say(chat, ana, "!casar "+mentionTag(bia), bia), mentionTag(ana)+" pediu "+mentionTag(bia)+" em casamento")
+	wantReply(t, b.say(chat, bia, "!aceitar"), "acabaram de se casar")
+	wantReply(t, b.say(chat, ana, "!casar "+mentionTag(bia), bia), "já são casados")
+}
+
+func TestTicTacToe(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "jogos")
+
+	wantReply(t, b.say(chat, ana, "!velha "+mentionTag(bia), bia), "Jogo da velha!")
+	wantReply(t, b.say(chat, bia, "1"), "agora é a vez de "+mentionTag(ana))
+	b.say(chat, ana, "1")
+	wantReply(t, b.say(chat, bia, "1"), "A casa 1 já tá ocupada")
+	b.say(chat, bia, "4")
+	b.say(chat, ana, "2")
+	b.say(chat, bia, "5")
+	wantReply(t, b.say(chat, ana, "3"), mentionTag(ana)+" venceu!")
+	wantSilence(t, b.say(chat, bia, "6"))
+}
+
+func TestGameSurvivesRestart(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "jogos")
+	b.say(chat, ana, "!velha "+mentionTag(bia), bia)
+	b.say(chat, ana, "5")
+
+	b.restart()
+
+	wantReply(t, b.say(chat, ana, "1"), "agora é a vez de "+mentionTag(bia))
+	wantReply(t, b.say(chat, bia, "5"), "A casa 5 já tá ocupada")
+	wantReply(t, b.say(chat, bia, "1"), mentionTag(bia)+" jogou na casa 1")
+}

@@ -94,6 +94,9 @@ func (b *bot) unstashItem(ctx context.Context, evt *events.Message) error {
 		return b.SendText(ctx, chat, "Você só tem "+quantityLabel(it, have)+" guardado em casa")
 	}
 	grades, err := b.Wallets.unstash(ctx, chat, acc, it.id, quantity)
+	if errors.Is(err, errBagFull) {
+		return b.SendText(ctx, chat, carryRefusal(it, "sua mochila"))
+	}
 	if errors.Is(err, errNoItems) {
 		return b.SendText(ctx, chat, "O que tinha em casa mudou no meio do caminho 🤨 Confere no !imovel guardados")
 	}
@@ -199,6 +202,11 @@ func (s *walletStore) unstash(ctx context.Context, chat types.JID, acc core.Acco
 }
 
 func shiftItems(ctx context.Context, tx *ledgerTx, from, to string, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
+	if to == backpackTable {
+		if err := roomFor(ctx, tx, chat, acc, id, quantity); err != nil {
+			return nil, err
+		}
+	}
 	wear, err := wearIn(ctx, tx, from, chat, acc, id)
 	if err != nil {
 		return nil, err

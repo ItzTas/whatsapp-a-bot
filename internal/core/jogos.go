@@ -42,6 +42,7 @@ func (s StoredAccount) Account() Account {
 }
 
 func (b *Bot) RestoreGames(ctx context.Context) {
+	defer b.Rescue(ctx, types.EmptyJID)
 	defer close(b.gamesReady)
 	if !b.Client.WaitForConnection(gameConnectWait) {
 		b.Client.Log.Warnf("o bot não conectou em %s, retomando os jogos assim mesmo", gameConnectWait)

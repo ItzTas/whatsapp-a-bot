@@ -252,6 +252,7 @@ func (b *bot) answerStop(ctx context.Context, evt *events.Message, round *stopRo
 }
 
 func (b *bot) runStop(ctx context.Context, chat types.JID, round *stopRound) {
+	defer b.Rescue(ctx, chat)
 	if !round.wait(ctx) {
 		b.stopGames.CompareAndDelete(chat.String(), round)
 		return
@@ -261,6 +262,7 @@ func (b *bot) runStop(ctx context.Context, chat types.JID, round *stopRound) {
 }
 
 func (b *bot) finishStop(ctx context.Context, chat types.JID, round *stopRound) {
+	defer b.Rescue(ctx, chat)
 	defer b.stopGames.CompareAndDelete(chat.String(), round)
 	if len(round.sheets) == 0 {
 		b.endStop(ctx, chat, round)

@@ -134,6 +134,16 @@ var eventBooks = []eventBook{
 
 var eventCatalog = listScenarios(eventBooks)
 
+var sealedPlaces = placesOf(gamblingEvents, allInEvents, windfallEvents, casinoWrathEvents)
+
+func placesOf(books ...eventBook) []string {
+	var places []string
+	for _, sc := range listScenarios(books) {
+		places = append(places, sc.places...)
+	}
+	return places
+}
+
 func listScenarios(books []eventBook) []listedScenario {
 	var listed []listedScenario
 	for _, book := range books {
@@ -156,11 +166,18 @@ func scenarioByID(id string) (listedScenario, bool) {
 }
 
 func (sc scenario) fits(c eventCase) bool {
-	return (len(sc.places) == 0 || slices.Contains(sc.places, c.place)) &&
+	return sc.covers(c.place) &&
 		(len(sc.areas) == 0 || slices.Contains(sc.areas, c.job.area)) &&
 		(len(sc.jobs) == 0 || slices.Contains(sc.jobs, c.job.name)) &&
 		(sc.when == nil || sc.when(c)) &&
 		len(sc.open(c)) >= 2
+}
+
+func (sc scenario) covers(place string) bool {
+	if slices.Contains(sc.places, place) {
+		return true
+	}
+	return len(sc.places) == 0 && !slices.Contains(sealedPlaces, place)
 }
 
 func (sc scenario) open(c eventCase) []int {

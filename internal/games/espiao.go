@@ -319,6 +319,7 @@ func (s espiaoState) game() *espiaoGame {
 }
 
 func (b *bot) driveEspiao(ctx context.Context, chat types.JID, game *espiaoGame) {
+	defer b.Rescue(ctx, chat)
 	defer b.releaseEspiao(ctx, chat, game)
 	steps := map[espiaoPhase]espiaoStep{
 		espiaoLobby:    b.closeEspiaoLobby,

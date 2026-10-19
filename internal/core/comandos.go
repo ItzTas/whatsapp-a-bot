@@ -141,6 +141,7 @@ func commandsMenuLifetime(arg string) (time.Duration, bool) {
 }
 
 func (b *Bot) revokeCommandsMenu(ctx context.Context, chat types.JID, id types.MessageID, lifetime time.Duration) {
+	defer b.Rescue(ctx, chat)
 	select {
 	case <-ctx.Done():
 		return

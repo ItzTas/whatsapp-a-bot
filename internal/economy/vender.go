@@ -515,6 +515,7 @@ func (b *bot) closeDeal(ctx context.Context, o *itemOffer) (string, error) {
 	cancelled := map[error]string{
 		errNoItems: fmt.Sprintf("❌ @%s não tem mais %s, então a venda foi cancelada", o.seller.JID.User, quantityLabel(o.item, o.quantity)),
 		ErrNoFunds: fmt.Sprintf("❌ @%s não tem %s pra pagar, então a venda foi cancelada", o.buyer.JID.User, Coins(o.price)),
+		errBagFull: carryRefusal(o.item, "a de @"+o.buyer.JID.User) + ", então a venda foi cancelada",
 	}
 	for reason, text := range cancelled {
 		if errors.Is(err, reason) {

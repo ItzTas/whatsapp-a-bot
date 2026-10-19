@@ -208,6 +208,7 @@ func (b *bot) enterRace(ctx context.Context, chat types.JID, round *raceRound, b
 }
 
 func (b *bot) runRace(ctx context.Context, chat types.JID, round *raceRound, wait time.Duration) {
+	defer b.Rescue(ctx, chat)
 	defer b.raceRounds.CompareAndDelete(chat.String(), round)
 	select {
 	case <-ctx.Done():
@@ -342,7 +343,7 @@ func (r *raceRound) start() bool {
 
 func (r *raceRound) rig() {
 	for _, bet := range r.bets {
-		if bet.horse != r.winner || rand.Float64() >= StakeRisk(bet.stake) {
+		if bet.horse != r.winner || rand.Float64() >= bet.boost.Risk(bet.stake) {
 			continue
 		}
 		others := slices.Clone(r.horses)

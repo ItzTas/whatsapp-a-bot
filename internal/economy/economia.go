@@ -192,7 +192,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	}
 
 	stake := bet.Stake
-	payout, result := play(stake, rand.Float64() < bet.job.jinx()+StakeRisk(stake))
+	payout, result := play(stake, rand.Float64() < bet.job.jinx()+bet.Boost.Risk(stake))
 	payout = bet.Boost.Pay(stake, payout)
 	saved := bet.Boost.Rescue(stake, payout)
 	refund := bet.job.refund(stake, payout+saved)

@@ -76,7 +76,7 @@ func (b *bot) quadrilha(ctx context.Context, evt *events.Message) error {
 	if target != nil && target.Key == acc.Key {
 		return b.SendText(ctx, chat, "Montar quadrilha pra roubar você mesmo? Isso se chama mudar o dinheiro de bolso 🤡")
 	}
-	refusal, err := b.robWait(ctx, chat, acc)
+	refusal, err := b.robWait(ctx, chat, acc, target)
 	if err != nil {
 		return err
 	}
@@ -116,12 +116,21 @@ func (b *bot) sendMentionsText(ctx context.Context, chat types.JID, text string,
 	return err
 }
 
-func (b *bot) robWait(ctx context.Context, chat types.JID, acc core.Account) (string, error) {
-	job, err := b.ProfessionOf(ctx, chat, acc)
-	if err != nil {
-		return "", err
+func (b *bot) robWait(ctx context.Context, chat types.JID, acc core.Account, target *core.Account) (string, error) {
+	now := time.Now()
+	var (
+		job     Profession
+		jackpot int64
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
+	if victim, found := b.gangVictim(chat, target); found {
+		g.Go(func() (err error) { jackpot, err = freshJackpot(gctx, b.Wallets.db, chat, victim, now); return err })
 	}
-	wait, err := b.Wallets.cooldownLeft(ctx, chat, acc, job.robCooldown(), time.Now())
+	if err := g.Wait(); err != nil {
+		return "", fmt.Errorf("quadrilha: %w", err)
+	}
+	wait, err := b.Wallets.cooldownLeft(ctx, chat, acc, jackpotPace(job.robCooldown(), jackpot), now)
 	if err != nil {
 		return "", fmt.Errorf("quadrilha: %w", err)
 	}
@@ -129,6 +138,17 @@ func (b *bot) robWait(ctx context.Context, chat types.JID, acc core.Account) (st
 		return "", nil
 	}
 	return fmt.Sprintf("🚓 @%s ainda tá sendo procurado pela polícia. Espera %s pra roubar de novo", acc.JID.User, core.FormatWait(wait)), nil
+}
+
+func (b *bot) gangVictim(chat types.JID, target *core.Account) (core.Account, bool) {
+	if target != nil {
+		return *target, true
+	}
+	value, found := b.gangs.Load(chat.String())
+	if !found {
+		return core.Account{}, false
+	}
+	return value.(*gang).victim, true
 }
 
 func (b *bot) gangFor(ctx context.Context, chat types.JID, target *core.Account) (*gang, bool) {
@@ -220,6 +240,7 @@ func (g *gang) recruitText(acc core.Account, size int) string {
 }
 
 func (b *bot) expireGang(ctx context.Context, chat types.JID, g *gang) {
+	defer b.Rescue(ctx, chat)
 	select {
 	case <-ctx.Done():
 		return
@@ -299,11 +320,11 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.A
 		if err := stampGang(ctx, tx, chat, r.gangsters, now); err != nil {
 			return err
 		}
-		if r.jackpot, err = freshJackpot(ctx, tx, chat, victim, victimBalance, now); err != nil {
+		if r.jackpot, err = freshJackpot(ctx, tx, chat, victim, now); err != nil {
 			return err
 		}
 		r.chance = jackpotOdds(chance, r.jackpot)
-		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, gangAlarmChance(len(r.gangsters))); err != nil {
+		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, jackpotAlarm(gangAlarmChance(len(r.gangsters)), r.jackpot)); err != nil {
 			return err
 		}
 		if err := r.settle(ctx, tx, chat, victimBalance, r.chance); err != nil {
@@ -313,7 +334,7 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.A
 			return err
 		}
 		if r.success {
-			return robbedVictim(ctx, tx, chat, victim, now)
+			return raiseShield(ctx, tx, chat, victim, now.Add(jackpotShield(r.jackpot)))
 		}
 		return r.jailBroke(ctx, tx, chat, now)
 	})

@@ -431,7 +431,7 @@ func (h *blackjackHand) stand() {
 
 func (h *blackjackHand) dealerDraw() blackjackCard {
 	top := len(h.deck) - 1
-	if !h.busts(h.deck[top]) || rand.Float64() >= StakeRisk(h.stake) {
+	if !h.busts(h.deck[top]) || rand.Float64() >= h.boost.Risk(h.stake) {
 		return h.draw()
 	}
 	if i := slices.IndexFunc(h.deck, func(c blackjackCard) bool { return !h.busts(c) }); i >= 0 {

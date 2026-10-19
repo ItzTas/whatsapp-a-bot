@@ -79,28 +79,9 @@ func run(ctx context.Context) (err error) {
 	defer endSession(nil)
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "INFO", true))
-	b := core.New(client, gifs, messages, assistant)
-	econ, err := economy.New(ctx, b)
+	b, err := assemble(ctx, client, gifs, messages, assistant)
 	if err != nil {
 		return err
-	}
-	rom := romance.New(b, econ)
-	gms := games.New(b, econ)
-	intelligence := ai.New(b, econ, gms, rom)
-	modules := []module{
-		rom,
-		gms,
-		city.New(b),
-		meters.New(b, intelligence),
-		stats.New(b, econ),
-		jokes.New(b, econ, rom),
-		econ,
-		intelligence,
-		moderation.New(b),
-		utilities.New(b),
-	}
-	for _, m := range modules {
-		m.Register()
 	}
 	client.AddEventHandler(func(evt any) {
 		switch evt := evt.(type) {
@@ -128,6 +109,33 @@ func run(ctx context.Context) (err error) {
 		return nil
 	}
 	return context.Cause(sessionCtx)
+}
+
+func assemble(ctx context.Context, client *whatsmeow.Client, gifs map[string][]core.GIF, messages *core.MessageStore, assistant *llm.Assistant) (*core.Bot, error) {
+	b := core.New(client, gifs, messages, assistant)
+	econ, err := economy.New(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	rom := romance.New(b, econ)
+	gms := games.New(b, econ)
+	intelligence := ai.New(b, econ, gms, rom)
+	modules := []module{
+		rom,
+		gms,
+		city.New(b),
+		meters.New(b, intelligence),
+		stats.New(b, econ),
+		jokes.New(b, econ, rom),
+		econ,
+		intelligence,
+		moderation.New(b),
+		utilities.New(b),
+	}
+	for _, m := range modules {
+		m.Register()
+	}
+	return b, nil
 }
 
 func connect(ctx context.Context, client *whatsmeow.Client) error {

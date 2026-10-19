@@ -112,6 +112,10 @@ func (b *bot) dar(ctx context.Context, evt *events.Message) error {
 		return b.SendText(ctx, chat, "Você só tem "+quantityLabel(it, have))
 	}
 	grades, err := b.Wallets.giveItem(ctx, chat, fromAcc, toAcc, it.id, quantity)
+	if errors.Is(err, errBagFull) {
+		_, err = b.SendMentions(ctx, chat, carryRefusal(it, "a de @"+to.User), []types.JID{to})
+		return err
+	}
 	if errors.Is(err, errNoItems) {
 		return b.SendText(ctx, chat, "Sua mochila mudou no meio do caminho e não dá mais 🤨 Confere no !mochila")
 	}

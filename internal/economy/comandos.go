@@ -195,7 +195,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "roubar",
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de %d%% a %d%% do saldo dela, se der errado paga indenização 🦹 A porcentagem vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, então rico perde uma fatia bem menor (o valor de roubo aparece no !saldo). Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tem %d%% de chance de ele disparar e barrar o roubo. Quem acabou de ser roubado(a) fica %s sem poder ser roubado(a) de novo, e ladrão com menos de %s que é pego vai direto pra cadeia, porque não tem como pagar a indenização. Cada %s sem cometer crime dá %d%% de proteção, até %d%% (a ficha limpa aparece no !saldo). Quem lucrou %s ou mais numa aposta fica marcado(a) por %s: a chance de roubar sobe %d%% e o prêmio sai sem o desconto das faixas", robLootMin, robLootMax, core.FormatWait(robEvery), percent(alarmChance), core.FormatWait(robShield), Coins(brokeThief), core.FormatWait(cleanEvery), percent(cleanStep), percent(cleanMax), Coins(jackpotMin), core.FormatWait(jackpotWindow), percent(jackpotRobBonus))},
+				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de %d%% a %d%% do saldo dela, se der errado paga indenização 🦹 A porcentagem vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, então rico perde uma fatia bem menor (o valor de roubo aparece no !saldo). Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tem %d%% de chance de ele disparar e barrar o roubo. Quem acabou de ser roubado(a) fica %s sem poder ser roubado(a) de novo, e ladrão com menos de %s que é pego vai direto pra cadeia, porque não tem como pagar a indenização. Cada %s sem cometer crime dá %d%% de proteção, até %d%% (a ficha limpa aparece no !saldo). Quem lucrou %s ou mais numa aposta fica marcado(a) por %s: a chance de roubar sobe %d%%, o alarme perde %d%% de chance de disparar, a espera pra roubar essa pessoa cai %d%% e o prêmio sai sem o desconto das faixas. Ser roubado(a) não tira a marca, só deixa o escudo mais curto: %s", robLootMin, robLootMax, core.FormatWait(robEvery), percent(alarmChance), core.FormatWait(robShield), Coins(brokeThief), core.FormatWait(cleanEvery), percent(cleanStep), percent(cleanMax), Coins(jackpotMin), core.FormatWait(jackpotWindow), percent(jackpotRobBonus), percent(jackpotAlarmCut), percent(jackpotWaitCut), core.FormatWait(jackpotShield(1)))},
 			},
 			Run:          b.roubar,
 			BarredInJail: true,
@@ -619,6 +619,14 @@ func (b *bot) economyCommands() []core.Command {
 				{"!contratar <nome>", "o mesmo que !empregados contratar <nome>"},
 			},
 			Run: b.contratar,
+		},
+		{
+			Name:     "coletar",
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!coletar empregados", "o mesmo que !empregados coletar"},
+			},
+			Run: b.coletar,
 		},
 		{
 			Name:     "cofre",

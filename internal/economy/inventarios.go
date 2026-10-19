@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -16,7 +17,10 @@ const (
 	stashTable    = "guardados"
 )
 
-var errNoItems = errors.New("item insuficiente")
+var (
+	errNoItems = errors.New("item insuficiente")
+	errBagFull = errors.New("mochila no limite do item")
+)
 
 type haul struct {
 	found item
@@ -44,6 +48,7 @@ type theft struct {
 	item    item
 	grade   quality
 	success bool
+	dumped  bool
 	fine    int64
 	scuffle scuffle
 }
@@ -91,6 +96,9 @@ func loadStacks(ctx context.Context, q core.RowsQuerier, table string, chat type
 func (s *walletStore) buyItem(ctx context.Context, chat types.JID, acc core.Account, it item, quantity, cost int64, levy PixLevy) (balance int64, err error) {
 	tax := levy.cut(cost)
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
+		if err := roomFor(ctx, tx, chat, acc, it.id, quantity); err != nil {
+			return err
+		}
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
 			cost+tax, chat.String(), acc.Key, cost+tax,
@@ -163,6 +171,9 @@ func (s *walletStore) tradeItem(ctx context.Context, o *itemOffer) (grades []gra
 }
 
 func moveItems(ctx context.Context, tx *ledgerTx, chat types.JID, from, to core.Account, id string, quantity int64) ([]grade, error) {
+	if err := roomFor(ctx, tx, chat, to, id, quantity); err != nil {
+		return nil, err
+	}
 	wear, err := wearIn(ctx, tx, backpackTable, chat, from, id)
 	if err != nil {
 		return nil, err
@@ -347,6 +358,14 @@ func (t *theft) settle(ctx context.Context, tx *ledgerTx, chat types.JID, thief,
 	if !t.success {
 		return payTheftFine(ctx, tx, chat, thief, victim, t)
 	}
+	err := roomFor(ctx, tx, chat, thief, t.item.id, 1)
+	if errors.Is(err, errBagFull) {
+		t.dumped = true
+		return takeItems(ctx, tx, chat, victim, t.item.id, 1)
+	}
+	if err != nil {
+		return err
+	}
 	grades, err := moveItems(ctx, tx, chat, victim, thief, t.item.id, 1)
 	if err != nil {
 		return err
@@ -409,7 +428,48 @@ func addGradesTo(ctx context.Context, tx *ledgerTx, table string, chat types.JID
 	if table != backpackTable {
 		return nil
 	}
+	if err := trimCarry(ctx, tx, chat, acc, id); err != nil {
+		return err
+	}
 	return assembleShards(ctx, tx, chat, acc, id)
+}
+
+func heldIn(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string) (have int64, err error) {
+	err = tx.QueryRowContext(ctx, "SELECT COALESCE(SUM(quantidade), 0) FROM "+table+" WHERE chat = ? AND pessoa = ? AND item = ?",
+		chat.String(), acc.Key, id).Scan(&have)
+	return have, err
+}
+
+func roomFor(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string, quantity int64) error {
+	it, ok := itemByID(id)
+	if !ok || it.carry == 0 {
+		return nil
+	}
+	have, err := heldIn(ctx, tx, backpackTable, chat, acc, id)
+	if err != nil {
+		return err
+	}
+	if have+quantity > it.carry {
+		return errBagFull
+	}
+	return nil
+}
+
+func trimCarry(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string) error {
+	it, ok := itemByID(id)
+	if !ok || it.carry == 0 {
+		return nil
+	}
+	have, err := heldIn(ctx, tx, backpackTable, chat, acc, id)
+	if err != nil || have <= it.carry {
+		return err
+	}
+	_, err = takeGrades(ctx, tx, chat, acc, id, have-it.carry)
+	return err
+}
+
+func carryRefusal(it item, who string) string {
+	return fmt.Sprintf("🎒 Não cabe: cada mochila só aguenta %s, e %s passaria do limite", quantityLabel(it, it.carry), who)
 }
 
 func takeItems(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string, quantity int64) error {

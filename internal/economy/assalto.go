@@ -166,6 +166,7 @@ func heistGearList() string {
 }
 
 func (b *bot) expireHeist(ctx context.Context, chat types.JID, crew *heistCrew) {
+	defer b.Rescue(ctx, chat)
 	select {
 	case <-ctx.Done():
 		return

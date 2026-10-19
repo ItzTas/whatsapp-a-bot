@@ -592,7 +592,7 @@ func (s *walletStore) riggedAnimalDraw(ctx context.Context, at time.Time) (int, 
 	}
 	draw := rand.IntN(animalNumbers)
 	for _, t := range tickets {
-		if !t.bet.hits(draw) || rand.Float64() >= StakeRisk(t.bet.stake) {
+		if !t.bet.hits(draw) || rand.Float64() >= stakeRisk(t.bet.stake) {
 			continue
 		}
 		for t.bet.hits(draw) {

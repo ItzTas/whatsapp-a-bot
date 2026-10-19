@@ -176,6 +176,7 @@ func quemfalouOptions(owners core.MemberOwners, author types.JID) []types.JID {
 }
 
 func (b *bot) revealQuemfalou(ctx context.Context, chat types.JID, pollID types.MessageID, round *quemfalouRound) {
+	defer b.Rescue(ctx, chat)
 	select {
 	case <-ctx.Done():
 		return

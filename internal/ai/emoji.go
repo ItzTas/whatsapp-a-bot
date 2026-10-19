@@ -113,6 +113,7 @@ func (b *bot) emojiPuzzle(ctx context.Context, evt *events.Message, avoid []stri
 }
 
 func (b *bot) finishEmoji(ctx context.Context, chat types.JID, round *games.GuessRound, puzzle emojiPuzzle) {
+	defer b.Rescue(ctx, chat)
 	hints := []games.GuessHint{{After: emojiHintAfter, Text: "💡 Dica: " + games.TitleHint(puzzle.Answer)}}
 	if err := b.games.AwaitGuess(ctx, chat, round, emojiDuration, hints); err != nil {
 		return

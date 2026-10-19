@@ -445,6 +445,14 @@ func (b *bot) contratar(ctx context.Context, evt *events.Message) error {
 	return b.hire(ctx, evt, 1)
 }
 
+func (b *bot) coletar(ctx context.Context, evt *events.Message) error {
+	args := strings.Fields(core.FoldLetters(core.MessageText(evt.Message)))[1:]
+	if len(args) > 0 && slices.Contains([]string{"empregados", "empregado", "funcionarios", "funcionario"}, args[0]) {
+		return b.collectStaff(ctx, evt)
+	}
+	return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Fala o que você quer coletar, tipo !coletar empregados")
+}
+
 func (b *bot) hireEmployee(ctx context.Context, evt *events.Message) error {
 	return b.hire(ctx, evt, 2)
 }

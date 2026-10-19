@@ -15,9 +15,10 @@ import (
 )
 
 type Bot struct {
-	Client         *whatsmeow.Client
+	Client         *Client
 	GIFs           map[string][]GIF
 	privatePrompts sync.Map
+	panics         sync.Map
 	Messages       *MessageStore
 	Nicknames      *labelStore
 	Names          *labelStore
@@ -63,6 +64,7 @@ func (c Command) Matches(name string) bool {
 }
 
 func (b *Bot) HandleMessage(ctx context.Context, evt *events.Message) {
+	defer b.Rescue(ctx, evt.Info.Chat)
 	if !b.awaitGames(ctx) {
 		return
 	}
@@ -181,7 +183,7 @@ func (b *Bot) SendPoll(ctx context.Context, chat types.JID, question string, opt
 
 func New(client *whatsmeow.Client, gifs map[string][]GIF, messages *MessageStore, assistant *llm.Assistant) *Bot {
 	b := &Bot{
-		Client:        client,
+		Client:        &Client{Client: client, Network: client},
 		GIFs:          gifs,
 		Messages:      messages,
 		Nicknames:     &labelStore{db: messages.DB, table: "apelidos", column: "apelido"},

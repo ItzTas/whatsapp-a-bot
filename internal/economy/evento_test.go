@@ -126,7 +126,7 @@ func checkPlaces(t *testing.T, sc listedScenario, label string, fx effect) {
 	t.Helper()
 	places := sc.places
 	if len(places) == 0 {
-		places = eventPlaces
+		places = slices.DeleteFunc(slices.Clone(eventPlaces), func(p string) bool { return slices.Contains(sealedPlaces, p) })
 	}
 	tooled := func(p string) bool {
 		return p == "!trabalhar" || slices.ContainsFunc(activities, func(a activity) bool { return a.command == p && a.tool != "" })
@@ -325,5 +325,21 @@ func TestEventEffects(t *testing.T) {
 	seen, err := s.seenEvents(ctx, chat, acc)
 	if err != nil || len(seen) != 1 {
 		t.Fatalf("seenEvents: %v %+v", err, seen)
+	}
+}
+
+func TestEventSealedPlaces(t *testing.T) {
+	for _, place := range sealedPlaces {
+		for _, sc := range eventCatalog {
+			if sc.covers(place) && !slices.Contains(sc.places, place) {
+				t.Errorf("%s: o evento %s não é de %s mas pode sair lá", place, sc.id, place)
+			}
+		}
+		if !slices.ContainsFunc(eventCatalog, func(sc listedScenario) bool { return sc.covers(place) }) {
+			t.Errorf("%s: nenhum evento pode sair", place)
+		}
+	}
+	if !generalEvents.scenarios[0].covers("!trabalhar") {
+		t.Error("evento geral não sai no !trabalhar")
 	}
 }

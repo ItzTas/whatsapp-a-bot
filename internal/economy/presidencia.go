@@ -267,6 +267,7 @@ func (e *election) ballotText(voter, choice core.Account, cast ballot, opened bo
 }
 
 func (b *bot) closeElection(ctx context.Context, chat types.JID, e *election) {
+	defer b.Rescue(ctx, chat)
 	select {
 	case <-ctx.Done():
 		return

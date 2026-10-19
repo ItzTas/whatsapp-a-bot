@@ -188,6 +188,7 @@ func (b *bot) cashOutCrash(ctx context.Context, evt *events.Message) (bool, erro
 }
 
 func (b *bot) runCrash(ctx context.Context, chat types.JID, round *crashRound, wait time.Duration) {
+	defer b.Rescue(ctx, chat)
 	defer b.crashRounds.CompareAndDelete(chat.String(), round)
 	select {
 	case <-ctx.Done():
@@ -333,8 +334,8 @@ func (r *crashRound) launch(now time.Time) bool {
 }
 
 func (r *crashRound) rig() {
-	biggest := slices.MaxFunc(r.bets, func(a, b *crashBet) int { return cmp.Compare(a.stake, b.stake) })
-	if rand.Float64() < StakeRisk(biggest.stake) {
+	riskiest := slices.MaxFunc(r.bets, func(a, b *crashBet) int { return cmp.Compare(a.boost.Risk(a.stake), b.boost.Risk(b.stake)) })
+	if rand.Float64() < riskiest.boost.Risk(riskiest.stake) {
 		r.point = min(r.point, drawCrashPoint())
 	}
 }

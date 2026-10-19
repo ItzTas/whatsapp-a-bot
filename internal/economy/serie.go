@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	streakHeatStep = 5
-	streakHeatMax  = 90
+	streakHeatStep = 3
+	streakHeatMax  = 25
 )
 
 func (s *walletStore) betHeat(ctx context.Context, chat types.JID, acc core.Account) (int64, error) {

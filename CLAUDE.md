@@ -27,7 +27,13 @@ go tool air                    # hot reload; o air é declarado como `tool` no g
 docker build -t whatsapp-a-bot .
 ```
 
-- Não há testes no repositório.
+- `go test ./...` roda os testes. Os de integração ficam na raiz (`integracao_test.go`) e montam o
+  bot inteiro pelo mesmo `assemble` do `main.go`, com bancos SQLite temporários e um WhatsApp falso
+  (`bancada_test.go`): o `say` manda uma mensagem pelo `HandleMessage` e devolve o que o bot
+  respondeu, e o `restart` sobe outro bot em cima dos mesmos bancos. Erro no log do bot reprova o
+  teste. A troca funciona porque o `b.Client` é um `core.Client` (`internal/core/cliente.go`), que
+  embute o `*whatsmeow.Client` e manda as chamadas de rede pela interface `Network`; chamada de
+  rede nova que o bot passar a usar entra nessa interface.
 - Pra testar a versão localmente, gere o arquivo que o CI gera:
   `git log --reverse --no-merges --format='%H%x1f%s%x1f%b%x1e' > internal/core/versoes/commits.txt`.
 - O `air` lê o `.env` (configurado em `.air.toml`) e roda o binário a partir de `./tmp/main`.

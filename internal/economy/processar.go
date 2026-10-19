@@ -306,6 +306,7 @@ func restoreTrialSides(state trialState) trialSides {
 }
 
 func (b *bot) closeTrial(ctx context.Context, chat types.JID, pollID types.MessageID, round *TrialCase) {
+	defer b.Rescue(ctx, chat)
 	defer b.TrialChats.Delete(chat.String())
 	select {
 	case <-ctx.Done():

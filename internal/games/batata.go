@@ -177,6 +177,7 @@ func (b *bot) coolBatata(ctx context.Context, chat types.JID, game *batataGame) 
 }
 
 func (b *bot) explodeBatata(ctx context.Context, chat types.JID, game *batataGame) {
+	defer b.Rescue(ctx, chat)
 	defer b.batataGames.CompareAndDelete(chat.String(), game)
 	select {
 	case <-ctx.Done():

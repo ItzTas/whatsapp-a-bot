@@ -278,6 +278,7 @@ func (s impostorState) game() *impostorGame {
 }
 
 func (b *bot) resumeImpostor(ctx context.Context, chat types.JID, game *impostorGame) {
+	defer b.Rescue(ctx, chat)
 	defer b.releaseImpostor(ctx, chat, game)
 	resumes := map[impostorPhase]func(context.Context, types.JID, *impostorGame, impostorRound){
 		impostorClues:    b.resumeImpostorClues,
@@ -316,6 +317,7 @@ func (b *bot) resumeImpostorPoll(step impostorPollStep) func(context.Context, ty
 }
 
 func (b *bot) runImpostor(ctx context.Context, chat types.JID, game *impostorGame) {
+	defer b.Rescue(ctx, chat)
 	defer b.releaseImpostor(ctx, chat, game)
 	b.playImpostor(ctx, chat, game)
 }

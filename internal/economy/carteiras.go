@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	alarmChance  = 0.6
+	alarmChance  = 0.55
 	alarmGangCut = 0.15
 )
 
@@ -339,20 +339,22 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if r.shield, err = shieldOn(ctx, tx, chat, victim, now); err != nil || r.shield > 0 {
 			return err
 		}
-		if r.wait, r.abuse, err = stampOrAbuse(ctx, tx, chat, thief, cd, abuse, now); err != nil || r.wait > 0 {
+		jackpot, err := freshJackpot(ctx, tx, chat, victim, now)
+		if err != nil {
 			return err
 		}
+		if r.wait, r.abuse, err = stampOrAbuse(ctx, tx, chat, thief, jackpotPace(cd, jackpot), abuse, now); err != nil || r.wait > 0 {
+			return err
+		}
+		r.jackpot = jackpot
 		if err := markCrime(ctx, tx, chat, thief, now); err != nil {
-			return err
-		}
-		if r.jackpot, err = freshJackpot(ctx, tx, chat, victim, victimBalance, now); err != nil {
 			return err
 		}
 		err = tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), thief.Key).Scan(&thiefBalance)
 		if err != nil {
 			return err
 		}
-		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, alarmChance); err != nil {
+		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, jackpotAlarm(alarmChance, r.jackpot)); err != nil {
 			return err
 		}
 		if err := r.settle(ctx, tx, chat, thief, victim, thiefBalance, victimBalance, outcome); err != nil {
@@ -362,7 +364,7 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 			return err
 		}
 		if r.success {
-			return robbedVictim(ctx, tx, chat, victim, now)
+			return raiseShield(ctx, tx, chat, victim, now.Add(jackpotShield(r.jackpot)))
 		}
 		if r.alarmed || r.scuffle.criminal.died || thiefBalance >= brokeThief || rand.Float64() >= caught.odds {
 			return nil

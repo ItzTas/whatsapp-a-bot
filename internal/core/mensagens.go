@@ -163,6 +163,7 @@ func WindowStart() int64 {
 }
 
 func (b *Bot) RecordHistory(ctx context.Context, evt *events.HistorySync) {
+	defer b.Rescue(ctx, types.EmptyJID)
 	for _, conv := range evt.Data.GetConversations() {
 		chat, err := types.ParseJID(conv.GetID())
 		if err != nil {

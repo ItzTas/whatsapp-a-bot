@@ -232,6 +232,7 @@ func (b *bot) restoreBandeira(ctx context.Context, saved core.SavedGame) error {
 }
 
 func (b *bot) finishBandeira(ctx context.Context, chat types.JID, round *GuessRound, country bandeiraCountry, where string) {
+	defer b.Rescue(ctx, chat)
 	hints := []GuessHint{
 		{After: bandeiraRegionHint, Text: fmt.Sprintf("🌎 Dica: %s fica %s", country.flag, where)},
 		{After: bandeiraNameHint, Text: "💡 Dica: " + TitleHint(country.name)},

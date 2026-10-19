@@ -100,7 +100,7 @@ func brief(it item) string {
 	}
 	protections := map[string]string{
 		lockItemID:      "protege a mochila do !furtar",
-		alarmItemID:     "protege o saldo do !roubar",
+		alarmItemID:     fmt.Sprintf("protege o saldo do !roubar (máx. %d)", alarmCarry),
 		vestItemID:      "segura um !matar",
 		forgedReleaseID: "tira da cadeia, mas é crime",
 	}
@@ -237,6 +237,9 @@ func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
 	cost := job.shopPrice(it.value * quantity)
 	tax := levy.cut(cost)
 	balance, err := b.Wallets.buyItem(ctx, chat, acc, it, quantity, cost, levy)
+	if errors.Is(err, errBagFull) {
+		return b.SendText(ctx, chat, carryRefusal(it, "sua mochila"))
+	}
 	if errors.Is(err, ErrNoFunds) {
 		return b.SendText(ctx, chat, fmt.Sprintf("Você não tem moeda pra isso: %s fica %s. Confere no !saldo", quantityLabel(it, quantity), Coins(cost+tax)))
 	}

@@ -29,6 +29,7 @@ const (
 const (
 	lockItemID      = "cadeado"
 	alarmItemID     = "alarme"
+	alarmCarry      = 3
 	vestItemID      = "colete"
 	forgedReleaseID = "alvara-falso"
 	scannerTipoff   = 0.25
@@ -121,6 +122,7 @@ type item struct {
 	networks  []string
 	hot       bool
 	seed      *crop
+	carry     int64
 }
 
 type stack struct {
@@ -267,7 +269,7 @@ var catalog = slices.Concat([]item{
 	{id: "ima", name: "Ímã", emoji: "🧲", rarity: common, value: 15, shop: true, aliases: []string{"ima"},
 		gear: &gear{activities: []string{"!vasculhar", "!minerar"}, spent: true, metal: true}},
 	{id: lockItemID, name: "Cadeado", emoji: "🔒", rarity: uncommon, value: 250, shop: true},
-	{id: alarmItemID, name: "Alarme", emoji: "🚨", rarity: uncommon, value: 300, shop: true},
+	{id: alarmItemID, name: "Alarme", emoji: "🚨", rarity: uncommon, value: 300, shop: true, carry: alarmCarry},
 	{id: "caixa-misteriosa", name: "Caixa misteriosa", emoji: "📦", rarity: rare, value: 400, shop: true, aliases: []string{"caixa"},
 		loot: []int{45, 30, 17, 7, 1}, use: "📦 @%s rasgou a fita da caixa misteriosa sem nem ler o que tava escrito"},
 	{id: "caixa-misteriosa-dourada", name: "Caixa misteriosa dourada", emoji: "✨", rarity: epic, value: 1_700, shop: true, rotating: true, aliases: []string{"caixa dourada", "caixa de ouro", "caixa premium"},
@@ -1513,7 +1515,7 @@ func effectPerk(it item) string {
 	}
 	protections := map[string]string{
 		lockItemID:      "protege a mochila de um !furtar, e quebra segurando o ladrão",
-		alarmItemID:     fmt.Sprintf("tem %d%% de chance de disparar num !roubar e salvar o saldo, e queima quando dispara. Contra !quadrilha a chance cai %d%% por pessoa a mais", percent(alarmChance), percent(alarmGangCut)),
+		alarmItemID:     fmt.Sprintf("tem %d%% de chance de disparar num !roubar e salvar o saldo, e queima quando dispara. Contra !quadrilha a chance cai %d%% por pessoa a mais, e quem acabou de ganhar uma bolada na aposta perde mais %d%%. Cada pessoa só carrega %d na mochila", percent(alarmChance), percent(alarmGangCut), percent(jackpotAlarmCut), alarmCarry),
 		vestItemID:      "salva você de um !matar que ia dar certo, e fica destruído segurando a bala (contra deus não adianta). A polícia apreende se você for preso",
 		forgedReleaseID: fmt.Sprintf("!usar tira você da cadeia na hora (ou !usar alvará @pessoa tira outra pessoa), mas em %d%% das vezes o carcereiro percebe e a pena aumenta %s. Conta como crime, e a polícia apreende se você for preso", percent(forgeryCaught), core.FormatWait(escapePenalty)),
 	}

@@ -186,6 +186,7 @@ func (b *Bot) answerModes(ctx context.Context, evt *events.Message) {
 	var wg sync.WaitGroup
 	for _, p := range b.hooks.passives {
 		wg.Go(func() {
+			defer b.Rescue(ctx, evt.Info.Chat)
 			if err := p.run(ctx, evt); err != nil {
 				b.Client.Log.Errorf("responder modo %s: %v", p.mode, err)
 			}
@@ -228,11 +229,15 @@ func (b *Bot) commandRan(ctx context.Context, evt *events.Message, cmd Command) 
 
 func (b *Bot) StartJobs(ctx context.Context) {
 	for _, job := range b.hooks.jobs {
-		go job(ctx)
+		go func() {
+			defer b.Rescue(ctx, types.EmptyJID)
+			job(ctx)
+		}()
 	}
 }
 
 func (b *Bot) HandleGroupInfo(ctx context.Context, evt *events.GroupInfo) {
+	defer b.Rescue(ctx, evt.JID)
 	b.Departed(ctx, evt.JID, evt.Leave)
 	for _, handle := range b.hooks.groupInfo {
 		handle(ctx, evt)

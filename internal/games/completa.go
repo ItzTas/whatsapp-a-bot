@@ -119,6 +119,7 @@ func (b *bot) restoreCompleta(ctx context.Context, saved core.SavedGame) error {
 }
 
 func (b *bot) finishCompleta(ctx context.Context, chat types.JID, round *GuessRound, puzzle completaPuzzle) {
+	defer b.Rescue(ctx, chat)
 	if err := b.AwaitGuess(ctx, chat, round, completaDuration, nil); err != nil {
 		return
 	}

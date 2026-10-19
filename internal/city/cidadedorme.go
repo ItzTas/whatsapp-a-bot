@@ -82,6 +82,7 @@ func (b *bot) tellCity(ctx context.Context, game *cityGame, text string, mention
 }
 
 func (b *bot) driveCity(ctx context.Context, game *cityGame) {
+	defer b.Rescue(ctx, game.chat)
 	defer b.releaseCity(ctx, game)
 	steps := map[cityPhase]func(context.Context, *cityGame) bool{
 		cityLobby: b.closeCityLobby,

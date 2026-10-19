@@ -407,8 +407,7 @@ func (pb PrizeBoost) Pay(stake, payout int64) int64 {
 	if payout <= stake {
 		return payout
 	}
-	profit := (payout - stake) * (100 + pb.decree + pb.luck) / 100
-	return stake + profit*(100-pb.heat)/100
+	return stake + (payout-stake)*(100+pb.decree+pb.luck)/100
 }
 
 func (pb PrizeBoost) Tag(stake, payout int64) string {
