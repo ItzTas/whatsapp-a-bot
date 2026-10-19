@@ -116,7 +116,7 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   O `vault` de cada nível é quanto cabe de moeda no cofre de casa (`cofre.go`, coluna `cofre_casa`
   da `carteiras`, que não é o `cofre` das `igrejas`): o `!imovel depositar` passa do `saldo` pro
   cofre (cortando no espaço que sobra), o `!imovel sacar` faz o contrário e o `!imovel cofre`
-  mostra. As duas pontas passam pelo `shiftVault`, um `UPDATE` só condicionado ao saldo e ao
+  mostra (o `!cofre` é um atalho dele, com o mesmo `showVault`). As duas pontas passam pelo `shiftVault`, um `UPDATE` só condicionado ao saldo e ao
   tamanho do cofre. É o mesmo princípio dos guardados: moeda no cofre não tá no `saldo`, então nada
   que lê o `saldo` enxerga ela (`!roubar`, `!quadrilha`, multa da cadeia, enterro, `!castigo`,
   imposto, penhora do `!emprestimo`, `!ricos`). Por isso os tamanhos são pequenos de propósito (uma

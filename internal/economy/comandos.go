@@ -621,6 +621,14 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.contratar,
 		},
 		{
+			Name:     "cofre",
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!cofre", "o mesmo que !imovel cofre"},
+			},
+			Run: b.showVault,
+		},
+		{
 			Name:     "titulo",
 			Aliases:  []string{"titulos", "nobreza"},
 			Category: core.EconomyCategory,
