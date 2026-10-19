@@ -332,7 +332,7 @@ func stampOrAbuse(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Ac
 }
 
 func markCrime(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) error {
-	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET crime_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), chat.String(), acc.Key)
+	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET crime_em = ?, ficha_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), now.Unix(), chat.String(), acc.Key)
 	return err
 }
 

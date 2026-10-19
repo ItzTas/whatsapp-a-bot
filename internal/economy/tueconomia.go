@@ -29,6 +29,7 @@ type EconomyProfile struct {
 	deathLeft  time.Duration
 	health     int64
 	captive    captivity
+	shield     time.Duration
 }
 
 func (b *bot) EconomyProfile(ctx context.Context, chat types.JID, person types.JID) (e EconomyProfile, err error) {
@@ -54,6 +55,7 @@ func (b *bot) EconomyProfile(ctx context.Context, chat types.JID, person types.J
 	g.Go(func() (err error) { e.deathLeft, err = b.Wallets.DeathLeft(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.health, err = b.Wallets.Health(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.captive, err = b.Wallets.captivity(gctx, chat, acc, now); return err })
+	g.Go(func() (err error) { e.shield, err = b.Wallets.shieldLeft(gctx, chat, acc, now); return err })
 	if err := g.Wait(); err != nil {
 		return EconomyProfile{}, fmt.Errorf("ler economia: %w", err)
 	}
@@ -102,6 +104,10 @@ func (e EconomyProfile) assetLines() []string {
 	var lines []string
 	if exposure := exposureText(e.balance); exposure != "" {
 		lines = append(lines, exposure)
+	}
+	lines = append(lines, cleanText(e.job))
+	if e.shield > 0 {
+		lines = append(lines, shieldText(e.shield))
 	}
 	if e.hasSavings {
 		lines = append(lines, fmt.Sprintf("🔒 Poupança: %s, que voltam com %s de juros", Coins(e.saved.Amount), Coins(e.saved.Interest)))

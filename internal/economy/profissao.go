@@ -174,6 +174,7 @@ type Profession struct {
 	robHaul    int64
 	guard      float64
 	cordon     float64
+	clean      float64
 	theftEvery time.Duration
 	theftBonus float64
 
@@ -235,6 +236,9 @@ type Profession struct {
 	gatherLuck   int
 	gatherRare   int64
 	gatherJunk   int64
+	farmBeds     int
+	farmFaster   int64
+	farmGrade    int
 	boxLuck      int
 	faith        faith
 	mirror       bool
@@ -503,6 +507,9 @@ func (p Profession) perks() []string {
 		{p.gatherLuck > 0, fmt.Sprintf("👃 No %s, sorteia %d vezes e fica com o achado mais valioso (caixa de relíquia não conta nos sorteios extras)", extractionCommands(), p.gatherLuck+1)},
 		{p.gatherRare > 0, fmt.Sprintf("🔎 No %s, item raro ou acima aparece %d%% mais", extractionCommands(), p.gatherRare)},
 		{p.gatherJunk > 0, fmt.Sprintf("🌱 No %s, vem %d%% menos item comum e mão vazia", extractionCommands(), p.gatherJunk)},
+		{p.farmBeds > 0, fmt.Sprintf("🌾 Tem %d canteiros a mais na !horta, sem pagar nada", p.farmBeds)},
+		{p.farmFaster > 0, fmt.Sprintf("🌿 O que planta no !plantar fica pronto %d%% mais rápido", p.farmFaster)},
+		{p.farmGrade > 0, fmt.Sprintf("🧺 O que colhe no !colher vem com qualidade melhor: fica com a melhor de %d", p.farmGrade+1)},
 		{p.salePercent >= marketSalePercent, fmt.Sprintf("💸 O mercado paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.salePercent > 0 && p.salePercent < marketSalePercent, fmt.Sprintf("🥀 O mercado só paga %d%% do valor no !vender (o normal é %d%%)", p.salePercent, marketSalePercent)},
 		{p.discount > 0, fmt.Sprintf("🛒 %d%% de desconto na !loja", p.discount)},
@@ -603,7 +610,7 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 	if st.president {
 		job = job.presidential().tyrannical(time.Now())
 	}
-	return job.housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held), nil
+	return job.housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).cleared(st.record, time.Now()).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target core.Account) (attackerJob, targetJob Profession, err error) {

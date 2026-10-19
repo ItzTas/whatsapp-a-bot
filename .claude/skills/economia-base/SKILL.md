@@ -16,7 +16,7 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   tinha a profissão volta pra `bico`. Os efeitos (campos de `Profession` em `profissao.go`) são
   aplicados em cada comando que eles afetam (`!roubar`, `!furtar`, `!pescar`, `!vender`,
   `!comprar`, `!poupar`, `!daily`, `!apostar`/`!cassino`, `!acoes`, `!processar`,
-  `!prender`, `!fugir`, `!libertar`, `!reviver`, `!denunciar`, `!sequestrar`, `!venderrefem`, `!assalto`, `!usar`, pensão e indenização), sempre lendo a
+  `!prender`, `!fugir`, `!libertar`, `!reviver`, `!denunciar`, `!sequestrar`, `!venderrefem`, `!assalto`, `!usar`, `!plantar`, `!colher`, pensão e indenização), sempre lendo a
   profissão com `ProfessionOf`; efeito novo precisa de campo novo, de texto em `perks()` e do
   gancho no comando.
 - O `boxLuck` da profissão (hoje só o youtuber de unboxing) dá sorteios extras no `loot` das caixas
@@ -53,8 +53,9 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   ao vivo na hora (skill `economia-aovivo`).
 - O `!economia resetar intervalos` (dono, em `economia.go`) zera as colunas `*_em` de espera da
   `carteiras` (`resetCooldowns`), da conversa toda ou só de quem foi marcado. Ele também zera
-  `preso_ate`, `morto_ate` e `crime_em` e apaga a linha de `sequestros` de quem é refém, então
-  solta da cadeia, da morte e do cativeiro e limpa a ficha. Também enche a saúde (`saude` e
+  `preso_ate`, `morto_ate`, `crime_em`, `escudo_ate` e `ficha_em` e apaga a linha de `sequestros`
+  de quem é refém, então solta da cadeia, da morte e do cativeiro, tira o escudo de roubo e limpa
+  a ficha (com o `ficha_em` zerado a pessoa volta pra ficha limpa cheia). Também enche a saúde (`saude` e
   `saude_em`). Nunca mexe em saldo, mochila,
   poupança, empréstimo nem presidência. Coluna de espera nova entra na lista do `resetCooldowns`.
 - Os ralos de dinheiro existem porque a economia só tinha torneira: o dinheiro gasto neles some
@@ -63,7 +64,8 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   coisa na mesma transação, use `walletStore.spend` (debita com `debitBalance` e chama o resto).
 - O `ProfessionOf` lê tudo de uma vez (`walletStore.standing`) e aplica, depois do
   `presidential()`, o imóvel (`housed`), o segurança particular do `!empregados` (`escorted`,
-  com o `watch` do melhor segurança contratado, lido pelo `staffKinds` no `standing`) e a maldição do `!zoar` (`hexed`). Os implantes do `!implante` (`implanted`,
+  com o `watch` do melhor segurança contratado, lido pelo `staffKinds` no `standing`), a ficha
+  limpa (`cleared`, com o `ficha_em` lido no `standing`, skill `economia-crime`) e a maldição do `!zoar` (`hexed`). Os implantes do `!implante` (`implanted`,
   lidos em paralelo pelo `walletStore.body`) entram logo depois dos itens com `flex` (`adorned`).
   Os seguidores do `!postar` (`famed`, lidos em paralelo pelo `walletStore.audience`, skill
   `economia-fama`) entram antes dos encantos, então toda profissão lida pelo `ProfessionOf` sabe
@@ -116,3 +118,11 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   texto. O baralho junta as dicas escritas à mão (`economyTips`) com uma por comando da economia,
   montada do `Help` dele (`commandTips`), então comando novo já vira dica sozinho. Ao mudar uma
   mecânica citada no `economyTips`, corrija a dica junto.
+- O `!ricos` (`economia.go`) mostra, embaixo do ranking, quem caiu desde o último `!ricos` e
+  ficou mais pobre (`quedas.go`). O ranking de cada `!ricos` fica salvo na `ricos_ranking`, e os
+  prejuízos vão somando na `prejuizos` por pessoa e motivo (`noteLoss`): aposta (o `tallyBet`, o
+  `!roleta` pelo `NoteBetLoss` e o `!bicho` na extração), roubo (`!roubar` e `!quadrilha`) e
+  imposto (`runTaxes`). O motivo que aparece é o de maior valor; sem nenhum anotado, vira "torrando
+  dinheiro". Depois de mostrar, as duas tabelas da economia são zeradas e o ranking novo é gravado.
+  Prejuízo de outro tipo que deva aparecer no `!ricos` precisa de um `lossCause`, do texto no
+  `richFall.text` e do `noteLoss` no caminho que tira o dinheiro.

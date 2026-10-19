@@ -43,7 +43,7 @@ type charm struct {
 }
 
 var soulPactCharm = charm{id: "pacto", name: "Pacto de São Cipriano", emoji: "📕", curse: true, lasting: true, hold: soulPactHold, toll: soulPactPercent,
-	effect: fmt.Sprintf("voltou do além pelo Livro de São Cipriano: %d%% de tudo que ganhar vai pra quem fez o ritual, até o pacto acabar ou alguém purificar", soulPactPercent)}
+	effect: fmt.Sprintf("tá presa num pacto do Livro de São Cipriano: %d%% de tudo que ganhar vai pra quem tá do outro lado do pacto, até ele acabar ou alguém purificar", soulPactPercent)}
 
 var charms = []charm{
 	{id: "prosperidade", name: "Prosperidade", emoji: "💰", hold: 6 * time.Hour, aliases: []string{"dinheiro", "riqueza", "grana"},

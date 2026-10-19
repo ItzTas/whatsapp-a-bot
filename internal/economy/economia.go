@@ -25,6 +25,7 @@ const (
 	robSuccessChance = 0.4
 	robLootMin       = 10
 	robLootMax       = 30
+	brokeThief       = 50
 	RichestCount     = 10
 
 	QuizReward          = 50
@@ -50,6 +51,7 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 		job        Profession
 		health     int64
 		vault      homeVault
+		shield     time.Duration
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = b.Wallets.Balance(gctx, chat, acc); return err })
@@ -58,6 +60,7 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { health, err = b.Wallets.Health(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { vault, err = b.Wallets.vault(gctx, chat, acc); return err })
+	g.Go(func() (err error) { shield, err = b.Wallets.shieldLeft(gctx, chat, acc, time.Now()); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler saldo: %w", err)
 	}
@@ -74,6 +77,10 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	}
 	if exposure := exposureText(balance); exposure != "" {
 		lines = append(lines, exposure)
+	}
+	lines = append(lines, cleanText(job))
+	if shield > 0 {
+		lines = append(lines, shieldText(shield))
 	}
 	if vault.stored > 0 {
 		lines = append(lines, fmt.Sprintf("🔐 No cofre de casa: %s, longe dos ladrões", Coins(vault.stored)))
@@ -200,8 +207,11 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 		text += fmt.Sprintf("\n🧾 Mas a profissão devolveu %s", Coins(refund))
 	}
 	text += BetLevyText(stake, payout, bet.Levy) + "\n💰 Saldo: " + Coins(balance)
-	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
-	return err
+	if _, err := b.SendMentions(ctx, chat, text, []types.JID{person}); err != nil {
+		return err
+	}
+	b.tallyBet(ctx, chat, acc, syntax, stake, payout+saved+refund, balance)
+	return nil
 }
 
 type wager struct {
@@ -271,7 +281,8 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 	}
 	chance := clampChance(robSuccessChance + thiefJob.robBonus - victimJob.guard - thiefJob.curfew())
 	risk := robRisk.by(thiefJob).on(victimJob)
-	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), risk, time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
+	caught := flagrant{odds: thiefJob.flagrantOdds(1), jail: Profession{jailTime: baseJail}.sentence(thiefJob)}
+	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), risk, caught, time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
 	if err != nil {
 		return fmt.Errorf("roubar: %w", err)
 	}
@@ -281,7 +292,7 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 	hurtText, freed := r.scuffle.text(thief, victim)
 	text := robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
 	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{thief, victim}, freed...))
-	if err != nil || r.wait > 0 || r.poor || r.scuffle.criminal.died {
+	if err != nil || r.wait > 0 || r.shield > 0 || r.poor || r.jail > 0 || r.scuffle.criminal.died {
 		return err
 	}
 	b.stirEvent(ctx, evt, eventSpot{place: "!roubar", won: r.success, victim: victim})
@@ -332,14 +343,20 @@ func robberyText(r robbery, thief, victim types.JID) string {
 	if r.poor {
 		return fmt.Sprintf("🪹 @%s tem menos de %s, nem vale o risco", victim.User, Coins(robMinVictim))
 	}
+	if r.shield > 0 {
+		return shieldedText(victim, r.shield)
+	}
 	if r.alarmed {
 		return fmt.Sprintf("🚨 @%s tentou roubar @%s, mas o alarme disparou! O ladrão fugiu de mãos vazias e o alarme queimou", thief.User, victim.User)
 	}
 	if r.silent {
-		return fmt.Sprintf("🔕 O alarme de @%s falhou e não disparou!\n", victim.User) + robberyText(robbery{success: r.success, amount: r.amount}, thief, victim)
+		return fmt.Sprintf("🔕 O alarme de @%s falhou e não disparou!\n", victim.User) + robberyText(robbery{success: r.success, amount: r.amount, jail: r.jail, jailFine: r.jailFine}, thief, victim)
 	}
 	if r.success {
 		return fmt.Sprintf("🦹 @%s roubou %s de @%s e saiu correndo!", thief.User, Coins(r.amount), victim.User)
+	}
+	if r.jail > 0 {
+		return fmt.Sprintf("🚔 @%s foi pego tentando roubar @%s e tava liso demais pra pagar a indenização, então foi direto pra cadeia por %s", thief.User, victim.User, core.FormatWait(r.jail)) + fineText(r.jailFine)
 	}
 	if r.amount == 0 {
 		return fmt.Sprintf("🚔 @%s foi pego tentando roubar @%s, mas tava tão liso que saiu só com a vergonha", thief.User, victim.User)
@@ -396,16 +413,22 @@ func (b *bot) ricos(ctx context.Context, evt *events.Message) error {
 	if len(wallets) == 0 {
 		return b.SendText(ctx, chat, "Ninguém tem moeda ainda 🪹 Usa !daily pra começar")
 	}
-	medals := []string{"🥇", "🥈", "🥉"}
 	lines := []string{"🏆 *Os mais ricos do grupo*", ""}
 	owners := make([]types.JID, len(wallets))
 	for i, w := range wallets {
-		place := fmt.Sprintf("%dº", i+1)
-		if i < len(medals) {
-			place = medals[i]
-		}
-		lines = append(lines, fmt.Sprintf("%s %s@%s: %s", place, titleBadge(w.title), w.Owner.User, Coins(w.Balance)))
+		lines = append(lines, fmt.Sprintf("%s %s@%s: %s", richPlace(i+1), titleBadge(w.title), w.Owner.User, Coins(w.Balance)))
 		owners[i] = w.Owner
+	}
+	falls, err := b.Wallets.falls(ctx, chat, wallets)
+	if err != nil {
+		b.Client.Log.Warnf("ver quem caiu no !ricos de %s: %v", chat, err)
+	}
+	if len(falls) > 0 {
+		lines = append(lines, "")
+	}
+	for _, f := range falls {
+		lines = append(lines, f.text())
+		owners = append(owners, f.who)
 	}
 	_, err = b.SendMentions(ctx, chat, strings.Join(lines, "\n"), owners)
 	return err
@@ -551,7 +574,7 @@ func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accoun
 		"inseto_em", "furto_em", "cafeina_em", "prisao_em", "abuso_em", "processo_em", "fuga_em", "sequestro_em",
 		"assalto_em", "denuncia_em", "assassinato_em", "libertacao_em", "abuso_trabalho_em", "abuso_roubo_em",
 		"abuso_sequestro_em", "ressurreicao_em", "encanto_em", "disfarce_em", "preso_ate", "morto_ate", "crime_em",
-		"saude_em", "conversao_em", "desvio_em", "postagem_em", "publi_em", "cratera_em",
+		"saude_em", "conversao_em", "desvio_em", "postagem_em", "publi_em", "cratera_em", "escudo_ate", "ficha_em",
 	}
 	args := []any{chat.String()}
 	for _, acc := range accounts {

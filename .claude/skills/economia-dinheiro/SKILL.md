@@ -127,8 +127,13 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   faz uma extração (`activity`) sozinho a cada `every`, ajustado pelo decreto `extracao`
   (`pace`), e guarda até `stock` achados. Nada roda em segundo plano: o `!empregados coletar`
   calcula as rodadas desde o `coletado_em` (`ready`), cobra o `wage` de cada rodada do saldo e
-  sorteia o `roll()` da atividade nerfada pelo `shift`; as rodadas que o saldo não paga viram
-  greve e se perdem. O `shift` tira do `loot` tudo que é lendário ou acima, `unboxable()` e
+  sorteia o `roll()` da atividade nerfada pelo `shift`. Sem saldo, ninguém entra em greve na
+  hora: cada empregado tem uma tensão (coluna `tensao`), que é quantos salários ele tem
+  atrasados. A coleta (`harvest.work`) paga primeiro o atrasado (`settled`, em `arrears`), depois
+  as rodadas novas; as que o saldo não paga saem fiado (`credit`) e sobem a tensão até a
+  `patience()` (metade do `stock`), e só as que passam disso viram greve e se perdem. Com a
+  tensão no limite (`rebelling`), toda rodada é greve até o salário atrasado ser pago, e pagar
+  tudo zera a tensão. O atrasado vem antes de rodada nova, então o fiado não dá rodada de graça. O `shift` tira do `loot` tudo que é lendário ou acima, `unboxable()` e
   Bússola do relicário (`relicLure`), e o empregado não usa ferramenta, equipamento nem
   profissão (sem quebra, sem machucado). O aprendiz puxa a qualidade pra baixo (`gradeLuck`
   -1) e o veterano escolhe o melhor de dois achados (`luck` 1). O `price` é calibrado pra se
@@ -145,13 +150,23 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   muda o ritmo deles. O apostador tem muita variação (perde tudo na maioria das rodadas, com
   prêmio de até 50x) e o corretor pouca (nunca volta com menos do que cobrou); o `price` dos dois
   segue as mesmas 72 horas, pelo líquido médio da tabela (`odds`). O contador (`taxCut`), o
-  enfermeiro (`care`) e o segurança particular (`watch`) são passivos (`passive()`): não têm `every` nem `wage`, ficam fora do
+  enfermeiro (`care`) e o segurança particular (`watch`) são passivos (`passive()`): não têm `every`, ficam fora do
   `!empregados coletar` e valem só de estar contratados, sempre o melhor de cada tipo
   (`strongest`). O contador corta a porcentagem do imposto e do IPTU no `dueTax`, o enfermeiro
   acelera a saúde no `regenEvery` e o segurança soma `watch` por cento no `guard` (o `escorted`, que o
   `ProfessionOf` aplica logo depois do `housed`), contra `!roubar`, `!furtar`, `!sequestrar`,
-  `!matar`, `!quadrilha` e `!golpe`. Ele é fraco de propósito (bem menos que o imóvel de topo) e
-  ocupa uma vaga da casa, porque é permanente. Consulta que precisa dos tipos contratados junto da carteira
+  `!matar`, `!quadrilha` e `!golpe`. O contador e o enfermeiro não cobram salário. O segurança é
+  o único passivo com `wage` (`payroll()`): é um salário por dia, cobrado no `runTaxes` pelo
+  `payStaff`, dentro da transação do `levyTaxes` e antes do imposto. Nele, o `coletado_em` não é
+  a última coleta, e sim até quando o salário tá pago (`payday`: a próxima passada do Leão mais
+  `payrollGrace`), e a contratação já paga até lá (`hiredAt`). O `payrollHire.pay` cobra o
+  salário do dia mais os atrasados (`tensao`), em salários inteiros e até onde o saldo der. Faltou,
+  a tensão sobe e ele trabalha fiado mais um dia (o `coletado_em` anda mesmo assim); com
+  `payrollPatience` (3) salários atrasados, o `coletado_em` fica no passado e ele entra em greve:
+  o `staffKinds` só conta empregado de `payrollIDs()` com `coletado_em` no futuro, então o
+  `watch` some até um pagamento baixar a tensão do limite, e o `!empregados` mostra quantos estão
+  em greve. Dia de greve não soma salário atrasado. Ele protege menos que o melhor
+  imóvel somado aos outros bônus e ocupa uma vaga da casa, porque não tem prazo pra acabar. Consulta que precisa dos tipos contratados junto da carteira
   usa o `staffKinds` (um `GROUP_CONCAT`, com a carteira no alias `c`) e o `kindsOf`. Nunca renomeie um `id`: o empregado com o id antigo some. O `!contratar` é um
   atalho do `!empregados contratar`: os dois chamam o `hire`, que só muda quantas palavras pula
   antes do nome do empregado.

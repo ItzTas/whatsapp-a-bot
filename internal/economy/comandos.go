@@ -195,7 +195,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "roubar",
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de %d%% a %d%% do saldo dela, se der errado paga indenização 🦹 A porcentagem vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, então rico perde uma fatia bem menor (o valor de roubo aparece no !saldo). Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tem %d%% de chance de ele disparar e barrar o roubo", robLootMin, robLootMax, core.FormatWait(robEvery), percent(alarmChance))},
+				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de %d%% a %d%% do saldo dela, se der errado paga indenização 🦹 A porcentagem vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, então rico perde uma fatia bem menor (o valor de roubo aparece no !saldo). Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tem %d%% de chance de ele disparar e barrar o roubo. Quem acabou de ser roubado(a) fica %s sem poder ser roubado(a) de novo, e ladrão com menos de %s que é pego vai direto pra cadeia, porque não tem como pagar a indenização. Cada %s sem cometer crime dá %d%% de proteção, até %d%% (a ficha limpa aparece no !saldo)", robLootMin, robLootMax, core.FormatWait(robEvery), percent(alarmChance), core.FormatWait(robShield), Coins(brokeThief), core.FormatWait(cleanEvery), percent(cleanStep), percent(cleanMax))},
 			},
 			Run:          b.roubar,
 			BarredInJail: true,
@@ -215,7 +215,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"gangue", "bonde"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!quadrilha @pessoa", fmt.Sprintf("junta uma quadrilha de até %d pra roubar a pessoa marcada 🦹 Quem manda primeiro abre, e o resto tem %s pra mandar !quadrilha e entrar. Com %d sai na hora, e se o tempo acabar com pelo menos %d a quadrilha parte pra cima assim mesmo. A chance começa igual à do !roubar, soma o bônus de roubo da profissão de cada um e mais %d%% por pessoa a mais, e cai com a proteção da vítima. Se der certo, a quadrilha leva de %d%% a %d%% do saldo da vítima, nas mesmas faixas do valor de roubo, e divide igual. Se der errado, cada um paga indenização pra vítima. Usa a mesma espera do !roubar, marca o crime de todo mundo (dá pra !prender e !denunciar) e o 🚨 alarme da vítima dispara menos: a chance dele cai %d%% por pessoa a mais na quadrilha", gangSize, core.FormatWait(gangWindow), gangSize, gangMin, percent(gangHelp), gangLootMin, gangLootMax, percent(alarmGangCut))},
+				{"!quadrilha @pessoa", fmt.Sprintf("junta uma quadrilha de até %d pra roubar a pessoa marcada 🦹 Quem manda primeiro abre, e o resto tem %s pra mandar !quadrilha e entrar. Com %d sai na hora, e se o tempo acabar com pelo menos %d a quadrilha parte pra cima assim mesmo. A chance começa igual à do !roubar, soma o bônus de roubo da profissão de cada um e mais %d%% por pessoa a mais, e cai com a proteção da vítima. Se der certo, a quadrilha leva de %d%% a %d%% do saldo da vítima, nas mesmas faixas do valor de roubo, e divide igual. Se der errado, cada um paga indenização pra vítima, e quem tem menos de %s vai direto pra cadeia. Quem acabou de ser roubado(a) não pode ser cercado(a) por %s. Usa a mesma espera do !roubar, marca o crime de todo mundo (dá pra !prender e !denunciar) e o 🚨 alarme da vítima dispara menos: a chance dele cai %d%% por pessoa a mais na quadrilha", gangSize, core.FormatWait(gangWindow), gangSize, gangMin, percent(gangHelp), gangLootMin, gangLootMax, Coins(brokeThief), core.FormatWait(robShield), percent(alarmGangCut))},
 			},
 			Run:          b.quadrilha,
 			BarredInJail: true,
@@ -528,7 +528,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "ricos",
 			Aliases:  []string{"forbes"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!ricos", "mostra os mais ricos do grupo 🏆"}},
+			Help:     []core.Usage{{"!ricos", "mostra os mais ricos do grupo 🏆 e quem caiu no ranking desde o último !ricos, dizendo se empobreceu apostando, sendo roubado ou pagando imposto"}},
 			Run:      b.ricos,
 		},
 		{
@@ -607,7 +607,7 @@ func (b *bot) economyCommands() []core.Command {
 			Help: []core.Usage{
 				{"!empregados", "mostra seus empregados, o que eles já acharam e quem dá pra contratar 👷 Eles fazem o " + extractionCommands() + " sozinhos, mas nunca acham relíquia, mítico nem lendário. O caçador de bússola só procura a Bússola do relicário e quase nunca acha. O apostador e o corretor trazem moedas, o contador corta o imposto, o enfermeiro faz a saúde voltar mais rápido e o segurança particular dificulta te !roubar, !furtar, !sequestrar e !matar"},
 				{"!empregados contratar <nome>", "contrata um empregado. Precisa de imóvel, e quanto melhor o imóvel, mais vagas"},
-				{"!empregados coletar", "pega o que os empregados trouxeram e paga o salário deles. Sem saldo pro salário, eles fazem greve. O contador, o enfermeiro e o segurança não têm nada pra coletar"},
+				{"!empregados coletar", "pega o que os empregados trouxeram e paga o salário deles. Sem saldo pro salário, eles trabalham fiado e a tensão sobe. No limite da tensão eles entram em greve, até você pagar o atrasado. O contador, o enfermeiro e o segurança não têm nada pra coletar"},
 				{"!empregados demitir <nome>", "manda um empregado embora, e o que ele achou e você não coletou vai junto"},
 			},
 			Run: b.empregados,
@@ -904,6 +904,38 @@ func (b *bot) economyCommands() []core.Command {
 				{"!catar", fmt.Sprintf("sai com a rede atrás de inseto, de pernilongo a fada no pote 🦋 Precisa de rede de insetos (tem na !loja) e dá pra catar a cada %s. Em %s das vezes se machuca (a roupa de apicultor protege)", core.FormatWait(bugging.cooldown.every), oddsText(bugging.hazard.chance))},
 			},
 			Run: b.gather(bugging),
+		},
+		{
+			Name:         "plantar",
+			Aliases:      []string{"semear", "plantio"},
+			Category:     core.EconomyCategory,
+			BarredInJail: true,
+			Help: []core.Usage{
+				{"!plantar <semente>", fmt.Sprintf("bota uma semente ou muda num canteiro da !horta 🌱 Ela cresce sozinha, cada uma no tempo dela, e vira verdura, fruta, flor ou madeira pra vender ou dar pra alguém. Tem semente na !loja, e as mais caras só aparecem de quebra no %s", extractionCommands())},
+				{"!plantar <semente> 3", fmt.Sprintf("planta várias de uma vez, uma por canteiro (ou !plantar milho tudo). Todo mundo começa com %d canteiros e dá pra comprar mais no !horta expandir. Dá pra escrever o nome do que vai nascer, tipo !plantar tomate", gardenBeds)},
+			},
+			Run: b.plantar,
+		},
+		{
+			Name:         "colher",
+			Aliases:      []string{"colheita"},
+			Category:     core.EconomyCategory,
+			BarredInJail: true,
+			Help: []core.Usage{
+				{"!colher", "colhe tudo o que já ficou pronto na !horta 🧺 Cada canteiro dá umas unidades, cada uma com a qualidade dela, e o canteiro fica livre pra !plantar de novo. O que não tá pronto continua crescendo"},
+			},
+			Run: b.colher,
+		},
+		{
+			Name:     "horta",
+			Aliases:  []string{"plantacao", "roca", "canteiros"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!horta", "mostra os seus canteiros, o que tá crescendo, quanto falta pra cada um e as sementes que você tem na mochila 🌾"},
+				{"!horta @pessoa", "mostra a horta da pessoa marcada"},
+				{"!horta expandir", fmt.Sprintf("compra mais um canteiro pra sua horta. O primeiro sai por %s, cada um custa mais que o anterior e dá pra comprar até %d. As moedas somem", Coins(bedPrices[0]), len(bedPrices))},
+			},
+			Run: b.horta,
 		},
 		{
 			Name:     "furtar",

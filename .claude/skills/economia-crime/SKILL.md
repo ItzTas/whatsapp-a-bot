@@ -210,7 +210,27 @@ Cadeia, flagrante, morte, saúde e tribunal.
   recolher. O alarme da vítima (`soundAlarm`, em `carteiras.go`) dispara menos que no `!roubar`:
   lá a chance é `alarmChance`, e aqui o `gangAlarmChance` tira `alarmGangCut` por pessoa a mais. Se der certo, a quadrilha leva de
   `gangLootMin` a `gangLootMax` por cento do saldo da vítima, passado pelas faixas do `exposed` (veja o valor de roubo abaixo), dividido igual, e a parte de cada um cresce o `robHaul` da profissão dele (hoje só o Chapéu de Lampião, o mesmo que aumenta o que leva no `!roubar`); se der errado, cada
-  um paga de 10% a 20% do próprio saldo pra vítima. Ninguém vai preso na hora.
+  um paga de 10% a 20% do próprio saldo pra vítima, e quem tinha menos de `brokeThief` (o `broke`
+  do `indemnify`) vai preso na hora pelo `jailBroke`, com as mesmas regras do ladrão liso do
+  `!roubar` (veja abaixo).
+- Roubo de saldo tem duas travas (`escudo.go`, `ficha.go`):
+  - O escudo: quando um `!roubar` ou uma `!quadrilha` dá certo, o `raiseShield` grava
+    `escudo_ate` (agora mais `robShield`) na vítima, e enquanto ele não passa o `shieldOn` barra
+    os dois antes de carimbar espera ou marcar crime de alguém. A `!quadrilha` checa o escudo
+    também ao abrir (`shieldLeft`). O `!furtar` não olha o escudo. O `!saldo` e o `!tu` mostram o
+    tempo que falta (`shieldText`).
+  - O ladrão liso: no `!roubar` que falha (sem alarme e sem morrer no `clash`), quem tinha menos de
+    `brokeThief` não tem como pagar a indenização e vai preso na hora, com chance
+    `flagrantOdds(1)` (o Gorro escapa) e cadeia de `baseJail` ajustada pelo `jailFactor`, pelo
+    `jailRobber`, que chama o `lockUp` e zera o `crime_em`. O `flagrant` leva a chance e a pena
+    pro `walletStore.rob`.
+  - A ficha limpa: o `ficha_em` da `carteiras` guarda a hora do último crime e, diferente do
+    `crime_em`, a prisão e a anistia não zeram ele. Todo lugar que marca o `crime_em` com a hora
+    (`markCrime`, `stampGang`, o `!assalto` e as fugas do `fugir.go`) grava o `ficha_em` junto, e
+    caminho novo que marque crime precisa fazer o mesmo. O `ProfessionOf` lê ele no `standing` e
+    aplica o `cleared` logo depois do `escorted`: cada `cleanEvery` sem crime soma `cleanStep` no
+    `guard` (guardado em `clean`), até `cleanMax`. Quem nunca cometeu crime (`ficha_em` 0) tem a
+    ficha cheia. O `cleanText` mostra a ficha no `!saldo` e no `!tu`.
 - O valor de roubo (`exposed` em `economia.go`) é o quanto do saldo um roubo consegue levar. A
   porcentagem sorteada (`robLootMin` a `robLootMax` no `!roubar`, `gangLootMin` a `gangLootMax` na
   `!quadrilha`) vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, como imposto de

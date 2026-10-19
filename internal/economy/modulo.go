@@ -27,6 +27,7 @@ type bot struct {
 	craters        sync.Map
 	missionSteps   missionLog
 	scenes         sceneBoard
+	tilts          tiltBoard
 	live           liveBoard
 	tips           tipBoard
 	Wallets        *walletStore

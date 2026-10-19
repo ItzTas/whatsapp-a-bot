@@ -99,6 +99,7 @@ func (b *bot) imposto(ctx context.Context, evt *events.Message) error {
 	lines = append(lines,
 		fmt.Sprintf("🏠 Quem tem imóvel paga o IPTU dele junto (veja no !imovel), e casa assombrada paga %dx", hauntTaxFactor),
 		"🧮 Um contador no !empregados corta parte do imposto e do IPTU",
+		"🕶️ O salário do segurança particular sai na mesma hora, antes do imposto",
 		"",
 		fmt.Sprintf("@%s tem %s e paga %s%s na próxima passada do Leão, daqui a %s", person.User, Coins(balance), Coins(dueTax(balance, job.estate, job.hauntedHome(), cut)), discount, core.FormatWait(time.Until(nextTaxDay(time.Now())))),
 	)
@@ -197,6 +198,9 @@ func (s *walletStore) levyTaxes(ctx context.Context, chat types.JID, day string)
 			return err
 		}
 		r.claimed = true
+		if err := payStaff(ctx, tx, chat, time.Now()); err != nil {
+			return err
+		}
 		payers, err := taxPayers(ctx, tx, chat)
 		if err != nil {
 			return err
@@ -204,6 +208,9 @@ func (s *walletStore) levyTaxes(ctx context.Context, chat types.JID, day string)
 		for _, p := range payers {
 			_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ?", p.paid, chat.String(), p.acc.Key)
 			if err != nil {
+				return err
+			}
+			if err := noteLoss(ctx, tx, chat, p.acc, lossTax, p.paid); err != nil {
 				return err
 			}
 			r.payers++

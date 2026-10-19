@@ -216,8 +216,8 @@ func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robbe
 				return err
 			}
 			_, err := tx.ExecContext(ctx,
-				"UPDATE carteiras SET assalto_em = ?, crime_em = ? WHERE chat = ? AND pessoa = ?",
-				now.Unix(), now.Unix(), chat.String(), r.acc.Key,
+				"UPDATE carteiras SET assalto_em = ?, crime_em = ?, ficha_em = ? WHERE chat = ? AND pessoa = ?",
+				now.Unix(), now.Unix(), now.Unix(), chat.String(), r.acc.Key,
 			)
 			if err != nil {
 				return err

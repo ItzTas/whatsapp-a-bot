@@ -29,6 +29,7 @@ type wallet struct {
 	Owner   types.JID
 	Balance int64
 	title   string
+	key     string
 }
 
 type cooldown struct {
@@ -43,14 +44,22 @@ type Savings struct {
 }
 
 type robbery struct {
-	wait    time.Duration
-	abuse   powerAbuse
-	poor    bool
-	alarmed bool
-	silent  bool
-	success bool
-	amount  int64
-	scuffle scuffle
+	wait     time.Duration
+	shield   time.Duration
+	abuse    powerAbuse
+	poor     bool
+	alarmed  bool
+	silent   bool
+	success  bool
+	amount   int64
+	jail     time.Duration
+	jailFine int64
+	scuffle  scuffle
+}
+
+type flagrant struct {
+	odds float64
+	jail time.Duration
 }
 
 type workday struct {
@@ -78,7 +87,7 @@ func (s *walletStore) Balance(ctx context.Context, chat types.JID, acc core.Acco
 
 func (s *walletStore) Richest(ctx context.Context, chat types.JID, limit int) (wallets []wallet, err error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT jid, saldo, titulo FROM carteiras WHERE chat = ? AND saldo > 0 ORDER BY saldo DESC LIMIT ?",
+		"SELECT pessoa, jid, saldo, titulo FROM carteiras WHERE chat = ? AND saldo > 0 ORDER BY saldo DESC LIMIT ?",
 		chat.String(), limit,
 	)
 	if err != nil {
@@ -91,7 +100,7 @@ func (s *walletStore) Richest(ctx context.Context, chat types.JID, limit int) (w
 			w     wallet
 			owner string
 		)
-		if err := rows.Scan(&owner, &w.Balance, &w.title); err != nil {
+		if err := rows.Scan(&w.key, &owner, &w.Balance, &w.title); err != nil {
 			return nil, err
 		}
 		if w.Owner, err = types.ParseJID(owner); err != nil {
@@ -190,6 +199,7 @@ type standing struct {
 	doctrine   string
 	temple     int
 	tithe      int64
+	record     int64
 }
 
 func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Account) (st standing, err error) {
@@ -200,11 +210,11 @@ func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Acc
 		        c.imovel, `+staffKinds+`,
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END,
-		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0), COALESCE(i.dizimo, ?)
+		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0), COALESCE(i.dizimo, ?), c.ficha_em
 		 FROM carteiras c LEFT JOIN igrejas i ON i.id = c.igreja
 		 WHERE c.chat = ? AND c.pessoa = ?`,
 		now, curseKind, now, now, unsetTithe, chat.String(), acc.Key,
-	).Scan(&st.profession, &st.president, &st.estate, &st.staff, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple, &st.tithe)
+	).Scan(&st.profession, &st.president, &st.estate, &st.staff, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple, &st.tithe, &st.record)
 	if errors.Is(err, sql.ErrNoRows) {
 		return standing{}, nil
 	}
@@ -308,7 +318,7 @@ func (s *walletStore) payShare(ctx context.Context, chat types.JID, payer core.A
 	return each, err
 }
 
-func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, abuse abuser, risk crimeRisk, now time.Time, minVictim int64,
+func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, abuse abuser, risk crimeRisk, caught flagrant, now time.Time, minVictim int64,
 	outcome func(thiefBalance, victimBalance int64) (success bool, amount int64)) (r robbery, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range []core.Account{thief, victim} {
@@ -324,6 +334,9 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if victimBalance < minVictim {
 			r.poor = true
 			return nil
+		}
+		if r.shield, err = shieldOn(ctx, tx, chat, victim, now); err != nil || r.shield > 0 {
+			return err
 		}
 		if r.wait, r.abuse, err = stampOrAbuse(ctx, tx, chat, thief, cd, abuse, now); err != nil || r.wait > 0 {
 			return err
@@ -341,10 +354,31 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if err := r.settle(ctx, tx, chat, thief, victim, thiefBalance, victimBalance, outcome); err != nil {
 			return err
 		}
-		r.scuffle, err = risk.clash(ctx, tx, chat, thief, victim, r.success, r.success, now)
+		if r.scuffle, err = risk.clash(ctx, tx, chat, thief, victim, r.success, r.success, now); err != nil {
+			return err
+		}
+		if r.success {
+			return raiseShield(ctx, tx, chat, victim, now)
+		}
+		if r.alarmed || r.scuffle.criminal.died || thiefBalance >= brokeThief || rand.Float64() >= caught.odds {
+			return nil
+		}
+		r.jail = caught.jail
+		r.jailFine, err = jailRobber(ctx, tx, chat, thief, r.jail, now)
 		return err
 	})
 	return r, err
+}
+
+func jailRobber(ctx context.Context, tx *ledgerTx, chat types.JID, thief core.Account, jail time.Duration, now time.Time) (int64, error) {
+	_, err := tx.ExecContext(ctx,
+		"UPDATE carteiras SET preso_ate = MAX(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
+		now.Add(jail).Unix(), chat.String(), thief.Key,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return lockUp(ctx, tx, chat, thief, now)
 }
 
 func (r *robbery) settle(ctx context.Context, tx *ledgerTx, chat types.JID, thief, victim core.Account, thiefBalance, victimBalance int64,
@@ -353,7 +387,10 @@ func (r *robbery) settle(ctx context.Context, tx *ledgerTx, chat types.JID, thie
 		return nil
 	}
 	if r.success, r.amount = outcome(thiefBalance, victimBalance); r.success {
-		return moveCoins(ctx, tx, chat, victim, thief, r.amount)
+		if err := moveCoins(ctx, tx, chat, victim, thief, r.amount); err != nil {
+			return err
+		}
+		return noteLoss(ctx, tx, chat, victim, lossRobbed, r.amount)
 	}
 	return moveCoins(ctx, tx, chat, thief, victim, r.amount)
 }

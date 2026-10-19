@@ -259,7 +259,7 @@ func (s *walletStore) rescue(ctx context.Context, chat types.JID, helper, friend
 }
 
 func bustOut(ctx context.Context, tx *ledgerTx, chat types.JID, helper, friend core.Account, now time.Time) error {
-	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0, crime_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), chat.String(), friend.Key)
+	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0, crime_em = ?, ficha_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), now.Unix(), chat.String(), friend.Key)
 	if err != nil {
 		return err
 	}
@@ -289,7 +289,7 @@ func easeEscape(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Acco
 
 func breakJail(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, left time.Duration, chance float64, now time.Time) (bool, time.Duration, error) {
 	if rand.Float64() < chance {
-		_, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0, crime_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), chat.String(), acc.Key)
+		_, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0, crime_em = ?, ficha_em = ? WHERE chat = ? AND pessoa = ?", now.Unix(), now.Unix(), chat.String(), acc.Key)
 		return true, left, err
 	}
 	left += escapePenalty
