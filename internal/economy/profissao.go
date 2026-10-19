@@ -597,10 +597,10 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 		return Profession{}, fmt.Errorf("ler profissão: %w", err)
 	}
 	job, _ := professionNamed(st.profession)
-	if st.president {
-		job = job.presidential()
-	}
 	job.decrees = decreed
+	if st.president {
+		job = job.presidential().tyrannical(time.Now())
+	}
 	return job.housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held), nil
 }
 

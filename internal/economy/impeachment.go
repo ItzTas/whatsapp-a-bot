@@ -84,6 +84,11 @@ func (b *bot) openImpeachment(ctx context.Context, chat types.JID) (i *impeachme
 	if !found {
 		return nil, false, true, b.SendText(ctx, chat, "🏛️ Ninguém é presidente agora, então não tem quem tirar do cargo. Manda !votar @pessoa pra abrir a eleição")
 	}
+	if p.decrees.on(tyrannyDecree) {
+		text := fmt.Sprintf("🪖 @%s é ditador e fechou o Congresso: não tem mais !impeachment. Agora só cai com !golpe, com o fim do mandato ou morto", p.president.JID.User)
+		_, err = b.SendMentions(ctx, chat, text, []types.JID{p.president.JID})
+		return nil, false, true, err
+	}
 	if wait := p.lastImpeachment.Add(impeachmentEvery).Sub(now); wait > 0 {
 		text := fmt.Sprintf("⚖️ Já teve pedido de impeachment contra @%s há pouco. O próximo só daqui a %s", p.president.JID.User, core.FormatWait(wait))
 		_, err = b.SendMentions(ctx, chat, text, []types.JID{p.president.JID})
@@ -205,6 +210,9 @@ func (b *bot) impeachmentResult(ctx context.Context, chat types.JID, president c
 	}
 	if !found || p.president.Key != president.Key {
 		return fmt.Sprintf("⚖️ A votação do impeachment fechou, mas @%s já não é mais presidente", president.JID.User), nil
+	}
+	if p.decrees.on(tyrannyDecree) {
+		return fmt.Sprintf("🪖 A votação do impeachment fechou, mas @%s virou ditador no meio dela e fechou o Congresso: o resultado não vale nada", president.JID.User), nil
 	}
 	tally := fmt.Sprintf("A favor: %s\nContra: %s", core.CountLabel(favor, "voto", "votos"), core.CountLabel(against, "voto", "votos"))
 	if favor < impeachmentQuorum || favor <= against {

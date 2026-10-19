@@ -677,6 +677,9 @@ func (b *bot) takeDrug(ctx context.Context, evt *events.Message, it item) error 
 		if funeral := funeralText(person, d.lost); funeral != "" {
 			text += "\n" + funeral
 		}
+		if d.deposed {
+			text += "\n" + deposedText(person)
+		}
 		text += escape
 		_, err = b.SendMentions(ctx, chat, text, append([]types.JID{person}, freed...))
 		return err

@@ -117,9 +117,7 @@ func (ev *liveEvent) strike(acc core.Account, damage int64, now time.Time) bossH
 	h.hits++
 	h.last = now
 	ev.health -= dealt
-	hit := bossHit{dealt: dealt, health: ev.health, life: ev.life}
-	hit.felled = ev.health == 0 && ev.shut()
-	return hit
+	return bossHit{dealt: dealt, health: ev.health, life: ev.life, felled: ev.health == 0 && ev.shut()}
 }
 
 func (ev *liveEvent) ranking() ([]liveHitter, int64) {

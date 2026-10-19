@@ -1,6 +1,7 @@
 package economy
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,7 @@ type coup struct {
 	president core.Account
 	plotters  []core.Account
 	loyalists []core.Account
+	need      int
 	closed    bool
 }
 
@@ -43,6 +45,7 @@ type coupState struct {
 	President core.StoredAccount   `json:"president"`
 	Plotters  []core.StoredAccount `json:"plotters"`
 	Loyalists []core.StoredAccount `json:"loyalists"`
+	Need      int                  `json:"need,omitempty"`
 }
 
 type coupAttempt struct {
@@ -96,11 +99,11 @@ func (b *bot) openCoup(ctx context.Context, chat types.JID, acc core.Account, lo
 	if p.president.Key == acc.Key {
 		return nil, false, true, b.SendText(ctx, chat, "🤡 Dar golpe em você mesmo? Se quer largar o cargo, manda !renunciar")
 	}
-	if wait := p.lastCoup.Add(coupEvery).Sub(now); wait > 0 {
+	if wait := p.lastCoup.Add(p.decrees.coupEvery()).Sub(now); wait > 0 {
 		text := fmt.Sprintf("🪖 Já teve tentativa de golpe contra @%s há pouco e o palácio tá cercado. A próxima só daqui a %s", p.president.JID.User, core.FormatWait(wait))
 		return nil, false, true, b.sendMentionsText(ctx, chat, text, p.president)
 	}
-	value, running := b.coups.LoadOrStore(chat.String(), &coup{opened: now, president: p.president})
+	value, running := b.coups.LoadOrStore(chat.String(), &coup{opened: now, president: p.president, need: p.decrees.coupMin()})
 	c = value.(*coup)
 	if running {
 		return c, false, false, nil
@@ -144,14 +147,21 @@ func (c *coup) sides(loyal bool) (mine *[]core.Account, other []core.Account) {
 func (c *coup) joinText(acc core.Account, loyal, opened bool) string {
 	left := core.FormatWait(coupWindow - time.Since(c.opened))
 	if opened {
-		return fmt.Sprintf("🪖 *Golpe de estado!*\n@%s tá tramando derrubar @%s da presidência. Manda !golpe em até %s pra entrar no golpe, ou !golpe defender pra proteger o governo\n_Precisa de pelo menos %d golpistas. Cada golpista a mais soma %d%% de chance e cada defensor tira %d%%, arma na mochila ajuda os dois lados e a proteção do presidente atrapalha o golpe. Se der certo, @%s vira presidente por %s e os decretos caem. Se der errado, quem não escapar vai preso_",
-			acc.JID.User, c.president.JID.User, left, coupMin, percent(coupHelp), percent(coupHelp), acc.JID.User, core.FormatWait(termLength))
+		return fmt.Sprintf("🪖 *Golpe de estado!*\n@%s tá tramando derrubar @%s da presidência. Manda !golpe em até %s pra entrar no golpe, ou !golpe defender pra proteger o governo\n_Precisa de pelo menos %d golpistas. Cada golpista a mais soma %d%% de chance e cada defensor tira %d%%, arma na mochila ajuda os dois lados e a proteção do presidente atrapalha o golpe. Se der certo, @%s vira presidente por %s e os decretos caem. Se der errado, quem não escapar vai preso_%s",
+			acc.JID.User, c.president.JID.User, left, c.need, percent(coupHelp), percent(coupHelp), acc.JID.User, core.FormatWait(termLength), c.tyrannyNote())
 	}
 	count := fmt.Sprintf("Golpistas: %d. Defensores: %d. O golpe sai em %s", len(c.plotters), len(c.loyalists), left)
 	if loyal {
 		return fmt.Sprintf("🛡️ @%s vai defender @%s. %s", acc.JID.User, c.president.JID.User, count)
 	}
 	return fmt.Sprintf("🪖 @%s entrou no golpe contra @%s. %s", acc.JID.User, c.president.JID.User, count)
+}
+
+func (c *coup) tyrannyNote() string {
+	if c.need >= coupMin {
+		return ""
+	}
+	return "\n🪖 _É ditadura: o povo tá do lado de quem derruba, então o golpe precisa de menos gente_"
 }
 
 func (c *coup) close(ctx context.Context, b *bot, chat types.JID) (plotters, loyalists []core.Account) {
@@ -163,7 +173,7 @@ func (c *coup) close(ctx context.Context, b *bot, chat types.JID) (plotters, loy
 }
 
 func (b *bot) saveCoup(ctx context.Context, chat types.JID, c *coup) {
-	state := coupState{Chat: chat, Opened: c.opened, President: core.StoreAccount(c.president), Plotters: storeAccounts(c.plotters), Loyalists: storeAccounts(c.loyalists)}
+	state := coupState{Chat: chat, Opened: c.opened, President: core.StoreAccount(c.president), Plotters: storeAccounts(c.plotters), Loyalists: storeAccounts(c.loyalists), Need: c.need}
 	b.KeepGame(ctx, coupKind, chat.String(), state, c.opened.Add(coupWindow))
 }
 
@@ -188,7 +198,7 @@ func (b *bot) restoreCoup(ctx context.Context, saved core.SavedGame) error {
 	if err := json.Unmarshal(saved.State, &state); err != nil {
 		return fmt.Errorf("ler golpe salvo: %w", err)
 	}
-	c := &coup{opened: state.Opened, president: state.President.Account(), plotters: loadAccounts(state.Plotters), loyalists: loadAccounts(state.Loyalists)}
+	c := &coup{opened: state.Opened, president: state.President.Account(), plotters: loadAccounts(state.Plotters), loyalists: loadAccounts(state.Loyalists), need: cmp.Or(state.Need, coupMin)}
 	if _, running := b.coups.LoadOrStore(state.Chat.String(), c); running {
 		return fmt.Errorf("já tem outro golpe sendo tramado em %s", state.Chat)
 	}
@@ -211,7 +221,7 @@ func (b *bot) closeCoup(ctx context.Context, chat types.JID, c *coup) {
 	plotters, loyalists := c.close(ctx, b, chat)
 	b.coups.CompareAndDelete(chat.String(), c)
 	people := append(append([]core.Account{c.president}, plotters...), loyalists...)
-	text, err := b.runCoup(ctx, chat, c.president, plotters, loyalists)
+	text, err := b.runCoup(ctx, chat, c.president, plotters, loyalists, c.need)
 	if err != nil {
 		b.Client.Log.Errorf("dar golpe: %v", err)
 		return
@@ -221,7 +231,7 @@ func (b *bot) closeCoup(ctx context.Context, chat types.JID, c *coup) {
 	}
 }
 
-func (b *bot) runCoup(ctx context.Context, chat types.JID, president core.Account, plotters, loyalists []core.Account) (string, error) {
+func (b *bot) runCoup(ctx context.Context, chat types.JID, president core.Account, plotters, loyalists []core.Account, need int) (string, error) {
 	attempt := coupAttempt{president: president, plotters: make([]robber, len(plotters)), loyalists: loyalists, guards: make([]Profession, len(loyalists))}
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { attempt.head, err = b.ProfessionOf(gctx, chat, president); return err })
@@ -235,8 +245,8 @@ func (b *bot) runCoup(ctx context.Context, chat types.JID, president core.Accoun
 	if err := g.Wait(); err != nil {
 		return "", err
 	}
-	if len(plotters) < coupMin && !attempt.godPlotting() {
-		return fmt.Sprintf("🚫 O golpe contra @%s não saiu: só %s, e precisava de %d", president.JID.User, core.CountLabel(len(plotters), "golpista apareceu", "golpistas apareceram"), coupMin), nil
+	if len(plotters) < need && !attempt.godPlotting() {
+		return fmt.Sprintf("🚫 O golpe contra @%s não saiu: só %s, e precisava de %d", president.JID.User, core.CountLabel(len(plotters), "golpista apareceu", "golpistas apareceram"), need), nil
 	}
 	attempt.chance = attempt.odds()
 	err := b.Wallets.coup(ctx, chat, &attempt, time.Now())

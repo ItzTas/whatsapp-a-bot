@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -89,8 +90,24 @@ func liveEntryOf(format liveFormat, id string) (liveEntry, bool) {
 	return liveCatalog[i], true
 }
 
-func pickLive(crowd int, recent []string) (liveEntry, bool) {
-	formats := slices.DeleteFunc(slices.Clone(liveFormats), func(f liveFormat) bool { return crowd < f.rules().crowd })
+func crowdFormats(crowd int) []liveFormat {
+	return slices.DeleteFunc(slices.Clone(liveFormats), func(f liveFormat) bool { return crowd < f.rules().crowd })
+}
+
+func liveFormatsNamed(arg string) ([]liveFormat, bool) {
+	if arg == "" {
+		return liveFormats, true
+	}
+	names := map[string]liveFormat{
+		"corrida": grabFormat, "pegar": grabFormat,
+		"chefao": bossFormat, "chefe": bossFormat, "boss": bossFormat,
+		"enquete": voteFormat, "votacao": voteFormat,
+	}
+	f, ok := names[core.FoldLetters(strings.TrimSpace(arg))]
+	return []liveFormat{f}, ok
+}
+
+func pickLive(formats []liveFormat, recent []string) (liveEntry, bool) {
 	if len(formats) == 0 {
 		return liveEntry{}, false
 	}
@@ -195,6 +212,13 @@ func (l *liveBoard) cue(chat types.JID, acc core.Account, now time.Time) liveCue
 	return cue
 }
 
+func (l *liveBoard) peek(chat types.JID, now time.Time) ([]types.JID, []string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	c := l.chat(chat, now)
+	return c.roster(), slices.Clone(c.recent)
+}
+
 func (l *liveBoard) opened(chat types.JID, id string, now time.Time) liveChatSave {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -232,11 +256,7 @@ func (c *liveChat) roster() []types.JID {
 }
 
 func (c *liveChat) state() liveChatSave {
-	players := make(map[string]livePlayer, len(c.players))
-	for key, p := range c.players {
-		players[key] = p
-	}
-	return liveChatSave{Last: c.last, Players: players, Recent: slices.Clone(c.recent)}
+	return liveChatSave{Last: c.last, Players: maps.Clone(c.players), Recent: slices.Clone(c.recent)}
 }
 
 type liveEvent struct {
@@ -326,27 +346,55 @@ func (b *bot) stirLive(ctx context.Context, evt *events.Message, cmd core.Comman
 	if !on {
 		return
 	}
-	if err := b.openLive(ctx, chat, cue.players, cue.recent, now); err != nil {
+	if _, err := b.openLive(ctx, chat, crowdFormats(len(cue.players)), cue.players, cue.recent, now); err != nil {
 		b.Client.Log.Errorf("abrir evento ao vivo em %s: %v", chat, err)
 	}
 }
 
-func (b *bot) openLive(ctx context.Context, chat types.JID, players []types.JID, recent []string, now time.Time) error {
-	entry, ok := pickLive(len(players), recent)
+func (b *bot) openLive(ctx context.Context, chat types.JID, formats []liveFormat, players []types.JID, recent []string, now time.Time) (bool, error) {
+	entry, ok := pickLive(formats, recent)
 	if !ok {
-		return nil
+		return false, nil
 	}
 	ev := newLiveEvent(chat, entry, len(players), now)
 	if _, taken := b.live.events.LoadOrStore(chat, ev); taken {
-		return nil
+		return false, nil
 	}
 	b.keepLiveChat(ctx, chat, b.live.opened(chat, entry.id, now))
 	if err := entry.format.rules().show(b, ctx, ev, players); err != nil {
 		b.live.events.CompareAndDelete(chat, ev)
-		return fmt.Errorf("mostrar o evento ao vivo %s: %w", entry.id, err)
+		return false, fmt.Errorf("mostrar o evento ao vivo %s: %w", entry.id, err)
 	}
 	b.trackLive(ctx, ev, time.Until(ev.expires))
-	return nil
+	return true, nil
+}
+
+func (b *bot) invocar(ctx context.Context, evt *events.Message) error {
+	chat := evt.Info.Chat.ToNonAD()
+	if chat.Server != types.GroupServer {
+		return b.SendText(ctx, chat, "📡 Evento ao vivo é coisa de grupo, aqui só tem você")
+	}
+	formats, ok := liveFormatsNamed(core.QuestionFrom(core.MessageText(evt.Message)))
+	if !ok {
+		return b.ReplyTo(ctx, evt, "Use assim: !aovivo pra um evento qualquer, ou !aovivo corrida, !aovivo chefão ou !aovivo enquete pra escolher o tipo")
+	}
+	job, err := b.ProfessionOf(ctx, chat, b.Account(ctx, evt.Info.Sender))
+	if err != nil {
+		return err
+	}
+	if !job.divine {
+		return b.ReplyTo(ctx, evt, "🚫 Só deus solta evento ao vivo na hora. O resto espera ele aparecer sozinho")
+	}
+	if _, busy := b.live.events.Load(chat); busy {
+		return b.ReplyTo(ctx, evt, "⏳ Já tem um evento ao vivo rolando aqui, espera ele acabar")
+	}
+	now := time.Now()
+	players, recent := b.live.peek(chat, now)
+	opened, err := b.openLive(ctx, chat, formats, players, recent, now)
+	if err != nil || opened {
+		return err
+	}
+	return b.ReplyTo(ctx, evt, "⏳ Já tem um evento ao vivo rolando aqui, espera ele acabar")
 }
 
 func (b *bot) keepLiveChat(ctx context.Context, chat types.JID, state liveChatSave) {

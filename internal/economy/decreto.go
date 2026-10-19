@@ -42,15 +42,17 @@ var errDecreeIdle = errors.New("decreto sem efeito")
 type decrees map[string]int64
 
 type percentDecree struct {
-	names   []string
-	column  string
-	lo, hi  int64
-	popular bool
-	raised  string
-	lowered string
-	revoked string
-	syntax  string
-	about   string
+	names    []string
+	column   string
+	lo, hi   int64
+	tyrantLo int64
+	tyrantHi int64
+	popular  bool
+	raised   string
+	lowered  string
+	revoked  string
+	syntax   string
+	about    string
 }
 
 type toggleDecree struct {
@@ -59,6 +61,7 @@ type toggleDecree struct {
 	emoji   string
 	effect  string
 	revoked string
+	lasting string
 	syntax  string
 	about   string
 }
@@ -94,6 +97,7 @@ type decree func(ctx context.Context, call decreeCall) (string, error)
 type PixLevy struct {
 	president core.Account
 	percent   int64
+	excess    int64
 }
 
 var (
@@ -122,25 +126,25 @@ var (
 		syntax:  "!decreto juros 3", about: fmt.Sprintf("soma ou tira pontos dos juros do !poupar: o normal é %d%%, e 3 faz render %d%%", savingsRate, savingsRate+3),
 	}
 	savingsTaxDecree = percentDecree{
-		names: []string{"iof", "impostopoupanca", "impostojuros"}, column: "poupanca_imposto_pct", hi: savingsTaxDecreeMax,
+		names: []string{"iof", "impostopoupanca", "impostojuros"}, column: "poupanca_imposto_pct", hi: savingsTaxDecreeMax, tyrantHi: tyrantSavingsTaxMax,
 		raised:  "a poupança paga %d%% dos juros de imposto no resgate, e ele vai pro presidente",
 		revoked: "a poupança volta a render sem imposto",
 		syntax:  "!decreto iof 20", about: "cobra imposto em cima dos juros do !poupar na hora do resgate, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto poupanca também)",
 	}
 	incomeTaxDecree = percentDecree{
-		names: []string{"renda", "impostorenda", "impostotrabalho", "impostotrampo", "impostosalario", "impostodaily", "impostodiario"}, column: "renda_pct", hi: incomeTaxDecreeMax,
+		names: []string{"renda", "impostorenda", "impostotrabalho", "impostotrampo", "impostosalario", "impostodaily", "impostodiario"}, column: "renda_pct", hi: incomeTaxDecreeMax, tyrantHi: tyrantIncomeTaxMax,
 		raised:  "o !trabalhar e o !daily pagam %d%% de imposto de renda, e ele vai pro presidente",
 		revoked: "o !trabalhar e o !daily voltam a pagar sem imposto",
 		syntax:  "!decreto renda 10", about: "cobra imposto em cima do que o !trabalhar e o !daily pagam, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto trabalho ou !decreto imposto daily também)",
 	}
 	shopTaxDecree = percentDecree{
-		names: []string{"loja", "compra", "compras", "impostocompra", "impostocompras", "impostoloja"}, column: "loja_pct", hi: shopTaxDecreeMax,
+		names: []string{"loja", "compra", "compras", "impostocompra", "impostocompras", "impostoloja"}, column: "loja_pct", hi: shopTaxDecreeMax, tyrantHi: tyrantShopTaxMax,
 		raised:  "o !comprar cobra %d%% de imposto em cima da compra, e ele vai pro presidente",
 		revoked: "o !comprar volta a cobrar sem imposto",
 		syntax:  "!decreto loja 10", about: "cobra imposto em cima de cada !comprar da !loja e do !petshop, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto compra também)",
 	}
 	pixDecree = percentDecree{
-		names: []string{"pix", "transferencia", "taxa"}, column: "pix_pct", hi: pixDecreeMax,
+		names: []string{"pix", "transferencia", "taxa"}, column: "pix_pct", hi: pixDecreeMax, tyrantHi: tyrantPixMax,
 		raised:  "o !transferir cobra mais %d%% de taxa de quem recebe, e ela vai pro presidente",
 		revoked: "o !transferir volta à taxa normal",
 		syntax:  "!decreto pix 5", about: "cobra uma taxa a mais de quem recebe no !transferir, e ela vai pro bolso do presidente",
@@ -152,7 +156,7 @@ var (
 		syntax:  "!decreto pena 20", about: "muda quanto tempo dura a cadeia de quem for preso",
 	}
 	bailDecree = percentDecree{
-		names: []string{"fianca", "impostofianca", "taxafianca"}, column: "fianca_pct", hi: bailTaxDecreeMax,
+		names: []string{"fianca", "impostofianca", "taxafianca"}, column: "fianca_pct", hi: bailTaxDecreeMax, tyrantHi: tyrantBailTaxMax,
 		raised:  "o !fianca cobra %d%% de imposto em cima da fiança, e ele vai pro presidente",
 		revoked: "o !fianca volta a cobrar sem imposto",
 		syntax:  "!decreto fianca 20", about: "cobra imposto em cima de cada !fianca paga, e ele vai pro bolso do presidente (dá pra mandar !decreto imposto fianca também)",
@@ -170,7 +174,7 @@ var (
 		syntax:  "!decreto fama -30", about: "muda a espera do !postar de todo mundo",
 	}
 	casinoDecree = percentDecree{
-		names: []string{"cassino", "premio", "premios", "apostas", "aposta"}, column: "cassino_pct", lo: -betTaxDecreeMax, hi: casinoDecreeMaxRaise, popular: true,
+		names: []string{"cassino", "premio", "premios", "apostas", "aposta"}, column: "cassino_pct", lo: -betTaxDecreeMax, hi: casinoDecreeMaxRaise, tyrantLo: -tyrantBetTaxMax, popular: true,
 		raised:  "o cassino paga %d%% mais nos prêmios",
 		lowered: "o cassino cobra %d%% de taxa pro presidente: quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou",
 		revoked: "o cassino volta ao normal, sem prêmio a mais nem taxa",
@@ -184,7 +188,7 @@ var (
 		revoked: "acabou o toque de recolher 🌅",
 		syntax:  "!decreto recolher", about: fmt.Sprintf("liga (ou desliga) o toque de recolher: !roubar, !furtar, !sequestrar, !matar e !assalto ficam com %d%% menos chance", percent(curfewPenalty)),
 	}
-	toggleDecrees = []toggleDecree{curfewDecree}
+	toggleDecrees = []toggleDecree{curfewDecree, tyrannyDecree}
 
 	taxOnce = onceDecree{
 		names: []string{"imposto", "impostos", "taxar"}, column: "imposto_cobrado", limit: 1, label: "imposto",
@@ -235,7 +239,7 @@ func decreeColumns() []string {
 	for _, d := range onceDecrees {
 		columns = append(columns, d.column)
 	}
-	return columns
+	return append(columns, tyrannyColumns...)
 }
 
 func zipDecrees(columns []string, values []int64) decrees {
@@ -247,7 +251,8 @@ func zipDecrees(columns []string, values []int64) decrees {
 }
 
 func (d decrees) level(pd percentDecree) int64 {
-	return min(max(d[pd.column], pd.lo), pd.hi)
+	lo, hi := d.limits(pd)
+	return min(max(d[pd.column], lo), hi)
 }
 
 func (d decrees) on(td toggleDecree) bool {
@@ -320,14 +325,14 @@ func (pd percentDecree) effect(level int64) string {
 }
 
 func (pd percentDecree) bounds() string {
-	if pd.lo == 0 {
-		return fmt.Sprintf("de 0 a %d%%", pd.hi)
-	}
-	return fmt.Sprintf("de %d%% a +%d%%", pd.lo, pd.hi)
+	return boundsText(pd.lo, pd.hi)
 }
 
-func (pd percentDecree) parse(args []string) (int64, string) {
-	return decreePercent(args, pd.lo, pd.hi)
+func boundsText(lo, hi int64) string {
+	if lo == 0 {
+		return fmt.Sprintf("de 0 a %d%%", hi)
+	}
+	return fmt.Sprintf("de %d%% a +%d%%", lo, hi)
 }
 
 func (pd percentDecree) mood(level int64) string {
@@ -448,7 +453,8 @@ func (p presidency) levy(pd percentDecree, payers ...core.Account) PixLevy {
 			return PixLevy{}
 		}
 	}
-	return PixLevy{president: p.president, percent: p.decrees.level(pd)}
+	level := p.decrees.level(pd)
+	return PixLevy{president: p.president, percent: level, excess: pd.abuse(level)}
 }
 
 func (b *bot) decreto(ctx context.Context, evt *events.Message) error {
@@ -518,6 +524,9 @@ func (b *bot) decrees() map[string]decree {
 			runs[name] = run
 		}
 	}
+	for _, name := range []string{"exercito", "exercitos", "batalhao", "batalhoes", "tropas", "milicia"} {
+		runs[name] = b.armyDecree
+	}
 	once := []struct {
 		od  onceDecree
 		run decree
@@ -572,7 +581,7 @@ func onceDecreeHelp() []core.Usage {
 }
 
 func decreeHelp() []core.Usage {
-	return slices.Concat(percentDecreeHelp(", e 0 tira o decreto"), toggleDecreeHelp(), onceDecreeHelp())
+	return slices.Concat(percentDecreeHelp(", e 0 tira o decreto"), toggleDecreeHelp(), onceDecreeHelp(), []core.Usage{armyHelp()})
 }
 
 func decreesMenu() string {
@@ -582,8 +591,9 @@ func decreesMenu() string {
 		help  []core.Usage
 	}{
 		{"📊 POR PORCENTAGEM", "Ficam valendo até o fim do mandato. Manda 0 pra tirar o decreto", percentDecreeHelp("")},
-		{"🔀 LIGA E DESLIGA", "Manda o mesmo decreto de novo pra desligar", toggleDecreeHelp()},
+		{"🔀 LIGA E DESLIGA", "Manda o mesmo decreto de novo pra desligar (menos a ditadura)", toggleDecreeHelp()},
 		{"⚡ DE UMA VEZ", "Têm efeito na hora e gastam um uso do mandato", onceDecreeHelp()},
+		{"🪖 SÓ NA DITADURA", "Depois do !decreto ditadura, que não tem volta, os impostos também passam do teto", []core.Usage{armyHelp()}},
 	}
 	var sb strings.Builder
 	sb.WriteString("📜 *DECRETOS DO PRESIDENTE*")
@@ -620,9 +630,10 @@ func (pd percentDecree) unchanged(level int64) string {
 
 func (b *bot) percentDecreeRun(pd percentDecree) decree {
 	return func(ctx context.Context, call decreeCall) (string, error) {
-		level, problem := pd.parse(call.args)
+		lo, hi := call.p.decrees.limits(pd)
+		level, problem := decreePercent(call.args, lo, hi)
 		if problem != "" {
-			return fmt.Sprintf("🤔 %s. O !decreto %s vai %s, e 0 tira o decreto. Exemplo: %s", problem, pd.names[0], pd.bounds(), pd.syntax), nil
+			return fmt.Sprintf("🤔 %s. O !decreto %s vai %s, e 0 tira o decreto. Exemplo: %s", problem, pd.names[0], boundsText(lo, hi), pd.syntax), nil
 		}
 		if level == call.p.decrees.level(pd) {
 			return pd.unchanged(level), nil
@@ -644,6 +655,9 @@ func (b *bot) percentDecreeRun(pd percentDecree) decree {
 
 func (b *bot) toggleDecreeRun(td toggleDecree) decree {
 	return func(ctx context.Context, call decreeCall) (string, error) {
+		if td.lasting != "" && call.p.decrees.on(td) {
+			return td.lasting, nil
+		}
 		on, set, err := b.Wallets.flipDecree(ctx, call.chat, call.p.president, td.column, call.now)
 		if err != nil {
 			return "", fmt.Errorf("decreto %s: %w", td.names[0], err)
@@ -1002,7 +1016,10 @@ func (s *walletStore) transferWithPix(ctx context.Context, chat types.JID, from,
 		if !levy.collected() {
 			return debitBalance(ctx, tx, chat, to, pix)
 		}
-		return moveCoins(ctx, tx, chat, to, levy.president, pix)
+		if err := moveCoins(ctx, tx, chat, to, levy.president, pix); err != nil {
+			return err
+		}
+		return stirRevolt(ctx, tx, chat, levy)
 	})
 	return pix, err
 }
@@ -1051,6 +1068,7 @@ type heldLevy struct {
 type heldLevySave struct {
 	President core.StoredAccount `json:"president"`
 	Percent   int64              `json:"percent"`
+	Excess    int64              `json:"excess,omitempty"`
 	Paid      int64              `json:"paid"`
 }
 
@@ -1064,11 +1082,11 @@ func (w wager) held() heldLevy {
 }
 
 func (h heldLevy) saved() heldLevySave {
-	return heldLevySave{President: core.StoreAccount(h.president), Percent: h.percent, Paid: h.paid}
+	return heldLevySave{President: core.StoreAccount(h.president), Percent: h.percent, Excess: h.excess, Paid: h.paid}
 }
 
 func (s heldLevySave) held() heldLevy {
-	return heldLevy{PixLevy: PixLevy{president: s.President.Account(), percent: s.Percent}, paid: s.Paid}
+	return heldLevy{PixLevy: PixLevy{president: s.President.Account(), percent: s.Percent, excess: s.Excess}, paid: s.Paid}
 }
 
 func (h heldLevy) onPrize(stake, payout int64) prizeLevy {
@@ -1098,7 +1116,10 @@ func (s *walletStore) payPrize(ctx context.Context, chat types.JID, acc core.Acc
 			return err
 		}
 		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", levy.fee, chat.String(), levy.president.Key)
-		return err
+		if err != nil {
+			return err
+		}
+		return stirRevolt(ctx, tx, chat, levy.PixLevy)
 	})
 }
 
@@ -1129,7 +1150,10 @@ func payLevy(ctx context.Context, tx *ledgerTx, chat types.JID, levy PixLevy, fe
 		return err
 	}
 	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", fee, chat.String(), levy.president.Key)
-	return err
+	if err != nil {
+		return err
+	}
+	return stirRevolt(ctx, tx, chat, levy)
 }
 
 func incomeTaxText(tax int64, levy PixLevy) string {

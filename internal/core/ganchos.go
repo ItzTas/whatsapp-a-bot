@@ -35,6 +35,7 @@ type hooks struct {
 	commandFilters []func(ctx context.Context, evt *events.Message, name string) bool
 	unknown        []func(ctx context.Context, evt *events.Message, name string) error
 	guards         []func(ctx context.Context, evt *events.Message, cmd Command) bool
+	afterCommand   []func(ctx context.Context, evt *events.Message, cmd Command)
 	restorers      map[string]GameRestorer
 	jobs           []func(ctx context.Context)
 	groupInfo      []func(ctx context.Context, evt *events.GroupInfo)
@@ -84,6 +85,10 @@ func (b *Bot) AddUnknownCommand(answer func(ctx context.Context, evt *events.Mes
 
 func (b *Bot) AddGuard(guard func(ctx context.Context, evt *events.Message, cmd Command) bool) {
 	b.hooks.guards = append(b.hooks.guards, guard)
+}
+
+func (b *Bot) AddAfterCommand(after func(ctx context.Context, evt *events.Message, cmd Command)) {
+	b.hooks.afterCommand = append(b.hooks.afterCommand, after)
 }
 
 func (b *Bot) AddRestorers(restorers map[string]GameRestorer) {
@@ -198,6 +203,12 @@ func (b *Bot) guarded(ctx context.Context, evt *events.Message, cmd Command) boo
 		}
 	}
 	return false
+}
+
+func (b *Bot) commandRan(ctx context.Context, evt *events.Message, cmd Command) {
+	for _, after := range b.hooks.afterCommand {
+		after(ctx, evt, cmd)
+	}
 }
 
 func (b *Bot) StartJobs(ctx context.Context) {

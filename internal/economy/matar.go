@@ -39,6 +39,7 @@ type killing struct {
 	lost    int64
 	hold    time.Duration
 	reaped  bool
+	deposed bool
 	rip     unplugging
 	scuffle scuffle
 }
@@ -201,6 +202,9 @@ func deathCaption(k killing, killer, victim types.JID) string {
 		fmt.Sprintf("⚰️ @%s tá morto(a) por %s: até ressuscitar, nada de comando de economia (nem !saldo, !trabalhar ou !daily). Um necromante, o presidente ou quem tem o Livro de São Cipriano pode tentar !reviver", victim.User, core.FormatWait(k.hold)),
 	}
 	lines = append(lines, reapText(k, killer, victim)...)
+	if k.deposed {
+		lines = append(lines, deposedText(victim))
+	}
 	if !k.freed.IsEmpty() {
 		lines = append(lines, fmt.Sprintf("🔓 O refém de @%s aproveitou o velório pra fugir: @%s tá livre!", victim.User, k.freed.User))
 	}
@@ -302,7 +306,7 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim c
 			if err != nil {
 				return err
 			}
-			k.freed, k.lost, k.hold, k.reaped = d.freed, d.lost, d.hold, odds.reap
+			k.freed, k.lost, k.hold, k.reaped, k.deposed = d.freed, d.lost, d.hold, odds.reap, d.deposed
 			if k.posse, err = posseReward(ctx, tx, chat, victim, killer, odds.posse); err != nil {
 				return err
 			}

@@ -27,6 +27,7 @@ type bot struct {
 	craters        sync.Map
 	missionSteps   missionLog
 	scenes         sceneBoard
+	live           liveBoard
 	tips           tipBoard
 	Wallets        *walletStore
 }
@@ -46,8 +47,12 @@ func (b *bot) Register() {
 	b.AddObserver("responder !crash", b.answerCrash)
 	b.AddCommandFilter(b.answerCrashCommand)
 	b.AddObserver("responder evento", b.answerEvent)
+	b.AddObserver("responder enquete ao vivo", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.live.polls) })
 	b.AddGuard(b.economyGuard)
+	b.AddAfterCommand(b.stirLive)
 	b.OnModeOff(core.ModeEconomy, b.haltEvents)
+	b.OnModeOff(core.ModeEconomy, b.haltLive)
+	b.OnModeOff(core.ModeLive, b.haltLive)
 	b.AddJob(b.runLottery)
 	b.AddJob(b.runAnimalGame)
 	b.AddJob(b.runTaxes)
@@ -71,11 +76,14 @@ func (b *bot) Register() {
 		coupKind:        b.restoreCoup,
 		eventKind:       b.restoreEvent,
 		craterKind:      b.restoreCrater,
+		liveKind:        b.restoreLive,
+		liveChatKind:    b.restoreLiveChat,
 	})
 }
 
 func (b *bot) economyGuard(ctx context.Context, evt *events.Message, cmd core.Command) bool {
-	if cmd.Category.Mode == core.ModeEconomy && !cmd.WhileDead && b.holdIfDead(ctx, evt) {
+	economic := cmd.Category.Mode == core.ModeEconomy || cmd.Category.Mode == core.ModeLive
+	if economic && !cmd.WhileDead && b.holdIfDead(ctx, evt) {
 		return true
 	}
 	return cmd.BarredInJail && (b.holdIfJailed(ctx, evt) || b.holdIfHostage(ctx, evt))

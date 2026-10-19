@@ -113,6 +113,7 @@ func (b *Bot) HandleMessage(ctx context.Context, evt *events.Message) {
 	if err := cmd.Run(ctx, evt); err != nil {
 		b.Client.Log.Errorf("comando !%s: %v", name, err)
 	}
+	b.commandRan(ctx, evt, cmd)
 }
 
 func (b *Bot) enabledCommand(ctx context.Context, chat types.JID, matching []Command) (Command, bool, error) {

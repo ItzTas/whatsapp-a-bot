@@ -27,11 +27,12 @@ const (
 )
 
 type payback struct {
-	fate  snitchFate
-	left  time.Duration
-	fine  int64
-	lost  int64
-	freed types.JID
+	fate    snitchFate
+	left    time.Duration
+	fine    int64
+	lost    int64
+	freed   types.JID
+	deposed bool
 }
 
 func (b *bot) denunciar(ctx context.Context, evt *events.Message) error {
@@ -87,7 +88,10 @@ func (p payback) text(job Profession, snitch, suspect types.JID) string {
 		snitchKilled: func() string {
 			text := fmt.Sprintf(" e fez queima de arquivo: @%s morreu e fica %s sem comando de economia, a não ser que pague o !hospital ou alguém consiga !reviver", snitch.User, core.FormatWait(p.left))
 			if funeral := funeralText(snitch, p.lost); funeral != "" {
-				return text + "\n" + funeral
+				text += "\n" + funeral
+			}
+			if p.deposed {
+				text += "\n" + deposedText(snitch)
 			}
 			return text
 		},
@@ -178,7 +182,7 @@ func jailSnitch(ctx context.Context, tx *ledgerTx, chat types.JID, snitch core.A
 
 func killSnitch(ctx context.Context, tx *ledgerTx, chat types.JID, snitch core.Account, now time.Time) (payback, error) {
 	d, err := die(ctx, tx, chat, snitch, now)
-	return payback{fate: snitchKilled, left: d.hold, lost: d.lost, freed: d.freed}, err
+	return payback{fate: snitchKilled, left: d.hold, lost: d.lost, freed: d.freed, deposed: d.deposed}, err
 }
 
 func captureSnitch(ctx context.Context, tx *ledgerTx, chat types.JID, snitch, captor core.Account, jail time.Duration, now time.Time) (payback, error) {

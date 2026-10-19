@@ -26,6 +26,7 @@ var (
 	StatsCategory      = Category{"📈 Estatísticas", modeStats}
 	JokesCategory      = Category{"😂 Zoeira", ModeJokes}
 	EconomyCategory    = Category{"💰 Economia", ModeEconomy}
+	LiveCategory       = Category{"💰 Economia", ModeLive}
 	AICategory         = Category{"🧠 IA", modeAI}
 	MeddlingCategory   = Category{"🧠 IA", ModeAIMeddling}
 	ModerationCategory = Category{"🛡️ Moderação", ModeModeration}

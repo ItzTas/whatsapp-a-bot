@@ -287,6 +287,7 @@ func (b *Bot) filterCommands() []Command {
 				{"!modo ativar baixarlinks", "submodo do utilidades: nesta conversa, o bot baixa sozinho os vídeos, imagens e gifs dos links que mandarem"},
 				{"!modo ativar anuncios", "submodo da economia: nesta conversa, o bot avisa o resultado da loteria e do bicho, o imposto, o fim do leilão, a penhora do empréstimo e o procurado do dia. Cada grupo liga o seu, mesmo com a economia vinculada"},
 				{"!modo ativar dicas", "submodo da economia: nesta conversa, o bot solta de tempos em tempos uma dica da economia ou de um comando que pouca gente conhece"},
+				{"!modo ativar aovivo", "submodo da economia: nesta conversa, o bot solta de vez em quando um evento ao vivo pro grupo todo (corrida do !pegar, chefão do !atacar ou enquete coletiva), puxado pelos comandos da economia"},
 				{"!modo ativar ia iaenxerida", "os submodos só funcionam com o modo de cima ligado, e o tudo não liga nenhum deles"},
 				{"!modo ativar moderacao", "nesta conversa, os admins podem usar o !ban, o !promover, o !rebaixar, o !mutar, o !desmutar, o !advertir, o !perdoar, o !boasvindas, o !fixar e o !desfixar (todo mundo pode ver o !advertencias), e o bot apaga as mensagens de quem tá mutado e manda a mensagem de boas-vindas quando alguém entra"},
 				{"!modo ativar cidadedorme", "nesta conversa, liga o Cidade Dorme. Ele é exclusivo: pausa a economia, que também tem !matar e !votar, e quando desliga ela volta. Os outros modos continuam ligados. Ligar a economia (ou a diversao, que inclui ela) desliga ele"},

@@ -51,9 +51,10 @@ type wound struct {
 }
 
 type death struct {
-	freed types.JID
-	lost  int64
-	hold  time.Duration
+	freed   types.JID
+	lost    int64
+	hold    time.Duration
+	deposed bool
 }
 
 type funeral struct {
@@ -144,6 +145,9 @@ func bury(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, f
 	if d.freed, err = freeHostage(ctx, tx, chat, acc, now); err != nil {
 		return d, err
 	}
+	if d.deposed, err = deposeTyrant(ctx, tx, chat, acc, now); err != nil {
+		return d, err
+	}
 	if d.lost, err = burnBalance(ctx, tx, chat, acc, f.minPercent, f.maxPercent, 1); err != nil || d.lost == 0 || f.heir.Key == "" {
 		return d, err
 	}
@@ -171,6 +175,9 @@ func (inj injury) text(person types.JID) (string, []types.JID) {
 	}
 	if funeral := funeralText(person, inj.lost); funeral != "" {
 		lines = append(lines, funeral)
+	}
+	if inj.deposed {
+		lines = append(lines, deposedText(person))
 	}
 	escape, freed := hostageEscape(inj.freed, "🔓 O refém de @"+person.User+" aproveitou o velório pra fugir: @%s tá livre!")
 	if escape != "" {

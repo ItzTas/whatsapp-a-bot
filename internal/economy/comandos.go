@@ -46,6 +46,37 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.eventos,
 		},
 		{
+			Name:         "pegar",
+			Aliases:      []string{"agarrar"},
+			Category:     core.LiveCategory,
+			BarredInJail: true,
+			Help: []core.Usage{
+				{"!pegar", fmt.Sprintf("só vale na corrida ao vivo 🏁 De vez em quando cai alguma coisa no grupo (um malote, um baú, um pacote do aeroporto...) e quem mandar !pegar primeiro leva. Às vezes é isca e dá ruim. Fica valendo por %s", core.FormatWait(grabWindow))},
+				{"!pegar <resposta>", "quando o prêmio tem senha (uma conta, uma palavra embaralhada ou uns emojis pra contar), só leva quem mandar a resposta certa primeiro"},
+			},
+			Run: b.pegar,
+		},
+		{
+			Name:         "atacar",
+			Aliases:      []string{"bater", "lutar"},
+			Category:     core.LiveCategory,
+			BarredInJail: true,
+			Help: []core.Usage{
+				{"!atacar", fmt.Sprintf("só vale com um chefão ao vivo no grupo 👹 Cada golpe tira de %d a %d de vida (mais com arma na profissão, e às vezes sai crítico), uma vez a cada %s, e o chefão pode revidar. Se ele cair em até %s, quem bateu divide o prêmio pelo dano e quem deu mais dano ainda leva um troféu. Se escapar, quem bateu paga o pato", bossHitMin, bossHitMax, core.FormatWait(bossRest), core.FormatWait(bossWindow))},
+			},
+			Run: b.atacar,
+		},
+		{
+			Name:     "aovivo",
+			Aliases:  []string{"invocar"},
+			Category: core.LiveCategory,
+			Help: []core.Usage{
+				{"!aovivo", "só pra deus 📡 solta um evento ao vivo agora, sem esperar ele aparecer sozinho"},
+				{"!aovivo <tipo>", "escolhe o tipo: !aovivo corrida, !aovivo chefão ou !aovivo enquete"},
+			},
+			Run: b.invocar,
+		},
+		{
 			Name:      "dica",
 			Aliases:   []string{"dicas"},
 			Category:  core.EconomyCategory,
@@ -268,7 +299,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"impeachar", "impichar", "impeach"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!impeachment", fmt.Sprintf("vota pra tirar o presidente do cargo ⚖️ O primeiro voto abre a votação, que fica aberta %s: cada um vota uma vez e pode mudar o voto até fechar. Pra passar, precisa de pelo menos %d votos a favor e mais votos a favor do que contra, e aí o mandato acaba na hora, junto com os decretos. Dá pra pedir um impeachment a cada %s por mandato", core.FormatWait(impeachmentWindow), impeachmentQuorum, core.FormatWait(impeachmentEvery))},
+				{"!impeachment", fmt.Sprintf("vota pra tirar o presidente do cargo ⚖️ O primeiro voto abre a votação, que fica aberta %s: cada um vota uma vez e pode mudar o voto até fechar. Pra passar, precisa de pelo menos %d votos a favor e mais votos a favor do que contra, e aí o mandato acaba na hora, junto com os decretos. Dá pra pedir um impeachment a cada %s por mandato. Na ditadura (!decreto ditadura), não tem impeachment", core.FormatWait(impeachmentWindow), impeachmentQuorum, core.FormatWait(impeachmentEvery))},
 				{"!impeachment nao", "vota contra o impeachment (sem nada, ou com !impeachment sim, é a favor)"},
 			},
 			Run: b.impeachment,
@@ -278,7 +309,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"golpedeestado", "conspirar"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!golpe", fmt.Sprintf("trama derrubar o presidente na marra 🪖 O primeiro abre a conspiração e quem quiser entra mandando !golpe em até %s. Precisa de pelo menos %d golpistas: começa com %d%% de chance, cada golpista a mais soma %d%%, arma na mochila ajuda e a proteção do presidente atrapalha. Se der certo, quem abriu vira presidente por %s e os decretos caem; se der errado, quem não escapar vai preso. Dá pra tentar um golpe a cada %s por mandato. Com deus no golpe, não tem como dar errado", core.FormatWait(coupWindow), coupMin, percent(coupChance), percent(coupHelp), core.FormatWait(termLength), core.FormatWait(coupEvery))},
+				{"!golpe", fmt.Sprintf("trama derrubar o presidente na marra 🪖 O primeiro abre a conspiração e quem quiser entra mandando !golpe em até %s. Precisa de pelo menos %d golpistas: começa com %d%% de chance, cada golpista a mais soma %d%%, arma na mochila ajuda e a proteção do presidente atrapalha. Se der certo, quem abriu vira presidente por %s e os decretos caem; se der errado, quem não escapar vai preso. Dá pra tentar um golpe a cada %s por mandato. Contra ditador, bastam %d golpistas e dá pra tentar a cada %s. Com deus no golpe, não tem como dar errado", core.FormatWait(coupWindow), coupMin, percent(coupChance), percent(coupHelp), core.FormatWait(termLength), core.FormatWait(coupEvery), tyrantCoupMin, core.FormatWait(tyrantCoupEvery))},
 				{"!golpe defender", fmt.Sprintf("entra do lado do governo (o presidente também pode): cada defensor tira %d%% da chance do golpe, e arma na mochila tira mais. Com deus defendendo, o golpe não passa", percent(coupHelp))},
 			},
 			Run:          b.golpe,

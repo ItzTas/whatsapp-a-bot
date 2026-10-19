@@ -151,6 +151,9 @@ func (run *eventRun) mourn(d death) string {
 	if funeral := funeralText(run.acc.JID, d.lost); funeral != "" {
 		lines = append(lines, funeral)
 	}
+	if d.deposed {
+		lines = append(lines, deposedText(run.acc.JID))
+	}
 	escape, freed := hostageEscape(d.freed, "🔓 O refém de @"+run.acc.JID.User+" aproveitou o velório pra fugir: @%s tá livre!")
 	if escape != "" {
 		lines = append(lines, escape)

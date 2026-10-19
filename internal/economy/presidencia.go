@@ -384,7 +384,7 @@ func presidentialPowers() []string {
 		fmt.Sprintf("🧟 Pode !reviver quem foi morto com pelo menos %d%% de chance", percent(presidentRevive)),
 		fmt.Sprintf("🛡️ Segurança presidencial: quem tenta !sequestrar, !matar ou dar !golpe no presidente tem mais %d%% de chance de errar. Contra !roubar e !furtar não adianta", percent(presidentGuard)),
 		fmt.Sprintf("⚖️ Imunidade: quando tentam prender o presidente (!prender, !denunciar ou pego no flagra), tem %d%% de chance de ele mostrar a imunidade e sair andando. Quem tava preso sai da cadeia ao tomar posse", percent(presidentImmunity)),
-		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, cobra imposto de renda, mexe na poupança, nos preços, no pix, na cadeia e na !fianca, mexe nos prêmios e na taxa do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Manda !decreto pra ver a lista",
+		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, cobra imposto de renda, mexe na poupança, nos preços, no pix, na cadeia e na !fianca, mexe nos prêmios e na taxa do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Também pode declarar ditadura, sem volta: imposto sem teto e sem !impeachment, mas com o povo revoltado e o !golpe mais fácil. Manda !decreto pra ver a lista",
 	}
 }
 
@@ -442,6 +442,7 @@ func (p presidency) text() string {
 	for _, decree := range p.decrees.inForce() {
 		lines = append(lines, "📜 Decreto em vigor: "+decree)
 	}
+	lines = append(lines, p.decrees.tyrannyLines(time.Now())...)
 	return strings.Join(append(append(lines, "", "*Poderes do cargo*"), presidentialPowers()...), "\n")
 }
 
