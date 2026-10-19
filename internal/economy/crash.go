@@ -224,6 +224,7 @@ func (b *bot) flyCrash(ctx context.Context, chat types.JID, round *crashRound) {
 			if _, err := b.SendRawMentions(ctx, chat, result, mentions); err != nil {
 				b.Client.Log.Errorf("mandar resultado do !crash: %v", err)
 			}
+			b.tallyRound(ctx, chat, "!crash", round.settled())
 			return
 		}
 	}
@@ -409,6 +410,16 @@ func (r *crashRound) explode() []*crashBet {
 	r.over = true
 	r.record()
 	return r.reachTargets(r.point)
+}
+
+func (r *crashRound) settled() []settledBet {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	bets := make([]settledBet, len(r.bets))
+	for i, bet := range r.bets {
+		bets[i] = settledBet{acc: bet.acc, stake: bet.stake, payout: bet.payout()}
+	}
+	return bets
 }
 
 func (r *crashRound) rescues() []rescuedBet {

@@ -586,6 +586,9 @@ func (s *walletStore) payAnimalDraw(ctx context.Context, pending pendingDraw) (r
 			if err := creditAnimalPrize(ctx, tx, pending.chat, tickets[i]); err != nil {
 				return err
 			}
+			if err := noteLoss(ctx, tx, pending.chat, t.owner, lossBet, t.bet.stake-tickets[i].prize); err != nil {
+				return err
+			}
 		}
 		slices.SortStableFunc(tickets, func(a, b animalTicket) int { return cmp.Compare(b.prize, a.prize) })
 		r.draw, r.tickets = draw, tickets

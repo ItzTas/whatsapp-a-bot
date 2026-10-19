@@ -253,6 +253,7 @@ func (b *bot) gallopRace(ctx context.Context, chat types.JID, round *raceRound) 
 	if _, err := b.SendRawMentions(ctx, chat, result, mentions); err != nil {
 		b.Client.Log.Errorf("mandar resultado da !corrida: %v", err)
 	}
+	b.tallyRound(ctx, chat, "!corrida", round.settled())
 }
 
 func (b *bot) payRace(ctx context.Context, chat types.JID, round *raceRound) {
@@ -380,6 +381,19 @@ func (r *raceRound) finish() []*raceBet {
 		}
 	}
 	return winners
+}
+
+func (r *raceRound) settled() []settledBet {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	bets := make([]settledBet, len(r.bets))
+	for i, bet := range r.bets {
+		bets[i] = settledBet{acc: bet.acc, stake: bet.stake}
+		if bet.horse == r.winner {
+			bets[i].payout = r.payout(bet)
+		}
+	}
+	return bets
 }
 
 func (r *raceRound) rescues() []rescuedBet {
