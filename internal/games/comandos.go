@@ -160,7 +160,6 @@ func (b *bot) gamesCommands() []core.Command {
 			Help: []core.Usage{
 				{"!jokenpo pedra", "joga pedra, papel ou tesoura contra o bot na hora ✊✋✌️"},
 				{"!jokenpo @pessoa", fmt.Sprintf("desafia a pessoa marcada: o bot chama vocês dois no privado, cada um manda a jogada lá em segredo (vale ✊ ✋ ✌️ também) e o resultado sai no grupo. Quem não jogar em %s perde por W.O.", core.FormatWait(jokenpoWindow))},
-				{"!jokenpo @pessoa <valor>", "com o modo economia ligado, vale moedas: a sua aposta sai na hora, a pessoa aceita mandando a jogada no privado, quem ganhar leva o dobro e empate devolve 💰"},
 			},
 			Run: b.jokenpo,
 		},

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
-	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/economy"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -31,32 +30,24 @@ type jokenpoPlayer struct {
 }
 
 type jokenpoMatch struct {
-	key        string
-	chat       types.JID
-	players    [2]jokenpoPlayer
-	stake      int64
-	betIgnored bool
-	ready      chan struct{}
+	key     string
+	chat    types.JID
+	players [2]jokenpoPlayer
+	ready   chan struct{}
 
 	mu       sync.Mutex
 	moves    [2]int
-	staked   [2]bool
-	broke    bool
 	over     bool
 	invited  bool
 	deadline time.Time
 }
 
 type jokenpoState struct {
-	Chat       types.JID             `json:"chat"`
-	Players    [2]jokenpoSavedPlayer `json:"players"`
-	Stake      int64                 `json:"stake"`
-	BetIgnored bool                  `json:"bet_ignored"`
-	Moves      [2]int                `json:"moves"`
-	Staked     [2]bool               `json:"staked"`
-	Broke      bool                  `json:"broke"`
-	Invited    bool                  `json:"invited"`
-	Deadline   time.Time             `json:"deadline"`
+	Chat     types.JID             `json:"chat"`
+	Players  [2]jokenpoSavedPlayer `json:"players"`
+	Moves    [2]int                `json:"moves"`
+	Invited  bool                  `json:"invited"`
+	Deadline time.Time             `json:"deadline"`
 }
 
 type jokenpoSavedPlayer struct {
@@ -66,9 +57,7 @@ type jokenpoSavedPlayer struct {
 }
 
 type jokenpoResult struct {
-	moves  [2]int
-	staked [2]bool
-	broke  bool
+	moves [2]int
 }
 
 type jokenpoReply int
@@ -76,7 +65,6 @@ type jokenpoReply int
 const (
 	jokenpoLate jokenpoReply = iota
 	jokenpoRepeated
-	jokenpoBroke
 	jokenpoPlayed
 )
 
@@ -88,7 +76,7 @@ func (b *bot) jokenpo(ctx context.Context, evt *events.Message) error {
 	}
 	move, ok := jokenpoMoveOf(core.FirstPlainArg(core.MessageText(evt.Message)))
 	if !ok {
-		return b.SendText(ctx, chat, "✊✋✌️ Manda !jokenpo pedra, papel ou tesoura pra jogar contra mim, ou !jokenpo @pessoa pra desafiar alguém (dá pra apostar: !jokenpo @pessoa 100)")
+		return b.SendText(ctx, chat, "✊✋✌️ Manda !jokenpo pedra, papel ou tesoura pra jogar contra mim, ou !jokenpo @pessoa pra desafiar alguém")
 	}
 	return b.jokenpoAgainstBot(ctx, chat, evt.Info.Sender.ToNonAD(), move)
 }
@@ -116,20 +104,10 @@ func (b *bot) challengeJokenpo(ctx context.Context, evt *events.Message, rival t
 		{jid: challenger, ids: b.SenderIdentities(ctx, evt), acc: b.Account(ctx, challenger)},
 		{jid: rival, ids: rivalIDs, acc: b.Account(ctx, rival)},
 	}
-	arg := core.FirstPlainArg(core.MessageText(evt.Message))
-	stake, refusal, err := b.jokenpoStake(ctx, chat, players[0].acc, arg)
-	if err != nil {
-		return err
-	}
-	if refusal != "" {
-		return b.SendText(ctx, chat, refusal)
-	}
-
-	match := newJokenpoMatch(evt.Info.ID, chat, players, stake, arg != "" && stake == 0)
+	match := newJokenpoMatch(evt.Info.ID, chat, players)
 	prompts, free := b.awaitJokenpo(match)
 	if !free {
-		text := core.AppendLine("⏳ Um de vocês já tá com uma resposta pendente no meu privado. Termina ela antes de começar outro jokenpô", b.payJokenpo(ctx, match, match.finish(), -1))
-		_, err := b.SendMentions(ctx, chat, text, []types.JID{challenger})
+		_, err := b.SendMentions(ctx, chat, "⏳ Um de vocês já tá com uma resposta pendente no meu privado. Termina ela antes de começar outro jokenpô", []types.JID{challenger})
 		return err
 	}
 	b.syncJokenpo(ctx, match)
@@ -153,19 +131,15 @@ func (s jokenpoState) match(key string) *jokenpoMatch {
 		players[seat] = jokenpoPlayer{jid: p.JID, ids: p.IDs, acc: p.Account.Account()}
 	}
 	match := &jokenpoMatch{
-		key:        key,
-		chat:       s.Chat,
-		players:    players,
-		stake:      s.Stake,
-		betIgnored: s.BetIgnored,
-		ready:      make(chan struct{}),
-		moves:      s.Moves,
-		staked:     s.Staked,
-		broke:      s.Broke,
-		invited:    s.Invited,
-		deadline:   s.Deadline,
+		key:      key,
+		chat:     s.Chat,
+		players:  players,
+		ready:    make(chan struct{}),
+		moves:    s.Moves,
+		invited:  s.Invited,
+		deadline: s.Deadline,
 	}
-	if s.Broke || (s.Moves[0] >= 0 && s.Moves[1] >= 0) {
+	if s.Moves[0] >= 0 && s.Moves[1] >= 0 {
 		match.signal()
 	}
 	return match
@@ -218,24 +192,6 @@ func (b *bot) markJokenpoInvited(ctx context.Context, match *jokenpoMatch) {
 	b.keepJokenpo(ctx, match)
 }
 
-func (b *bot) jokenpoStake(ctx context.Context, chat types.JID, acc core.Account, arg string) (int64, string, error) {
-	if arg == "" || !b.economy.EconomyOn(ctx, chat) {
-		return 0, "", nil
-	}
-	stake, refusal, err := b.economy.PlaceStake(ctx, chat, acc, arg, "!jokenpo @pessoa")
-	if err != nil || refusal != "" {
-		return 0, refusal, err
-	}
-	held, err := b.economy.HoldStake(ctx, chat, acc, stake)
-	if err != nil {
-		return 0, "", fmt.Errorf("apostar no !jokenpo: %w", err)
-	}
-	if !held {
-		return 0, economy.StakeChanged, nil
-	}
-	return stake, "", nil
-}
-
 func (b *bot) awaitJokenpo(match *jokenpoMatch) ([2]*core.PrivatePrompt, bool) {
 	var prompts [2]*core.PrivatePrompt
 	for seat, p := range match.players {
@@ -271,8 +227,7 @@ func (b *bot) runJokenpo(ctx context.Context, match *jokenpoMatch, prompts [2]*c
 	}
 	result := b.endJokenpo(ctx, match)
 	winner := result.winner()
-	text := match.board(result) + "\n\n" + match.outcome(result, winner)
-	b.tellJokenpo(ctx, match, core.AppendLine(text, b.payJokenpo(ctx, match, result, winner)))
+	b.tellJokenpo(ctx, match, match.board(result)+"\n\n"+match.outcome(result, winner))
 }
 
 func (b *bot) startJokenpo(ctx context.Context, match *jokenpoMatch) bool {
@@ -282,7 +237,8 @@ func (b *bot) startJokenpo(ctx context.Context, match *jokenpoMatch) bool {
 	}
 	if len(unreached) > 0 {
 		text := fmt.Sprintf("📵 Não consegui mandar mensagem no privado de %s, então o jokenpô foi cancelado", core.JoinMentions(unreached))
-		b.tellJokenpo(ctx, match, core.AppendLine(text, b.payJokenpo(ctx, match, b.endJokenpo(ctx, match), -1)))
+		b.endJokenpo(ctx, match)
+		b.tellJokenpo(ctx, match, text)
 		return false
 	}
 	b.tellJokenpo(ctx, match, match.announcement())
@@ -324,7 +280,6 @@ func (b *bot) jokenpoAnswer(match *jokenpoMatch, seat int) core.PrivateAnswer {
 		replies := map[jokenpoReply]string{
 			jokenpoLate:     "⏰ Esse jokenpô já acabou",
 			jokenpoRepeated: "Você já jogou, agora é esperar o resultado lá no grupo 😉",
-			jokenpoBroke:    fmt.Sprintf("🪹 Você não tem %s no grupo pra cobrir a aposta, então o desafio foi cancelado", economy.Coins(match.stake)),
 			jokenpoPlayed:   fmt.Sprintf("✅ Anotado: %s. O resultado sai lá no grupo 👀", jokenpoMoves[move]),
 		}
 		return true, b.SendText(ctx, evt.Info.Chat, replies[reply])
@@ -340,19 +295,6 @@ func (b *bot) recordJokenpo(ctx context.Context, match *jokenpoMatch, seat, move
 	if match.moves[seat] >= 0 {
 		return jokenpoRepeated, nil
 	}
-	if match.stake > 0 && !match.staked[seat] {
-		held, err := b.economy.HoldStake(ctx, match.chat, match.players[seat].acc, match.stake)
-		if err != nil {
-			return jokenpoLate, fmt.Errorf("apostar no !jokenpo: %w", err)
-		}
-		if !held {
-			match.broke = true
-			b.keepJokenpo(ctx, match)
-			match.signal()
-			return jokenpoBroke, nil
-		}
-		match.staked[seat] = true
-	}
 	match.moves[seat] = move
 	b.keepJokenpo(ctx, match)
 	if match.moves[1-seat] >= 0 {
@@ -361,63 +303,23 @@ func (b *bot) recordJokenpo(ctx context.Context, match *jokenpoMatch, seat, move
 	return jokenpoPlayed, nil
 }
 
-func (b *bot) payJokenpo(ctx context.Context, match *jokenpoMatch, r jokenpoResult, winner int) string {
-	var (
-		payers   []types.JID
-		accounts []core.Account
-	)
-	for seat, in := range r.staked {
-		if in {
-			payers = append(payers, match.players[seat].jid)
-			accounts = append(accounts, match.players[seat].acc)
-		}
-	}
-	if len(accounts) == 0 {
-		return ""
-	}
-	if winner < 0 {
-		if err := b.economy.Wallets.Credit(ctx, match.chat, accounts, match.stake); err != nil {
-			b.Client.Log.Errorf("devolver aposta do !jokenpo: %v", err)
-			return ""
-		}
-		return fmt.Sprintf("💸 A aposta de %s voltou", core.JoinMentions(payers))
-	}
-	champion := match.players[winner]
-	pot := match.stake * int64(len(accounts))
-	if err := b.economy.Wallets.Credit(ctx, match.chat, []core.Account{champion.acc}, pot); err != nil {
-		b.Client.Log.Errorf("pagar !jokenpo: %v", err)
-		return ""
-	}
-	if pot == match.stake {
-		return fmt.Sprintf("💸 @%s recebeu a aposta de volta", champion.jid.User)
-	}
-	return fmt.Sprintf("💰 @%s levou %s", champion.jid.User, economy.Coins(pot))
-}
-
-func newJokenpoMatch(key string, chat types.JID, players [2]jokenpoPlayer, stake int64, betIgnored bool) *jokenpoMatch {
+func newJokenpoMatch(key string, chat types.JID, players [2]jokenpoPlayer) *jokenpoMatch {
 	return &jokenpoMatch{
-		key:        key,
-		chat:       chat,
-		players:    players,
-		stake:      stake,
-		betIgnored: betIgnored,
-		ready:      make(chan struct{}),
-		moves:      [2]int{-1, -1},
-		staked:     [2]bool{stake > 0, false},
-		deadline:   time.Now().Add(jokenpoWindow),
+		key:      key,
+		chat:     chat,
+		players:  players,
+		ready:    make(chan struct{}),
+		moves:    [2]int{-1, -1},
+		deadline: time.Now().Add(jokenpoWindow),
 	}
 }
 
 func (m *jokenpoMatch) snapshot() jokenpoState {
 	state := jokenpoState{
-		Chat:       m.chat,
-		Stake:      m.stake,
-		BetIgnored: m.betIgnored,
-		Moves:      m.moves,
-		Staked:     m.staked,
-		Broke:      m.broke,
-		Invited:    m.invited,
-		Deadline:   m.deadline,
+		Chat:     m.chat,
+		Moves:    m.moves,
+		Invited:  m.invited,
+		Deadline: m.deadline,
 	}
 	for seat, p := range m.players {
 		state.Players[seat] = jokenpoSavedPlayer{JID: p.jid, IDs: p.ids, Account: core.StoreAccount(p.acc)}
@@ -438,7 +340,7 @@ func (m *jokenpoMatch) until() time.Time {
 }
 
 func (m *jokenpoMatch) result() jokenpoResult {
-	return jokenpoResult{moves: m.moves, staked: m.staked, broke: m.broke}
+	return jokenpoResult{moves: m.moves}
 }
 
 func (m *jokenpoMatch) signal() {
@@ -447,13 +349,6 @@ func (m *jokenpoMatch) signal() {
 	default:
 		close(m.ready)
 	}
-}
-
-func (m *jokenpoMatch) finish() jokenpoResult {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.over = true
-	return m.result()
 }
 
 func (m *jokenpoMatch) jids() []types.JID {
@@ -467,33 +362,16 @@ func (m *jokenpoMatch) invitations(group string) [2]string {
 		fmt.Sprintf("✊✋✌️ *Jokenpô*%s\n\nVocê desafiou @%s! %s", group, m.players[1].jid.User, howTo),
 		fmt.Sprintf("✊✋✌️ *Jokenpô*%s\n\n@%s te desafiou! %s", group, m.players[0].jid.User, howTo),
 	}
-	if m.stake == 0 {
-		return [2]string{texts[0] + wait, texts[1] + wait}
-	}
-	return [2]string{
-		texts[0] + fmt.Sprintf("\n\n💰 Valendo %s, e a sua parte já foi descontada", economy.Coins(m.stake)) + wait,
-		texts[1] + fmt.Sprintf("\n\n💰 Valendo %s: mandar a jogada é aceitar a aposta, e ela é descontada na hora. Se não quiser, é só não responder", economy.Coins(m.stake)) + wait,
-	}
+	return [2]string{texts[0] + wait, texts[1] + wait}
 }
 
 func (m *jokenpoMatch) announcement() string {
-	text := fmt.Sprintf("✊✋✌️ *Jokenpô!* @%s desafiou @%s\n\n📨 Mandei mensagem no privado de vocês dois: respondam lá com pedra, papel ou tesoura. O resultado sai aqui quando os dois jogarem, ou em %s ⏳",
+	return fmt.Sprintf("✊✋✌️ *Jokenpô!* @%s desafiou @%s\n\n📨 Mandei mensagem no privado de vocês dois: respondam lá com pedra, papel ou tesoura. O resultado sai aqui quando os dois jogarem, ou em %s ⏳",
 		m.players[0].jid.User, m.players[1].jid.User, core.FormatWait(jokenpoWindow))
-	if m.stake > 0 {
-		return text + fmt.Sprintf("\n\n💰 Valendo %s: @%s, mandar a jogada no privado já é aceitar a aposta, e quem ganhar leva %s", economy.Coins(m.stake), m.players[1].jid.User, economy.Coins(2*m.stake))
-	}
-	if m.betIgnored {
-		return text + "\n\n_A aposta só vale com o modo economia ligado, então esse é só de brincadeira_"
-	}
-	return text
 }
 
 func (m *jokenpoMatch) board(r jokenpoResult) string {
-	lines := []string{fmt.Sprintf("✊✋✌️ *Jokenpô: @%s x @%s*", m.players[0].jid.User, m.players[1].jid.User)}
-	if r.broke {
-		return lines[0]
-	}
-	lines = append(lines, "")
+	lines := []string{fmt.Sprintf("✊✋✌️ *Jokenpô: @%s x @%s*", m.players[0].jid.User, m.players[1].jid.User), ""}
 	for seat, p := range m.players {
 		played := "🤐 não jogou"
 		if r.moves[seat] >= 0 {
@@ -506,9 +384,6 @@ func (m *jokenpoMatch) board(r jokenpoResult) string {
 
 func (m *jokenpoMatch) outcome(r jokenpoResult, winner int) string {
 	tags := [2]string{"@" + m.players[0].jid.User, "@" + m.players[1].jid.User}
-	if r.broke {
-		return fmt.Sprintf("🪹 %s não tinha %s pra cobrir a aposta, então o jokenpô foi cancelado", tags[1], economy.Coins(m.stake))
-	}
 	if winner < 0 && r.moves[0] < 0 {
 		return "⏰ Ninguém jogou a tempo e o jokenpô foi cancelado"
 	}
@@ -522,7 +397,7 @@ func (m *jokenpoMatch) outcome(r jokenpoResult, winner int) string {
 }
 
 func (r jokenpoResult) winner() int {
-	if r.broke || (r.moves[0] < 0 && r.moves[1] < 0) {
+	if r.moves[0] < 0 && r.moves[1] < 0 {
 		return -1
 	}
 	if r.moves[0] < 0 {
