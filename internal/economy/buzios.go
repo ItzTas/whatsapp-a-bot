@@ -75,6 +75,7 @@ func (grudgeEffect) fortune() int   { return -1 }
 func (breakEffect) fortune() int    { return -2 }
 func (nabEffect) fortune() int      { return -2 }
 func (perishEffect) fortune() int   { return -3 }
+func (repealEffect) fortune() int   { return 0 }
 
 func (e spellEffect) fortune() int {
 	c, ok := charmByID(e.id)

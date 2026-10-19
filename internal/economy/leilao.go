@@ -110,7 +110,7 @@ func (b *bot) lance(ctx context.Context, evt *events.Message) error {
 func (b *bot) bidAuction(ctx context.Context, evt *events.Message, arg string) error {
 	chat := evt.Info.Chat.ToNonAD()
 	bidder := b.Account(ctx, evt.Info.Sender)
-	amount, refusal, err := b.PlaceStake(ctx, chat, bidder, arg, "!lance")
+	amount, _, refusal, err := b.affordable(ctx, chat, bidder, arg, "!lance", 0)
 	if err != nil {
 		return err
 	}

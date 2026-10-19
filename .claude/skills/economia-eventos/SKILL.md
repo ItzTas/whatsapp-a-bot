@@ -31,6 +31,34 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   e, com a mesma conta do `eventLuck` usando `tiltChance`, abre o evento com o `place` da aposta e
   `won` falso. O livro dessas apostas é o `gamblingEvents` (`eventosaposta.go`, "Fundo do poço"), que
   só aparece por esse caminho.
+- **Apostar tudo** (`tudo.go`). Toda aposta que passa pelo `stakeAfterLevy` (`PlaceBet` e `PlaceStake`:
+  `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roleta`, `!bicho`, `!bolao` e o
+  `!jokenpo @pessoa`) e pede o saldo inteiro (`stake` igual ao `budget`, seja `tudo`, `100%` ou o número
+  exato) cai no `allIn`. Na primeira vez a aposta não sai: o bot avisa e guarda o pedido no `allInBoard`
+  (em memória, chave `eventKey` mais o comando). Mandar o mesmo comando de novo em até `allInWindow`
+  confirma. Na confirmação, quem aposta `allInFloor` ou mais tem `allInChance` (com a mesma conta do
+  `eventLuck`) de cair num evento do `allInEvents` (`eventostudo.go`, place `allInPlace`) antes da aposta;
+  se o evento abrir, a aposta é cancelada e a pessoa precisa confirmar de novo depois. O `!bicho` chama o
+  `affordable` e só passa pelo `allIn` depois de conferir o limite do tipo de aposta. O `!lance` do leilão
+  também usa o `affordable`, mas não passa pelo `allIn`.
+- **Bolada** (`bolada.go`). O `stirWindfall`, registrado no `AddAfterCommand`, lê o saldo de quem mandou
+  qualquer comando da economia num grupo e guarda no `windfallBoard`, em memória, a base de onde a pessoa
+  partiu (`purse`): a base vale por `windfallWindow`, desce junto quando o saldo cai e, se o saldo subir
+  `windfallShare`% da base (no mínimo `windfallFloor`), a base vira o saldo de agora e, com a mesma conta
+  do `eventLuck` usando `windfallChance`, abre um evento com o `place` `windfallPlace` (`bolada`) e `won`
+  verdadeiro. Por ser lido depois do comando, pega ganho de qualquer lugar (trampo, aposta, roubo,
+  milagre, Pix). O livro é o `windfallEvents` (`eventosbolada.go`, "Dinheiro chama ladrão"): gente
+  tentando roubar quem ficou rico, e o `bolada-casa` só cabe pra quem tem imóvel (`homeOwner`).
+- **Cassino furioso** (`cassinofurioso.go`). O `stirCasinoWrath`, também no `AddAfterCommand`, roda
+  depois de `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida` e `!roleta` e só faz alguma coisa
+  com o decreto `cassino` positivo (o prêmio a mais; a taxa negativa não conta). A chance cresce com o
+  nível do decreto (`level / casinoDecreeMaxRaise`, na conta do `eventLuck`): `casinoWrathChance` de abrir
+  um evento pro presidente (`casinoWrathPlace`, no máximo um a cada `casinoWrathEvery` por conversa, no
+  `wrathBoard`) e `casinoWatchChance` de abrir um pra quem apostou (`casinoWatchPlace`), menos quando quem
+  aposta é o presidente. Os dois lugares ficam no livro `casinoWrathEvents` (`eventoscassino.go`), cada
+  evento com o `places` dele. O efeito `repealCasino` zera o `cassino_pct` da `presidencias` se quem
+  joga o evento for o presidente com o decreto ainda positivo, então só faz sentido nos eventos do
+  presidente.
 - **Escolha do evento.** O `pickScenario` dá prioridade a um evento marcado com `plant` que já venceu
   (`eventos_marcados`), senão sorteia pelo `weight` entre os que cabem (`fits`: `places`, `areas`, `jobs`,
   `when` e pelo menos 2 opções liberadas). O peso é o da raridade (`commonEvent`, `rareEvent`,
@@ -64,7 +92,7 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   assombrada só pega em quem tem imóvel e, sem casa, o espírito vai embora), `refresh`/`delay` (espera do comando pelo
   `placeCooldown`; onde o comando não tem espera, como o `!mercadonegro`, vale a do `!trabalhar`, e o texto
   diz qual), `breakTool` (ferramenta da extração ou o instrumento de trabalho da área, nunca
-  relíquia), `plant` (marca um evento pra depois) `refund` (passa parte do saldo pra vítima) e `fans`/`unfollow` (soma ou corta uma porcentagem dos seguidores
+  relíquia), `plant` (marca um evento pra depois) `refund` (passa parte do saldo pra vítima) `repealCasino` (revoga o decreto `cassino` positivo do presidente, veja o Cassino furioso) e `fans`/`unfollow` (soma ou corta uma porcentagem dos seguidores
   de todas as redes na tabela `fama`, como o backlash do `!publi`; quem não tem seguidor não ganha nem perde nada). O `grudge` e o `refund` só
   entram em evento cujos lugares todos têm vítima, e o `enchant` não aceita Dízimo, Pacto nem Casa
   assombrada, que precisam de outra pessoa de autora (`offCharms` no teste). Os encantos mais punitivos ficam

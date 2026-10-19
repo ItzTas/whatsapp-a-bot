@@ -75,7 +75,9 @@ Presidente, decretos, impeachment, renúncia e golpe.
   aposta, a taxa em cima da aposta sai na hora e fica guardada na aposta (`heldLevy`, também no save
   da rodada); se ganhar, o `payPrize` desconta do prêmio o que falta pra completar a porcentagem de
   tudo que levou (`onPrize`). O `tudo`, o `metade` e o `%` já contam a taxa da aposta
-  (`stakeAfterLevy`); o dobrar do `!blackjack` não paga taxa. Os de uma vez são `imposto`, `auxilio`
+  (`stakeAfterLevy`); o dobrar do `!blackjack` não paga taxa. O lado positivo tem troco: enquanto ele tá em vigor, as apostas
+  podem soltar eventos dos cassinos furiosos contra o presidente e contra quem aposta (`stirCasinoWrath`,
+  skill `economia-eventos`). Os de uma vez são `imposto`, `auxilio`
   (`presidentAid` de moeda nova pra cada carteira da conversa), `caixa` (uma `presidentBoxItem`, a
   caixa misteriosa comum, na mochila de cada carteira da conversa), `anistia` (zera `preso_ate` e o
   `crime_em` dentro da `crimeWindow`), `indulto @pessoa` (`presidentPardons` por mandato), `confisco

@@ -27,7 +27,7 @@ const (
 	shopTaxDecreeMax      = 20
 	pixDecreeMax          = 10
 	betTaxDecreeMax       = 10
-	casinoDecreeMaxRaise  = 20
+	casinoDecreeMaxRaise  = 10
 	interestDecreeMax     = 10
 	savingsTaxDecreeMax   = 50
 	bailTaxDecreeMax      = 30
@@ -178,7 +178,7 @@ var (
 		raised:  "o cassino paga %d%% mais nos prêmios",
 		lowered: "o cassino cobra %d%% de taxa pro presidente: quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou",
 		revoked: "o cassino volta ao normal, sem prêmio a mais nem taxa",
-		syntax:  "!decreto cassino 20", about: "mexe no " + casinoGames + ": positivo aumenta o lucro de quem ganha e negativo cobra uma taxa que vai pro bolso do presidente, em que quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou. Vale o decreto da hora da aposta (dá pra mandar !decreto imposto aposta 5 também)",
+		syntax:  "!decreto cassino 10", about: "mexe no " + casinoGames + ": positivo aumenta o lucro de quem ganha e negativo cobra uma taxa que vai pro bolso do presidente, em que quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou. Vale o decreto da hora da aposta (dá pra mandar !decreto imposto aposta 5 também)",
 	}
 	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, fameDecree, casinoDecree}
 

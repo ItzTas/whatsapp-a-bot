@@ -242,25 +242,36 @@ func (b *bot) PlaceStake(ctx context.Context, chat types.JID, acc core.Account, 
 }
 
 func (b *bot) stakeAfterLevy(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string, percent int64) (int64, string, error) {
+	stake, budget, refusal, err := b.affordable(ctx, chat, acc, arg, syntax, percent)
+	if err != nil || refusal != "" {
+		return stake, refusal, err
+	}
+	if refusal := b.allIn(ctx, chat, acc, syntax, stake, budget); refusal != "" {
+		return 0, refusal, nil
+	}
+	return stake, "", nil
+}
+
+func (b *bot) affordable(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string, percent int64) (stake, budget int64, refusal string, err error) {
 	balance, _, err := b.Wallets.Balance(ctx, chat, acc)
 	if err != nil {
-		return 0, "", fmt.Errorf("ler saldo: %w", err)
+		return 0, 0, "", fmt.Errorf("ler saldo: %w", err)
 	}
 	if balance == 0 {
-		return 0, "Você tá liso 🪹 Usa !daily e !trabalhar pra ter o que apostar", nil
+		return 0, 0, "Você tá liso 🪹 Usa !daily e !trabalhar pra ter o que apostar", nil
 	}
-	budget := balance * 100 / (100 + percent)
+	budget = balance * 100 / (100 + percent)
 	stake, ok := ParseStake(arg, budget)
 	if !ok {
-		return 0, fmt.Sprintf("Diz quanto apostar: %[1]s 100, %[1]s metade, %[1]s 10%% ou %[1]s tudo", syntax), nil
+		return 0, budget, fmt.Sprintf("Diz quanto apostar: %[1]s 100, %[1]s metade, %[1]s 10%% ou %[1]s tudo", syntax), nil
 	}
 	if stake <= budget {
-		return stake, "", nil
+		return stake, budget, "", nil
 	}
 	if percent == 0 {
-		return 0, "Você só tem " + Coins(balance), nil
+		return 0, budget, "Você só tem " + Coins(balance), nil
 	}
-	return 0, fmt.Sprintf("Você tem %s, mas toda aposta paga %d%% de taxa por decreto, então dá pra apostar no máximo %s", Coins(balance), percent, Coins(budget)), nil
+	return 0, budget, fmt.Sprintf("Você tem %s, mas toda aposta paga %d%% de taxa por decreto, então dá pra apostar no máximo %s", Coins(balance), percent, Coins(budget)), nil
 }
 
 func (b *bot) roubar(ctx context.Context, evt *events.Message) error {

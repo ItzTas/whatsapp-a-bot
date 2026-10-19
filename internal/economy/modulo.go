@@ -28,6 +28,9 @@ type bot struct {
 	missionSteps   missionLog
 	scenes         sceneBoard
 	tilts          tiltBoard
+	allIns         allInBoard
+	windfalls      windfallBoard
+	casinoWrath    wrathBoard
 	live           liveBoard
 	tips           tipBoard
 	Wallets        *walletStore
@@ -51,6 +54,8 @@ func (b *bot) Register() {
 	b.AddObserver("responder enquete ao vivo", b.answerLiveVote)
 	b.AddGuard(b.economyGuard)
 	b.AddAfterCommand(b.stirLive)
+	b.AddAfterCommand(b.stirWindfall)
+	b.AddAfterCommand(b.stirCasinoWrath)
 	b.AddDeparture(b.unseatDeserter)
 	b.OnModeOff(core.ModeEconomy, b.haltEvents)
 	b.OnModeOff(core.ModeEconomy, b.haltLive)

@@ -137,12 +137,13 @@ func (b *bot) betAnimal(ctx context.Context, evt *events.Message, args []string)
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
 	var (
+		budget  int64
 		refusal string
 		job     Profession
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) {
-		bet.stake, refusal, err = b.PlaceStake(gctx, chat, acc, stakeArg, "!bicho")
+		bet.stake, budget, refusal, err = b.affordable(gctx, chat, acc, stakeArg, "!bicho", 0)
 		return err
 	})
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
@@ -154,6 +155,9 @@ func (b *bot) betAnimal(ctx context.Context, evt *events.Message, args []string)
 	}
 	if bet.stake > bet.kind.limit {
 		return b.SendText(ctx, chat, fmt.Sprintf("A aposta máxima %s %s é %s 🎫 Os limites de cada tipo ficam no !bicho tabela", bet.kind.in, bet.kind.id, Coins(bet.kind.limit)))
+	}
+	if refusal := b.allIn(ctx, chat, acc, "!bicho", bet.stake, budget); refusal != "" {
+		return b.SendText(ctx, chat, refusal)
 	}
 
 	bet.luck = job.animalLuck
