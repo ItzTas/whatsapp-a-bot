@@ -41,7 +41,6 @@ type raceBet struct {
 	acc   core.Account
 	stake int64
 	boost PrizeBoost
-	levy  heldLevy
 	horse int
 }
 
@@ -77,12 +76,10 @@ type raceSaveHorse struct {
 type raceSaveBet struct {
 	Account core.StoredAccount `json:"account"`
 	Stake   int64              `json:"stake"`
-	Boost   int64              `json:"boost"`
 	Luck    int64              `json:"luck"`
 	Heat    int64              `json:"heat"`
 	Solace  int64              `json:"solace"`
 	Rescued bool               `json:"rescued"`
-	Levy    heldLevySave       `json:"levy"`
 	Horse   int                `json:"horse"`
 }
 
@@ -137,7 +134,7 @@ func (b *bot) restoreRace(ctx context.Context, saved core.SavedGame) error {
 	}
 	bets := make([]*raceBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Boost, luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, levy: bet.Levy.held(), horse: bet.Horse}
+		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, horse: bet.Horse}
 	}
 	round := b.trackRace(ctx, state.Chat, &raceRound{
 		opened:  state.Opened,
@@ -170,8 +167,8 @@ func (b *bot) betRace(ctx context.Context, evt *events.Message, args []string) e
 	}
 
 	round, opened := b.raceRound(ctx, chat)
-	bet := &raceBet{acc: acc, stake: placed.Stake, boost: placed.Boost, levy: placed.held(), horse: horse}
-	refusal, err = b.enterRace(ctx, chat, round, bet, placed.Levy)
+	bet := &raceBet{acc: acc, stake: placed.Stake, boost: placed.Boost, horse: horse}
+	refusal, err = b.enterRace(ctx, chat, round, bet)
 	if err != nil {
 		return err
 	}
@@ -182,12 +179,11 @@ func (b *bot) betRace(ctx context.Context, evt *events.Message, args []string) e
 	if opened {
 		text = round.announcement() + "\n\n" + round.entry(bet)
 	}
-	text += BetLevyText(bet.stake, 0, placed.Levy)
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{acc.JID})
 	return err
 }
 
-func (b *bot) enterRace(ctx context.Context, chat types.JID, round *raceRound, bet *raceBet, levy PixLevy) (string, error) {
+func (b *bot) enterRace(ctx context.Context, chat types.JID, round *raceRound, bet *raceBet) (string, error) {
 	round.mu.Lock()
 	defer round.mu.Unlock()
 	if round.started {
@@ -196,12 +192,12 @@ func (b *bot) enterRace(ctx context.Context, chat types.JID, round *raceRound, b
 	if slices.ContainsFunc(round.bets, func(other *raceBet) bool { return other.acc.Key == bet.acc.Key }) {
 		return "Você já apostou nessa corrida 🏇 É uma aposta por pessoa", nil
 	}
-	held, err := b.holdBet(ctx, chat, bet.acc, bet.stake, levy)
+	held, err := b.holdStake(ctx, chat, bet.acc, bet.stake)
 	if err != nil {
 		return "", fmt.Errorf("apostar na !corrida: %w", err)
 	}
 	if !held {
-		return StakeChanged, nil
+		return stakeChanged, nil
 	}
 	round.bets = append(round.bets, bet)
 	round.record()
@@ -261,7 +257,7 @@ func (b *bot) gallopRace(ctx context.Context, chat types.JID, round *raceRound) 
 
 func (b *bot) payRace(ctx context.Context, chat types.JID, round *raceRound) {
 	for _, bet := range round.finish() {
-		if err := b.Wallets.payPrize(ctx, chat, bet.acc, round.payout(bet), round.prizeLevy(bet)); err != nil {
+		if err := b.Wallets.payPrize(ctx, chat, bet.acc, round.payout(bet)); err != nil {
 			b.Client.Log.Errorf("pagar a !corrida pra %s: %v", bet.acc.JID, err)
 		}
 	}
@@ -344,7 +340,7 @@ func (r *raceRound) start() bool {
 
 func (r *raceRound) rig() {
 	for _, bet := range r.bets {
-		if bet.horse != r.winner || rand.Float64() >= bet.boost.Risk(bet.stake) {
+		if !bet.swaysRace(r.winner) {
 			continue
 		}
 		others := slices.Clone(r.horses)
@@ -353,6 +349,13 @@ func (r *raceRound) rig() {
 		r.frames = raceFrames(r.winner)
 		return
 	}
+}
+
+func (bet *raceBet) swaysRace(winner int) bool {
+	if bet.horse == winner {
+		return rand.Float64() < bet.boost.Risk(bet.stake)
+	}
+	return rand.Float64() < bet.boost.Favor(bet.stake)
 }
 
 func (r *raceRound) save() {
@@ -375,7 +378,7 @@ func (r *raceRound) saved(chat types.JID) raceSave {
 	}
 	bets := make([]raceSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Boost: bet.boost.decree, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Levy: bet.levy.saved(), Horse: bet.horse}
+		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Horse: bet.horse}
 	}
 	return raceSave{Chat: chat, Opened: r.opened, Started: r.started, Horses: horses, Winner: r.winner, Frames: r.frames, Bets: bets}
 }
@@ -431,10 +434,6 @@ func (r *raceRound) rescues() []rescuedBet {
 
 func (r *raceRound) payout(bet *raceBet) int64 {
 	return bet.boost.Pay(bet.stake, bet.stake*r.horses[bet.horse].odds/100)
-}
-
-func (r *raceRound) prizeLevy(bet *raceBet) prizeLevy {
-	return bet.levy.onPrize(bet.stake, r.payout(bet))
 }
 
 func (r *raceRound) announcement() string {
@@ -496,7 +495,7 @@ func (r *raceRound) betLine(bet *raceBet, finished bool) string {
 	}
 	if bet.horse == r.winner {
 		payout := r.payout(bet)
-		return fmt.Sprintf("✅ @%s apostou no %s e levou %s%s", user, horse, Coins(payout), bet.boost.Tag(bet.stake, payout)+r.prizeLevy(bet).text())
+		return fmt.Sprintf("✅ @%s apostou no %s e levou %s%s", user, horse, Coins(payout), bet.boost.Tag(bet.stake, payout))
 	}
 	return fmt.Sprintf("💸 @%s perdeu %s no %s", user, Coins(bet.stake), horse) + savedBetNote(bet.boost)
 }

@@ -39,12 +39,12 @@ func (a *allInBoard) confirmed(key string, now time.Time) bool {
 	return false
 }
 
-func (b *bot) allIn(ctx context.Context, chat types.JID, acc core.Account, syntax string, stake, budget int64) string {
-	if stake < budget {
+func (b *bot) allIn(ctx context.Context, chat types.JID, acc core.Account, syntax string, stake, whole int64) string {
+	if stake < whole {
 		return ""
 	}
 	if !b.allIns.confirmed(eventKey(chat, acc)+"|"+syntax, time.Now()) {
-		return fmt.Sprintf("⚠️ Tem certeza? Isso é apostar tudo: %s, o saldo inteiro de uma vez. Se for isso mesmo, manda o mesmo comando de novo em até %s", Coins(stake), core.FormatDuration(allInWindow))
+		return fmt.Sprintf("⚠️ Tem certeza? Isso é apostar tudo: %s de uma vez. Se for isso mesmo, manda o mesmo comando de novo em até %s", Coins(stake), core.FormatDuration(allInWindow))
 	}
 	if stake < allInFloor || !b.interruptAllIn(ctx, chat, acc) {
 		return ""

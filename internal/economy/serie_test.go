@@ -2,6 +2,7 @@ package economy
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"go.mau.fi/whatsmeow/types"
@@ -9,13 +10,13 @@ import (
 
 func TestBetSolace(t *testing.T) {
 	cases := map[int64]int64{
-		0:              0,
-		solaceFloor:    0,
-		40_000:         1,
-		100_000:        2,
-		1_000_000:      4,
-		10_000_000:     6,
-		10_000_000_000: solaceMax,
+		0:               0,
+		solaceFloor - 1: 0,
+		solaceFloor:     3,
+		40_000:          4,
+		100_000:         6,
+		1_000_000:       solaceMax,
+		10_000_000_000:  solaceMax,
 	}
 	for lost, want := range cases {
 		if got := betSolace(lost); got != want {
@@ -46,29 +47,46 @@ func TestBetRecordSolace(t *testing.T) {
 
 	note(-60_000)
 	note(-40_000)
-	if got := solace(); got != 2 {
-		t.Fatalf("consolo depois de perder 100k = %d, want 2", got)
+	if got := solace(); got != 6 {
+		t.Fatalf("maré de azar depois de perder 100k = %d, want 6", got)
 	}
 	note(70_000)
-	if got := solace(); got != 0 {
-		t.Fatalf("consolo com 30k de perda líquida = %d, want 0", got)
+	if got := solace(); got != 4 {
+		t.Fatalf("maré de azar com 30k de perda líquida = %d, want 4", got)
 	}
 	note(500_000)
-	note(-20_000)
 	if got := solace(); got != 0 {
-		t.Fatalf("consolo depois de recuperar tudo e perder 20k = %d, want 0", got)
+		t.Fatalf("maré de azar depois de recuperar tudo = %d, want 0", got)
 	}
 }
 
-func TestPrizeBoostSolace(t *testing.T) {
-	pb := PrizeBoost{solace: 4}
-	if got := pb.Pay(1_000, 3_000); got != 3_080 {
-		t.Fatalf("Pay com 4%% de consolo = %d, want 3080", got)
+func TestPrizeBoostEdge(t *testing.T) {
+	near := func(got, want float64) bool { return math.Abs(got-want) < 1e-9 }
+	unlucky := PrizeBoost{solace: 6}
+
+	if got := unlucky.Favor(stakeRiskFloor); !near(got, 0.06) {
+		t.Fatalf("Favor de aposta pequena com 6 de maré = %v, want 0.06", got)
 	}
-	if got := pb.Pay(1_000, 0); got != 0 {
-		t.Fatalf("Pay numa derrota = %d, want 0", got)
+	if got := unlucky.Risk(stakeRiskFloor); got != 0 {
+		t.Fatalf("Risk de quem tá a favor = %v, want 0", got)
 	}
-	if got := pb.Tag(1_000, 3_080); got != " (🩹 +4% de consolo)" {
-		t.Fatalf("Tag = %q", got)
+
+	big := unlucky.Risk(1_000_000)
+	if !near(big, stakeRisk(1_000_000)-0.06) || unlucky.Favor(1_000_000) != 0 {
+		t.Fatalf("aposta de 1M com 6 de maré: Risk = %v, Favor = %v", big, unlucky.Favor(1_000_000))
+	}
+
+	hot := PrizeBoost{heat: 9, solace: 6}
+	if got := hot.Risk(stakeRiskFloor); !near(got, 0.03) {
+		t.Fatalf("Risk com 9 de calor e 6 de maré = %v, want 0.03", got)
+	}
+}
+
+func TestSolaceNeverCoversStakingTheLoss(t *testing.T) {
+	for _, lost := range []int64{solaceFloor, 40_000, 100_000, 1_000_000, 10_000_000} {
+		pb := PrizeBoost{solace: betSolace(lost)}
+		if pb.Favor(lost) != 0 || pb.Risk(lost) == 0 {
+			t.Errorf("apostar os %d perdidos de uma vez: Risk = %v, Favor = %v", lost, pb.Risk(lost), pb.Favor(lost))
+		}
 	}
 }

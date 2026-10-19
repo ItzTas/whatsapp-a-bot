@@ -33,7 +33,6 @@ type crashBet struct {
 	acc    core.Account
 	stake  int64
 	boost  PrizeBoost
-	levy   heldLevy
 	target int64
 	cashed int64
 }
@@ -59,12 +58,10 @@ type crashSave struct {
 type crashSaveBet struct {
 	Account core.StoredAccount `json:"account"`
 	Stake   int64              `json:"stake"`
-	Boost   int64              `json:"boost"`
 	Luck    int64              `json:"luck"`
 	Heat    int64              `json:"heat"`
 	Solace  int64              `json:"solace"`
 	Rescued bool               `json:"rescued"`
-	Levy    heldLevySave       `json:"levy"`
 	Target  int64              `json:"target"`
 	Cashed  int64              `json:"cashed"`
 }
@@ -124,8 +121,8 @@ func (b *bot) betCrash(ctx context.Context, evt *events.Message, args []string) 
 	if !joined {
 		go b.runCrash(ctx, chat, round, crashWindow)
 	}
-	bet := &crashBet{acc: acc, stake: placed.Stake, boost: placed.Boost, levy: placed.held(), target: target}
-	refusal, err = b.enterCrash(ctx, chat, round, bet, placed.Levy)
+	bet := &crashBet{acc: acc, stake: placed.Stake, boost: placed.Boost, target: target}
+	refusal, err = b.enterCrash(ctx, chat, round, bet)
 	if err != nil {
 		return err
 	}
@@ -137,12 +134,11 @@ func (b *bot) betCrash(ctx context.Context, evt *events.Message, args []string) 
 	if joined {
 		text = fmt.Sprintf("%s. Decola em %s 🚀", bet.entry(), formatSeconds(crashWindow-time.Since(round.opened)))
 	}
-	text += BetLevyText(bet.stake, 0, placed.Levy)
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{acc.JID})
 	return err
 }
 
-func (b *bot) enterCrash(ctx context.Context, chat types.JID, round *crashRound, bet *crashBet, levy PixLevy) (string, error) {
+func (b *bot) enterCrash(ctx context.Context, chat types.JID, round *crashRound, bet *crashBet) (string, error) {
 	round.mu.Lock()
 	defer round.mu.Unlock()
 	if round.over || !round.start.IsZero() {
@@ -151,12 +147,12 @@ func (b *bot) enterCrash(ctx context.Context, chat types.JID, round *crashRound,
 	if slices.ContainsFunc(round.bets, func(other *crashBet) bool { return other.acc.Key == bet.acc.Key }) {
 		return "Você já tá nesse foguete 🚀 É uma aposta por pessoa", nil
 	}
-	held, err := b.holdBet(ctx, chat, bet.acc, bet.stake, levy)
+	held, err := b.holdStake(ctx, chat, bet.acc, bet.stake)
 	if err != nil {
 		return "", fmt.Errorf("apostar no !crash: %w", err)
 	}
 	if !held {
-		return StakeChanged, nil
+		return stakeChanged, nil
 	}
 	round.bets = append(round.bets, bet)
 	round.record()
@@ -179,7 +175,7 @@ func (b *bot) cashOutCrash(ctx context.Context, evt *events.Message) (bool, erro
 		_, err := b.SendMentions(ctx, chat, refusal, mentions)
 		return true, err
 	}
-	balance, err := b.payStake(ctx, chat, bet.acc, bet.payout(), bet.prizeLevy())
+	balance, err := b.payStake(ctx, chat, bet.acc, bet.payout())
 	if err != nil {
 		return true, fmt.Errorf("pagar saque do !crash: %w", err)
 	}
@@ -236,7 +232,7 @@ func (b *bot) flyCrash(ctx context.Context, chat types.JID, round *crashRound) {
 
 func (b *bot) payCrash(ctx context.Context, chat types.JID, bets []*crashBet) {
 	for _, bet := range bets {
-		if err := b.Wallets.payPrize(ctx, chat, bet.acc, bet.payout(), bet.prizeLevy()); err != nil {
+		if err := b.Wallets.payPrize(ctx, chat, bet.acc, bet.payout()); err != nil {
 			b.Client.Log.Errorf("pagar saque automático do !crash pra %s: %v", bet.acc.JID, err)
 		}
 	}
@@ -280,7 +276,7 @@ func (b *bot) restoreCrash(ctx context.Context, saved core.SavedGame) error {
 	}
 	bets := make([]*crashBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &crashBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Boost, luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, levy: bet.Levy.held(), target: bet.Target, cashed: bet.Cashed}
+		bets[i] = &crashBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, target: bet.Target, cashed: bet.Cashed}
 	}
 	round := b.trackCrash(ctx, state.Chat, &crashRound{opened: state.Opened, start: state.Start, point: state.Point, bets: bets})
 	wait := crashWindow - time.Since(round.opened)
@@ -335,9 +331,12 @@ func (r *crashRound) launch(now time.Time) bool {
 }
 
 func (r *crashRound) rig() {
-	riskiest := slices.MaxFunc(r.bets, func(a, b *crashBet) int { return cmp.Compare(a.boost.Risk(a.stake), b.boost.Risk(b.stake)) })
+	riskiest := slices.MaxFunc(r.bets, func(a, b *crashBet) int { return cmp.Compare(a.boost.edge(a.stake), b.boost.edge(b.stake)) })
 	if rand.Float64() < riskiest.boost.Risk(riskiest.stake) {
 		r.point = min(r.point, drawCrashPoint())
+	}
+	if rand.Float64() < riskiest.boost.Favor(riskiest.stake) {
+		r.point = max(r.point, drawCrashPoint())
 	}
 }
 
@@ -365,7 +364,7 @@ func (r *crashRound) ends() time.Time {
 func (r *crashRound) saved(chat types.JID) crashSave {
 	bets := make([]crashSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = crashSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Boost: bet.boost.decree, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Levy: bet.levy.saved(), Target: bet.target, Cashed: bet.cashed}
+		bets[i] = crashSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Target: bet.target, Cashed: bet.cashed}
 	}
 	return crashSave{Chat: chat, Opened: r.opened, Start: r.start, Point: r.point, Bets: bets}
 }
@@ -493,12 +492,8 @@ func (bet *crashBet) payout() int64 {
 	return bet.boost.Pay(bet.stake, bet.stake*bet.cashed/100)
 }
 
-func (bet *crashBet) prizeLevy() prizeLevy {
-	return bet.levy.onPrize(bet.stake, bet.payout())
-}
-
 func (bet *crashBet) tag() string {
-	return bet.boost.Tag(bet.stake, bet.payout()) + bet.prizeLevy().text()
+	return bet.boost.Tag(bet.stake, bet.payout())
 }
 
 func (bet *crashBet) entry() string {

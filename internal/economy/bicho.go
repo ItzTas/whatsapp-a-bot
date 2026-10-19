@@ -137,13 +137,17 @@ func (b *bot) betAnimal(ctx context.Context, evt *events.Message, args []string)
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
 	var (
-		budget  int64
+		whole   int64
 		refusal string
 		job     Profession
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) {
-		bet.stake, budget, refusal, err = b.affordable(gctx, chat, acc, stakeArg, "!bicho", 0)
+	g.Go(func() error {
+		rule, err := b.betRuleOf(gctx, chat, acc)
+		if err != nil {
+			return err
+		}
+		bet.stake, whole, refusal, err = b.affordable(gctx, chat, acc, stakeArg, "!bicho", rule)
 		return err
 	})
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
@@ -156,7 +160,7 @@ func (b *bot) betAnimal(ctx context.Context, evt *events.Message, args []string)
 	if bet.stake > bet.kind.limit {
 		return b.SendText(ctx, chat, fmt.Sprintf("A aposta máxima %s %s é %s 🎫 Os limites de cada tipo ficam no !bicho tabela", bet.kind.in, bet.kind.id, Coins(bet.kind.limit)))
 	}
-	if refusal := b.allIn(ctx, chat, acc, "!bicho", bet.stake, budget); refusal != "" {
+	if refusal := b.allIn(ctx, chat, acc, "!bicho", bet.stake, whole); refusal != "" {
 		return b.SendText(ctx, chat, refusal)
 	}
 
@@ -165,7 +169,7 @@ func (b *bot) betAnimal(ctx context.Context, evt *events.Message, args []string)
 	at := nextAnimalDraw(now)
 	balance, err := b.Wallets.placeAnimalBet(ctx, chat, acc, bet, at)
 	if errors.Is(err, ErrNoFunds) {
-		return b.SendText(ctx, chat, StakeChanged)
+		return b.SendText(ctx, chat, stakeChanged)
 	}
 	if errors.Is(err, errAnimalBetLimit) {
 		return b.SendText(ctx, chat, fmt.Sprintf("Você já fez %d apostas pra %s, que é o máximo por extração 🎫", animalBetsPerDraw, animalDrawLabel(at, now)))
@@ -512,6 +516,9 @@ func (s *walletStore) placeAnimalBet(ctx context.Context, chat types.JID, acc co
 			return ErrNoFunds
 		}
 		if err != nil {
+			return err
+		}
+		if err := noteWager(ctx, tx, chat, acc, bet.stake, time.Now()); err != nil {
 			return err
 		}
 		_, err = tx.ExecContext(ctx,

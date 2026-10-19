@@ -126,7 +126,7 @@ func (b *bot) betOnPool(ctx context.Context, evt *events.Message, action, rest s
 		return b.SendText(ctx, chat, "Use assim: !bolao <número da opção> <valor>, tipo !bolao 1 100. Manda !bolao pra ver as opções")
 	}
 	acc := b.Account(ctx, evt.Info.Sender)
-	stake, refusal, err := b.PlaceStake(ctx, chat, acc, strings.ToLower(arg), fmt.Sprintf("!bolao %d", option))
+	stake, refusal, err := b.placeStake(ctx, chat, acc, strings.ToLower(arg), fmt.Sprintf("!bolao %d", option))
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (b *bot) betOnPool(ctx context.Context, evt *events.Message, action, rest s
 		errNoBetPool:     betPoolMissing,
 		errBetPoolClosed: "As apostas desse bolão já fecharam 🔒 Agora é esperar o resultado",
 		errBetPoolOption: "Essa opção não existe. Manda !bolao pra ver as opções",
-		ErrNoFunds:       StakeChanged,
+		ErrNoFunds:       stakeChanged,
 	}
 	for reason, text := range refusals {
 		if errors.Is(err, reason) {
@@ -490,6 +490,9 @@ func (s *walletStore) betOnPool(ctx context.Context, chat types.JID, acc core.Ac
 			return ErrNoFunds
 		}
 		if err != nil {
+			return err
+		}
+		if err := noteWager(ctx, tx, chat, acc, amount, time.Now()); err != nil {
 			return err
 		}
 		_, err = tx.ExecContext(ctx,

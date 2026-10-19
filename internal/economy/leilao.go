@@ -110,7 +110,7 @@ func (b *bot) lance(ctx context.Context, evt *events.Message) error {
 func (b *bot) bidAuction(ctx context.Context, evt *events.Message, arg string) error {
 	chat := evt.Info.Chat.ToNonAD()
 	bidder := b.Account(ctx, evt.Info.Sender)
-	amount, _, refusal, err := b.affordable(ctx, chat, bidder, arg, "!lance", 0)
+	amount, _, refusal, err := b.affordable(ctx, chat, bidder, arg, "!lance", bidRule)
 	if err != nil {
 		return err
 	}
@@ -285,7 +285,7 @@ func (s *walletStore) bidAuction(ctx context.Context, chat types.JID, bidder cor
 		return err
 	})
 	if errors.Is(err, ErrNoFunds) {
-		return bid, StakeChanged, nil
+		return bid, stakeChanged, nil
 	}
 	return bid, refusal, err
 }

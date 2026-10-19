@@ -59,9 +59,12 @@ func newRevolver() *revolver {
 	return &revolver{chambers: roletaChambers, bullet: rand.IntN(roletaChambers)}
 }
 
-func (r *revolver) pull(rig float64) (fired bool, chambersLeft int) {
+func (r *revolver) pull(rig, spare float64) (fired bool, chambersLeft int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.bullet == 0 && r.chambers > 1 && rand.Float64() < spare {
+		r.bullet = 1 + rand.IntN(r.chambers-1)
+	}
 	if r.bullet == 0 || rand.Float64() < rig {
 		r.chambers, r.bullet = roletaChambers, rand.IntN(roletaChambers)
 		r.record()
@@ -84,7 +87,6 @@ type roletaBet struct {
 	acc     core.Account
 	stake   int64
 	boost   economy.PrizeBoost
-	levy    economy.PixLevy
 }
 
 func (b *bot) roleta(ctx context.Context, evt *events.Message) error {
@@ -112,16 +114,21 @@ func (b *bot) roleta(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 
-	fired, chambersLeft := gun.pull(bet.boost.Risk(bet.stake))
-	payoff := b.payRoletaBet(ctx, chat, bet, fired, chambersLeft)
+	fired, chambersLeft := gun.pull(bet.boost.Risk(bet.stake), bet.boost.Favor(bet.stake))
+	payoff, paid, settled := b.payRoletaBet(ctx, chat, bet, fired, chambersLeft)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(roletaSuspense):
 	}
 	text := core.AppendLine(roletaResult(target, fired, chambersLeft), payoff)
-	_, err = b.SendMentions(ctx, chat, text, []types.JID{target, shooter})
-	return err
+	if _, err := b.SendMentions(ctx, chat, text, []types.JID{target, shooter}); err != nil {
+		return err
+	}
+	if settled {
+		b.economy.NoteBet(ctx, chat, bet.acc, bet.stake, paid)
+	}
+	return nil
 }
 
 func (b *bot) roletaBet(ctx context.Context, chat, shooter types.JID, arg string, gun *revolver) (roletaBet, string, error) {
@@ -133,29 +140,28 @@ func (b *bot) roletaBet(ctx context.Context, chat, shooter types.JID, arg string
 	}
 	acc := b.Account(ctx, shooter)
 	bet, refusal, err := b.economy.PlaceBet(ctx, chat, acc, arg, "!roleta")
-	return roletaBet{shooter: shooter, acc: acc, stake: bet.Stake, boost: bet.Boost, levy: bet.Levy}, refusal, err
+	return roletaBet{shooter: shooter, acc: acc, stake: bet.Stake, boost: bet.Boost}, refusal, err
 }
 
-func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, fired bool, chambersLeft int) string {
+func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, fired bool, chambersLeft int) (text string, paid int64, settled bool) {
 	if bet.stake == 0 {
-		return ""
+		return "", 0, false
 	}
 	payout := bet.boost.Pay(bet.stake, roletaPayout(bet.stake, fired, chambersLeft))
 	saved := bet.boost.Rescue(bet.stake, payout)
-	balance, err := b.economy.Wallets.SettleBet(ctx, chat, bet.acc, bet.stake, payout+saved, bet.levy)
+	balance, err := b.economy.Wallets.SettleBet(ctx, chat, bet.acc, bet.stake, payout+saved)
 	if errors.Is(err, economy.ErrNoFunds) {
-		return fmt.Sprintf("🤨 O saldo de @%s mudou no meio e a aposta não valeu", bet.shooter.User)
+		return fmt.Sprintf("🤨 O saldo de @%s mudou no meio e a aposta não valeu", bet.shooter.User), 0, false
 	}
 	if err != nil {
 		b.Client.Log.Errorf("pagar aposta do !roleta: %v", err)
-		return ""
+		return "", 0, false
 	}
-	b.economy.NoteBet(ctx, chat, bet.acc, bet.stake, payout+saved)
 	result := fmt.Sprintf("🤑 @%s ganhou %s%s", bet.shooter.User, economy.Coins(payout-bet.stake), bet.boost.Tag(bet.stake, payout))
 	if fired {
 		result = fmt.Sprintf("💸 @%s perdeu %s", bet.shooter.User, economy.Coins(bet.stake)) + economy.SavedBetText(saved)
 	}
-	return result + economy.BetLevyText(bet.stake, payout, bet.levy) + "\n💰 Saldo: " + economy.Coins(balance)
+	return result + "\n💰 Saldo: " + economy.Coins(balance), payout + saved, true
 }
 
 func roletaPayout(stake int64, fired bool, chambersLeft int) int64 {

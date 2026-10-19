@@ -14,15 +14,15 @@ const (
 	streakHeatStep = 3
 	streakHeatMax  = 25
 	solaceFloor    = 10_000
-	solaceStep     = 2
-	solaceMax      = 6
+	solaceStep     = 3
+	solaceMax      = 9
 )
 
 func betSolace(lost int64) int64 {
-	if lost <= solaceFloor {
+	if lost < solaceFloor {
 		return 0
 	}
-	return min(int64(solaceStep*math.Log10(float64(lost)/solaceFloor)), solaceMax)
+	return min(int64(solaceStep*(1+math.Log10(float64(lost)/solaceFloor))), solaceMax)
 }
 
 func (s *walletStore) betRecord(ctx context.Context, chat types.JID, acc core.Account) (heat, solace int64, err error) {
