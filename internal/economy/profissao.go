@@ -165,6 +165,7 @@ type Profession struct {
 	findBonus    float64
 	fixedFinds   bool
 	equipped     bool
+	career       career
 	peak         peak
 	hazard       hazard
 	safety       int64
@@ -280,10 +281,12 @@ type shift struct {
 	amount  int64
 	task    string
 	busted  bool
-	doubled bool
 	peaked  bool
-	found   item
+	finds   []item
 	wound   wound
+	turns   int
+	busts   int
+	doubles int
 }
 
 func professionNamed(name string) (Profession, bool) {
@@ -333,43 +336,49 @@ func findArea(query string) (int, bool) {
 
 func (p Profession) work(now time.Time) shift {
 	if rand.Float64() < p.shaky(p.bust) {
-		s := shift{task: core.PickOne(p.busts), busted: true}
+		s := shift{task: core.PickOne(p.busts), busted: true, turns: 1, busts: 1}
 		if p.bustFine > 0 {
 			s.amount = -(p.bustFine/2 + rand.Int64N(p.bustFine/2+1))
 		}
 		return s
 	}
-	s := shift{amount: p.min + rand.Int64N(p.max-p.min+1), task: core.PickOne(p.tasks)}
+	s := shift{amount: p.min + rand.Int64N(p.max-p.min+1), task: core.PickOne(p.tasks), turns: 1}
 	if p.peak.active(now) {
 		s.amount += s.amount * p.peak.bonus / 100
 		s.peaked = true
 	}
 	if rand.Float64() < p.sober(p.doubling()) {
 		s.amount *= 2
-		s.doubled = true
+		s.doubles = 1
 	}
 	if finds, chance := p.loot(); rand.Float64() < p.sober(chance) {
-		s.found, _ = itemByID(core.PickOne(finds))
+		found, _ := itemByID(core.PickOne(finds))
+		s.finds = []item{found}
 	}
 	return s
 }
 
 func (s shift) text(job Profession, user string, paid int64) string {
-	if s.busted && paid < 0 {
-		return fmt.Sprintf("%s @%s %s e ainda perdeu %s", job.emoji, user, s.task, Coins(-paid))
-	}
-	if s.busted {
-		return fmt.Sprintf("%s @%s %s e não ganhou nada", job.emoji, user, s.task)
-	}
 	lines := []string{fmt.Sprintf("%s @%s %s e ganhou %s", job.emoji, user, s.task, Coins(paid))}
+	if s.busted && paid < 0 {
+		lines = []string{fmt.Sprintf("%s @%s %s e ainda perdeu %s", job.emoji, user, s.task, Coins(-paid))}
+	}
+	if s.busted && paid >= 0 {
+		lines = []string{fmt.Sprintf("%s @%s %s e não ganhou nada", job.emoji, user, s.task)}
+	}
+	labels := make([]string, len(s.finds))
+	for i, it := range s.finds {
+		labels[i] = it.label()
+	}
 	extras := []struct {
 		on   bool
 		text string
 	}{
-		{s.peaked, fmt.Sprintf("⏰ Horário de pico: +%d%%", job.peak.bonus)},
-		{s.doubled, "🍀 Dia de sorte: pagaram em dobro!"},
-		{s.found.id != "", "🎁 No caminho ainda achou " + s.found.label()},
-		{job.suits(s.found) && !job.equipped, fmt.Sprintf("🛠️ É o instrumento de trabalho da sua área: com ele na mochila, o !trabalhar paga %d%% a mais", tradePayBonus)},
+		{s.turns > 1, s.backlogNote()},
+		{s.peaked && !s.busted, fmt.Sprintf("⏰ Horário de pico: +%d%%", job.peak.bonus)},
+		{s.doubles > 0, s.luckNote()},
+		{len(s.finds) > 0, "🎁 No caminho ainda achou " + core.JoinWithAnd(labels)},
+		{slices.ContainsFunc(s.finds, job.suits) && !job.equipped, fmt.Sprintf("🛠️ É o instrumento de trabalho da sua área: com ele na mochila, o !trabalhar paga %d%% a mais", tradePayBonus)},
 	}
 	for _, e := range extras {
 		if e.on {
@@ -452,6 +461,7 @@ func (p Profession) perks() []string {
 		on   bool
 		text string
 	}{
+		{p.career.worked > 0, p.career.perk()},
 		{p.president, fmt.Sprintf("🏛️ É presidente da conversa: segurança contra !sequestrar e !matar, imunidade que segura %d%% das prisões, pode !prender, !libertar e !reviver, abusa do poder %s no mandato no !prender, !trabalhar, !roubar e !sequestrar e baixa !decreto (veja !presidente)", percent(presidentImmunity), core.CountLabel(presidentAbuses, "vez", "vezes"))},
 		{p.bust > 0 && p.bustFine == 0, fmt.Sprintf("😬 Em %d%% das vezes dá ruim e não ganha nada", percent(p.bust))},
 		{p.bust > 0 && p.bustFine > 0, fmt.Sprintf("💥 Em %d%% das vezes dá ruim e ainda perde até %s", percent(p.bust), Coins(p.bustFine))},
@@ -595,8 +605,10 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 		body    []installed
 		fans    audience
 		won     int64
+		worked  map[string]time.Duration
 	)
 	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { worked, err = b.Wallets.careers(gctx, chat, acc); return err })
 	g.Go(func() (err error) { held, err = b.Wallets.charmsOn(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { won, err = b.Wallets.recentWinnings(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { body, err = b.Wallets.body(gctx, chat, acc); return err })
@@ -613,7 +625,7 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 	if st.president {
 		job = job.presidential().tyrannical(time.Now())
 	}
-	return job.housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).cleared(st.record, time.Now()).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held).hungover(won), nil
+	return job.seasoned(worked).housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).cleared(st.record, time.Now()).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held).hungover(won), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target core.Account) (attackerJob, targetJob Profession, err error) {
@@ -633,24 +645,31 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 		job  Profession
 		p    presidency
 		lien debtLien
+		last time.Time
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { job, p, err = b.workTerms(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { lien, err = b.salaryLien(gctx, chat, acc, now); return err })
+	g.Go(func() (err error) { last, err = stampedAt(gctx, b.Wallets.db, chat, acc, "trabalho_em"); return err })
 	if err := g.Wait(); err != nil {
 		return err
 	}
-	s := p.payFor(job.work(now))
+	cd := cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}
+	s := p.toil(job, now, backlog(now.Sub(last), cd.every))
 	s.wound = job.hazard.roll(job.safety)
 	levy := p.incomeLevy(acc)
-	w, err := b.Wallets.work(ctx, chat, acc, cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}, job.abuse(workAbuse), s, levy, lien, now)
+	w, err := b.Wallets.work(ctx, chat, acc, cd, job.abuse(workAbuse), s, levy, lien, now)
 	if err != nil {
 		return fmt.Errorf("trabalhar: %w", err)
 	}
+	var promoted string
 	if w.wait == 0 {
-		b.advance(chat, acc, workGoal, 1)
+		b.advance(chat, acc, workGoal, int64(s.turns))
+		if promoted, err = b.promote(ctx, chat, acc, job, time.Duration(s.turns)*cd.every); err != nil {
+			return err
+		}
 	}
-	text := s.text(job, person.User, w.paid) + incomeTaxText(w.tax, levy) + w.tithe.text() + gravityText(w.pulled) + w.garnish.text() + w.abuse.note("Abusou do poder e trabalhou sem descansar")
+	text := s.text(job, person.User, w.paid) + promoted + incomeTaxText(w.tax, levy) + w.tithe.text() + gravityText(w.pulled) + w.garnish.text() + w.abuse.note("Abusou do poder e trabalhou sem descansar")
 	if w.wait > 0 {
 		text = fmt.Sprintf("😮‍💨 @%s ainda tá cansado do último trampo. Volta em %s", person.User, core.FormatWait(w.wait))
 	}
@@ -743,7 +762,7 @@ func professionsMenu(current Profession) string {
 		lines = append(lines, "", fmt.Sprintf("%s *%s* (!profissao %s)", a.emoji, a.name, a.key), strings.Join(names, ", "))
 	}
 	lines = append(lines, "",
-		fmt.Sprintf("Hoje você %s %s", current.title, current.emoji),
+		fmt.Sprintf("Hoje você %s %s", current.title, current.emoji)+current.career.tag(),
 		"_!profissao <área> mostra quanto cada uma paga e o que ela tem de especial, e !profissao ver <nome> mostra uma só_",
 		fmt.Sprintf("_Pra trocar: !profissao <nome>. Dá pra trocar uma vez a cada %s_", core.FormatWait(professionChangeEvery)))
 	return strings.Join(lines, "\n")

@@ -24,6 +24,9 @@ func (b *bot) colher(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return fmt.Errorf("colher: %w", err)
 	}
+	if r.reaped > 0 {
+		b.practice(ctx, chat, acc, job, Profession.farms, 1)
+	}
 	_, err = b.SendMentions(ctx, chat, r.text(person, job, now), []types.JID{person})
 	return err
 }

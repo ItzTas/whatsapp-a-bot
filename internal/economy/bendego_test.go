@@ -213,12 +213,15 @@ func TestBendegoStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if g.found.id == "" {
-			t.Fatal("com a Vela do Negrinho do Pastoreio a extração sempre acha alguma coisa")
+		var worth int64
+		for _, h := range g.finds() {
+			if h.found.id == "" {
+				t.Fatal("com a Vela do Negrinho do Pastoreio a extração sempre acha alguma coisa")
+			}
+			worth += marketPayoutOf(h.found, []grade{{h.grade, 1}}, marketSalePercent)
 		}
-		want := marketPayoutOf(g.found, []grade{{g.grade, 1}}, marketSalePercent) * craterToll / 100
-		if g.toll != want {
-			t.Errorf("pedágio de %d por %s, queria %d", g.toll, g.found.id, want)
+		if want := worth * craterToll / 100; g.toll != want {
+			t.Errorf("pedágio de %d por %d achados, queria %d", g.toll, len(g.finds()), want)
 		}
 		if paid, got := workerBefore-balance(t, worker), balance(t, holder)-holderBefore; paid != g.toll || got != g.toll {
 			t.Errorf("o minerador pagou %d e o dono recebeu %d, os dois tinham que ser %d", paid, got, g.toll)

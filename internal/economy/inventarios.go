@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,15 +31,21 @@ type haul struct {
 
 type gathering struct {
 	haul
-	pulled []haul
-	seed   item
-	noTool bool
-	wait   time.Duration
-	broken item
-	worn   []item
-	spent  []item
-	toll   int64
-	injury injury
+	backlog []haul
+	pulled  []haul
+	seeds   []item
+	turns   int
+	noTool  bool
+	wait    time.Duration
+	broken  item
+	worn    []item
+	spent   []item
+	toll    int64
+	injury  injury
+}
+
+func (g gathering) finds() []haul {
+	return slices.Concat([]haul{g.haul}, g.backlog, g.pulled)
 }
 
 type theft struct {
@@ -250,6 +257,10 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Accou
 			g.noTool = true
 			return nil
 		}
+		last, err := stampedAt(ctx, tx, chat, acc, k.cooldown.column)
+		if err != nil {
+			return err
+		}
 		wait, err := stampCooldown(ctx, tx, chat, acc, k.cooldown, now)
 		if err != nil {
 			return err
@@ -258,26 +269,18 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Accou
 			g.wait = wait
 			return nil
 		}
-		g.haul, g.worn, g.spent = k.roll(), k.worn, k.spent
-		for range k.pull {
-			g.pulled = append(g.pulled, k.find())
-		}
 		if g.injury, err = hurt(ctx, tx, chat, acc, k.hazard.roll(k.safety), now); err != nil {
 			return err
 		}
-		if k.grace > 0 {
-			uses, err := wearTool(ctx, tx, chat, acc, k.tool)
-			if err != nil {
+		g.worn = k.worn
+		turns := backlog(now.Sub(last), k.cooldown.every)
+		for g.turns < turns && k.armed {
+			if bag, err = g.dig(ctx, tx, chat, acc, k, bag); err != nil {
 				return err
 			}
-			g.broke = g.broke && uses > k.grace
+			k = a.equip(bag)
 		}
-		for _, it := range k.spent {
-			if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
-				return err
-			}
-		}
-		finds := append([]haul{g.haul}, g.pulled...)
+		finds := g.finds()
 		for _, h := range finds {
 			if h.found.id == "" {
 				continue
@@ -286,28 +289,57 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Accou
 				return err
 			}
 		}
-		if g.seed = k.stray(); g.seed.id != "" {
-			if err := addItems(ctx, tx, chat, acc, g.seed.id, 1); err != nil {
+		for _, seed := range g.seeds {
+			if err := addItems(ctx, tx, chat, acc, seed.id, 1); err != nil {
 				return err
 			}
 		}
 		if pit.charges(acc) {
-			if g.toll, err = payToll(ctx, tx, chat, acc, pit.owner, finds); err != nil {
-				return err
-			}
+			g.toll, err = payToll(ctx, tx, chat, acc, pit.owner, finds)
 		}
-		if !g.broke {
-			return nil
-		}
-		g.broken, _ = itemByID(k.tool)
-		if err := takeItems(ctx, tx, chat, acc, k.tool, 1); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, "UPDATE inventarios SET usos = 0 WHERE chat = ? AND pessoa = ? AND item = ?",
-			chat.String(), acc.Key, k.tool)
 		return err
 	})
 	return g, err
+}
+
+func (g *gathering) dig(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, k kit, bag []stack) ([]stack, error) {
+	h := k.roll()
+	if k.grace > 0 {
+		uses, err := wearTool(ctx, tx, chat, acc, k.tool)
+		if err != nil {
+			return bag, err
+		}
+		h.broke = h.broke && uses > k.grace
+	}
+	for range k.pull {
+		g.pulled = append(g.pulled, k.find())
+	}
+	if g.turns == 0 {
+		g.haul = h
+	} else {
+		g.backlog = append(g.backlog, h)
+	}
+	g.turns++
+	if seed := k.stray(); seed.id != "" {
+		g.seeds = append(g.seeds, seed)
+	}
+	for _, it := range k.spent {
+		if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
+			return bag, err
+		}
+		g.spent = append(g.spent, it)
+		bag = withdrawn(bag, it.id)
+	}
+	if !h.broke {
+		return bag, nil
+	}
+	g.broken, _ = itemByID(k.tool)
+	if err := takeItems(ctx, tx, chat, acc, k.tool, 1); err != nil {
+		return bag, err
+	}
+	_, err := tx.ExecContext(ctx, "UPDATE inventarios SET usos = 0 WHERE chat = ? AND pessoa = ? AND item = ?",
+		chat.String(), acc.Key, k.tool)
+	return withdrawn(bag, k.tool), err
 }
 
 func wearTool(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string) (uses int64, err error) {

@@ -473,6 +473,47 @@ func (a activity) pick() item {
 	return found
 }
 
+type extraction struct {
+	text   string
+	hurt   string
+	people []types.JID
+	spot   eventSpot
+	went   bool
+	died   bool
+}
+
+func (x extraction) eventful() bool {
+	return x.went && !x.died
+}
+
+func (b *bot) extract(ctx context.Context, chat, person types.JID, acc core.Account, job Profession, base activity, now time.Time) (extraction, error) {
+	pit := b.craterIn(chat, base, now)
+	a := pit.dig(job.forage(job.craft.apply(base)))
+	a.cooldown.every = a.cooldown.every * time.Duration(100+job.decrees.level(gatherDecree)) / 100
+	g, err := b.Wallets.gather(ctx, chat, acc, a, pit, now)
+	if err != nil {
+		return extraction{}, fmt.Errorf("%s: %w", a.command, err)
+	}
+	went := !g.noTool && g.wait == 0
+	if went {
+		b.advance(chat, acc, gatherGoal, int64(g.turns))
+		b.practice(ctx, chat, acc, job, func(p Profession) bool { return p.crafts(a.command) }, g.turns)
+	}
+	hurt, freed := g.injury.text(person)
+	people := append([]types.JID{person}, freed...)
+	if g.toll > 0 {
+		people = append(people, pit.owner.JID)
+	}
+	return extraction{
+		text:   a.report(g, person) + pit.note(g),
+		hurt:   hurt,
+		people: people,
+		spot:   eventSpot{place: a.command, won: slices.ContainsFunc(g.finds(), func(h haul) bool { return h.found.id != "" })},
+		went:   went,
+		died:   g.injury.died,
+	}, nil
+}
+
 func (b *bot) gather(base activity) core.Handler {
 	return func(ctx context.Context, evt *events.Message) error {
 		chat := evt.Info.Chat.ToNonAD()
@@ -482,27 +523,15 @@ func (b *bot) gather(base activity) core.Handler {
 		if err != nil {
 			return err
 		}
-		now := time.Now()
-		pit := b.craterIn(chat, base, now)
-		a := pit.dig(job.forage(job.craft.apply(base)))
-		a.cooldown.every = a.cooldown.every * time.Duration(100+job.decrees.level(gatherDecree)) / 100
-		g, err := b.Wallets.gather(ctx, chat, acc, a, pit, now)
+		x, err := b.extract(ctx, chat, person, acc, job, base, time.Now())
 		if err != nil {
-			return fmt.Errorf("%s: %w", a.command, err)
-		}
-		if !g.noTool && g.wait == 0 {
-			b.advance(chat, acc, gatherGoal, 1)
-		}
-		hurtText, freed := g.injury.text(person)
-		people := append([]types.JID{person}, freed...)
-		if g.toll > 0 {
-			people = append(people, pit.owner.JID)
-		}
-		_, err = b.SendMentions(ctx, chat, a.report(g, person)+pit.note(g)+job.decrees.note(gatherDecree)+hurtText, people)
-		if err != nil || g.noTool || g.wait > 0 || g.injury.died {
 			return err
 		}
-		b.stirEvent(ctx, evt, eventSpot{place: a.command, won: g.found.id != ""})
+		_, err = b.SendMentions(ctx, chat, x.text+job.decrees.note(gatherDecree)+x.hurt, x.people)
+		if err != nil || !x.eventful() {
+			return err
+		}
+		b.stirEvent(ctx, evt, x.spot)
 		return nil
 	}
 }
@@ -519,19 +548,24 @@ func (a activity) report(g gathering, person types.JID) string {
 	if g.found.id != "" {
 		text = fmt.Sprintf(core.PickOne(a.found), person.User, g.found.label()+g.grade.tag()) + "\n" + g.grade.summary(g.found)
 	}
+	text += backlogReport(g.backlog)
 	for _, extra := range g.pulled {
 		if extra.found.id != "" {
 			text += fmt.Sprintf("\n\n☄️ A gravidade do Bendegó puxou junto %s\n%s", extra.found.label()+extra.grade.tag(), extra.grade.summary(extra.found))
 		}
 	}
-	if g.seed.id != "" {
-		text += fmt.Sprintf("\n\n🌱 De quebra, achou %s no caminho. Dá pra plantar com !plantar", g.seed.label())
+	if len(g.seeds) > 0 {
+		labels := make([]string, len(g.seeds))
+		for i, seed := range g.seeds {
+			labels[i] = seed.label()
+		}
+		text += fmt.Sprintf("\n\n🌱 De quebra, achou %s no caminho. Dá pra plantar com !plantar", core.JoinWithAnd(labels))
 	}
-	text += findNotes(append([]haul{g.haul}, g.pulled...))
+	text += findNotes(g.finds())
 	if len(g.worn) > 0 {
 		text += "\n\n🧰 Com " + wornList(g.worn, g.spent)
 	}
-	if g.broke {
+	if g.broken.id != "" {
 		text += fmt.Sprintf("\n\n💥 %s quebrou! Compra outra na !loja", g.broken.label())
 	}
 	return text
@@ -563,8 +597,14 @@ func wornList(worn, spent []item) string {
 	labels := make([]string, len(worn))
 	for i, it := range worn {
 		labels[i] = it.label()
-		if slices.ContainsFunc(spent, func(s item) bool { return s.id == it.id }) {
-			labels[i] += " (gastou 1)"
+		var used int
+		for _, s := range spent {
+			if s.id == it.id {
+				used++
+			}
+		}
+		if used > 0 {
+			labels[i] += fmt.Sprintf(" (gastou %d)", used)
 		}
 	}
 	return core.JoinWithAnd(labels)
