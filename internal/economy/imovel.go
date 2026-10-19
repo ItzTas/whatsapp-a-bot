@@ -27,14 +27,14 @@ type estate struct {
 }
 
 var estates = []estate{
-	{name: "Barraca de camping", emoji: "⛺", place: "numa barraca de camping", price: 1_000, guard: 0.01, dailyBonus: 5, payBonus: 1, tax: 20, staff: 1, storage: 10, vault: 150},
-	{name: "Barraco", emoji: "🛖", place: "num barraco", price: 5_000, guard: 0.02, dailyBonus: 10, payBonus: 2, tax: 100, staff: 1, storage: 25, vault: 400},
-	{name: "Casinha", emoji: "🏠", place: "numa casinha", price: 20_000, guard: 0.03, dailyBonus: 15, payBonus: 3, tax: 300, staff: 2, storage: 50, vault: 1_200},
-	{name: "Casa com piscina", emoji: "🏡", place: "numa casa com piscina", price: 80_000, guard: 0.05, dailyBonus: 20, payBonus: 4, tax: 1_000, staff: 3, storage: 100, vault: 3_000},
-	{name: "Cobertura", emoji: "🏢", place: "numa cobertura", price: 300_000, guard: 0.07, dailyBonus: 30, payBonus: 5, tax: 3_000, staff: 4, storage: 200, vault: 8_000},
-	{name: "Mansão", emoji: "🏰", place: "numa mansão", price: 1_000_000, guard: 0.1, dailyBonus: 40, payBonus: 6, tax: 10_000, staff: 5, storage: 400, vault: 20_000},
-	{name: "Ilha particular", emoji: "🏝️", place: "numa ilha particular", price: 5_000_000, guard: 0.12, dailyBonus: 50, payBonus: 8, tax: 40_000, staff: 6, storage: 800, vault: 50_000},
-	{name: "Base em Marte", emoji: "🪐", place: "numa base em Marte", price: 25_000_000, guard: 0.15, dailyBonus: 60, payBonus: 10, tax: 150_000, staff: 8, storage: 1_500, vault: 120_000},
+	{name: "Barraca de camping", emoji: "⛺", place: "numa barraca de camping", price: 1_000, guard: 0.01, dailyBonus: 5, payBonus: 1, tax: 20, staff: 1, storage: 30, vault: 1_000},
+	{name: "Barraco", emoji: "🛖", place: "num barraco", price: 5_000, guard: 0.02, dailyBonus: 10, payBonus: 2, tax: 100, staff: 1, storage: 75, vault: 3_000},
+	{name: "Casinha", emoji: "🏠", place: "numa casinha", price: 20_000, guard: 0.03, dailyBonus: 15, payBonus: 3, tax: 300, staff: 2, storage: 150, vault: 10_000},
+	{name: "Casa com piscina", emoji: "🏡", place: "numa casa com piscina", price: 80_000, guard: 0.05, dailyBonus: 20, payBonus: 4, tax: 1_000, staff: 3, storage: 300, vault: 30_000},
+	{name: "Cobertura", emoji: "🏢", place: "numa cobertura", price: 300_000, guard: 0.07, dailyBonus: 30, payBonus: 5, tax: 3_000, staff: 4, storage: 600, vault: 80_000},
+	{name: "Mansão", emoji: "🏰", place: "numa mansão", price: 1_000_000, guard: 0.1, dailyBonus: 40, payBonus: 6, tax: 10_000, staff: 5, storage: 1_200, vault: 200_000},
+	{name: "Ilha particular", emoji: "🏝️", place: "numa ilha particular", price: 5_000_000, guard: 0.12, dailyBonus: 50, payBonus: 8, tax: 40_000, staff: 6, storage: 2_400, vault: 500_000},
+	{name: "Base em Marte", emoji: "🪐", place: "numa base em Marte", price: 25_000_000, guard: 0.15, dailyBonus: 60, payBonus: 10, tax: 150_000, staff: 8, storage: 4_500, vault: 1_200_000},
 }
 
 func estateAt(level int) (estate, bool) {

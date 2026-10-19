@@ -15,7 +15,7 @@ const (
 	savingsRate = 5
 	savingsLock = 24 * time.Hour
 	savingsMin  = 100
-	savingsCap  = 5000
+	savingsCap  = 20_000
 )
 
 func (b *bot) poupar(ctx context.Context, evt *events.Message) error {
