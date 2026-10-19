@@ -500,7 +500,11 @@ func (b *bot) postar(ctx context.Context, evt *events.Message) error {
 		text = c.text(pl, person.User) + fmt.Sprintf("\n%s Agora são %s no %s (%s no total)", pl.emoji, core.Thousands(c.after), pl.name, core.Thousands(total)) + tierShiftText(job.followers(), total, person.User) + job.decrees.note(fameDecree)
 	}
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
-	return err
+	if err != nil || c.wait > 0 {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!postar", won: !c.canceled && !c.flopped})
+	return nil
 }
 
 func postEvery(job Profession) time.Duration {
@@ -625,8 +629,11 @@ func (b *bot) publi(ctx context.Context, evt *events.Message) error {
 	if w.tax > 0 {
 		people = append(people, levy.payee()...)
 	}
-	_, err = b.SendMentions(ctx, chat, text, people)
-	return err
+	if _, err := b.SendMentions(ctx, chat, text, people); err != nil {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!publi", won: backlash == 0})
+	return nil
 }
 
 func (s *walletStore) audience(ctx context.Context, chat types.JID, acc core.Account, now time.Time) (a audience, err error) {

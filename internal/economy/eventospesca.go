@@ -306,19 +306,131 @@ var fishingEvents = eventBook{
 			choices: []choice{
 				{label: "💰 Pedir dinheiro", risk: lowRisk, endings: []ending{
 					{weight: 70, texts: []string{"'Feito!', disse a tilápia, e caiu um Pix na conta de {@} antes dela sumir na água"}, effects: []effect{earn(250, 500)}},
-					{weight: 30, texts: []string{"A tilápia riu, disse que era pegadinha e deixou umas moedinhas de consolação"}, effects: []effect{earn(40, 90)}},
+					{weight: 30, texts: []string{"A tilápia riu: dinheiro ela não dá, mas multiplica. O próximo que entrar na conta de {@} vem com bônus"}, effects: []effect{enchant("multiplicacao")}},
 				}},
 				{label: "🍀 Pedir sorte", risk: lowRisk, endings: []ending{
 					{weight: 100, texts: []string{"A tilápia soprou umas bolhas na cara de {@}. Dizem que é bênção de peixe"}, effects: []effect{enchant("sorte"), enchant("maoboa")}},
 				}},
 				{label: "🍳 Fritar ela mesmo assim", risk: midRisk, endings: []ending{
 					{weight: 50, texts: []string{"Ficou deliciosa, mas a vó da tilápia rogou uma praga lá do fundo do rio"}, effects: []effect{enchant("panema"), heal(10)}},
-					{weight: 50, texts: []string{"Na frigideira ela gritou 'vai se arrepender!'. {@} comeu assim mesmo e, por enquanto, nada aconteceu"}, effects: []effect{heal(15)}},
+					{weight: 38, texts: []string{"Na frigideira ela gritou 'vai se arrepender!'. {@} comeu assim mesmo e, por enquanto, nada aconteceu"}, effects: []effect{heal(15)}},
+					{weight: 12, texts: []string{"Na frigideira ela gritou 'nunca mais vai comer em paz!'. E desde então nada para no prato de {@}"}, effects: []effect{enchant("jejum")}},
 				}},
 				{label: "🤝 Soltar sem pedir nada", risk: lowRisk, endings: []ending{
 					{weight: 100, texts: []string{"{@} soltou a tilápia sem pedir nada. Ela voltou com um presente na boca e a família toda pra agradecer"}, effects: []effect{gain(1, "perola"), findLoot()}},
 				}},
 			},
+		},
+		{
+			id:    "pesca-torneio-da-colonia",
+			title: "Torneio da colônia",
+			intros: []string{
+				"A colônia de pescadores tá fazendo torneio hoje, e o locutor chamou {@} no microfone: 'inscrição aberta, quem pegar o maior leva o troféu'",
+				"Tem faixa, carro de som e churrasco na beira do rio: é o torneio de pesca da colônia, e a turma tá chamando {@} pra entrar",
+			},
+			choices: []choice{
+				{label: "📝 Pagar a inscrição", risk: midRisk, price: cost{percent: 3, floor: 50}, endings: []ending{
+					{weight: 30, texts: []string{"{@} fisgou o maior peixe do dia, levantou o troféu e saiu na foto do jornal da cidade"}, effects: []effect{earn(150, 300), gain(1, "dourado", "tambaqui")}},
+					{weight: 40, texts: []string{"{@} ficou em quinto lugar e levou um pote de isca de prêmio de consolação"}, effects: []effect{gain(2, "isca"), findLoot()}},
+					{weight: 30, texts: []string{"O campeão foi o sobrinho do presidente da colônia, como todo ano. {@} só pegou lambari"}, effects: []effect{gain(1, "lambari")}},
+				}},
+				{label: "🍖 Ir só pelo churrasco", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"{@} não pescou nada, mas comeu linguiça de graça a tarde inteira"}, effects: []effect{heal(15)}},
+					{weight: 30, texts: []string{"O tio da colônia viu {@} no quinto espetinho e cobrou tudo na saída"}, effects: []effect{lose(1, 3)}},
+				}},
+				{label: "🧊 Levar um peixe congelado", risk: highRisk, endings: []ending{
+					{weight: 40, texts: []string{"Ninguém percebeu que o peixe campeão tava gelado. {@} levou o troféu e o prêmio"}, effects: []effect{earn(150, 300), stain()}},
+					{weight: 45, texts: []string{"O juiz apertou o peixe e ele fez crec. {@} foi expulso debaixo de vaia e pagou multa"}, effects: []effect{lose(5, 10)}},
+					{weight: 15, texts: []string{"A turma da colônia descobriu a trapaça e deu um caldo em {@} no rio"}, effects: []effect{injure(10, 25)}},
+				}},
+				{label: "🎣 Competir como profissional", risk: lowRisk, needs: isJob("pescador"), endings: []ending{
+					{weight: 100, texts: []string{"Pescador de verdade não brinca em torneio: {@} ganhou de lavada e ainda deu entrevista pro carro de som"}, effects: []effect{earn(120, 250), findLoot()}},
+				}},
+			},
+		},
+		{
+			id:    "pesca-anzol-enroscado",
+			title: "Enroscou no fundo",
+			intros: []string{
+				"O anzol de {@} enroscou em alguma coisa lá no fundo. Não é peixe: não mexe, mas também não solta",
+				"A linha de {@} esticou e travou. Tem alguma coisa pesada presa no anzol, parada no fundo do rio",
+			},
+			choices: []choice{
+				{label: "✂️ Cortar a linha", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"{@} cortou a linha, perdeu o anzol e a chumbada e seguiu o baile"}},
+					{weight: 30, texts: []string{"{@} cortou a linha e levou um tempão pra montar outra"}, effects: []effect{delay(10 * time.Minute)}},
+				}},
+				{label: "💪 Puxar até soltar", risk: midRisk, endings: []ending{
+					{weight: 40, texts: []string{"Depois de muito puxa e solta, veio lá do fundo uma coisa toda coberta de lodo"}, effects: []effect{gain(1, "bota-velha", "celular-afogado", "garrafa-com-mensagem")}},
+					{weight: 35, texts: []string{"O rio ganhou o cabo de guerra e a vara de {@} quebrou no meio"}, effects: []effect{breakTool()}},
+					{weight: 25, texts: []string{"A linha estourou e a chumbada voltou direto na testa de {@}"}, effects: []effect{injure(5, 15)}},
+				}},
+				{label: "🏊 Mergulhar pra soltar", risk: highRisk, endings: []ending{
+					{weight: 35, texts: []string{"Lá embaixo tinha um carrinho de mercado afundado, cheio de coisa enroscada. {@} subiu com as mãos cheias"}, effects: []effect{findLoot(), findLoot()}},
+					{weight: 40, texts: []string{"A água tava barrenta e {@} bateu a cabeça numa pedra"}, effects: []effect{injure(10, 25)}},
+					{weight: 17, texts: []string{"O pé de {@} enganchou num galho no fundo e a volta foi no desespero"}, effects: []effect{injure(30, 50)}},
+					{weight: 8, texts: []string{"{@} desceu pra soltar o anzol e o rio não devolveu"}, effects: []effect{perish()}},
+				}},
+				{label: "🤿 Descer como mergulhador", risk: lowRisk, needs: isJob("mergulhador"), endings: []ending{
+					{weight: 100, texts: []string{"{@} desceu com calma de profissional, soltou o anzol e ainda trouxe uns achados do fundo"}, effects: []effect{findLoot(), gain(1, "estrela-do-mar", "caranguejo")}},
+				}},
+			},
+		},
+		{
+			id:    "pesca-isca-acabou",
+			title: "Acabou a isca",
+			intros: []string{
+				"{@} enfiou a mão no pote e só achou terra: a isca acabou, e o peixe tá mordendo como nunca",
+				"Bem quando o cardume chegou, {@} percebeu que a última minhoca fugiu do pote",
+			},
+			choices: []choice{
+				{label: "🍞 Usar miolo de pão", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"Tilápia adora pão. {@} fisgou uma atrás da outra"}, effects: []effect{findLoot()}},
+					{weight: 40, texts: []string{"Os lambaris comeram o pão inteiro sem encostar no anzol"}},
+				}},
+				{label: "🪱 Cavar minhoca no barranco", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"O barranco tava cheio de minhoca gorda. {@} encheu o pote de novo"}, effects: []effect{gain(3, "isca")}},
+					{weight: 30, texts: []string{"Em vez de minhoca, {@} cavou bem no meio de um formigueiro"}, effects: []effect{injure(3, 8)}},
+				}},
+				{label: "🤝 Pedir isca pro vizinho", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O vizinho de barranco deu metade do pote e ainda ensinou onde jogar"}, effects: []effect{gain(1, "isca"), findLoot()}},
+					{weight: 30, texts: []string{"O vizinho vendeu a minhoca a preço de padaria chique"}, effects: []effect{lose(1, 3)}},
+					{weight: 20, texts: []string{"O vizinho é do time rival, e o pedido de isca virou empurra-empurra"}, effects: []effect{injure(5, 12)}},
+				}},
+				{label: "🪱 Achar isca no fundo da mochila", risk: lowRisk, uses: "isca", endings: []ending{
+					{weight: 100, texts: []string{"No fundo da mochila tinha um resto de minhoca. Com isca de verdade, o balde de {@} encheu rapidinho"}, effects: []effect{findLoot(), findLoot()}},
+				}},
+			},
+		},
+		{
+			id:     "pesca-canoa-fantasma",
+			title:  "A canoa sem barqueiro",
+			rarity: rareEvent,
+			intros: []string{
+				"Já tava escurecendo quando uma canoa velha veio descendo o rio sozinha, com um lampião aceso e ninguém remando",
+				"Uma canoa de madeira encostou na margem, bem do lado de {@}. Tem um lampião aceso, um chapéu de palha no banco e nenhum dono",
+			},
+			choices: []choice{
+				{label: "🚣 Pular na canoa", risk: highRisk, endings: []ending{
+					{weight: 35, texts: []string{"No fundo da canoa, debaixo de uma lona, tinha um baú velho amarrado com corda"}, effects: []effect{gain(1, "bau-do-tesouro")}},
+					{weight: 35, texts: []string{"A canoa saiu remando sozinha e só parou na cidade vizinha. {@} voltou a pé, de madrugada"}, effects: []effect{delay(30 * time.Minute), injure(5, 15)}},
+					{weight: 22, texts: []string{"O lampião apagou e uma voz rouca pediu pra {@} levar ele pra casa. A voz veio junto"}, effects: []effect{enchant("encosto")}},
+					{weight: 8, texts: []string{"A canoa afundou no meio do rio, e {@} afundou junto"}, effects: []effect{perish()}},
+				}},
+				{label: "🎣 Fisgar o que tem na canoa", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O anzol pegou uma sacola de pano que tava no banco, pesada de moeda"}, effects: []effect{earn(80, 200)}},
+					{weight: 30, texts: []string{"A canoa puxou a linha de volta e levou a vara de {@} rio abaixo"}, effects: []effect{breakTool()}},
+					{weight: 20, texts: []string{"O lampião piscou três vezes e, na mesma hora, o rio ficou sem peixe"}, effects: []effect{enchant("panema")}},
+				}},
+				{label: "🙈 Fingir que não viu", risk: lowRisk, endings: []ending{
+					{weight: 80, texts: []string{"{@} olhou pro outro lado e a canoa seguiu descendo o rio devagarinho"}},
+					{weight: 20, texts: []string{"A canoa ficou parada do lado de {@} a noite inteira, e ninguém teve coragem de pescar ali"}, effects: []effect{delay(15 * time.Minute)}},
+				}},
+				{label: "🕯️ Encomendar a alma do barqueiro", risk: lowRisk, needs: inArea(areaFe), endings: []ending{
+					{weight: 100, texts: []string{"{@} rezou pela alma do barqueiro e o lampião apagou em paz. No banco da canoa ficou um presente de agradecimento"}, effects: []effect{enchant("protecao"), gain(1, "perola"), earn(50, 120)}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, a canoa sumiu na curva do rio, com lampião e tudo"}},
 		},
 	},
 }

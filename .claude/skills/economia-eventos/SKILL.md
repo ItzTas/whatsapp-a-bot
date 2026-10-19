@@ -7,20 +7,30 @@ user-invocable: false
 # Economia: eventos com escolha
 
 Depois que o `!trabalhar`, uma extração (`!pescar`, `!minerar`, `!vasculhar`, `!catar`) ou um crime
-(`!roubar`, `!furtar`, `!sequestrar`, `!matar`, `!assalto`, `!quadrilha`, `!mercadonegro`) sai de fato, o
+(`!roubar`, `!furtar`, `!sequestrar`, `!matar`, `!assalto`, `!quadrilha`, `!mercadonegro`) sai de fato,
+ou depois de um `!postar` ou um `!publi` que saiu (sem espera pendente), o
 comando chama o `b.stirEvent` (ou o `stirCrewEvent` nos crimes em grupo), que em `eventChance` das vezes abre
 um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as opções liberadas pra ela.
 
 - **Gatilho.** O `stirEvent` vai logo depois da mensagem do resultado, só quando a atividade aconteceu (sem
   espera pendente, sem recusa, sem a pessoa morrer ou ser presa em flagrante ali mesmo). Ele recebe um
   `eventSpot` com o `place` (o comando), o `won` (a atividade deu bom: achou item, não deu ruim no trampo, o
-  crime deu certo) e a `victim` dos crimes com vítima. O `!assalto` sorteia o evento entre quem não foi preso
+  crime deu certo, o post não flopou nem foi cancelado, a publi não teve backlash) e a `victim` dos crimes com vítima. O `!assalto` sorteia o evento entre quem não foi preso
   (`uncaught`) e a `!quadrilha` entre os membros. Comando novo que solte evento segue o mesmo formato, e o
   `place` dele entra no `eventPlaces` do teste e, se tiver espera, no `placeCooldown`.
   O `eventLuck` sorteia `eventChance` vezes `oracleEventFactor` antes de ler qualquer coisa, e o
   `openEvent`, depois do `eventCaseOf`, só segue pra quem não tem os Búzios encantados em 1 de cada
   `oracleEventFactor` vezes (`catchesEvent`). Assim quem não tem fica com o `eventChance` de sempre, quem
   tem fica com o triplo, e a profissão só é lida quando o primeiro sorteio passa.
+- **Prejuízo nas apostas** (`prejuizo.go`). As apostas (`!apostar`, `!cassino`, `!blackjack`, `!crash` e
+  `!corrida`) não soltam evento no sorteio normal: cada aposta fechada chama o `tallyBet` (o `!crash` e a
+  `!corrida` chamam o `tallyRound` no fim da rodada, com o `settled()` de cada aposta), que soma o prejuízo
+  da pessoa naquela conversa no `tiltBoard`, em memória. A sequência começa com o saldo de antes da
+  primeira aposta (`bankroll`), zera quando a pessoa volta pro lucro ou fica `tiltWindow` sem apostar, e
+  dispara quando o prejuízo chega em `tiltShare`% do `bankroll` (no mínimo `tiltFloor`). Aí zera de novo
+  e, com a mesma conta do `eventLuck` usando `tiltChance`, abre o evento com o `place` da aposta e
+  `won` falso. O livro dessas apostas é o `gamblingEvents` (`eventosaposta.go`, "Fundo do poço"), que
+  só aparece por esse caminho.
 - **Escolha do evento.** O `pickScenario` dá prioridade a um evento marcado com `plant` que já venceu
   (`eventos_marcados`), senão sorteia pelo `weight` entre os que cabem (`fits`: `places`, `areas`, `jobs`,
   `when` e pelo menos 2 opções liberadas). O peso é o da raridade (`commonEvent`, `rareEvent`,
@@ -48,10 +58,18 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   `heal`, `buzz` (fica sob efeito da droga pelo `getHigh` do `mercadonegro.go`, o mesmo do `!usar`, com
   overdose), `nabbed` (cadeia de flagrante pelo `baseJail` com `sentence` e `lockUp`, com a chance de
   escapar do `flagrantOdds`, e solta o refém de quem vai preso), `perish` (`die`), `stain` (`markCrime`),
-  `enchant` (`grantCharm` com a própria pessoa de autora), `refresh`/`delay` (espera do comando pelo
+  `enchant` (`grantCharm` com a própria pessoa de autora; com a `purificacao` ele chama o `purgeCurses` e,
+  sem maldição pra tirar, só avisa), `grudge` (maldição que a vítima roga: `grantCharm` com a vítima de
+  autora, então o Dízimo e o Pacto pagam pra ela e o `!imovel exorcizar` paga pra ela também; a Casa
+  assombrada só pega em quem tem imóvel e, sem casa, o espírito vai embora), `refresh`/`delay` (espera do comando pelo
   `placeCooldown`; onde o comando não tem espera, como o `!mercadonegro`, vale a do `!trabalhar`, e o texto
   diz qual), `breakTool` (ferramenta da extração ou o instrumento de trabalho da área, nunca
-  relíquia), `plant` (marca um evento pra depois) e `refund` (passa parte do saldo pra vítima). Efeito novo é um
+  relíquia), `plant` (marca um evento pra depois) `refund` (passa parte do saldo pra vítima) e `fans`/`unfollow` (soma ou corta uma porcentagem dos seguidores
+  de todas as redes na tabela `fama`, como o backlash do `!publi`; quem não tem seguidor não ganha nem perde nada). O `grudge` e o `refund` só
+  entram em evento cujos lugares todos têm vítima, e o `enchant` não aceita Dízimo, Pacto nem Casa
+  assombrada, que precisam de outra pessoa de autora (`offCharms` no teste). Os encantos mais punitivos ficam
+  raros: Pacto e Casa assombrada só em evento raro ou lendário (`harshCharms` no teste), e Jejum e Dízimo
+  com peso baixo (até uns 20, quase sempre bem menos) no desfecho. Efeito novo é um
   tipo com `apply` que devolve a linha do resumo e com `fortune`, que diz se ele é bom (positivo), ruim
   (negativo) ou neutro (zero). Os `fortune` ficam todos em `buzios.go`, e o compilador cobra o de efeito novo.
 - **Búzios encantados** (relíquia passiva, `oracle` na profissão, `buzios.go`). Além do triplo de eventos, a

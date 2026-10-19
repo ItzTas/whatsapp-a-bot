@@ -85,7 +85,8 @@ var crimeEvents = eventBook{
 					{weight: 20, texts: []string{"Era a corregedoria fazendo teste. Propina pra polícia dá cadeia, sabia?"}, effects: []effect{nabbed()}},
 				}},
 				{label: "⛪ Entrar na igreja", risk: lowRisk, endings: []ending{
-					{weight: 70, texts: []string{"{@} sentou no último banco, cantou dois hinos e saiu quando a viatura foi embora"}},
+					{weight: 55, texts: []string{"{@} sentou no último banco, cantou dois hinos e saiu quando a viatura foi embora"}},
+					{weight: 15, texts: []string{"O pastor impôs a mão na testa de {@} e profetizou: \"grade nenhuma vai te segurar, irmão\". A viatura foi embora"}, effects: []effect{enchant("libertacao")}},
 					{weight: 30, texts: []string{"O pastor passou a sacolinha bem na frente de {@} e não tinha como negar"}, effects: []effect{lose(2, 4)}},
 				}},
 			},
@@ -106,8 +107,9 @@ var crimeEvents = eventBook{
 				}},
 				{label: "😎 Comentar chora mais", risk: midRisk, endings: []ending{
 					{weight: 45, texts: []string{"O comentário viralizou e a inveja do grupo inteiro caiu em cima de {@}"}, effects: []effect{enchant("olhogordo")}},
-					{weight: 30, texts: []string{"A tia de {alvo} é benzedeira e não gostou nada do comentário"}, effects: []effect{enchant("azar")}},
+					{weight: 22, texts: []string{"A tia de {alvo} é benzedeira e não gostou nada do comentário"}, effects: []effect{enchant("azar")}},
 					{weight: 25, texts: []string{"Ninguém viu o comentário. {@} saiu ileso e ainda deu risada"}},
+					{weight: 8, texts: []string{"{alvo} printou o comentário e levou no terreiro. Agora uma parte do que {@} ganhar volta pra quem foi roubado"}, effects: []effect{grudge("dizimo")}},
 				}},
 				{label: "🙈 Fingir que não viu", risk: lowRisk, endings: []ending{
 					{weight: 100, texts: []string{"{@} deixou o celular de lado e foi dormir. Amanhã é outro dia"}},
@@ -439,7 +441,8 @@ var crimeEvents = eventBook{
 				}},
 				{label: "😤 Mandar calar a boca", risk: midRisk, endings: []ending{
 					{weight: 60, texts: []string{"{alvo} ficou quietinho. Pelo menos por cinco minutos"}},
-					{weight: 40, texts: []string{"{alvo} começou a rezar alto, e a reza pegou em quem não devia"}, effects: []effect{enchant("encosto")}},
+					{weight: 30, texts: []string{"{alvo} começou a rezar alto, e a reza pegou em quem não devia"}, effects: []effect{enchant("encosto")}},
+					{weight: 10, texts: []string{"{alvo} rezou pedindo o resgate de volta, e o santo atendeu do jeito dele"}, effects: []effect{grudge("dizimo")}},
 				}},
 			},
 		},
@@ -579,7 +582,7 @@ var crimeEvents = eventBook{
 			},
 			choices: []choice{
 				{label: "🙏 Ir lá disfarçado", risk: midRisk, endings: []ending{
-					{weight: 60, texts: []string{"{@} cantou, dançou e saiu de lá abençoado"}, effects: []effect{enchant("abrecaminho")}},
+					{weight: 60, texts: []string{"{@} cantou, dançou e saiu de lá abençoado, com a certeza de que cadeia nenhuma segura"}, effects: []effect{enchant("libertacao")}},
 					{weight: 40, texts: []string{"Na hora do apelo, {@} quase confessou o sequestro no microfone"}, effects: []effect{stain()}},
 				}},
 				{label: "📢 Torcer pro barulho abafar", risk: midRisk, endings: []ending{
@@ -703,13 +706,14 @@ var crimeEvents = eventBook{
 					{weight: 100, texts: []string{"A vó aceitou as flores, respirou fundo e retirou a praga"}, effects: []effect{enchant("protecao")}},
 				}},
 				{label: "🧂 Fazer um contra-feitiço", risk: midRisk, needs: either(inArea(areaFe), holds("sal-grosso")), endings: []ending{
-					{weight: 60, texts: []string{"{@} jogou sal grosso pro alto e a praga voltou pra quem mandou"}, effects: []effect{enchant("sorte")}},
+					{weight: 60, texts: []string{"{@} jogou sal grosso pro alto e a praga voltou pra quem mandou, levando junto tudo de ruim que tava grudado"}, effects: []effect{enchant("purificacao"), enchant("sorte")}},
 					{weight: 40, texts: []string{"O contra-feitiço saiu pela culatra"}, effects: []effect{enchant("azar")}},
 				}},
 				{label: "😂 Rir da praga", risk: midRisk, endings: []ending{
 					{weight: 30, texts: []string{"{@} riu e nada aconteceu. Praga de vó é lenda"}},
-					{weight: 50, texts: []string{"A praga pegou com força"}, effects: []effect{enchant("encosto")}},
-					{weight: 20, texts: []string{"A praga pegou com força e ainda trouxe uma dor nas costas"}, effects: []effect{enchant("azar"), injure(5, 15)}},
+					{weight: 45, texts: []string{"A praga pegou com força"}, effects: []effect{enchant("encosto")}},
+					{weight: 17, texts: []string{"A praga pegou com força e ainda trouxe uma dor nas costas"}, effects: []effect{enchant("azar"), injure(5, 15)}},
+					{weight: 8, texts: []string{"A vó cobrou em dinheiro: o próximo ganho de {@} vai ter a parte da família de {alvo}"}, effects: []effect{grudge("dizimo")}},
 				}},
 				{label: "🚶 Mudar de calçada pra sempre", risk: lowRisk, endings: []ending{
 					{weight: 100, texts: []string{"{@} agora atravessa a rua toda vez que passa por ali. Na dúvida, melhor não arriscar"}},
@@ -732,18 +736,57 @@ var crimeEvents = eventBook{
 				}},
 				{label: "🎰 Pedir os números da Mega", risk: highRisk, endings: []ending{
 					{weight: 35, texts: []string{"O fantasma soprou seis números. {@} jogou e acertou a quina"}, effects: []effect{earn(500, 1200)}},
-					{weight: 45, texts: []string{"O fantasma deu risada e grudou nas costas de {@}"}, effects: []effect{enchant("encosto"), enchant("azar")}},
+					{weight: 37, texts: []string{"O fantasma deu risada e grudou nas costas de {@}"}, effects: []effect{enchant("encosto"), enchant("azar")}},
+					{weight: 8, texts: []string{"O fantasma soprou os números escritos numa página do Livro de São Cipriano. Não era aposta, era pacto"}, effects: []effect{grudge("pacto")}},
 					{weight: 20, texts: []string{"O fantasma não gostou do pedido e deu um susto tão grande que {@} desmaiou"}, effects: []effect{injure(20, 40)}},
 				}},
 				{label: "🏃 Correr sem olhar pra trás", risk: midRisk, endings: []ending{
-					{weight: 60, texts: []string{"{@} correu até em casa e dormiu de luz acesa"}},
-					{weight: 40, texts: []string{"{@} olhou pra trás. Erro clássico. Tropeçou e caiu numa vala"}, effects: []effect{injure(10, 25)}},
+					{weight: 55, texts: []string{"{@} correu até em casa e dormiu de luz acesa"}},
+					{weight: 35, texts: []string{"{@} olhou pra trás. Erro clássico. Tropeçou e caiu numa vala"}, effects: []effect{injure(10, 25)}},
+					{weight: 10, texts: []string{"{@} não olhou pra trás, mas o fantasma de {alvo} veio junto até a porta de casa"}, effects: []effect{grudge("assombracao")}},
 				}},
 				{label: "🍄 Trocar uma ideia com ele", risk: midRisk, needs: stoned, endings: []ending{
 					{weight: 70, texts: []string{"Sob efeito, {@} conversou horas com o fantasma, que ensinou o caminho de um dinheiro enterrado"}, effects: []effect{earn(200, 500)}},
 					{weight: 30, texts: []string{"O fantasma não existia. {@} passou a noite conversando com um poste"}, effects: []effect{delay(20 * time.Minute)}},
 				}},
 			},
+		},
+		{
+			id:     "crime-despacho-encruzilhada",
+			title:  "O despacho na encruzilhada",
+			rarity: rareEvent,
+			places: []string{"!roubar", "!furtar", "!sequestrar", "!matar"},
+			when:   wentWell,
+			intros: []string{
+				"{alvo} foi num terreiro de madrugada e mandou fazer um trabalho pra {@}. Agora tem um despacho com o nome de {@} escrito a carvão bem na porta de casa",
+				"Na encruzilhada perto da casa de {@} apareceu uma galinha preta, sete velas e uma foto 3x4 de {@}. Do lado, um bilhete com a letra de {alvo}",
+			},
+			choices: []choice{
+				{label: "🧂 Pagar um descarrego", risk: lowRisk, price: cost{percent: 5, floor: 150}, endings: []ending{
+					{weight: 75, texts: []string{"A mãe de santo passou arruda, sal grosso e defumador, e o trabalho de {alvo} desmanchou na fumaça"}, effects: []effect{enchant("purificacao"), enchant("protecao")}},
+					{weight: 25, texts: []string{"O descarrego limpou tudo, mas a mãe de santo avisou que {alvo} não desiste fácil"}, effects: []effect{enchant("purificacao")}},
+				}},
+				{label: "🦶 Chutar o despacho", risk: highRisk, endings: []ending{
+					{weight: 55, texts: []string{"{@} chutou tudo longe e nada aconteceu. A galinha ainda virou janta"}, effects: []effect{heal(15)}},
+					{weight: 20, texts: []string{"O santo de {alvo} não gostou do chute e mandou a conta"}, effects: []effect{grudge("dizimo")}},
+					{weight: 15, texts: []string{"Um vulto saiu da fumaça das velas e seguiu {@} até em casa"}, effects: []effect{grudge("assombracao")}},
+					{weight: 10, texts: []string{"Embaixo da galinha tinha um livro de capa preta. Era o Livro de São Cipriano, com o nome de {@} já assinado num pacto"}, effects: []effect{grudge("pacto")}},
+				}},
+				{label: "🙏 Pedir pra desfazer o trabalho", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{alvo} aceitou desfazer o trabalho em troca de um pedido de desculpas no grupo da família"}, effects: []effect{delay(15 * time.Minute)}},
+					{weight: 35, texts: []string{"{alvo} riu na cara de {@}: \"agora você vai me pagar dízimo\""}, effects: []effect{grudge("dizimo")}},
+					{weight: 15, texts: []string{"{alvo} desfez o trabalho e ainda acendeu uma vela pra {@} nunca ver grade de cadeia"}, effects: []effect{enchant("libertacao")}},
+				}},
+				{label: "🕯️ Desmanchar o trabalho", risk: lowRisk, needs: inArea(areaFe), endings: []ending{
+					{weight: 80, texts: []string{"{@} conhece o ofício: desmanchou o trabalho, devolveu as velas pra encruzilhada e saiu com o corpo leve"}, effects: []effect{enchant("purificacao"), enchant("libertacao")}},
+					{weight: 20, texts: []string{"{@} desmanchou o trabalho, mas a galinha fugiu e levou junto a paciência"}, effects: []effect{enchant("purificacao")}},
+				}},
+				{label: "🙈 Passar por cima", risk: lowRisk, endings: []ending{
+					{weight: 85, texts: []string{"{@} passou por cima e seguiu a vida. Às vezes não acreditar é a melhor proteção"}},
+					{weight: 15, texts: []string{"O trabalho pegou devagarinho: era de fome, e desde então nada para no prato de {@}"}, effects: []effect{enchant("jejum")}},
+				}},
+			},
+			idle: ending{texts: []string{"{@} demorou tanto pra decidir que a chuva levou o despacho embora"}},
 		},
 		{
 			id:     "crime-matar-sobreviveu",
@@ -1268,6 +1311,420 @@ var crimeEvents = eventBook{
 				{label: "🧍 Ficar tranquilo", risk: midRisk, endings: []ending{
 					{weight: 60, texts: []string{"O cachorro cheirou, cheirou e foi embora. Era só cheiro de pastel"}},
 					{weight: 40, texts: []string{"O cachorro achou alguma coisa e o policial confiscou"}, effects: []effect{forfeit("baseado", 2), forfeit("lanca-perfume", 1)}},
+				}},
+			},
+		},
+		{
+			id:     "crime-roubar-uber-da-fuga",
+			title:  "O Uber da fuga",
+			places: []string{"!roubar"},
+			when:   wentWell,
+			intros: []string{
+				"{@} chamou um carro de aplicativo pra fugir e só no banco de trás percebeu: o motorista é o cunhado de {alvo}",
+				"O motorista do aplicativo olhou pelo retrovisor e falou: \"Engraçado, minha cunhada {alvo} acabou de ser roubada aqui perto\"",
+			},
+			choices: []choice{
+				{label: "🤫 Ficar quietinho no banco", risk: midRisk, endings: []ending{
+					{weight: 60, texts: []string{"{@} fingiu que tava no telefone a viagem inteira e desceu duas ruas antes"}},
+					{weight: 40, texts: []string{"O motorista avaliou {@} com uma estrela e escreveu \"suspeito\" no comentário"}, effects: []effect{stain()}},
+				}},
+				{label: "💸 Dar uma gorjeta gorda", risk: lowRisk, price: cost{percent: 3, floor: 60}, endings: []ending{
+					{weight: 85, texts: []string{"Com a gorjeta, o motorista esqueceu a cunhada, a família e o próprio nome"}},
+					{weight: 15, texts: []string{"O motorista agradeceu a gorjeta e contou tudo pra {alvo} no almoço de domingo"}, effects: []effect{stain()}},
+				}},
+				{label: "🚪 Pular do carro andando", risk: highRisk, endings: []ending{
+					{weight: 55, favor: func(p Profession) float64 { return p.escapeBonus }, texts: []string{"{@} rolou no asfalto igual filme de ação e sumiu num beco"}, effects: []effect{injure(3, 10)}},
+					{weight: 37, texts: []string{"O carro tava a 60 por hora. {@} ralou até a alma"}, effects: []effect{injure(20, 40)}},
+					{weight: 8, texts: []string{"{@} pulou bem na frente de um ônibus"}, effects: []effect{perish()}},
+				}},
+				{label: "🔫 Tomar o volante", risk: highRisk, needs: armedUp, endings: []ending{
+					{weight: 55, texts: []string{"{@} mostrou o ferro, o motorista desceu correndo e ainda largou a pochete no banco"}, effects: []effect{earn(40, 120), stain()}},
+					{weight: 45, texts: []string{"O carro tinha rastreador e a polícia fechou a rua em cinco minutos"}, effects: []effect{nabbed()}},
+				}},
+			},
+			idle: ending{texts: []string{"{@} demorou tanto pra decidir que a corrida acabou e o app cobrou a taxa de espera"}},
+		},
+		{
+			id:     "crime-roubar-dinheiro-do-dizimo",
+			title:  "O dinheiro do dízimo",
+			rarity: rareEvent,
+			places: []string{"!roubar"},
+			when:   wentWell,
+			intros: []string{
+				"As notas que {@} tirou de {alvo} tão todas carimbadas: DÍZIMO DA IGREJA DO PASTOR VALDECIR",
+				"{alvo} tava levando o envelope do dízimo pra igreja. Agora o envelope tá com {@}, e o pastor já tá rezando contra",
+			},
+			choices: []choice{
+				{label: "⛪ Devolver pro pastor", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"O pastor recebeu o envelope de volta, chorou e orou por {@} no microfone"}, effects: []effect{refund(8, 15), enchant("protecao")}},
+					{weight: 40, texts: []string{"{@} devolveu, e {alvo} ganhou fama de abençoado no bairro"}, effects: []effect{refund(8, 15), enchant("justica")}},
+				}},
+				{label: "🛍️ Torrar tudo no shopping", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{@} gastou tudo numa tarde e voltou cheio de sacola"}, effects: []effect{earn(60, 150), gain(1, "rolex-do-paraguai", "perfume")}},
+					{weight: 50, texts: []string{"O pastor descobriu e expulsou {@} da igreja na frente de todo mundo"}, effects: []effect{enchant("excomunhao")}},
+				}},
+				{label: "🧺 Lavar na lavanderia do primo", risk: highRisk, price: cost{percent: 5, floor: 100}, endings: []ending{
+					{weight: 65, texts: []string{"A lavanderia do primo lavou as notas e devolveu sem carimbo, limpinhas e cheirosas"}, effects: []effect{earn(150, 300), stain()}},
+					{weight: 35, texts: []string{"A lavanderia do primo era investigada pela Receita"}, effects: []effect{nabbed()}},
+				}},
+				{label: "🖨️ Tirar o carimbo na gráfica", risk: midRisk, needs: isJob("falsificador"), endings: []ending{
+					{weight: 80, texts: []string{"Trabalho de mestre. Ninguém nunca vai saber que aquilo era dízimo"}, effects: []effect{earn(150, 300)}},
+					{weight: 20, texts: []string{"O carimbo saiu, mas a cara do pastor ficou marcada d'água em todas as notas"}, effects: []effect{enchant("azar")}},
+				}},
+			},
+		},
+		{
+			id:     "crime-furtar-alarme-do-gol",
+			title:  "O alarme do Gol",
+			places: []string{"!furtar"},
+			when:   wentWrong,
+			intros: []string{
+				"{@} encostou no Gol de {alvo} e o alarme disparou tocando \"Evidências\" no volume máximo",
+				"O Gol bolinha de {alvo} começou a apitar e piscar o farol assim que {@} encostou na maçaneta. A rua inteira olhou",
+			},
+			choices: []choice{
+				{label: "🎶 Cantar junto pra disfarçar", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{@} soltou a voz no refrão e a vizinhança achou que era karaokê"}},
+					{weight: 50, texts: []string{"{@} errou a letra, e quem erra Evidências não merece perdão. Alguém filmou"}, effects: []effect{stain()}},
+				}},
+				{label: "🏃 Correr pra esquina", risk: midRisk, endings: []ending{
+					{weight: 60, favor: func(p Profession) float64 { return p.escapeBonus }, texts: []string{"{@} virou a esquina antes do alarme chegar no segundo refrão"}},
+					{weight: 40, texts: []string{"{@} correu olhando pra trás e bateu de cara num poste"}, effects: []effect{injure(5, 15)}},
+				}},
+				{label: "🫣 Se esconder debaixo do carro", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"{@} ficou deitado embaixo do Gol até o alarme cansar"}, effects: []effect{delay(15 * time.Minute)}},
+					{weight: 30, texts: []string{"O Gol pingava óleo bem na cara de {@}"}, effects: []effect{injure(3, 8)}},
+				}},
+				{label: "🔧 Arrancar o rádio no pé de cabra", risk: highRisk, needs: holds("pe-de-cabra"), endings: []ending{
+					{weight: 60, texts: []string{"Já que era pra dar escândalo, {@} arrancou o rádio do painel e saiu correndo"}, effects: []effect{gain(1, "radinho"), stain()}},
+					{weight: 40, texts: []string{"{alvo} saiu de casa de pijama e chinelo e segurou {@} até a polícia chegar"}, effects: []effect{nabbed()}},
+				}},
+			},
+		},
+		{
+			id:     "crime-furtar-bolso-do-magico",
+			title:  "O bolso do mágico",
+			places: []string{"!furtar"},
+			when:   wentWell,
+			intros: []string{
+				"Junto com o furto de {alvo}, saiu do bolso um lenço colorido que não acaba nunca. E tem alguma coisa se mexendo lá dentro",
+				"{@} enfiou a mão no bolso de {alvo} e puxou um lenço. Depois outro. Depois outro. Lá no fundo, uma pomba arrulhou",
+			},
+			choices: []choice{
+				{label: "🕊️ Soltar a pomba", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"A pomba voou, deu uma volta em cima de {@} e não fez sujeira. Dizem que é sinal bom"}, effects: []effect{enchant("libertacao")}},
+				}},
+				{label: "🧣 Puxar o lenço até o fim", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"No fim de quarenta metros de lenço tinha uma nota dobradinha"}, effects: []effect{earn(30, 80)}},
+					{weight: 30, texts: []string{"{@} puxou lenço por meia hora e ele não acabou"}, effects: []effect{delay(15 * time.Minute)}},
+					{weight: 20, texts: []string{"O lenço enroscou no pescoço de {@} e quase deu ruim"}, effects: []effect{injure(5, 12)}},
+				}},
+				{label: "🐦 Vender a pomba na feira", risk: midRisk, endings: []ending{
+					{weight: 60, texts: []string{"Um senhor da feira pagou bem pela pomba amestrada"}, effects: []effect{earn(20, 60)}},
+					{weight: 40, texts: []string{"Pomba de mágico é bicho sagrado. {alvo} jogou uma praga lá de longe"}, effects: []effect{enchant("azar")}},
+				}},
+				{label: "🪄 Reconhecer o truque", risk: lowRisk, needs: isJob("mágico"), endings: []ending{
+					{weight: 100, texts: []string{"{@} conhecia o truque e achou o fundo falso do bolso, com as moedas da apresentação"}, effects: []effect{earn(60, 150), enchant("sorte")}},
+				}},
+			},
+		},
+		{
+			id:     "crime-sequestrar-refem-influencer",
+			title:  "O refém influencer",
+			places: []string{"!sequestrar"},
+			when:   wentWell,
+			intros: []string{
+				"{alvo} pediu, com a maior naturalidade, pra fazer uma live do cativeiro: \"Gente, vocês não vão acreditar onde eu tô\"",
+				"Mal chegou no cativeiro e {alvo} já tava procurando o melhor ângulo pra gravar um vídeo de \"arrume-se comigo, versão sequestro\"",
+			},
+			choices: []choice{
+				{label: "📵 Confiscar o celular", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"{@} tomou o celular. Era um tijolão velho, mas ainda liga"}, effects: []effect{gain(1, "nokia")}},
+					{weight: 40, texts: []string{"{alvo} chorou por uma hora a perda do engajamento"}},
+				}},
+				{label: "🎥 Deixar a live e cobrar Pix", risk: highRisk, endings: []ending{
+					{weight: 45, texts: []string{"Os seguidores mandaram Pix pra pagar o resgate ao vivo. Bateu meta"}, effects: []effect{earn(100, 250)}},
+					{weight: 40, texts: []string{"Um seguidor reconheceu a parede do cativeiro e mandou a localização pra polícia"}, effects: []effect{nabbed()}},
+					{weight: 15, texts: []string{"A live viralizou, e {@} virou o vilão da internet"}, effects: []effect{stain(), enchant("olhogordo")}},
+				}},
+				{label: "🎭 Aparecer de máscara na live", risk: midRisk, needs: holds("mascara"), endings: []ending{
+					{weight: 70, texts: []string{"O sequestrador mascarado virou meme e os seguidores pagaram pra ver o próximo episódio"}, effects: []effect{earn(80, 200), enchant("sorte")}},
+					{weight: 30, texts: []string{"A máscara escorregou bem no meio da live"}, effects: []effect{stain()}},
+				}},
+				{label: "🙄 Ignorar", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} fingiu que não ouviu. {alvo} acabou gravando um vídeo pros stories, sem sinal, e desistiu"}},
+				}},
+			},
+		},
+		{
+			id:     "crime-sequestrar-familia-nao-quer",
+			title:  "A família não quer de volta",
+			rarity: rareEvent,
+			places: []string{"!sequestrar"},
+			when:   wentWell,
+			intros: []string{
+				"{@} ligou pra família de {alvo} pedindo o resgate e a sogra respondeu: \"Pode ficar, meu filho. E obrigada\"",
+				"A família de {alvo} mandou um áudio comemorando: \"Finalmente a casa vai ter paz. Não precisa devolver não\"",
+			},
+			choices: []choice{
+				{label: "😢 Soltar de pena", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} soltou {alvo} e ainda deu o dinheiro da passagem. Coitado"}, effects: []effect{refund(2, 5), enchant("protecao")}},
+				}},
+				{label: "🧾 Cobrar a estadia da família", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"A família pagou uma mensalidade pra {@} ficar com {alvo} mais um mês"}, effects: []effect{earn(60, 150)}},
+					{weight: 50, texts: []string{"A família devolveu a cobrança com a conta do almoço que {alvo} comeu no cativeiro"}, effects: []effect{lose(2, 5)}},
+				}},
+				{label: "🧹 Botar o refém pra trabalhar", risk: midRisk, endings: []ending{
+					{weight: 60, texts: []string{"{alvo} limpou a casa, lavou o carro e vendeu um bolo na rua. O lucro ficou com {@}"}, effects: []effect{earn(40, 100)}},
+					{weight: 40, texts: []string{"{alvo} não sai mais da casa de {@}, e agora tem um encosto morando lá"}, effects: []effect{enchant("encosto")}},
+				}},
+				{label: "📞 Renegociar com a sogra", risk: lowRisk, needs: isJob("sequestrador"), endings: []ending{
+					{weight: 100, texts: []string{"{@} conhece o ofício: a sogra pagou pra {alvo} NÃO voltar pra casa"}, effects: []effect{earn(150, 300)}},
+				}},
+			},
+		},
+		{
+			id:     "crime-matar-velorio",
+			title:  "O velório",
+			places: []string{"!matar"},
+			when:   wentWell,
+			intros: []string{
+				"A família de {alvo} tá fazendo o velório no salão da igreja, com café, bolo de fubá e muita tia chorando. {@} tá passando na porta",
+				"{@} recebeu no grupo do bairro o convite do velório de {alvo}: \"Vai ter café e pão com mortadela\"",
+			},
+			choices: []choice{
+				{label: "☕ Entrar pro café", risk: midRisk, endings: []ending{
+					{weight: 60, texts: []string{"{@} tomou café, comeu três fatias de bolo e deu os pêsames pra família inteira"}, effects: []effect{heal(10)}},
+					{weight: 40, texts: []string{"Uma tia reconheceu {@} da hora do ocorrido e começou a gritar no meio do salão"}, effects: []effect{stain()}},
+				}},
+				{label: "💐 Mandar uma coroa de flores", risk: lowRisk, price: cost{percent: 2, floor: 50}, endings: []ending{
+					{weight: 100, texts: []string{"A coroa chegou sem nome, escrito só \"saudades\". A família achou lindo"}, effects: []effect{enchant("protecao")}},
+				}},
+				{label: "😭 Chorar mais que todo mundo", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{@} chorou tanto que a família fez uma vaquinha pra consolar o amigo inconsolável"}, effects: []effect{earn(20, 60)}},
+					{weight: 50, texts: []string{"O teatro foi demais e {alvo}, lá do além, não gostou nada"}, effects: []effect{enchant("encosto")}},
+				}},
+				{label: "🙈 Passar longe", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} deu a volta no quarteirão. Velório é lugar de parente"}},
+				}},
+			},
+		},
+		{
+			id:     "crime-matar-banheiro-do-bar",
+			title:  "Trancado no banheiro do bar",
+			places: []string{"!matar"},
+			when:   wentWrong,
+			intros: []string{
+				"{@} errou o golpe e {alvo} se trancou no banheiro do bar. Lá de dentro, dá pra ouvir {alvo} ligando pra mãe",
+				"Depois do erro, {alvo} se enfiou no banheiro do boteco e trancou a porta. O dono do bar já tá olhando torto pra {@}",
+			},
+			choices: []choice{
+				{label: "🚪 Arrombar a porta", risk: highRisk, endings: []ending{
+					{weight: 35, favor: func(p Profession) float64 { return p.killChance }, texts: []string{"A porta cedeu e {alvo} pulou pela janelinha, mas deixou a carteira cair"}, effects: []effect{earn(20, 60)}},
+					{weight: 45, texts: []string{"{alvo} tava esperando atrás da porta com o desodorante do banheiro e um isqueiro"}, effects: []effect{injure(15, 35)}},
+					{weight: 15, texts: []string{"O dono do bar já tinha chamado a polícia"}, effects: []effect{nabbed()}},
+					{weight: 5, texts: []string{"A porta caiu em cima de {@}, que bateu a cabeça na pia"}, effects: []effect{perish()}},
+				}},
+				{label: "🍺 Pedir uma cerveja e esperar", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{alvo} saiu pela janelinha. {@} ficou só com a cerveja quente e a conta"}, effects: []effect{lose(1, 3)}},
+					{weight: 50, texts: []string{"O dono do bar fingiu que ia buscar a cerveja e voltou com dois PMs"}, effects: []effect{nabbed()}},
+				}},
+				{label: "🗣️ Dizer que foi um engano", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"{@} jurou que foi brincadeira e pagou uma rodada pro bar inteiro pra provar"}, effects: []effect{lose(2, 5)}},
+					{weight: 30, texts: []string{"Ninguém acreditou, e o bar inteiro ficou secando {@}"}, effects: []effect{enchant("olhogordo")}},
+				}},
+				{label: "🎯 Esperar na saída dos fundos", risk: highRisk, needs: killer, endings: []ending{
+					{weight: 60, texts: []string{"Profissional não desiste. {@} pegou {alvo} saindo pela janelinha e levou tudo que tinha no bolso"}, effects: []effect{earn(60, 150), stain()}},
+					{weight: 40, texts: []string{"Nos fundos do bar tava estacionada uma viatura"}, effects: []effect{nabbed()}},
+				}},
+			},
+		},
+		{
+			id:     "crime-assalto-mascara-errada",
+			title:  "A máscara errada",
+			places: []string{"!assalto"},
+			when:   wentWell,
+			intros: []string{
+				"O combinado era todo mundo de Máscara do Dalí, mas {@} chegou de máscara do Chaves. As câmeras do banco amaram",
+				"A notícia do assalto já tá no jornal da tarde: \"Bando de Dalís e um Chaves\". O Chaves é {@}",
+			},
+			choices: []choice{
+				{label: "🌊 Jogar a máscara no rio", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} jogou a máscara do Chaves no rio. Foi sem querer querendo"}},
+				}},
+				{label: "📺 Assumir e virar meme", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O Chaves do assalto virou meme nacional e ninguém leva a sério um bandido de meme"}, effects: []effect{enchant("sorte")}},
+					{weight: 50, texts: []string{"Virou meme, e o meme tinha o tênis de {@} bem nítido"}, effects: []effect{stain()}},
+				}},
+				{label: "👕 Trocar de roupa no shopping", risk: midRisk, endings: []ending{
+					{weight: 60, texts: []string{"{@} entrou no provador de Chaves e saiu de camisa da seleção, irreconhecível"}, effects: []effect{gain(1, "camisa-do-brasil")}},
+					{weight: 40, texts: []string{"O segurança do shopping achou estranho alguém entrar no provador com um saco de dinheiro"}, effects: []effect{stain(), delay(15 * time.Minute)}},
+				}},
+				{label: "🥸 Vestir o kit disfarce", risk: lowRisk, uses: "kit-disfarce", endings: []ending{
+					{weight: 100, texts: []string{"Bigode, peruca e óculos por cima do Chaves. Agora nem a polícia sabe quem é quem, e o próximo assalto já pode sair"}, effects: []effect{refresh()}},
+				}},
+			},
+		},
+		{
+			id:     "crime-assalto-refem-voluntario",
+			title:  "O refém voluntário",
+			places: []string{"!assalto"},
+			intros: []string{
+				"No meio do assalto, um senhorzinho levantou a mão: \"Me leva de refém? Eu sempre quis aparecer no Cidade Alerta\"",
+				"Uma senhora da fila do banco se ofereceu pra ser refém de {@}, já ajeitando o cabelo pra câmera do helicóptero",
+			},
+			choices: []choice{
+				{label: "🧓 Levar junto na fuga", risk: highRisk, endings: []ending{
+					{weight: 45, texts: []string{"O refém conhecia todos os atalhos do bairro e ainda indicou um esconderijo bom"}, effects: []effect{earn(80, 200)}},
+					{weight: 40, texts: []string{"O refém deu entrevista pro helicóptero e falou o nome completo de {@}"}, effects: []effect{nabbed()}},
+					{weight: 15, texts: []string{"O refém se empolgou e deu uma bengalada em {@} achando que era cena"}, effects: []effect{injure(10, 25)}},
+				}},
+				{label: "🙅 Recusar com educação", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} recusou e o senhorzinho ficou chateado, reclamando na fila"}},
+				}},
+				{label: "✍️ Dar um autógrafo e um trocado", risk: lowRisk, price: cost{percent: 1, floor: 30}, endings: []ending{
+					{weight: 100, texts: []string{"O senhorzinho guardou o autógrafo no bolso da camisa, emocionado, e desejou boa sorte"}, effects: []effect{enchant("sorte")}},
+				}},
+				{label: "🏦 Explicar que refém atrasa", risk: lowRisk, needs: isJob("assaltante de banco"), endings: []ending{
+					{weight: 100, texts: []string{"{@} explicou com calma, como bom profissional, e o senhorzinho ainda segurou a porta na saída. A fuga foi limpa"}, effects: []effect{earn(30, 80), refresh()}},
+				}},
+			},
+		},
+		{
+			id:     "crime-quadrilha-novato",
+			title:  "O novato do bonde",
+			places: []string{"!quadrilha"},
+			when:   wentWell,
+			intros: []string{
+				"O sobrinho do Magrão entrou pro bonde hoje e filmou o serviço inteiro em {alvo} com o celular na vertical",
+				"O novato da quadrilha postou nos stories: \"Primeiro dia no trampo com os parças\". No fundo, dá pra ver {alvo}",
+			},
+			choices: []choice{
+				{label: "📱 Apagar o vídeo na marra", risk: midRisk, endings: []ending{
+					{weight: 60, texts: []string{"{@} apagou o vídeo, a lixeira do celular e o backup na nuvem"}},
+					{weight: 40, texts: []string{"O novato mordeu a mão de {@} pra salvar o vídeo"}, effects: []effect{injure(5, 15)}},
+				}},
+				{label: "🎓 Ensinar o novato", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"{@} deu uma aula sobre discrição e o novato anotou tudo no caderninho"}, effects: []effect{enchant("abrecaminho")}},
+					{weight: 40, texts: []string{"A aula durou a tarde toda e o novato ainda não entendeu"}, effects: []effect{delay(15 * time.Minute)}},
+				}},
+				{label: "🚫 Expulsar do bonde", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"O novato foi embora chorando, mas apagou o vídeo antes"}},
+					{weight: 45, texts: []string{"O novato expulso postou o vídeo de vingança"}, effects: []effect{stain()}},
+				}},
+				{label: "💸 Pagar pro novato sumir", risk: lowRisk, price: cost{percent: 3, floor: 60}, endings: []ending{
+					{weight: 100, texts: []string{"O novato pegou o dinheiro, apagou o vídeo e foi comprar um tênis"}},
+				}},
+			},
+		},
+		{
+			id:     "crime-quadrilha-dica-do-cofre",
+			title:  "A dica do comparsa",
+			places: []string{"!quadrilha"},
+			when:   wentWell,
+			intros: []string{
+				"Na saída do serviço, um comparsa cochichou pra {@}: \"Sabia que {alvo} guarda um cofre na parede do quarto?\"",
+				"O Pezão contou que já foi na casa de {alvo} consertar o chuveiro e viu um cofre atrás do quadro da Santa Ceia",
+			},
+			choices: []choice{
+				{label: "🏠 Ir atrás do cofre agora", risk: highRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} e o Pezão foram direto pra casa de {alvo}, que ainda não tinha chegado"}, next: "crime-quadrilha-cofre-de-casa"},
+				}},
+				{label: "🤐 Deixar quieto", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} achou que já tava bom por hoje. Ganância é o que mais prende bandido"}},
+				}},
+				{label: "📍 Vender a dica", risk: midRisk, endings: []ending{
+					{weight: 60, texts: []string{"Um bonde rival pagou bem pela informação"}, effects: []effect{earn(30, 80)}},
+					{weight: 40, texts: []string{"O bonde rival foi pego e contou de quem veio a dica"}, effects: []effect{stain()}},
+				}},
+				{label: "🤝 Devolver um trocado pra vítima", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} achou que tava pesando a mão e devolveu um trocado escondido pra {alvo}"}, effects: []effect{refund(3, 8), enchant("protecao")}},
+				}},
+			},
+		},
+		{
+			id:     "crime-quadrilha-cofre-de-casa",
+			title:  "O cofre atrás da Santa Ceia",
+			rarity: rareEvent,
+			stage:  true,
+			places: []string{"!quadrilha"},
+			intros: []string{
+				"O quadro da Santa Ceia tá torto e atrás dele tem um cofre. No pé da cama, um rottweiler dorme roncando",
+			},
+			choices: []choice{
+				{label: "🔨 Arrombar no braço", risk: highRisk, endings: []ending{
+					{weight: 40, texts: []string{"Depois de vinte marteladas, o cofre abriu. Tava cheio"}, effects: []effect{earn(150, 300), stain()}},
+					{weight: 35, texts: []string{"O barulho acordou o rottweiler"}, effects: []effect{injure(15, 35)}},
+					{weight: 20, texts: []string{"{alvo} chegou em casa bem na hora, com a polícia junto"}, effects: []effect{nabbed()}},
+					{weight: 5, texts: []string{"O rottweiler acordou de mau humor e {@} não saiu da casa"}, effects: []effect{perish()}},
+				}},
+				{label: "🦴 Distrair o cachorro e abrir", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"O rottweiler ficou com o osso e {@} acertou a senha: era o aniversário de {alvo}"}, effects: []effect{earn(60, 150)}},
+					{weight: 45, texts: []string{"O rottweiler preferiu a perna de {@} ao osso"}, effects: []effect{injure(10, 25)}},
+				}},
+				{label: "🛠️ Usar a furadeira de cofre", risk: midRisk, needs: holds("furadeira"), endings: []ending{
+					{weight: 80, texts: []string{"A furadeira abriu o cofre em dois minutos, sem acordar ninguém"}, effects: []effect{earn(150, 300), stain()}},
+					{weight: 20, texts: []string{"A furadeira fez barulho de dentista e o vizinho chamou a polícia"}, effects: []effect{nabbed()}},
+				}},
+				{label: "🚪 Desistir na porta", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} olhou pro tamanho do rottweiler e achou melhor ir embora"}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, o Pezão abriu o cofre sozinho e sumiu com tudo"}},
+		},
+		{
+			id:     "crime-mercado-leilao-de-muamba",
+			title:  "O leilão de muamba",
+			rarity: rareEvent,
+			places: []string{"!mercadonegro"},
+			intros: []string{
+				"No fundo do galpão tá rolando um leilão clandestino. O lote da vez é uma caixa coberta com lona: \"Ninguém sabe o que tem, nem eu\"",
+				"Um leiloeiro de terno brilhante subiu num caixote: \"Lote misterioso, direto da Receita Federal, quem dá mais?\". {@} tá na primeira fila",
+			},
+			choices: []choice{
+				{label: "🪧 Dar o lance", risk: midRisk, price: cost{percent: 6, floor: 200}, endings: []ending{
+					{weight: 50, texts: []string{"{@} arrematou. Debaixo da lona tinha coisa boa"}, effects: []effect{gain(1, "videogame")}},
+					{weight: 30, texts: []string{"{@} arrematou uma caixa de Rolex do Paraguai e perfume falsificado"}, effects: []effect{gain(2, "rolex-do-paraguai"), gain(2, "perfume")}},
+					{weight: 20, texts: []string{"O leiloeiro era da Receita Federal mesmo, e o lote era isca"}, effects: []effect{nabbed()}},
+				}},
+				{label: "👀 Só assistir", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"{@} assistiu o leilão inteiro comendo amendoim. Melhor que novela"}},
+					{weight: 30, texts: []string{"No chão do galpão, {@} achou umas notas que caíram do bolso de um arrematante"}, effects: []effect{earn(20, 50)}},
+				}},
+				{label: "🔨 Assumir o martelo", risk: midRisk, needs: isJob("leiloeiro"), endings: []ending{
+					{weight: 80, texts: []string{"{@} tomou o martelo e inflou os lances com uma lábia de profissional. A comissão foi gorda"}, effects: []effect{earn(100, 250), stain()}},
+					{weight: 20, texts: []string{"Um arrematante percebeu os lances fantasmas e veio tirar satisfação"}, effects: []effect{injure(10, 20)}},
+				}},
+				{label: "🚪 Sair antes da batida", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} sentiu cheiro de polícia e saiu de fininho. Dez minutos depois, o galpão tava cercado"}, effects: []effect{refresh()}},
+				}},
+			},
+		},
+		{
+			id:     "crime-mercado-farmacia-do-beco",
+			title:  "A farmácia do beco",
+			places: []string{"!mercadonegro"},
+			intros: []string{
+				"Uma barraquinha com uma cruz verde pintada à mão oferece pra {@} \"remédio sem receita, bomba e vitamina de cavalo\"",
+				"O farmacêutico do mercado negro, de jaleco encardido, chacoalhou uma ampola pra {@}: \"Vai sair daqui igual o Hulk\"",
+			},
+			choices: []choice{
+				{label: "💉 Comprar a bomba e aplicar", risk: midRisk, price: cost{percent: 4, floor: 150}, endings: []ending{
+					{weight: 70, texts: []string{"Dez minutos depois, a camisa de {@} já não fechava mais"}, effects: []effect{buzz("anabolizante")}},
+					{weight: 30, texts: []string{"A ampola era vencida desde 2009 e a bunda de {@} inchou igual melancia"}, effects: []effect{injure(10, 25)}},
+				}},
+				{label: "🐴 Provar a vitamina de cavalo", risk: highRisk, endings: []ending{
+					{weight: 50, texts: []string{"A vitamina de cavalo deu um gás que {@} nunca sentiu na vida"}, effects: []effect{buzz("rebite")}},
+					{weight: 42, texts: []string{"{@} passou mal na hora e relinchou a tarde inteira"}, effects: []effect{injure(15, 35)}},
+					{weight: 8, texts: []string{"Era vitamina de cavalo mesmo, dose de cavalo. O coração de {@} não aguentou"}, effects: []effect{perish()}},
+				}},
+				{label: "🩹 Pedir uma amostra grátis", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"O farmacêutico deu um curativo de brinde e um tapinha nas costas"}, effects: []effect{gain(1, "curativo")}},
+					{weight: 40, texts: []string{"\"Amostra grátis é na farmácia do shopping\", disse ele, virando a cara"}},
+				}},
+				{label: "🩺 Denunciar o charlatão", risk: midRisk, needs: inArea(areaSaude), endings: []ending{
+					{weight: 65, texts: []string{"{@} mostrou o CRM e o charlatão fugiu largando a barraca. Ficou um dinheirinho no caixa"}, effects: []effect{earn(40, 120), enchant("justica")}},
+					{weight: 35, texts: []string{"Os seguranças do mercado negro não gostaram nada de ver médico por ali"}, effects: []effect{injure(10, 25)}},
 				}},
 			},
 		},

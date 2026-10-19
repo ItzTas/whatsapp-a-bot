@@ -281,7 +281,7 @@ var scavengingEvents = eventBook{
 					{weight: 25, texts: []string{"O gato fechou os olhos devagar. Dizem que isso é bênção de gato"}, effects: []effect{enchant("sorte")}},
 				}},
 				{label: "🧂 Jogar sal grosso", risk: lowRisk, uses: "sal-grosso", endings: []ending{
-					{weight: 100, texts: []string{"{@} jogou sal grosso, fez o sinal da cruz, e o gato saiu andando ofendido. O mau-olhado nem chegou perto"}, effects: []effect{enchant("protecao")}},
+					{weight: 100, texts: []string{"{@} jogou sal grosso, fez o sinal da cruz, e o gato saiu andando ofendido. O mau-olhado nem chegou perto"}, effects: []effect{enchant("purificacao"), enchant("protecao")}},
 				}},
 				{label: "🔄 Dar a volta no lixão", risk: lowRisk, endings: []ending{
 					{weight: 100, texts: []string{"{@} deu a volta no lixão inteiro pra não cruzar com o gato. Perdeu tempo, mas tá vivo"}, effects: []effect{delay(10 * time.Minute)}},
@@ -318,6 +318,116 @@ var scavengingEvents = eventBook{
 					{weight: 35, texts: []string{"Depois de uma hora de marretada, o cofre abriu e tinha dinheiro de verdade"}, effects: []effect{earn(150, 300), delay(20 * time.Minute)}},
 					{weight: 45, texts: []string{"O cofre não abriu, mas o barulho chamou a vizinhança inteira pra ver"}, effects: []effect{delay(20 * time.Minute)}},
 					{weight: 20, texts: []string{"A marreta voltou e pegou no ombro de {@}"}, effects: []effect{injure(15, 30)}},
+				}},
+			},
+		},
+		{
+			id:    "lixao-caminhao-despejando",
+			title: "O caminhão da coleta",
+			intros: []string{
+				"O caminhão da coleta deu ré na beira do lixão e começou a despejar. Os catadores tão correndo pra pegar o melhor antes de todo mundo",
+				"Buzina, ré e uma montanha de saco preto caindo: o caminhão do bairro rico chegou, e {@} tá bem do lado da caçamba",
+			},
+			choices: []choice{
+				{label: "🏃 Correr pra frente da caçamba", risk: highRisk, endings: []ending{
+					{weight: 45, texts: []string{"{@} chegou primeiro e pegou a nata do lixo do bairro rico"}, effects: []effect{findLoot(), findLoot(), findLoot()}},
+					{weight: 35, texts: []string{"Uma avalanche de saco de lixo desceu em cima de {@}"}, effects: []effect{injure(15, 30)}},
+					{weight: 12, texts: []string{"O motorista não viu {@} no retrovisor e a ré foi longe demais"}, effects: []effect{injure(35, 50)}},
+					{weight: 8, texts: []string{"O caminhão despejou tudo de uma vez, e {@} ficou lá embaixo"}, effects: []effect{perish()}},
+				}},
+				{label: "⏳ Esperar o caminhão sair", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"Depois da correria, ainda sobrou coisa boa pra quem teve paciência"}, effects: []effect{findLoot()}},
+					{weight: 40, texts: []string{"Quando {@} chegou, só tinha sobrado casca de banana e fralda usada"}},
+				}},
+				{label: "🙋 Ajudar o motorista a manobrar", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"O motorista agradeceu e contou de que rua veio a carga. {@} foi direto no saco certo"}, effects: []effect{findLoot(), refresh()}},
+					{weight: 30, texts: []string{"O motorista mandou {@} sair da frente e não quis papo"}},
+				}},
+				{label: "♻️ Separar como profissional", risk: lowRisk, needs: isJob("catador de recicláveis", "gari", "dono de ferro-velho"), endings: []ending{
+					{weight: 100, texts: []string{"Olho treinado acha o que presta no meio do lixo. {@} separou o melhor da carga e ainda vendeu o alumínio"}, effects: []effect{findLoot(), findLoot(), earn(20, 50)}},
+				}},
+			},
+		},
+		{
+			id:    "lixao-colchao-recheado",
+			title: "O colchão da vó Zuleide",
+			intros: []string{
+				"{@} rasgou um colchão velho de mola e caiu um bolo de nota lá de dentro. Num envelope tá escrito: 'poupança da vó Zuleide, não mexer'",
+				"Dentro de um colchão jogado no lixão, {@} achou dinheiro costurado no forro. Tem um bilhete: 'é pro enterro, Zuleide'",
+			},
+			choices: []choice{
+				{label: "💰 Embolsar tudo", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"{@} enfiou as notas no bolso e saiu assobiando. A vó Zuleide, lá de onde estiver, viu tudo"}, effects: []effect{earn(100, 200), enchant("olhogordo")}},
+					{weight: 30, texts: []string{"O neto da Zuleide tava procurando o colchão e chegou na hora errada pra {@}"}, effects: []effect{injure(10, 25)}},
+					{weight: 15, texts: []string{"As notas eram de cruzado novo. Não valem nada, mas o bolso ficou estufado"}, effects: []effect{gain(1, "dinheiro-de-brinquedo")}},
+				}},
+				{label: "🏠 Procurar a família", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"A família chorou quando viu o dinheiro e deu uma recompensa pra {@}"}, effects: []effect{earn(40, 100), enchant("sorte")}},
+					{weight: 40, texts: []string{"A vó Zuleide tava viva e forte. Benzeu {@} com raminho de arruda ali mesmo"}, effects: []effect{enchant("protecao")}},
+				}},
+				{label: "🔍 Ver se tem mais nas molas", risk: midRisk, endings: []ending{
+					{weight: 40, texts: []string{"Tinha mais um rolinho escondido na outra ponta do colchão"}, effects: []effect{earn(50, 120)}},
+					{weight: 40, texts: []string{"Uma mola pulou e cortou a mão de {@}"}, effects: []effect{injure(8, 18)}},
+					{weight: 20, texts: []string{"Na outra ponta só tinha a dentadura reserva da Zuleide"}, effects: []effect{gain(1, "dentadura")}},
+				}},
+				{label: "🪡 Costurar de volta", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} achou melhor não mexer em dinheiro de enterro e costurou o colchão do jeito que tava"}},
+				}},
+			},
+		},
+		{
+			id:    "lixao-urubu-ladrao",
+			title: "O urubu ladrão",
+			intros: []string{
+				"Um urubu desceu do nada, pegou uma coisa brilhante do saco que {@} tava revirando e pousou num poste ali perto",
+				"{@} tinha acabado de achar uma coisa dourada quando um urubu passou rasante e levou no bico",
+			},
+			choices: []choice{
+				{label: "🪨 Jogar uma pedra", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"Acertou! O urubu soltou o brilho e ele caiu bem no pé de {@}"}, effects: []effect{gain(1, "brinco-de-ouro", "anel-de-latinha", "rolex-do-paraguai")}},
+					{weight: 35, texts: []string{"Errou o urubu e acertou a janela do vizinho do lixão, que veio cobrar o vidro"}, effects: []effect{lose(2, 5)}},
+					{weight: 20, texts: []string{"O urubu se vingou do jeito que urubu se vinga: vomitou em {@} lá de cima"}, effects: []effect{delay(10 * time.Minute)}},
+				}},
+				{label: "🍱 Trocar por comida estragada", risk: lowRisk, uses: "marmita-estragada", endings: []ending{
+					{weight: 100, texts: []string{"Urubu não resiste a uma marmita passada. Ele largou o brilho e foi comer feliz"}, effects: []effect{gain(1, "brinco-de-ouro", "anel-de-latinha", "rolex-do-paraguai")}},
+				}},
+				{label: "🐦 Fazer amizade com o urubu", risk: lowRisk, endings: []ending{
+					{weight: 30, texts: []string{"O urubu não devolveu nada, mas o filhote dele resolveu seguir {@} pra casa"}, effects: []effect{gain(1, "urubu")}},
+					{weight: 70, texts: []string{"O urubu olhou pra {@} com desprezo e foi embora com o brilho"}},
+				}},
+				{label: "🚶 Deixar pra lá", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"{@} deu tchau pro brilho e voltou a revirar o lixo"}},
+					{weight: 30, texts: []string{"{@} desistiu do brilho e, dois sacos depois, achou coisa melhor"}, effects: []effect{findLoot()}},
+				}},
+			},
+		},
+		{
+			id:     "lixao-quadro-do-museu",
+			title:  "O quadro empoeirado",
+			rarity: rareEvent,
+			intros: []string{
+				"Encostado numa geladeira, tem um quadro todo empoeirado com assinatura borrada. Parece pintura de museu, e {@} jura que já viu num livro da escola",
+				"Debaixo de um sofá rasgado, {@} achou uma pintura a óleo numa moldura dourada. Atrás tem um carimbo meio apagado de museu",
+			},
+			choices: []choice{
+				{label: "🖼️ Levar num avaliador", risk: lowRisk, price: cost{percent: 2, floor: 40}, endings: []ending{
+					{weight: 50, texts: []string{"O avaliador tirou os óculos, olhou de novo e fez um cheque na hora: era de um pintor famoso dos anos 50"}, effects: []effect{earn(200, 500)}},
+					{weight: 50, texts: []string{"O avaliador riu: era impressão de loja de 1,99 com moldura de plástico"}},
+				}},
+				{label: "🏛️ Ligar pro museu", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"Era o quadro roubado do museu da cidade em 1994. A recompensa ainda tava valendo"}, effects: []effect{earn(150, 300), enchant("justica")}},
+					{weight: 40, texts: []string{"O museu disse que não falta quadro nenhum e desligou na cara de {@}"}},
+				}},
+				{label: "🕶️ Vender pro receptador", risk: highRisk, endings: []ending{
+					{weight: 50, texts: []string{"O receptador pagou em dinheiro vivo e sumiu com o quadro numa Kombi"}, effects: []effect{earn(250, 500), stain()}},
+					{weight: 35, texts: []string{"O quadro era roubado, e o receptador já tava sendo seguido pela polícia"}, effects: []effect{nabbed()}},
+					{weight: 15, texts: []string{"O receptador pegou o quadro pra 'ver na luz' e nunca mais voltou"}},
+				}},
+				{label: "🔥 Usar de lenha", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} esquentou a marmita com o quadro. Nunca vai saber quanto valia, e a marmita ficou ótima"}, effects: []effect{heal(10)}},
+				}},
+				{label: "🔍 Avaliar de olho treinado", risk: lowRisk, needs: isJob("dono de brechó", "dono de ferro-velho", "leiloeiro"), endings: []ending{
+					{weight: 100, texts: []string{"{@} reconheceu a pincelada na hora e vendeu pra um colecionador pelo preço certo"}, effects: []effect{earn(300, 500)}},
 				}},
 			},
 		},

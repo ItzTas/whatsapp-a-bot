@@ -129,7 +129,7 @@ type listedScenario struct {
 
 var eventBooks = []eventBook{
 	generalEvents, fishingEvents, miningEvents, scavengingEvents, buggingEvents,
-	workEvents, craftEvents, professionEvents, crimeEvents, rareEvents,
+	workEvents, craftEvents, professionEvents, crimeEvents, fameEvents, gamblingEvents, rareEvents,
 }
 
 var eventCatalog = listScenarios(eventBooks)

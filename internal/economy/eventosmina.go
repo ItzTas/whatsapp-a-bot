@@ -328,5 +328,118 @@ var miningEvents = eventBook{
 			},
 			idle: ending{texts: []string{"{@} travou no meio do trilho e o carrinho passou raspando. Levou só o boné"}},
 		},
+		{
+			id:    "mina-greve",
+			title: "Greve na mina",
+			intros: []string{
+				"Na porta da mina tá todo mundo parado, de braço cruzado e faixa na mão: GREVE! A turma quer saber se {@} tá com eles ou vai furar",
+				"O carro de som do sindicato parou na entrada da mina e a turma não deixa ninguém descer. {@} chegou bem no meio da assembleia",
+			},
+			choices: []choice{
+				{label: "✊ Entrar na greve", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"A greve deu certo e o patrão pagou o adicional de insalubridade atrasado"}, effects: []effect{earn(40, 100)}},
+					{weight: 40, texts: []string{"A assembleia durou o dia todo e ninguém cavou nada"}, effects: []effect{delay(20 * time.Minute)}},
+				}},
+				{label: "🚧 Furar a greve", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"Com a mina vazia, {@} cavou sozinho no melhor veio. A turma não vai esquecer"}, effects: []effect{findLoot(), findLoot(), enchant("olhogordo")}},
+					{weight: 35, texts: []string{"O piquete pegou {@} entrando escondido pela saída de emergência"}, effects: []effect{injure(10, 25)}},
+					{weight: 15, texts: []string{"O patrão pagou dobrado pra quem furou, e a inveja da turma veio de brinde"}, effects: []effect{earn(60, 140), enchant("olhogordo")}},
+				}},
+				{label: "📢 Puxar o piquete", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"O patrão cedeu e a turma carregou {@} nos ombros até o boteco"}, effects: []effect{earn(60, 150), enchant("abrecaminho")}},
+					{weight: 35, texts: []string{"O patrão chamou a polícia, e quem tava no megafone foi o primeiro a entrar na viatura"}, effects: []effect{nabbed()}},
+					{weight: 20, texts: []string{"{@} gritou palavra de ordem até perder a voz, e nada mudou"}},
+				}},
+				{label: "🤝 Negociar com o patrão", risk: lowRisk, needs: inArea(areaEscritorio), endings: []ending{
+					{weight: 100, texts: []string{"{@} sentou com o patrão, montou uma planilha e fechou o acordo antes do almoço. A turma fez vaquinha de agradecimento"}, effects: []effect{earn(80, 160), refresh()}},
+				}},
+			},
+		},
+		{
+			id:    "mina-agua-subindo",
+			title: "A galeria alagando",
+			intros: []string{
+				"A bomba d'água da mina parou e o nível tá subindo rápido. A água já bate no joelho de {@}",
+				"Um cano estourou lá em cima e a galeria de {@} começou a virar piscina. A água tá gelada e subindo",
+			},
+			choices: []choice{
+				{label: "🏃 Sair pela rampa", risk: lowRisk, endings: []ending{
+					{weight: 80, texts: []string{"{@} saiu da mina encharcado até a cueca, mas inteiro"}, effects: []effect{delay(10 * time.Minute)}},
+					{weight: 20, texts: []string{"A rampa tava lisa de lama e {@} desceu ela de bunda duas vezes"}, effects: []effect{injure(3, 8)}},
+				}},
+				{label: "🔧 Tentar religar a bomba", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"Um tapa no lugar certo e a bomba voltou. O encarregado deu uma caixinha pra {@}"}, effects: []effect{earn(40, 90)}},
+					{weight: 30, texts: []string{"A bomba tava com fio solto na água. {@} levou um choque de arrepiar o cabelo"}, effects: []effect{injure(15, 30)}},
+					{weight: 20, texts: []string{"A bomba soltou fumaça e morreu de vez. A mina vai ficar parada um tempo"}, effects: []effect{delay(20 * time.Minute)}},
+				}},
+				{label: "🤿 Mergulhar atrás do que caiu", risk: highRisk, endings: []ending{
+					{weight: 40, texts: []string{"No fundo da galeria alagada tinha um monte de pedra solta que a água arrancou da parede"}, effects: []effect{findLoot(), findLoot()}},
+					{weight: 37, texts: []string{"No escuro da água, {@} bateu a cabeça numa viga"}, effects: []effect{injure(15, 35)}},
+					{weight: 15, texts: []string{"A correnteza puxou {@} pra uma fenda e a volta foi no último fôlego"}, effects: []effect{injure(35, 50)}},
+					{weight: 8, texts: []string{"A água subiu mais rápido que {@}"}, effects: []effect{perish()}},
+				}},
+				{label: "🔌 Consertar como profissional", risk: lowRisk, needs: isJob("eletricista", "encanador"), endings: []ending{
+					{weight: 100, texts: []string{"{@} achou o defeito em dois minutos, religou a bomba e cobrou a visita técnica do dono da mina"}, effects: []effect{earn(60, 120), findLoot()}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, a água chegou na cintura e decidiu por ele"}, effects: []effect{delay(10 * time.Minute)}},
+		},
+		{
+			id:    "mina-youtuber-perdido",
+			title: "O youtuber perdido",
+			intros: []string{
+				"Um youtuber de lanterna na testa tá perdido na mina, gravando 'explorando mina abandonada às 3 da manhã'. Ele viu {@} e pediu socorro",
+				"No fundo da galeria tem um rapaz de câmera na mão falando sozinho: 'galera, acho que a gente se perdeu'. Ele olhou pra {@} com cara de choro",
+			},
+			choices: []choice{
+				{label: "🗺️ Levar ele até a saída", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"O youtuber agradeceu, mandou um Pix e prometeu deixar o link do {@} na descrição"}, effects: []effect{earn(30, 80)}},
+					{weight: 30, texts: []string{"Ele nem agradeceu, só pediu pra {@} se inscrever e ativar o sininho"}},
+				}},
+				{label: "🎬 Aparecer no vídeo", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O vídeo viralizou com {@} contando história de assombração da mina, e o youtuber dividiu o dinheiro da monetização"}, effects: []effect{earn(60, 140)}},
+					{weight: 30, texts: []string{"O vídeo virou meme e o grupo da família inteiro mandou o print pra {@}"}, effects: []effect{enchant("olhogordo")}},
+					{weight: 20, texts: []string{"Pra deixar o take mais dramático, {@} pulou num buraco que não era raso"}, effects: []effect{injure(10, 20)}},
+				}},
+				{label: "👻 Dar um susto nele", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O youtuber saiu correndo e largou a mochila com o equipamento. {@} vendeu no mesmo dia"}, effects: []effect{earn(40, 100), stain()}},
+					{weight: 30, texts: []string{"Por reflexo, ele deu um soco no escuro e acertou {@} em cheio"}, effects: []effect{injure(8, 18)}},
+					{weight: 20, texts: []string{"Ele achou que era assalto e ligou pra polícia ao vivo pros seguidores"}, effects: []effect{nabbed()}},
+				}},
+				{label: "🎥 Gravar uma collab", risk: lowRisk, needs: isJob("youtuber", "streamer", "influencer"), endings: []ending{
+					{weight: 100, texts: []string{"Os dois gravaram uma collab de exploração de mina que bateu um milhão de views"}, effects: []effect{earn(100, 200), enchant("sorte")}},
+				}},
+			},
+		},
+		{
+			id:     "mina-petroleo-jorrando",
+			title:  "Jorrou petróleo",
+			rarity: rareEvent,
+			intros: []string{
+				"A picareta de {@} furou uma camada preta e começou a jorrar petróleo, igual filme de faroeste",
+				"Um jato preto e grosso saiu da parede bem na cara de {@}. Tem cheiro de posto de gasolina: é petróleo",
+			},
+			choices: []choice{
+				{label: "🛢️ Encher os galões", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"{@} encheu tudo que tinha: galão, balde e até a garrafa do café"}, effects: []effect{gain(1, "petroleo")}},
+					{weight: 30, texts: []string{"{@} encheu um galão, mas escorregou no óleo e rolou galeria abaixo"}, effects: []effect{gain(1, "petroleo"), injure(10, 25)}},
+					{weight: 15, texts: []string{"A agência do petróleo chegou de helicóptero, lacrou o poço e levou {@} pra depor"}, effects: []effect{delay(20 * time.Minute)}},
+				}},
+				{label: "📞 Vender o achado pra petroleira", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"A petroleira mandou um engenheiro de capacete branco, que pagou à vista pela informação"}, effects: []effect{earn(150, 350)}},
+					{weight: 30, texts: []string{"A petroleira mandou um advogado, que pagou uma merreca e fez {@} assinar 40 folhas"}, effects: []effect{earn(30, 80)}},
+				}},
+				{label: "🚬 Acender um cigarro pra comemorar", risk: highRisk, endings: []ending{
+					{weight: 62, texts: []string{"Petróleo pega fogo. Quem diria. {@} saiu correndo com a roupa em chamas"}, effects: []effect{injure(30, 50), breakTool()}},
+					{weight: 22, texts: []string{"O fogo iluminou a galeria inteira e mostrou um veio de ouro do lado. {@} pegou chamuscado mesmo"}, effects: []effect{gain(1, "ouro"), injure(10, 20)}},
+					{weight: 8, texts: []string{"O isqueiro falhou, ainda bem. {@} guardou o cigarro e encheu um galão"}, effects: []effect{gain(1, "petroleo")}},
+					{weight: 8, texts: []string{"A explosão foi vista da cidade vizinha. Não sobrou nem a picareta de {@}"}, effects: []effect{perish()}},
+				}},
+				{label: "🗺️ Ler o mapa geológico", risk: lowRisk, needs: holds("mapa-geologico"), endings: []ending{
+					{weight: 100, texts: []string{"O mapa mostrou que o bolsão era maior. {@} abriu a parede no ponto certo e encheu os galões sem desperdiçar uma gota"}, effects: []effect{gain(2, "petroleo"), earn(50, 120)}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, o jato secou e só sobrou a roupa manchada de preto"}},
+		},
 	},
 }

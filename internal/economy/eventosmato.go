@@ -320,5 +320,122 @@ var buggingEvents = eventBook{
 				}},
 			},
 		},
+		{
+			id:    "mato-onca-pintada",
+			title: "Os olhos no galho",
+			intros: []string{
+				"Um silêncio esquisito tomou conta do mato. Em cima de um galho, uma onça-pintada tá olhando fixo pra {@}",
+				"Os passarinhos pararam de cantar de uma vez. {@} olhou pra cima e deu de cara com uma onça deitada no tronco, abanando o rabo",
+			},
+			choices: []choice{
+				{label: "🧍 Ficar grande e encarar", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"{@} abriu os braços, estufou o peito e a onça achou que não valia a pena"}},
+					{weight: 45, texts: []string{"A onça não se impressionou e deu uma patada de aviso"}, effects: []effect{injure(15, 35)}},
+				}},
+				{label: "🏃 Sair correndo", risk: highRisk, endings: []ending{
+					{weight: 45, favor: func(p Profession) float64 { return p.escapeBonus }, texts: []string{"{@} correu mais que o vento e só parou na estrada, sem a onça"}},
+					{weight: 40, texts: []string{"Ninguém corre mais que onça. Ela alcançou {@} em três pulos"}, effects: []effect{injure(25, 45)}},
+					{weight: 7, texts: []string{"Na correria, {@} tropeçou e a onça brincou de gato e rato"}, effects: []effect{injure(45, 60)}},
+					{weight: 8, texts: []string{"A onça tava com fome, e {@} virou o almoço dela"}, effects: []effect{perish()}},
+				}},
+				{label: "🔙 Recuar bem devagar", risk: lowRisk, endings: []ending{
+					{weight: 80, texts: []string{"{@} foi andando de costas, passinho por passinho, até a onça sumir de vista"}, effects: []effect{delay(10 * time.Minute)}},
+					{weight: 20, texts: []string{"Recuando, {@} quase pisou num bicho raro que tava escondido no capim"}, effects: []effect{findLoot()}},
+				}},
+				{label: "🔫 Dar um tiro pro alto", risk: midRisk, needs: armedUp, endings: []ending{
+					{weight: 70, texts: []string{"A onça fugiu, e a bicharada assustada saiu correndo direto pra rede de {@}"}, effects: []effect{findLoot(), stain()}},
+					{weight: 30, texts: []string{"O tiro espantou a onça e chamou o Ibama, que tava na trilha ao lado"}, effects: []effect{nabbed()}},
+				}},
+				{label: "🩺 Ver se ela tá machucada", risk: lowRisk, needs: isJob("veterinário"), endings: []ending{
+					{weight: 100, texts: []string{"{@} percebeu que ela tava com espinho na pata, tirou com cuidado e a onça foi embora mansinha. O pessoal da reserva deu uma ajuda de custo"}, effects: []effect{enchant("maoboa"), earn(40, 100)}},
+				}},
+			},
+			idle: ending{texts: []string{"{@} congelou. A onça bocejou, se espreguiçou e foi dormir em outro galho"}},
+		},
+		{
+			id:    "mato-armadilha-de-cacador",
+			title: "O laço no tornozelo",
+			intros: []string{
+				"{@} pisou numa armadilha de caçador escondida debaixo das folhas, e o laço apertou o tornozelo",
+				"Um estalo, um puxão e {@} ficou pendurado de cabeça pra baixo num laço amarrado na árvore",
+			},
+			choices: []choice{
+				{label: "🦶 Puxar o pé na marra", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"O pé saiu, mas a meia e um pedaço da pele ficaram no laço"}, effects: []effect{injure(5, 12)}},
+					{weight: 45, texts: []string{"O laço apertou mais ainda e o tornozelo de {@} ficou roxo"}, effects: []effect{injure(15, 30)}},
+				}},
+				{label: "🪢 Desfazer o nó com calma", risk: lowRisk, endings: []ending{
+					{weight: 75, texts: []string{"{@} levou meia hora, mas desfez o nó sem se machucar"}, effects: []effect{delay(10 * time.Minute)}},
+					{weight: 25, texts: []string{"Do lado tinha um tatu preso em outra armadilha. {@} soltou o bichinho, que saiu agradecido"}, effects: []effect{enchant("sorte")}},
+				}},
+				{label: "📢 Gritar por socorro", risk: lowRisk, endings: []ending{
+					{weight: 50, texts: []string{"Um lenhador que passava ouviu e cortou o laço com o facão"}},
+					{weight: 50, texts: []string{"Quem ouviu foi o dono da armadilha, que ainda cobrou o laço estragado"}, effects: []effect{lose(2, 5)}},
+				}},
+				{label: "🔎 Desarmar as outras armadilhas", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{@} desarmou cinco armadilhas e achou o esconderijo do caçador, cheio de bicho"}, effects: []effect{findLoot(), findLoot(), enchant("justica")}},
+					{weight: 50, texts: []string{"A segunda armadilha era de mola, e pegou {@} na mão"}, effects: []effect{injure(10, 20)}},
+				}},
+				{label: "🌾 Soltar como gente do campo", risk: lowRisk, needs: inArea(areaCampo), endings: []ending{
+					{weight: 100, texts: []string{"Quem é da roça conhece laço de caçador. {@} soltou em dois segundos e ainda usou a armadilha pra pegar bicho"}, effects: []effect{findLoot()}},
+				}},
+			},
+		},
+		{
+			id:    "mato-trilheiros-perdidos",
+			title: "Os trilheiros perdidos",
+			intros: []string{
+				"Um grupo de trilheiros de bota nova e mochila de marca tá perdido no mato. O guia sumiu e eles olham pra {@} com cara de esperança",
+				"Cinco turistas de bastão de caminhada apareceram na frente de {@}, sem sinal no celular e sem água: 'moço, onde fica a cachoeira?'",
+			},
+			choices: []choice{
+				{label: "🧭 Levar até a estrada", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"Na estrada, os trilheiros fizeram uma vaquinha de agradecimento pra {@}"}, effects: []effect{earn(30, 80)}},
+					{weight: 30, texts: []string{"Eles não tinham dinheiro, mas dividiram o lanche natural com {@}"}, effects: []effect{heal(10)}},
+				}},
+				{label: "💸 Cobrar o resgate adiantado", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"Pagaram no Pix sem pensar duas vezes, e {@} achou a estrada rapidinho"}, effects: []effect{earn(60, 140)}},
+					{weight: 30, texts: []string{"{@} cobrou, mas também não sabia o caminho. Passaram a noite todos juntos no mato"}, effects: []effect{delay(30 * time.Minute)}},
+					{weight: 15, texts: []string{"Os trilheiros pagaram e deixaram uma avaliação de uma estrela pra {@} no mapa da trilha"}, effects: []effect{earn(30, 60), enchant("olhogordo")}},
+				}},
+				{label: "🥁 Mandar eles fazerem barulho", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"A barulheira espantou os bichos direto pra rede de {@}"}, effects: []effect{findLoot(), findLoot()}},
+					{weight: 50, texts: []string{"A barulheira espantou tudo pra longe e ainda irritou um marimbondo"}, effects: []effect{injure(5, 12)}},
+				}},
+				{label: "🚒 Resgatar como profissional", risk: lowRisk, needs: isJob("bombeiro", "salva-vidas", "socorrista"), endings: []ending{
+					{weight: 100, texts: []string{"{@} fez o resgate certinho, com corda e tudo. Os trilheiros postaram a história e mandaram um agrado"}, effects: []effect{earn(80, 160), enchant("abrecaminho")}},
+				}},
+			},
+		},
+		{
+			id:     "mato-escaravelho-dourado",
+			title:  "O brilho dourado",
+			rarity: rareEvent,
+			intros: []string{
+				"Um brilho dourado passou zunindo e pousou num tronco: é um escaravelho de ouro, desses que os antigos diziam que traz fortuna",
+				"{@} ouviu um zumbido metálico e viu um besouro dourado andando devagar numa folha, brilhando igual joia",
+			},
+			choices: []choice{
+				{label: "🥅 Jogar a rede", risk: midRisk, endings: []ending{
+					{weight: 15, texts: []string{"Na mosca! O escaravelho de ouro caiu direitinho na rede de {@}"}, effects: []effect{gain(1, "escaravelho-de-ouro")}},
+					{weight: 55, texts: []string{"O dourado escapou, mas um besouro grandão caiu no lugar dele"}, effects: []effect{gain(1, "besouro-rinoceronte")}},
+					{weight: 30, texts: []string{"A rede enganchou no tronco e rasgou de ponta a ponta"}, effects: []effect{breakTool()}},
+				}},
+				{label: "🤲 Esperar ele pousar na mão", risk: lowRisk, endings: []ending{
+					{weight: 10, texts: []string{"Depois de muita paciência, o escaravelho pousou na palma de {@} e ficou"}, effects: []effect{gain(1, "escaravelho-de-ouro")}},
+					{weight: 50, texts: []string{"Ele pousou, deu uma voltinha na mão de {@} e foi embora. Dizem que é bênção"}, effects: []effect{enchant("sorte")}},
+					{weight: 40, texts: []string{"O escaravelho foi embora sem dar confiança"}},
+				}},
+				{label: "🍯 Atrair com melado", risk: lowRisk, uses: "garrafa-de-melado", endings: []ending{
+					{weight: 40, texts: []string{"O cheiro do melado foi irresistível e o escaravelho de ouro veio direto pro pote"}, effects: []effect{gain(1, "escaravelho-de-ouro")}},
+					{weight: 60, texts: []string{"O dourado não veio, mas o melado atraiu bicho do mato inteiro"}, effects: []effect{findLoot(), findLoot()}},
+				}},
+				{label: "💡 Ligar a armadilha luminosa", risk: lowRisk, needs: holds("armadilha-luminosa"), endings: []ending{
+					{weight: 50, texts: []string{"A luz atraiu o escaravelho, que entrou sozinho na armadilha"}, effects: []effect{gain(1, "escaravelho-de-ouro")}},
+					{weight: 50, texts: []string{"A luz atraiu um monte de bicho, menos o dourado"}, effects: []effect{findLoot(), findLoot()}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, o escaravelho abriu as asas e sumiu no meio das árvores"}},
+		},
 	},
 }

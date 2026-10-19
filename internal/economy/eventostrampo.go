@@ -342,7 +342,7 @@ var workEvents = eventBook{
 					{weight: 15, texts: []string{"A caixa tinha uma maldição escrita em latim na tampa, e {@} leu em voz alta"}, effects: []effect{gain(1, "moeda-amaldicoada"), enchant("miseria")}},
 				}},
 				{label: "🤝 Dividir com a peãozada", risk: midRisk, endings: []ending{
-					{weight: 60, texts: []string{"{@} dividiu as moedas com a equipe e virou o herói do canteiro"}, effects: []effect{gain(1, "moeda-do-imperio"), earn(60, 120)}},
+					{weight: 60, texts: []string{"{@} dividiu as moedas com a equipe e virou o herói do canteiro. Quem divide, multiplica"}, effects: []effect{gain(1, "moeda-do-imperio"), earn(30, 70), enchant("multiplicacao")}},
 					{weight: 40, texts: []string{"Na divisão, o servente brigou pela moeda mais bonita e saiu soco"}, effects: []effect{gain(1, "moeda-do-imperio"), injure(5, 15)}},
 				}},
 			},
@@ -1261,6 +1261,217 @@ var workEvents = eventBook{
 				}},
 			},
 			idle: ending{texts: []string{"{@} perdeu a hora do teste e a vaga foi pra outra pessoa"}},
+		},
+		{
+			id:    "trampo-bico-mudanca",
+			title: "A geladeira duplex",
+			areas: []int{areaBicos},
+			when:  wentWell,
+			intros: []string{
+				"O bico de hoje é carregar a mudança de uma senhora do quarto andar, sem elevador. A primeira peça é uma geladeira duplex, e {@} tá sozinho",
+				"{@} topou ajudar numa mudança por uma grana rápida. Ninguém avisou que tinha uma geladeira duplex e que a escada é caracol",
+			},
+			choices: []choice{
+				{label: "💪 Carregar nas costas", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{@} chegou lá embaixo bufando, e a senhora pagou um extra pela coragem"}, effects: []effect{earn(60, 120)}},
+					{weight: 35, texts: []string{"A coluna de {@} travou no segundo lance de escada, junto com a geladeira"}, effects: []effect{injure(10, 25)}},
+					{weight: 15, texts: []string{"A geladeira escapou e desceu a escada sozinha. Descontaram o conserto do pagamento"}, effects: []effect{lose(3, 6)}},
+				}},
+				{label: "🤝 Chamar os vizinhos pra ajudar", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"Os vizinhos ajudaram, e {@} dividiu a grana com todo mundo"}, effects: []effect{earn(20, 50)}},
+					{weight: 30, texts: []string{"Os vizinhos só ficaram apontando de onde segurar e foram embora na hora de pegar peso"}},
+				}},
+				{label: "🪢 Descer pela janela na corda", risk: highRisk, endings: []ending{
+					{weight: 50, texts: []string{"A geladeira desceu bonitinha, a rua aplaudiu e a senhora pagou em dobro"}, effects: []effect{earn(100, 200)}},
+					{weight: 43, texts: []string{"A corda arrebentou no primeiro andar e a geladeira caiu bem no pé de {@}"}, effects: []effect{injure(20, 40)}},
+					{weight: 7, texts: []string{"A corda arrebentou no quarto andar, e {@} tava embaixo"}, effects: []effect{perish()}},
+				}},
+				{label: "🛏️ Testar o colchão da mudança", risk: lowRisk, needs: isJob("testador de colchão"), endings: []ending{
+					{weight: 100, texts: []string{"{@} deitou no colchão pra conferir a qualidade e acordou duas horas depois, descansado. A senhora achou que fazia parte do serviço e pagou"}, effects: []effect{earn(30, 60), heal(15)}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} decidia, a senhora desistiu e chamou um caminhão de mudança de verdade"}},
+		},
+		{
+			id:    "trampo-obra-sindico",
+			title: "O síndico da furadeira",
+			areas: []int{areaObras},
+			intros: []string{
+				"{@} ligou a furadeira às 7 da manhã e em dois minutos o síndico tava na porta, de pijama, com o regulamento do condomínio na mão",
+				"O vizinho de baixo começou a bater no teto com cabo de vassoura assim que {@} começou a quebrar a parede",
+			},
+			choices: []choice{
+				{label: "🤫 Trabalhar bem quietinho", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"{@} trabalhou em câmera lenta, com martelo de borracha. Demorou o dobro"}, effects: []effect{delay(15 * time.Minute)}},
+					{weight: 40, texts: []string{"O cliente adorou a delicadeza e deu um extra pro cafezinho"}, effects: []effect{earn(20, 40)}},
+				}},
+				{label: "🔊 Ignorar e meter a marreta", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"{@} terminou rapidinho e o cliente pagou feliz da vida"}, effects: []effect{earn(50, 100)}},
+					{weight: 30, texts: []string{"A multa do condomínio veio no nome do cliente, e o cliente descontou de {@}"}, effects: []effect{lose(3, 7)}},
+					{weight: 20, texts: []string{"O vizinho de baixo subiu e resolveu a questão na mão"}, effects: []effect{injure(5, 15)}},
+				}},
+				{label: "🍰 Levar um bolo pro síndico", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"O síndico comeu meio bolo e liberou o barulho até as dez da noite"}, effects: []effect{refresh()}},
+					{weight: 30, texts: []string{"O síndico era diabético e ficou mais bravo ainda"}, effects: []effect{delay(20 * time.Minute)}},
+				}},
+				{label: "🧰 Consertar a porta do síndico", risk: lowRisk, needs: holds("caixa-de-ferramentas"), endings: []ending{
+					{weight: 100, texts: []string{"{@} abriu a caixa de ferramentas, consertou a porta emperrada do síndico de graça e virou o pedreiro oficial do prédio"}, effects: []effect{earn(60, 120)}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, o síndico chamou a portaria e a obra parou até a segunda"}, effects: []effect{delay(15 * time.Minute)}},
+		},
+		{
+			id:    "trampo-transporte-saideira",
+			title: "O passageiro da saideira",
+			areas: []int{areaTransporte},
+			intros: []string{
+				"Entrou no carro de {@} um passageiro trocando as pernas, abraçado numa garrafa e pedindo pra ir \"na casa da ex, que ela vai entender\"",
+				"Três da manhã, porta do bar. O passageiro de {@} já entrou cantando Amado Batista e com cara de quem vai passar mal",
+			},
+			choices: []choice{
+				{label: "🏠 Levar ele pra casa dele", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"A mãe dele atendeu a porta e pagou a corrida com gorjeta, de tanta vergonha"}, effects: []effect{earn(40, 80)}},
+					{weight: 40, texts: []string{"Ele dormiu no banco de trás e {@} teve que esperar ele acordar pra saber o endereço"}, effects: []effect{delay(15 * time.Minute)}},
+				}},
+				{label: "💔 Levar na casa da ex", risk: midRisk, endings: []ending{
+					{weight: 40, texts: []string{"A ex aceitou ele de volta, e o casal pagou a corrida com uma gorjeta de casamento"}, effects: []effect{earn(80, 160)}},
+					{weight: 40, texts: []string{"A ex jogou um vaso de planta pela janela, e acertou {@} em vez dele"}, effects: []effect{injure(5, 15)}},
+					{weight: 20, texts: []string{"No meio do caminho ele vomitou no banco inteiro, e a limpeza saiu do bolso de {@}"}, effects: []effect{lose(2, 5)}},
+				}},
+				{label: "🚪 Mandar ele descer", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"Ele desceu, abraçou um poste e começou a chamar o poste de amor"}},
+					{weight: 30, texts: []string{"Ele desceu e deixou cair umas notas no banco. {@} achou e ficou de boca fechada"}, effects: []effect{earn(20, 50), stain()}},
+				}},
+				{label: "🧭 Dar uma volta com o taxímetro", risk: highRisk, needs: isJob("taxista", "motorista de aplicativo", "mototaxista"), endings: []ending{
+					{weight: 60, texts: []string{"{@} deu três voltas no mesmo quarteirão com o taxímetro rodando, e ele pagou sem nem olhar"}, effects: []effect{earn(150, 250), stain()}},
+					{weight: 40, texts: []string{"Ele acordou na terceira volta, reconheceu a padaria e ligou pra polícia"}, effects: []effect{nabbed()}},
+				}},
+			},
+			idle: ending{texts: []string{"{@} demorou tanto que o passageiro dormiu no meio-fio, e outro carro levou ele"}},
+		},
+		{
+			id:    "trampo-comida-influencer",
+			title: "A influencer da permuta",
+			areas: []int{areaComida},
+			when:  wentWell,
+			intros: []string{
+				"Uma influencer de 12 mil seguidores entrou onde {@} trabalha e já foi avisando: \"faço um story se o almoço for na faixa\"",
+				"{@} recebeu na cozinha a proposta de uma blogueira: rodízio completo de graça em troca de \"divulgação\"",
+			},
+			choices: []choice{
+				{label: "🆓 Aceitar a permuta", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"O story bombou, a casa encheu e o patrão deu um bônus pra {@}"}, effects: []effect{earn(80, 160)}},
+					{weight: 35, texts: []string{"O story teve nove visualizações, três da mãe dela. O patrão descontou o almoço de {@}"}, effects: []effect{lose(2, 5)}},
+					{weight: 20, texts: []string{"Ela reclamou da comida nos stories, e metade da cidade ficou de olho torto em {@}"}, effects: []effect{enchant("olhogordo")}},
+				}},
+				{label: "🙅 Cobrar como qualquer cliente", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"Ela pagou de cara feia e ainda deixou a gorjeta, pra não pegar mal"}, effects: []effect{earn(20, 40)}},
+					{weight: 40, texts: []string{"Ela foi embora dizendo que ia expor o lugar. Até agora, nada"}},
+				}},
+				{label: "🌶️ Servir o prato mais ardido", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O vídeo dela chorando de pimenta viralizou e o lugar virou ponto de desafio"}, effects: []effect{earn(60, 120)}},
+					{weight: 50, texts: []string{"Ela passou mal e deixou uma estrela na avaliação, com textão"}, effects: []effect{lose(3, 6)}},
+				}},
+				{label: "🎂 Fazer um doce pra câmera", risk: lowRisk, needs: isJob("confeiteiro", "padeiro", "chef", "barista"), endings: []ending{
+					{weight: 100, texts: []string{"{@} fez um doce tão bonito que ela pagou, postou de graça e marcou o perfil da casa"}, effects: []effect{earn(120, 220)}},
+				}},
+			},
+			idle: ending{texts: []string{"A influencer cansou de esperar e foi fazer story no concorrente"}},
+		},
+		{
+			id:    "trampo-escritorio-impressora",
+			title: "A lista na impressora",
+			areas: []int{areaEscritorio},
+			when:  wentWrong,
+			intros: []string{
+				"A impressora do escritório travou bem quando {@} chegou. Na bandeja tem uma folha do RH com o título \"CORTES DO MÊS\"",
+				"{@} foi buscar uma cópia e achou na impressora uma lista de demissões esquecida. Um dos nomes, meio borrado de toner, parece muito com o de {@}",
+			},
+			choices: []choice{
+				{label: "👀 Ler a lista inteira", risk: midRisk, endings: []ending{
+					{weight: 40, texts: []string{"Era a lista de promoções, não de demissões. O chefe confirmou o aumento de {@} no mesmo dia"}, effects: []effect{earn(80, 160)}},
+					{weight: 35, texts: []string{"O gerente do RH chegou bem na hora e pegou {@} com a folha na mão"}, effects: []effect{delay(20 * time.Minute), lose(2, 5)}},
+					{weight: 25, texts: []string{"Era só a lista de quem ia ganhar cesta de fim de ano, e {@} tava nela"}, effects: []effect{gain(1, "vale-refeicao")}},
+				}},
+				{label: "🗑️ Jogar no triturador", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"O RH perdeu a lista, adiou os cortes e a firma ainda pagou o bônus do trimestre"}, effects: []effect{earn(20, 50)}},
+					{weight: 40, texts: []string{"O RH imprimiu de novo dez minutos depois"}},
+				}},
+				{label: "📣 Espalhar no grupo da firma", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"A firma inteira ameaçou greve e a diretoria cancelou os cortes, com bônus de sossego"}, effects: []effect{earn(80, 150)}},
+					{weight: 35, texts: []string{"Descobriram quem vazou a lista, e o desconto veio no contracheque de {@}"}, effects: []effect{lose(5, 10)}},
+					{weight: 20, texts: []string{"A fofoca virou processo por vazamento de dados, e o advogado não foi barato"}, effects: []effect{lose(8, 15)}},
+				}},
+				{label: "🖨️ Consertar a impressora", risk: lowRisk, needs: isJob("suporte de ti", "programador"), endings: []ending{
+					{weight: 100, texts: []string{"{@} desentupiu a impressora em dois minutos. O chefe ficou tão grato que riscou o nome de {@} da lista na hora"}, effects: []effect{earn(60, 120), refresh()}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, o gerente do RH voltou correndo pra buscar a folha"}},
+		},
+		{
+			id:     "trampo-saude-leito-13",
+			title:  "O paciente do leito 13",
+			rarity: rareEvent,
+			areas:  []int{areaSaude},
+			intros: []string{
+				"Plantão da madrugada e a campainha do leito 13 não para de tocar. O problema: o leito 13 tá vazio desde 1987",
+				"{@} entrou no quarto 13 pra atender o chamado e encontrou um velhinho de pijama listrado pedindo água. A enfermeira-chefe jura que não tem ninguém internado ali",
+			},
+			choices: []choice{
+				{label: "🥛 Levar a água pra ele", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"O velhinho bebeu, sorriu e cochichou onde enterrou as economias no jardim do hospital. Tava lá mesmo"}, effects: []effect{earn(150, 400)}},
+					{weight: 30, texts: []string{"Ele agradeceu tanto que resolveu acompanhar {@} pra casa"}, effects: []effect{enchant("encosto")}},
+					{weight: 20, texts: []string{"Ele bebeu e sumiu. Em cima do travesseiro ficou uma moeda antiga"}, effects: []effect{gain(1, "moeda-do-imperio")}},
+				}},
+				{label: "🏃 Sair correndo do quarto", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"{@} só parou de correr no estacionamento"}, effects: []effect{delay(15 * time.Minute)}},
+					{weight: 30, texts: []string{"{@} escorregou no piso recém-encerado no meio da fuga"}, effects: []effect{injure(3, 10)}},
+				}},
+				{label: "🗣️ Puxar conversa com ele", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"Ele contou histórias do hospital antigo a noite inteira e {@} terminou o plantão sem sentir o tempo"}, effects: []effect{heal(20), refresh()}},
+					{weight: 40, texts: []string{"Ele passou três horas reclamando da gelatina do hospital"}, effects: []effect{delay(10 * time.Minute)}},
+				}},
+				{label: "🩺 Examinar o paciente", risk: lowRisk, needs: holds("estetoscopio"), endings: []ending{
+					{weight: 100, texts: []string{"O estetoscópio não achou batimento nenhum. O velhinho riu, agradeceu o primeiro doutor que deu atenção pra ele em 40 anos e deixou uma bênção"}, effects: []effect{enchant("protecao"), enchant("sorte")}},
+				}},
+				{label: "💧 Benzer com água benta", risk: lowRisk, uses: "agua-benta", endings: []ending{
+					{weight: 100, texts: []string{"O velhinho foi embora em paz e a campainha nunca mais tocou. A diretoria deu um bônus de coragem pra {@}"}, effects: []effect{earn(100, 250), enchant("protecao")}},
+				}},
+			},
+			idle: ending{texts: []string{"A campainha parou sozinha. No dia seguinte, a cama do leito 13 apareceu arrumadinha"}},
+		},
+		{
+			id:    "trampo-arte-casamento",
+			title: "O noivo fugiu",
+			areas: []int{areaArte},
+			intros: []string{
+				"{@} foi contratado pra animar um casamento. Na hora do sim, o noivo saiu correndo pela porta lateral e a festa inteira olhou pro palco",
+				"O casamento que {@} ia animar travou: o noivo sumiu, a noiva tá chorando no buffet e o pai dela quer saber quem vai pagar o show",
+			},
+			choices: []choice{
+				{label: "🎤 Tocar assim mesmo", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"{@} mandou \"Evidências\" e o casamento virou festa de superação. A noiva pagou com gorjeta"}, effects: []effect{earn(60, 140)}},
+					{weight: 35, texts: []string{"Os convidados acharam desrespeito e jogaram bem-casado em {@} até acabar a bandeja"}, effects: []effect{injure(3, 10)}},
+					{weight: 20, texts: []string{"No meio do show o noivo voltou arrependido, e o casamento rolou com {@} de trilha sonora"}, effects: []effect{earn(80, 160)}},
+				}},
+				{label: "💸 Cobrar o cachê na hora", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"O pai da noiva pagou só pra se livrar de mais um problema"}, effects: []effect{earn(40, 80)}},
+					{weight: 40, texts: []string{"O pai da noiva disse que quem pagava era o noivo. E o noivo sumiu"}},
+				}},
+				{label: "🏃 Ir atrás do noivo", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"{@} achou o noivo no bar da esquina e trouxe ele de volta. Virou padrinho de honra e ganhou o envelope"}, effects: []effect{earn(120, 220)}},
+					{weight: 35, texts: []string{"O noivo tava fugindo do irmão da noiva, e o irmão achou que {@} era cúmplice"}, effects: []effect{injure(10, 25)}},
+					{weight: 20, texts: []string{"O noivo convenceu {@} a fugir junto pra rodoviária, e a volta demorou"}, effects: []effect{delay(30 * time.Minute)}},
+				}},
+				{label: "💡 Fazer live do casamento", risk: lowRisk, needs: holds("ring-light"), endings: []ending{
+					{weight: 100, texts: []string{"{@} ligou a ring light e fez live do casamento cancelado. Bateu recorde de audiência e choveu patrocínio"}, effects: []effect{earn(100, 200)}},
+				}},
+				{label: "🎩 Fazer o noivo aparecer", risk: midRisk, needs: isJob("mágico", "palhaço"), endings: []ending{
+					{weight: 60, texts: []string{"Abracadabra: {@} abriu o armário do salão e lá tava o noivo, escondido. A festa foi salva"}, effects: []effect{earn(100, 180)}},
+					{weight: 40, texts: []string{"Da cartola saiu só um pombo, que fez cocô no bolo dos noivos"}, effects: []effect{lose(2, 5)}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} decidia, o DJ do salão assumiu o palco e levou o cachê"}},
 		},
 	},
 }

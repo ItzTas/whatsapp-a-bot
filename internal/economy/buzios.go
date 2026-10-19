@@ -56,22 +56,25 @@ func (e ending) omen() int {
 	return min(max(sum, -1), 1)
 }
 
-func (earnEffect) fortune() int    { return 1 }
-func (gainEffect) fortune() int    { return 1 }
-func (lootEffect) fortune() int    { return 1 }
-func (healEffect) fortune() int    { return 1 }
-func (refreshEffect) fortune() int { return 1 }
-func (buzzEffect) fortune() int    { return 0 }
-func (plantEffect) fortune() int   { return 0 }
-func (loseEffect) fortune() int    { return -1 }
-func (forfeitEffect) fortune() int { return -1 }
-func (injureEffect) fortune() int  { return -1 }
-func (stainEffect) fortune() int   { return -1 }
-func (delayEffect) fortune() int   { return -1 }
-func (refundEffect) fortune() int  { return -1 }
-func (breakEffect) fortune() int   { return -2 }
-func (nabEffect) fortune() int     { return -2 }
-func (perishEffect) fortune() int  { return -3 }
+func (earnEffect) fortune() int     { return 1 }
+func (gainEffect) fortune() int     { return 1 }
+func (lootEffect) fortune() int     { return 1 }
+func (healEffect) fortune() int     { return 1 }
+func (refreshEffect) fortune() int  { return 1 }
+func (buzzEffect) fortune() int     { return 0 }
+func (plantEffect) fortune() int    { return 0 }
+func (loseEffect) fortune() int     { return -1 }
+func (forfeitEffect) fortune() int  { return -1 }
+func (injureEffect) fortune() int   { return -1 }
+func (stainEffect) fortune() int    { return -1 }
+func (delayEffect) fortune() int    { return -1 }
+func (refundEffect) fortune() int   { return -1 }
+func (fansEffect) fortune() int     { return 1 }
+func (unfollowEffect) fortune() int { return -1 }
+func (grudgeEffect) fortune() int   { return -1 }
+func (breakEffect) fortune() int    { return -2 }
+func (nabEffect) fortune() int      { return -2 }
+func (perishEffect) fortune() int   { return -3 }
 
 func (e spellEffect) fortune() int {
 	c, ok := charmByID(e.id)

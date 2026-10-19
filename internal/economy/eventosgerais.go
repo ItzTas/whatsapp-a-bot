@@ -515,7 +515,7 @@ var generalEvents = eventBook{
 					{weight: 10, texts: []string{"Ele foi direto pro bar comprar uma cachaça e brindou à saúde de {@}"}},
 				}},
 				{label: "🍞 Pagar um lanche", risk: lowRisk, price: cost{floor: 25}, endings: []ending{
-					{weight: 70, texts: []string{"Ele comeu devagar, agradeceu e benzeu {@} com três sinais da cruz"}, effects: []effect{enchant("sorte")}},
+					{weight: 70, texts: []string{"Ele comeu devagar, agradeceu e benzeu {@}: \"pão que se divide volta multiplicado\""}, effects: []effect{enchant("multiplicacao")}},
 					{weight: 30, texts: []string{"No fim do lanche ele revelou: era o dono da padaria inteira, disfarçado. Pagou tudo de volta e mais um pouco"}, effects: []effect{earn(150, 300)}},
 				}},
 				{label: "💬 Puxar conversa", risk: lowRisk, endings: []ending{
@@ -544,7 +544,7 @@ var generalEvents = eventBook{
 					{weight: 100, texts: []string{"{@} respeitou a tradição e deu a volta no quarteirão. Demorou mais, mas chegou sem azar"}, effects: []effect{delay(10 * time.Minute)}},
 				}},
 				{label: "🧂 Jogar sal por cima do ombro", risk: lowRisk, uses: "sal-grosso", endings: []ending{
-					{weight: 100, texts: []string{"{@} jogou sal grosso por cima do ombro esquerdo e anulou o azar com sobra"}, effects: []effect{enchant("protecao")}},
+					{weight: 100, texts: []string{"{@} jogou sal grosso por cima do ombro esquerdo e anulou o azar com sobra"}, effects: []effect{enchant("purificacao"), enchant("protecao")}},
 				}},
 				{label: "🙏 Benzer o gato", risk: lowRisk, needs: inArea(areaFe), endings: []ending{
 					{weight: 100, texts: []string{"{@} benzeu o gato com três galhos de arruda. Ele miou em aprovação e a sorte virou"}, effects: []effect{enchant("sorte")}},
@@ -684,7 +684,7 @@ var generalEvents = eventBook{
 			},
 			choices: []choice{
 				{label: "🌿 Deixar benzer", risk: lowRisk, endings: []ending{
-					{weight: 80, texts: []string{"Três galhos de arruda murcharam e a dor de {@} foi embora junto"}, effects: []effect{heal(25), enchant("protecao")}},
+					{weight: 80, texts: []string{"Três galhos de arruda murcharam, e a dor e o quebranto de {@} foram embora junto"}, effects: []effect{heal(25), enchant("purificacao")}},
 					{weight: 20, texts: []string{"A arruda murchou na hora. A Dona Benedita disse que era coisa forte e mandou voltar outro dia"}, effects: []effect{heal(5)}},
 				}},
 				{label: "🏥 Dizer que prefere médico", risk: lowRisk, endings: []ending{

@@ -383,6 +383,9 @@ func (e spellEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (st
 	if !ok {
 		return "", nil
 	}
+	if c.purges() {
+		return run.purify(ctx, tx)
+	}
 	if err := grantCharm(ctx, tx, run.chat, run.acc, run.acc, c, run.now); err != nil {
 		return "", err
 	}
@@ -390,6 +393,41 @@ func (e spellEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (st
 		return fmt.Sprintf("%s Pegou a maldição %s por %s: %s", c.emoji, c.label(), core.FormatWait(c.hold), c.effect), nil
 	}
 	return fmt.Sprintf("%s Ganhou a bênção %s por %s: %s", c.emoji, c.label(), core.FormatWait(c.hold), c.effect), nil
+}
+
+func (run *eventRun) purify(ctx context.Context, tx *ledgerTx) (string, error) {
+	err := purgeCurses(ctx, tx, run.chat, run.acc, run.now)
+	if errors.Is(err, errCharmIdle) {
+		return "🧂 Passou pela *Purificação*, mas não tinha maldição nenhuma pra tirar", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return "🧂 A *Purificação* tirou todas as maldições (a Casa assombrada não sai assim)", nil
+}
+
+type grudgeEffect struct{ id string }
+
+func grudge(id string) effect { return grudgeEffect{id} }
+
+func (e grudgeEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string, error) {
+	c, ok := charmByID(e.id)
+	if !ok || run.victim.Key == "" {
+		return "", nil
+	}
+	if c.haunts() {
+		housed, err := ownsHome(ctx, tx, run.chat, run.acc)
+		if err != nil || !housed {
+			return "🏚️ Um espírito procurou uma casa pra assombrar, não achou nenhuma e foi embora", err
+		}
+	}
+	if err := openWallet(ctx, tx, run.chat, run.victim); err != nil {
+		return "", err
+	}
+	if err := grantCharm(ctx, tx, run.chat, run.acc, run.victim, c, run.now); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s A maldição %s de @%s pegou por %s: %s", c.emoji, c.label(), run.victim.JID.User, core.FormatWait(c.hold), c.effect), nil
 }
 
 func placeCooldown(place string) (column, command string) {
@@ -403,6 +441,8 @@ func placeCooldown(place string) (column, command string) {
 		"!sequestrar": "sequestro_em",
 		"!matar":      "assassinato_em",
 		"!assalto":    "assalto_em",
+		"!postar":     postCooldown.column,
+		"!publi":      sponsorCooldown.column,
 	}
 	if column, ok := columns[place]; ok {
 		return column, place
@@ -475,6 +515,39 @@ func (e plantEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (st
 		run.chat.String(), run.acc.Key, e.id, run.now.Add(e.after).Unix(),
 	)
 	return "🔮 _Isso ainda vai dar o que falar..._", err
+}
+
+type fansEffect struct{ lo, hi int64 }
+
+func fans(lo, hi int64) effect { return fansEffect{lo, hi} }
+
+func (e fansEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string, error) {
+	gained, err := run.shiftFans(ctx, tx, between(e.lo, e.hi))
+	if err != nil || gained == 0 {
+		return "", err
+	}
+	return "📈 Ganhou " + followerCount(gained) + " em todas as redes", nil
+}
+
+type unfollowEffect struct{ lo, hi int64 }
+
+func unfollow(lo, hi int64) effect { return unfollowEffect{lo, hi} }
+
+func (e unfollowEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string, error) {
+	lost, err := run.shiftFans(ctx, tx, -between(e.lo, e.hi))
+	if err != nil || lost == 0 {
+		return "", err
+	}
+	return "📉 Perdeu " + followerCount(-lost) + " em todas as redes", nil
+}
+
+func (run *eventRun) shiftFans(ctx context.Context, tx *ledgerTx, change int64) (int64, error) {
+	delta := run.job.followers() * change / 100
+	if delta == 0 {
+		return 0, nil
+	}
+	_, err := tx.ExecContext(ctx, "UPDATE fama SET seguidores = seguidores * ? / 100 WHERE chat = ? AND pessoa = ?", 100+change, run.chat.String(), run.acc.Key)
+	return delta, err
 }
 
 type refundEffect struct{ lo, hi int64 }

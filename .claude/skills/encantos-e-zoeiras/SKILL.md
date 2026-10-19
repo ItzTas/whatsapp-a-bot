@@ -66,7 +66,9 @@ Encantos, zoeiras pagas e as reações automáticas do bot.
     trigger foi recriado na migração `00078`) e grava um aviso por encanto em `encantos_avisos`. Por
     isso vale em todo caminho de dinheiro sem gancho nenhum. Um ganho que daria valor zero não gasta
     o encanto, e os créditos do próprio trigger não disparam outro (o SQLite roda sem
-    `recursive_triggers`). Encanto novo desse tipo é só usar os mesmos campos; não crie outro
+    `recursive_triggers`). Os eventos com escolha também lançam esses encantos: a Multiplicação pelo
+    `enchant` e o Dízimo e o Pacto pelo `grudge`, que grava a vítima do crime como `autor` (skill
+    `economia-eventos`). Encanto novo desse tipo é só usar os mesmos campos; não crie outro
     trigger no `saldo`, senão um dispara o outro. O `announcePayouts` (`ganhos.go`) entra pelo
     `AddAfterMessage`, e o `HandleMessage` chama ele com `defer` em toda mensagem de conversa
     liberada, que apaga os avisos da conversa e manda no grupo, então o que cair no `runLottery` ou

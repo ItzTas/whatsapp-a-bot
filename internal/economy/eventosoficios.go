@@ -903,7 +903,7 @@ var craftEvents = eventBook{
 					{weight: 40, texts: []string{"Deu errado e o cliente espalhou que {@} é charlatão"}, effects: []effect{enchant("excomunhao"), lose(3, 6)}},
 				}},
 				{label: "🙅 Dizer que fé não se vende", risk: lowRisk, endings: []ending{
-					{weight: 70, texts: []string{"O cliente ficou sem graça e doou o dinheiro pra caridade. Lá em cima, alguém anotou"}, effects: []effect{enchant("sorte")}},
+					{weight: 70, texts: []string{"O cliente ficou sem graça e doou o dinheiro pra caridade. Lá em cima, alguém anotou e mandou multiplicar"}, effects: []effect{enchant("multiplicacao")}},
 					{weight: 30, texts: []string{"O cliente foi embora bufando procurar outro"}},
 				}},
 			},
@@ -931,7 +931,8 @@ var craftEvents = eventBook{
 					{weight: 30, texts: []string{"O encosto pegou carona com {@} até em casa"}, effects: []effect{enchant("encosto")}},
 				}},
 				{label: "📞 Chamar alguém mais experiente", risk: lowRisk, endings: []ending{
-					{weight: 100, texts: []string{"O especialista chegou, resolveu tudo e levou o crédito e o pagamento"}},
+					{weight: 70, texts: []string{"O especialista chegou, resolveu tudo e levou o crédito e o pagamento"}},
+					{weight: 30, texts: []string{"O especialista resolveu tudo e, de cortesia, ainda passou um descarrego em {@}"}, effects: []effect{enchant("purificacao")}},
 				}},
 			},
 			idle: ending{texts: []string{"Enquanto {@} pensava, a criança desceu da cama, pegou um biscoito e disse: 'Brincadeira!'"}},
@@ -1073,6 +1074,226 @@ var craftEvents = eventBook{
 				{label: "🍯 Fazer um adoçamento suave", risk: lowRisk, endings: []ending{
 					{weight: 70, texts: []string{"O adoçamento funcionou devagarinho e todo mundo saiu feliz"}, effects: []effect{earn(40, 90)}},
 					{weight: 30, texts: []string{"O doce atraiu só formiga"}},
+				}},
+			},
+		},
+		{
+			id:    "oficio-campo-onca",
+			title: "A onça no curral",
+			areas: []int{areaCampo},
+			when:  wentWrong,
+			intros: []string{
+				"O trampo já tava ruim e piorou: tem pegada de onça no barro do curral e o bezerro sumiu desde ontem",
+				"Os cachorros da fazenda latiram a noite toda. De manhã, {@} achou o rastro: uma onça-pintada tá rondando a criação",
+			},
+			choices: []choice{
+				{label: "🔦 Vigiar o curral de noite", risk: midRisk, endings: []ending{
+					{weight: 50, texts: []string{"A onça apareceu, viu a lanterna na cara e nunca mais voltou. O patrão pagou a hora extra"}, effects: []effect{earn(60, 140)}},
+					{weight: 35, texts: []string{"{@} cochilou no banquinho e acordou com o bezerro lambendo a orelha. Da onça, nem sinal"}, effects: []effect{delay(15 * time.Minute)}},
+					{weight: 15, texts: []string{"A onça apareceu mesmo, e {@} saiu correndo direto pra cerca de arame farpado"}, effects: []effect{injure(15, 30)}},
+				}},
+				{label: "📞 Chamar o pessoal do Ibama", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"O Ibama veio, colocou uma câmera e a onça virou celebridade no jornal. A fazenda ganhou até placa"}, effects: []effect{earn(30, 70)}},
+					{weight: 40, texts: []string{"O Ibama marcou visita pra daqui a três meses. A onça agradeceu a paciência"}, effects: []effect{lose(2, 5)}},
+				}},
+				{label: "🐔 Deixar uma galinha de isca", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"A onça levou a galinha, ficou de barriga cheia e foi caçar em outra freguesia"}, effects: []effect{lose(1, 3)}},
+					{weight: 30, texts: []string{"A galinha era brava, deu uma bicada no focinho da onça e voltou pro poleiro sozinha"}, effects: []effect{gain(1, "galinha")}},
+				}},
+				{label: "🔫 Ir atrás dela armado", risk: highRisk, needs: armedUp, endings: []ending{
+					{weight: 45, texts: []string{"{@} deu um tiro pro alto e a onça sumiu no mato. Mas o vizinho ouviu e contou pra todo mundo"}, effects: []effect{earn(50, 120), stain()}},
+					{weight: 40, texts: []string{"Matar onça é crime ambiental, e o fiscal tava passando na estrada bem na hora"}, effects: []effect{nabbed()}},
+					{weight: 15, texts: []string{"A onça deu a volta e pegou {@} pelas costas"}, effects: []effect{injure(35, 60)}},
+				}},
+				{label: "🐄 Pôr o gado no paiol", risk: lowRisk, needs: isJob("fazendeiro", "criador de galinha", "peão de rodeio"), endings: []ending{
+					{weight: 100, texts: []string{"Quem é da roça sabe: gado no paiol, porta trancada, cachorro solto. A onça passou fome e {@} salvou a criação"}, effects: []effect{earn(80, 160)}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, a onça voltou e levou mais um bezerro"}, effects: []effect{lose(2, 5)}},
+		},
+		{
+			id:    "oficio-comercio-permuta",
+			title: "A influencer da permuta",
+			areas: []int{areaComercio},
+			when:  wentWell,
+			intros: []string{
+				"Uma influencer de 3 mil seguidores entrou na loja de {@} de ring light na mão: 'Te faço um story se você me der tudo isso de graça'",
+				"{@} tava com o dia bom quando chegou uma moça filmando tudo: 'Oi, sou criadora de conteúdo. Bora fazer uma permuta?'",
+			},
+			choices: []choice{
+				{label: "🤝 Aceitar a permuta", risk: midRisk, endings: []ending{
+					{weight: 40, texts: []string{"O story bombou e a fila dobrou a esquina. Ninguém comprou muito, mas compraram"}, effects: []effect{earn(80, 180)}},
+					{weight: 45, texts: []string{"O story teve 12 visualizações, 9 eram da mãe dela. Os produtos foram embora de graça"}, effects: []effect{lose(3, 7)}},
+					{weight: 15, texts: []string{"Ela marcou a loja do concorrente sem querer. A fila foi toda pra lá"}, effects: []effect{lose(4, 8)}},
+				}},
+				{label: "💳 Dar só um desconto", risk: lowRisk, endings: []ending{
+					{weight: 65, texts: []string{"Ela pagou com desconto, fez o story de graça mesmo e ainda deu cinco estrelas"}, effects: []effect{earn(30, 70)}},
+					{weight: 35, texts: []string{"Ela fez um story reclamando do 'atendimento hostil'. Ninguém ligou"}},
+				}},
+				{label: "🙅 Mandar ela pagar igual todo mundo", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"Ela pagou resmungando. Dinheiro é dinheiro"}, effects: []effect{earn(20, 50)}},
+					{weight: 40, texts: []string{"Ela foi embora fazendo live xingando {@}. Os comentários ficaram do lado da loja"}, effects: []effect{earn(20, 40)}},
+				}},
+				{label: "📲 Passar a maquininha na cara dela", risk: lowRisk, needs: holds("maquininha"), endings: []ending{
+					{weight: 100, texts: []string{"{@} sorriu, estendeu a maquininha e disse 'aproxima aqui, amor'. Ela pagou sem nem pensar e ainda levou mais coisa"}, effects: []effect{earn(70, 140)}},
+				}},
+				{label: "💄 Vender o kit completo pra ela", risk: midRisk, needs: isJob("revendedor de cosméticos", "camelô", "sacoleiro"), endings: []ending{
+					{weight: 70, texts: []string{"{@} empurrou o kit de maquiagem com tanto papo que ela saiu fazendo propaganda de graça e de verdade"}, effects: []effect{earn(120, 240)}},
+					{weight: 30, texts: []string{"Ela ficou alérgica ao batom no meio da live"}, effects: []effect{lose(3, 6)}},
+				}},
+			},
+		},
+		{
+			id:     "oficio-lei-pacote-suspeito",
+			title:  "A mochila abandonada no fórum",
+			rarity: rareEvent,
+			areas:  []int{areaSeguranca},
+			intros: []string{
+				"Tem uma mochila preta largada no corredor do fórum faz uma hora, e lá de dentro vem um tique-taque",
+				"Alguém deixou uma caixa de papelão com fita adesiva bem na porta da delegacia onde {@} trabalha. Ela tá fazendo bipe",
+			},
+			choices: []choice{
+				{label: "🚨 Evacuar o prédio", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"O esquadrão antibomba chegou, abriu com cuidado e era um despertador dentro de uma marmita. {@} ganhou elogio pela prudência"}, effects: []effect{earn(40, 90)}},
+					{weight: 40, texts: []string{"Evacuaram tudo, e o juiz perdeu a audiência do dia. Sobrou bronca pra {@}"}, effects: []effect{delay(20 * time.Minute)}},
+				}},
+				{label: "🫣 Abrir com todo cuidado", risk: highRisk, endings: []ending{
+					{weight: 45, texts: []string{"Era o relógio cuco da avó de alguém, embrulhado pra presente. {@} virou piada no grupo da firma"}, effects: []effect{gain(1, "relogio-cuco")}},
+					{weight: 30, texts: []string{"Era um bolo de aniversário com velinha musical. {@} comeu um pedaço por mérito"}, effects: []effect{heal(15), earn(30, 60)}},
+					{weight: 20, texts: []string{"Era bomba caseira mesmo, mas falhou. Só soltou fumaça e o susto deixou {@} de cama"}, effects: []effect{injure(20, 40)}},
+					{weight: 5, texts: []string{"Era bomba de verdade, e não falhou"}, effects: []effect{perish()}},
+				}},
+				{label: "🦮 Chamar o cão farejador", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"O cachorro farejou, abanou o rabo e sentou: era só mortadela. O dono da mochila apareceu morto de vergonha e deixou uma gorjeta"}, effects: []effect{gain(1, "gorjeta")}},
+					{weight: 30, texts: []string{"O cão farejador comeu a mortadela e foi dormir. Ninguém resolveu nada"}},
+				}},
+				{label: "🧯 Desarmar no braço", risk: highRisk, needs: isJob("bombeiro", "policial", "delegado"), endings: []ending{
+					{weight: 75, texts: []string{"Fio azul ou vermelho? {@} cortou o certo, a bomba parou e a cidade inteira ficou sabendo. Saiu até no Jornal Nacional"}, effects: []effect{earn(500, 1000), enchant("protecao")}},
+					{weight: 20, texts: []string{"Cortou o fio errado, mas a bomba era mal feita e só estourou um pouco"}, effects: []effect{injure(25, 45), earn(200, 400)}},
+					{weight: 5, texts: []string{"Era o fio vermelho. {@} cortou o azul"}, effects: []effect{perish()}},
+				}},
+				{label: "🔍 Investigar quem deixou ali", risk: midRisk, needs: isJob("detetive particular", "promotor", "juiz", "advogado"), endings: []ending{
+					{weight: 70, texts: []string{"{@} puxou as câmeras e achou o espertinho: era trote pra adiar o próprio julgamento. Caso resolvido e bônus no bolso"}, effects: []effect{earn(250, 500), enchant("justica")}},
+					{weight: 30, texts: []string{"As câmeras tavam desligadas desde 2014. Investigação encerrada"}, effects: []effect{delay(15 * time.Minute)}},
+				}},
+			},
+			idle: ending{texts: []string{"{@} ficou olhando a mochila até o dono voltar correndo: 'Esqueci minha marmita!'"}},
+		},
+		{
+			id:    "oficio-crime-mala-trocada",
+			title: "A mala trocada",
+			areas: []int{areaCrime},
+			when:  wentWell,
+			intros: []string{
+				"Na rodoviária, {@} pegou a mala preta errada na pressa. Essa aqui tá pesada, trancada e tem um adesivo escrito 'NÃO ABRA'",
+				"O corre deu certo, mas na volta {@} percebeu: a mochila que trouxe não é a sua. Tem outra coisa ali dentro, e alguém vai sentir falta",
+			},
+			choices: []choice{
+				{label: "🔓 Abrir a mala", risk: midRisk, endings: []ending{
+					{weight: 40, texts: []string{"Tinha um maço de nota e um celular tocando sem parar. {@} atendeu: 'Cadê minha mala?'"}, effects: []effect{earn(80, 180)}, next: "oficio-crime-mala-dono"},
+					{weight: 35, texts: []string{"Tinha roupa suja, um pote de farofa e uma dentadura. {@} ficou com a dentadura de lembrança"}, effects: []effect{gain(1, "dentadura")}},
+					{weight: 25, texts: []string{"Tinha um rastreador piscando lá dentro. Melhor largar rápido"}, effects: []effect{delay(15 * time.Minute)}},
+				}},
+				{label: "🔁 Voltar e destrocar", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"O dono tava desesperado na plataforma. Destrocou, agradeceu e nem perguntou nada"}, effects: []effect{earn(20, 50)}},
+					{weight: 30, texts: []string{"O dono da outra mala já tinha ido embora com a de {@}"}, effects: []effect{lose(2, 5)}},
+				}},
+				{label: "🗑️ Largar no guarda-volumes", risk: lowRisk, endings: []ending{
+					{weight: 100, texts: []string{"{@} deixou a mala no guarda-volumes, jogou a chave fora e foi embora assobiando"}},
+				}},
+				{label: "🪪 Usar o documento que veio junto", risk: highRisk, needs: isJob("falsificador", "golpista"), endings: []ending{
+					{weight: 60, texts: []string{"Dentro tinha uma identidade boa demais pra perder. {@} trocou a foto e ganhou um nome novo"}, effects: []effect{gain(1, "documento-falso"), earn(60, 120), stain()}},
+					{weight: 40, texts: []string{"O nome do documento era de um procurado da Interpol. A polícia achou {@} em duas horas"}, effects: []effect{nabbed()}},
+				}},
+			},
+		},
+		{
+			id:    "oficio-crime-mala-dono",
+			title: "O dono da mala",
+			stage: true,
+			intros: []string{
+				"Do outro lado da linha, uma voz bem calma: 'Você tem até as oito pra devolver o que é meu. Sei onde você tá'",
+				"Uma caminhonete preta parou na frente de {@}. O vidro desceu e o homem lá dentro só apontou pra mala",
+			},
+			choices: []choice{
+				{label: "🎒 Devolver tudo na hora", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"O homem conferiu a mala, viu que faltava dinheiro e cobrou com juros"}, effects: []effect{lose(5, 10)}},
+					{weight: 30, texts: []string{"O homem gostou da honestidade e ainda deixou uma gorjeta pela 'guarda'"}, effects: []effect{earn(40, 90)}},
+				}},
+				{label: "🏃 Sumir com o dinheiro", risk: highRisk, endings: []ending{
+					{weight: 50, favor: func(p Profession) float64 { return p.escapeBonus }, texts: []string{"{@} trocou de chip, de bairro e de cabelo. O dono nunca mais achou"}, effects: []effect{earn(150, 300), stain()}},
+					{weight: 40, texts: []string{"Acharam {@} no dia seguinte, e a conversa não foi com palavras"}, effects: []effect{injure(30, 50), lose(5, 10)}},
+					{weight: 10, texts: []string{"O dono da mala não dá segunda chance"}, effects: []effect{perish()}},
+				}},
+				{label: "🗣️ Pedir uma recompensa", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"O homem riu da cara de pau e pagou pra acabar logo com isso"}, effects: []effect{earn(100, 200)}},
+					{weight: 55, texts: []string{"O homem não achou graça. Os seguranças dele mostraram o que acham de negociação"}, effects: []effect{injure(15, 30)}},
+				}},
+				{label: "🚓 Entregar ele pra polícia", risk: midRisk, needs: lawman, endings: []ending{
+					{weight: 75, texts: []string{"{@} chamou reforço e o dono da mala saiu algemado. A mala virou prova"}, effects: []effect{earn(150, 300)}},
+					{weight: 25, texts: []string{"O delegado era amigo dele. O caso sumiu e {@} ficou marcado"}, effects: []effect{enchant("olhogordo")}},
+				}},
+			},
+			idle: ending{texts: []string{"{@} não respondeu. Às oito em ponto, a janela de casa amanheceu quebrada"}, effects: []effect{lose(3, 6)}},
+		},
+		{
+			id:    "oficio-servicos-porta-trancada",
+			title: "A porta trancada",
+			areas: []int{areaServicos},
+			intros: []string{
+				"Um sujeito parou {@} na rua, todo nervoso: 'Me tranquei pra fora de casa, me ajuda a entrar? Pago bem'. A casa é uma mansão e ele tá de luva",
+				"Às onze da noite, um homem pediu pra {@} abrir a porta 'da casa dele'. Ele não sabe o nome do cachorro que tá latindo lá dentro",
+			},
+			choices: []choice{
+				{label: "🔑 Ajudar a abrir", risk: highRisk, endings: []ending{
+					{weight: 35, texts: []string{"Era o dono mesmo, só meio esquisito. Pagou em dinheiro vivo e ofereceu um café"}, effects: []effect{earn(80, 160)}},
+					{weight: 40, texts: []string{"Era ladrão. A vizinha filmou tudo e {@} virou cúmplice na delegacia"}, effects: []effect{nabbed()}},
+					{weight: 25, texts: []string{"Era ladrão, e deu uma parte do roubo pra {@} ficar quieto"}, effects: []effect{earn(100, 200), stain()}},
+				}},
+				{label: "🪪 Pedir um comprovante de endereço", risk: lowRisk, endings: []ending{
+					{weight: 60, texts: []string{"O homem gaguejou, disse que esqueceu e sumiu na esquina. {@} salvou a mansão de alguém"}, effects: []effect{enchant("sorte")}},
+					{weight: 40, texts: []string{"Ele mostrou a conta de luz no celular. Era dele mesmo e pagou pelo serviço"}, effects: []effect{earn(40, 80)}},
+				}},
+				{label: "📞 Ligar pra polícia escondido", risk: midRisk, endings: []ending{
+					{weight: 55, texts: []string{"A viatura pegou o ladrão no portão. O dono de verdade deu recompensa pra {@}"}, effects: []effect{earn(80, 150)}},
+					{weight: 45, texts: []string{"O homem percebeu a ligação e deu um empurrão em {@} antes de fugir"}, effects: []effect{injure(10, 20)}},
+				}},
+				{label: "🗝️ Abrir e trocar o segredo", risk: lowRisk, needs: isJob("chaveiro"), endings: []ending{
+					{weight: 100, texts: []string{"{@} abriu, trocou o miolo na hora e entregou a chave nova só depois de ver o dono pegar a escritura na gaveta. Serviço completo"}, effects: []effect{earn(120, 220)}},
+				}},
+			},
+			idle: ending{texts: []string{"Enquanto {@} pensava, o homem pulou o muro sozinho. No dia seguinte, a mansão tava no jornal"}},
+		},
+		{
+			id:    "oficio-fe-imagem-chora",
+			title: "A santa que chora",
+			areas: []int{areaFe},
+			when:  wentWell,
+			intros: []string{
+				"A imagem da santa da capela começou a chorar bem no meio da missa que {@} tava rezando. O povo caiu de joelhos",
+				"Escorreu uma lágrima do olho da imagem que {@} cuida. Já tem fila de romeiro na porta e repórter da TV local",
+			},
+			choices: []choice{
+				{label: "📢 Anunciar o milagre", risk: midRisk, endings: []ending{
+					{weight: 45, texts: []string{"Choveu romeiro de três estados e a oferta do mês encheu em um dia"}, effects: []effect{earn(120, 250)}},
+					{weight: 40, texts: []string{"Um repórter subiu no telhado e achou a calha pingando bem em cima da santa. Milagre do encanamento"}, effects: []effect{lose(3, 7)}},
+					{weight: 15, texts: []string{"O bispo mandou investigar e não gostou do alvoroço"}, effects: []effect{enchant("excomunhao")}},
+				}},
+				{label: "🔧 Olhar o telhado antes", risk: lowRisk, endings: []ending{
+					{weight: 70, texts: []string{"Era goteira. {@} consertou a calha e a santa parou de chorar. Ninguém ficou sabendo"}, effects: []effect{earn(20, 40)}},
+					{weight: 30, texts: []string{"O telhado tava seco. A santa chorou de verdade, e {@} sentiu um calor no peito"}, effects: []effect{enchant("protecao")}},
+				}},
+				{label: "🧴 Vender as lágrimas em vidrinho", risk: highRisk, endings: []ending{
+					{weight: 50, texts: []string{"Vendeu dois mil vidrinhos de 'lágrima da santa'. Era água da torneira, mas a fé é que cura"}, effects: []effect{earn(150, 300), stain()}},
+					{weight: 30, texts: []string{"A santa não gostou de virar mercadoria"}, effects: []effect{enchant("azar"), enchant("encosto")}},
+					{weight: 20, texts: []string{"O Procon apareceu pra fiscalizar os vidrinhos"}, effects: []effect{lose(6, 12)}},
+				}},
+				{label: "📿 Rezar o terço inteiro com o povo", risk: lowRisk, needs: holds("terco"), endings: []ending{
+					{weight: 100, texts: []string{"{@} puxou o terço com a capela lotada. No fim, a santa secou e o povo saiu jurando que foi graça alcançada"}, effects: []effect{enchant("fartura"), heal(20)}},
+				}},
+				{label: "⛪ Fazer uma missa de vigília", risk: midRisk, needs: isJob("padre", "pastor", "monge"), endings: []ending{
+					{weight: 75, texts: []string{"A vigília virou notícia nacional e a doação pra reforma da capela veio em peso"}, effects: []effect{earn(150, 300), enchant("prosperidade")}},
+					{weight: 25, texts: []string{"Passou a noite em pé rezando e no fim tava mais cansado que a santa"}, effects: []effect{injure(5, 15)}},
 				}},
 			},
 		},

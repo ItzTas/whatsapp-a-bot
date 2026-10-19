@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro"}
+	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro", "!postar", "!publi", "!apostar", "!cassino", "!blackjack", "!crash", "!corrida"}
 	victimPlaces = []string{"!roubar", "!furtar", "!sequestrar", "!matar", "!quadrilha"}
 	placeholder  = regexp.MustCompile(`\{[^}]*\}`)
-	offCharms    = []string{"multiplicacao", "purificacao", "dizimo", "pacto", "assombracao"}
+	offCharms    = []string{"dizimo", "pacto", "assombracao"}
+	harshCharms  = []string{"pacto", "assombracao"}
 )
 
 func TestEventCatalog(t *testing.T) {
@@ -166,12 +167,19 @@ func checkEffect(t *testing.T, sc listedScenario, label string, fx effect, ids m
 		if _, ok := charmByID(v.id); !ok || slices.Contains(offCharms, v.id) {
 			t.Errorf("%s/%s: encanto inválido %q", sc.id, label, v.id)
 		}
+	case grudgeEffect:
+		if c, ok := charmByID(v.id); !ok || !c.curse {
+			t.Errorf("%s/%s: praga da vítima precisa ser maldição: %q", sc.id, label, v.id)
+		}
+		if slices.Contains(harshCharms, v.id) && sc.rarity == commonEvent {
+			t.Errorf("%s/%s: %s só em evento raro ou lendário", sc.id, label, v.id)
+		}
 	case plantEffect:
 		referenced[v.id] = true
 		if ids[v.id] == 0 || v.after <= 0 {
 			t.Errorf("%s/%s: plant de evento desconhecido %q ou sem prazo", sc.id, label, v.id)
 		}
-	case earnEffect, loseEffect, injureEffect, refundEffect:
+	case earnEffect, loseEffect, injureEffect, refundEffect, fansEffect, unfollowEffect:
 		checkRange(t, sc, label, fx)
 	}
 }
@@ -189,6 +197,13 @@ func checkRange(t *testing.T, sc listedScenario, label string, fx effect) {
 		}
 	case injureEffect:
 		bounds["injure"] = [2]int64{v.lo, v.hi}
+	case fansEffect:
+		bounds["fans"] = [2]int64{v.lo, v.hi}
+	case unfollowEffect:
+		bounds["unfollow"] = [2]int64{v.lo, v.hi}
+		if v.hi > 30 {
+			t.Errorf("%s/%s: unfollow acima de 30%% dos seguidores", sc.id, label)
+		}
 	case refundEffect:
 		bounds["refund"] = [2]int64{v.lo, v.hi}
 	}
@@ -266,8 +281,8 @@ func TestEventEffects(t *testing.T) {
 
 	all := []effect{
 		earn(50, 150), lose(5, 10), gain(2, "baseado"), forfeit("baseado", 1), findLoot(), injure(5, 10), heal(5),
-		buzz("baseado"), nabbed(), stain(), enchant("sorte"), enchant("azar"), refresh(), delay(time.Minute),
-		breakTool(), plant("teste", time.Hour), refund(5, 10), injure(200, 200), perish(),
+		buzz("baseado"), nabbed(), stain(), enchant("sorte"), enchant("azar"), enchant("purificacao"), grudge("dizimo"), grudge("assombracao"), refresh(), delay(time.Minute),
+		breakTool(), plant("teste", time.Hour), refund(5, 10), fans(5, 10), unfollow(5, 10), injure(200, 200), perish(),
 	}
 	for _, place := range eventPlaces {
 		reset(t, "")

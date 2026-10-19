@@ -735,7 +735,7 @@ var professionEvents = eventBook{
 					{weight: 40, texts: []string{"As cartas mostraram uma fortuna chegando, e {@} cobrou a própria consulta de si mesmo"}, effects: []effect{enchant("sorte")}},
 				}},
 				{label: "🧂 Limpeza com sal grosso", risk: lowRisk, endings: []ending{
-					{weight: 70, texts: []string{"{@} jogou sal grosso na sala inteira e o clima mudou na hora"}, effects: []effect{enchant("protecao")}},
+					{weight: 70, texts: []string{"{@} jogou sal grosso na sala inteira e o clima mudou na hora"}, effects: []effect{enchant("purificacao"), enchant("protecao")}},
 					{weight: 30, texts: []string{"Foi tanto sal que a cliente escorregou e quebrou o salto. A consulta saiu de graça"}, effects: []effect{lose(2, 5)}},
 				}},
 				{label: "🙈 Dizer que a carta é da cliente", risk: highRisk, endings: []ending{
@@ -976,8 +976,9 @@ var professionEvents = eventBook{
 					{weight: 40, texts: []string{"O guarda de trânsito tava justamente na calçada"}, effects: []effect{gain(1, "multa"), lose(3, 6)}},
 				}},
 				{label: "🍔 Comer o lanche e cancelar", risk: lowRisk, endings: []ending{
-					{weight: 70, texts: []string{"O lanche tava ótimo e o app nem percebeu"}, effects: []effect{heal(10)}},
-					{weight: 30, texts: []string{"O app percebeu e bloqueou {@} por umas horas"}, effects: []effect{delay(30 * time.Minute)}},
+					{weight: 65, texts: []string{"O lanche tava ótimo e o app nem percebeu"}, effects: []effect{heal(10)}},
+					{weight: 27, texts: []string{"O app percebeu e bloqueou {@} por umas horas"}, effects: []effect{delay(30 * time.Minute)}},
+					{weight: 8, texts: []string{"O cliente faminto rogou praga no chat do app: \"que te falte o pão como faltou o meu\""}, effects: []effect{enchant("jejum")}},
 				}},
 			},
 		},

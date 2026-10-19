@@ -71,3 +71,7 @@ user-invocable: false
   (`famePerks`).
 - As duas colunas de espera (`postagem_em` e `publi_em`) estão no `resetCooldowns`. Os
   seguidores não são espera e o reset não mexe neles.
+- O `!postar` e o `!publi` soltam eventos com escolha (skill `economia-eventos`, livro `eventosfama.go`)
+  depois que dão certo. O `placeCooldown` deles é o `postagem_em` e o `publi_em`, então `refresh` e `delay`
+  mexem nessas esperas, e os efeitos `fans`/`unfollow` mexem nos seguidores de todas as redes por
+  porcentagem. Evite `refresh` em evento do `!publi`: ele libera um cachê inteiro na hora.
