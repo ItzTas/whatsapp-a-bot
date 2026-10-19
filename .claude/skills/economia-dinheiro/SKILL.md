@@ -144,11 +144,14 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   de descontar o salário (o ganho da coleta não paga o salário dela). O decreto `extracao` não
   muda o ritmo deles. O apostador tem muita variação (perde tudo na maioria das rodadas, com
   prêmio de até 50x) e o corretor pouca (nunca volta com menos do que cobrou); o `price` dos dois
-  segue as mesmas 72 horas, pelo líquido médio da tabela (`odds`). O contador (`taxCut`) e o
-  enfermeiro (`care`) são passivos (`passive()`): não têm `every` nem `wage`, ficam fora do
+  segue as mesmas 72 horas, pelo líquido médio da tabela (`odds`). O contador (`taxCut`), o
+  enfermeiro (`care`) e o segurança particular (`watch`) são passivos (`passive()`): não têm `every` nem `wage`, ficam fora do
   `!empregados coletar` e valem só de estar contratados, sempre o melhor de cada tipo
-  (`strongest`). O contador corta a porcentagem do imposto e do IPTU no `dueTax`, e o enfermeiro
-  acelera a saúde no `regenEvery`. Consulta que precisa dos tipos contratados junto da carteira
+  (`strongest`). O contador corta a porcentagem do imposto e do IPTU no `dueTax`, o enfermeiro
+  acelera a saúde no `regenEvery` e o segurança soma `watch` por cento no `guard` (o `escorted`, que o
+  `ProfessionOf` aplica logo depois do `housed`), contra `!roubar`, `!furtar`, `!sequestrar`,
+  `!matar`, `!quadrilha` e `!golpe`. Ele é fraco de propósito (bem menos que o imóvel de topo) e
+  ocupa uma vaga da casa, porque é permanente. Consulta que precisa dos tipos contratados junto da carteira
   usa o `staffKinds` (um `GROUP_CONCAT`, com a carteira no alias `c`) e o `kindsOf`. Nunca renomeie um `id`: o empregado com o id antigo some. O `!contratar` é um
   atalho do `!empregados contratar`: os dois chamam o `hire`, que só muda quantas palavras pula
   antes do nome do empregado.

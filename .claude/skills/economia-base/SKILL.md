@@ -61,8 +61,8 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   uma porcentagem do saldo com piso, pra pesar igual pra rico e pobre. Pra cobrar e fazer alguma
   coisa na mesma transação, use `walletStore.spend` (debita com `debitBalance` e chama o resto).
 - O `ProfessionOf` lê tudo de uma vez (`walletStore.standing`) e aplica, depois do
-  `presidential()`, o imóvel (`housed`), o segurança do `!seguranca` (`escorted`, coluna
-  `seguranca_ate`) e a maldição do `!zoar` (`hexed`). Os implantes do `!implante` (`implanted`,
+  `presidential()`, o imóvel (`housed`), o segurança particular do `!empregados` (`escorted`,
+  com o `watch` do melhor segurança contratado, lido pelo `staffKinds` no `standing`) e a maldição do `!zoar` (`hexed`). Os implantes do `!implante` (`implanted`,
   lidos em paralelo pelo `walletStore.body`) entram logo depois dos itens com `flex` (`adorned`).
   Os seguidores do `!postar` (`famed`, lidos em paralelo pelo `walletStore.audience`, skill
   `economia-fama`) entram antes dos encantos, então toda profissão lida pelo `ProfessionOf` sabe
@@ -97,10 +97,19 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   comando. Quem fecha todas leva `missionBonus` e uma `missionPrizeItem`. A recompensa entra direto
   no saldo, sem imposto nem dízimo. Missão nova precisa de `id` em `missionGoals` e do `advance` no
   comando, e as metas em moeda usam `step` de 100 pra recompensa ficar proporcional.
-- As rotinas da economia (`runTaxes`, `runLottery`, `runAnimalGame`, `runAuctions`, `runLoanSeizures`, `runWanted`, `runGravity`) pulam as
+- As rotinas da economia (`runTaxes`, `runLottery`, `runAnimalGame`, `runAuctions`, `runLoanSeizures`, `runWanted`, `runGravity`, `runSuccession`) pulam as
   linhas de grupo congelado (`ledgers.linked`) e anunciam com o `announce`: manda em todo grupo da
   economia que tá com o submodo `anuncios` (`core.ModeAnnouncements`, filho da `economia`) ligado e
   onde quem aparece no aviso passa no `AllowedIn` (o `announce` aceita mais de uma pessoa em destaque, como os ganhadores do `!bicho`: todas são marcadas e passam juntas pelo `AllowedIn`). O submodo é por grupo, como todo modo: grupos
   vinculados dividem as carteiras, mas cada um liga o `anuncios` dele, e sem ele a rotina roda do
   mesmo jeito (cobra, sorteia, paga), só não avisa. Aviso automático novo da economia passa pelo
   `announce`, nunca pelo `SendText` direto.
+- As dicas (`dicas.go`) saem pelo `offerTip`, registrado no `AddAfterMessage` depois do
+  `announcePayouts`: numa mensagem qualquer, se já passou `tipEvery` desde a última dica daquela
+  conversa, o `tipBoard` tira a próxima do baralho dela (embaralhado, sem repetir até acabar) e o
+  bot manda, só se o submodo `dicas` (`core.ModeTips`, filho da `economia`) tiver ligado. O
+  relógio e o baralho ficam em memória: depois de reiniciar, a primeira dica de cada conversa sai
+  `tipEvery` depois da primeira mensagem. O `!dica [assunto]` manda uma na hora, filtrando pelo
+  texto. O baralho junta as dicas escritas à mão (`economyTips`) com uma por comando da economia,
+  montada do `Help` dele (`commandTips`), então comando novo já vira dica sozinho. Ao mudar uma
+  mecânica citada no `economyTips`, corrija a dica junto.

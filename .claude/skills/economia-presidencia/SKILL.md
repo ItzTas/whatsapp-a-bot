@@ -1,6 +1,6 @@
 ---
 name: economia-presidencia
-description: "Presidência do bot (presidencia.go, tabela presidencias, eleição do !votar, poderes presidential(), imunidade presidentImmunity, segurança cordon, !decreto com percentDecrees/toggleDecrees/onceDecrees e os impostos de decreto PixLevy/levy, !impeachment, !renunciar e decretos que sobram, !golpe). Carregue antes de mexer em presidente, decreto, imposto de decreto ou eleição."
+description: "Presidência do bot (presidencia.go, tabela presidencias, eleição do !votar, vaga e sorteio do presidente em sucessao.go/runSuccession, poderes presidential(), imunidade presidentImmunity, segurança cordon, !decreto com percentDecrees/toggleDecrees/onceDecrees e os impostos de decreto PixLevy/levy, !impeachment, !renunciar e decretos que sobram, !golpe). Carregue antes de mexer em presidente, decreto, imposto de decreto ou eleição."
 user-invocable: false
 ---
 
@@ -15,7 +15,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   segundo turno (`runoffBetween`/`openRunoff`): uma eleição nova no lugar da antiga, com os votos
   zerados, `runoff` só com os empatados (o `castBallot` recusa outro nome com `outside`), aberta
   `runoffWindow` (`closes()`), sem quórum e salva no `KeepGame` com o `Runoff`. Empate no segundo
-  turno vai pra sorte. Quem ganha fica `termLength` no cargo. Os poderes entram pelo `ProfessionOf`, que aplica `presidential()` na
+  turno vai pra sorte. Quem ganha fica `termLength` (2h) no cargo. Os poderes entram pelo `ProfessionOf`, que aplica `presidential()` na
   profissão de quem é presidente (`min`/`max` do `!trabalhar` somados de `presidentPayBonus` por cento, `dailyBonus` somado de `presidentDailyBonus`, mais `cordon`, `releaseChance` e `reviveChance` mínimos e, se não for da polícia,
   `jailTime`/`arrestEvery` próprios), então valem sozinhos em todo comando que lê a profissão. O
   `cordon` (`presidentGuard`) é a segurança presidencial: fica fora do `guard`, então não protege
@@ -27,8 +27,8 @@ Presidente, decretos, impeachment, renúncia e golpe.
   pra tentar de novo) e a resposta é o `immunityText`. No flagrante na hora, o `flagrantOdds` da
   profissão multiplica a chance de ser pego por `1 - immunity()`, e a batida do `!mercadonegro`
   (`raidOdds`) também. O `noSnitch` não vale pra ele e o `inaugurate` zera o `preso_ate` de quem
-  toma posse. Caminho novo que mande alguém pra cadeia precisa passar pelo `arrestShield` (só o
-  subornado) e pelo `immunity()`, ou pelo `flagrantOdds` se for flagrante na hora. Tudo some quando o `mandato_ate`
+  toma posse. Caminho novo que mande alguém pra cadeia precisa passar pelo `immunity()`, ou pelo
+  `flagrantOdds` se for flagrante na hora. Tudo some quando o `mandato_ate`
   passa, porque toda leitura da presidência filtra por ele, menos os decretos depois de uma renúncia
   (`!renunciar`, abaixo).
 - O `!decreto` (`decreto.go`) é só do presidente e lê três tabelas em código, cada decreto com os
@@ -43,7 +43,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   (`job.decrees`), então os ganchos leem `job.decrees.level(...)` e mostram `job.decrees.note(...)`:
   `daily`, `juros` (pontos na taxa do `!poupar`), `pena` (no `sentence`, então vale pra toda ida pra
   cadeia), `extracao` (espera do `!pescar`, `!minerar`, `!vasculhar` e `!catar`, e o intervalo dos
-  `!empregados`) e o toque de recolher (`curfew()`, tirado da chance de `!roubar`, `!furtar`,
+  `!empregados`), `fama` (espera do `!postar`, pelo `postEvery`) e o toque de recolher (`curfew()`, tirado da chance de `!roubar`, `!furtar`,
   `!sequestrar`, `!matar`, `!assalto` e `!quadrilha`). Quem não lê a profissão chama
   `b.Wallets.decrees`: o `trabalho`/`salario` (`workCooldown`/`payFor`), o `pix` (taxa de quem
   recebe no `!transferir`, que vai pro presidente, a não ser que ele esteja na transferência), o
@@ -83,19 +83,33 @@ Presidente, decretos, impeachment, renúncia e golpe.
   no `acoes_precos`, e a reversão do passeio aleatório puxa o preço de volta com o tempo). Decreto
   novo precisa de coluna numa migração, de entrada numa das três tabelas (e no mapa `decrees()`, se
   for de uma vez) e do gancho no comando.
+- Cargo vago vira sorteio (`sucessao.go`). A rotina `runSuccession` passa a cada `core.ReminderTick`
+  pelas economias que são grupo (`economies`, só o grupo principal) e com a economia ligada em algum
+  grupo. Sem mandato em andamento e sem linha na `presidencia_vagas`, ela abre a vaga
+  (`openVacancy`, com `sorteio_em` em `vacancyWindow`) e anuncia pelo `announce` que dá pra eleger
+  pelo `!votar` até lá. Quando o `sorteio_em` passa e não tem eleição rolando em nenhum grupo da
+  economia (`electionIn`), o `drawSeat` sorteia, com a mesma chance pra todo mundo, entre quem mandou
+  mensagem nas últimas `drawActivity` (24h) em algum grupo da economia e ainda tá nele
+  (`activeMembers`, pelo `core.MessageStore.CountsBySender` e o `MemberOwners`). Sem ninguém ativo,
+  a vaga fica aberta e o sorteio tenta de novo no próximo tick. O `drawPresident` apaga a vaga e dá
+  posse na mesma transação (`swearIn` com `sorteado = 1`, `votos = 0`), e o `headline` do
+  `!presidente` diz que saiu no sorteio. Toda posse (`swearIn`, do `inaugurate` e do sorteio) apaga a
+  vaga, e o `!renunciar` e o `!impeachment` abrem a vaga na mesma transação (`vacate`), então o
+  texto deles já traz o prazo (`vacancyNote`) e a rotina não avisa de novo. O `!presidente` sem
+  presidente e a eleição anulada também mostram o `vacancyNote`.
 - O `!impeachment` (`impeachment.go`) tira o presidente antes do fim do mandato. O primeiro voto
   abre a votação (`impeachments`, uma por conversa, efêmera e salva com `KeepGame`), presa ao
   presidente da abertura, que fica aberta `impeachmentWindow`. Cada um vota `sim` ou `nao` (sem
   nada é sim) e pode mudar o voto até fechar, com o peso do `ballotWeight` (o voto de deus vale 3).
   Passa com pelo menos `impeachmentQuorum` votos a favor e mais a favor do que contra, e aí o
-  `impeach` joga o `mandato_ate` pra agora, então os poderes e os decretos caem sozinhos e o
-  `!votar` volta a abrir eleição. A abertura carimba a coluna `impeachment_em` da `presidencias`
+  `impeach` joga o `mandato_ate` pra agora e abre a vaga, então os poderes e os decretos caem
+  sozinhos e o `!votar` volta a abrir eleição. A abertura carimba a coluna `impeachment_em` da `presidencias`
   (zerada no `inaugurate`), e o próximo pedido contra o mesmo mandato só sai depois de
   `impeachmentEvery`. Se o presidente da abertura já saiu do cargo quando a votação fecha
   (renúncia ou fim do mandato), o `impeachmentResult` só avisa e não conta nada.
 - O `!renunciar` (`renunciar.go`) é o presidente largando o cargo: o `resign` joga o `mandato_ate`
-  pra agora e marca `renunciou = 1` na `presidencias`, então os poderes caem na hora e o `!votar`
-  volta a abrir eleição, mas os decretos continuam valendo até o próximo `inaugurate`, que zera o
+  pra agora, marca `renunciou = 1` na `presidencias` e abre a vaga, então os poderes caem na hora e
+  o `!votar` volta a abrir eleição, mas os decretos continuam valendo até o próximo `inaugurate`, que zera o
   `renunciou`. Por isso o `walletStore.decrees` e o `presidency` leem a linha com
   `mandato_ate > agora OR renunciou = 1`; com o mandato vencido, o `presidency` devolve `found`
   falso e um `presidency` só com os `decrees` (sem presidente). Os decretos de imposto continuam
@@ -115,7 +129,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   cada golpista, menos o `guard` da arma de cada defensor (`arsenal`), menos o `guard` do
   presidente e o toque de recolher; deus golpista dá 100% e deus defendendo (ou presidente) dá 0%.
   Todo golpista leva `crime_em`. Se der certo, o `seize` troca a linha da `presidencias` pro líder
-  com `mandato_ate` de `coupTerm`, `golpista = 1`, `golpe_em` agora e abusos e decretos zerados
+  com `mandato_ate` de `termLength`, `golpista = 1`, `sorteado = 0`, `golpe_em` agora e abusos e decretos zerados
   (o `UPDATE` exige o presidente da abertura ainda no cargo, senão falha com `errCoupVacant`); o
   presidente derrubado só perde o cargo. Se der errado, os golpistas passam pelo `jailCrew` do
   `!assalto`. O `inaugurate` zera `golpe_em` e `golpista`.

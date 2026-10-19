@@ -10,8 +10,10 @@ user-invocable: false
   `plataforma`, `seguidores`, `postado_em`), e o total é a soma das redes. As redes vivem em código
   (`platforms`) e só o `key` vai pra coluna `plataforma`: nunca renomeie um `key`, senão os
   seguidores daquela rede somem. A espera é uma só pra todas as redes (`postCooldown`, coluna
-  `postagem_em` da `carteiras`, passando pelo `hasted`), então postar numa rede é deixar de postar
-  nas outras.
+  `postagem_em` da `carteiras`), então postar numa rede é deixar de postar nas outras. O
+  `postEvery` monta a espera: aplica o decreto `fama` do presidente (`fameDecree`, de
+  -`decreeSwing` a +`decreeSwing` por cento) e depois o `hasted`. O `!postar` e o `!fama` passam
+  por ele.
 - Postar pede um aparelho na mochila: os itens com `networks` (as `key` das redes que eles
   liberam), hoje o 📱 Celular (TikTok e Instagram) e o 💻 Computador (YouTube e Twitch), os dois
   na `!loja`. O `!postar` lê os aparelhos (`walletStore.devices`, pelo `holding`) em paralelo com

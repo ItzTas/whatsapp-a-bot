@@ -8,8 +8,10 @@ user-invocable: false
 
 O jogo Mafia/Lobisomem, no pacote `internal/city`, atrás do modo exclusivo `cidadedorme`.
 
-- O modo é exclusivo (`ModeCity` em `chatModes()`, com `coexists` só `moderacao` e `utilidades`):
-  ligar ele pausa o resto, inclusive a economia. Por isso o `!matar` e o `!votar` do `city` usam o
+- O modo é exclusivo (`ModeCity` em `chatModes()`, com `coexists` listando todo modo menos a
+  `economia`): ligar ele pausa só a economia (e os submodos dela), e o `summary` monta a lista do
+  que ele pausa a partir do `clashes`. Modo novo que não briga com o jogo precisa entrar no
+  `coexists`, senão fica pausado junto. Como a economia fica pausada, o `!matar` e o `!votar` do `city` usam o
   mesmo nome dos da economia sem brigar: o `enabledCommand` fica com o do modo ligado e, se os dois
   estiverem ligados, com o do modo exclusivo. Comando novo do jogo com nome repetido segue o mesmo
   caminho, sem alias especial.

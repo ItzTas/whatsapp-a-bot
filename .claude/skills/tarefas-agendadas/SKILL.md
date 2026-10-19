@@ -1,6 +1,6 @@
 ---
 name: tarefas-agendadas
-description: "Rotinas que rodam sozinhas e moderação (!loteria/runLottery, !bicho/runAnimalGame, !lembrete/runReminders, !aniversario/runBirthdays, !advertir e boas-vindas b.welcome, !fixar/!desfixar e runPins, Campo gravitacional do Bendegó runGravity). Carregue antes de mexer em algum desses ou ao criar uma rotina nova em segundo plano."
+description: "Rotinas que rodam sozinhas e moderação (!loteria/runLottery, !bicho/runAnimalGame, !lembrete/runReminders, !aniversario/runBirthdays, !advertir e boas-vindas b.welcome, !fixar/!desfixar e runPins, Campo gravitacional do Bendegó runGravity, sorteio do presidente runSuccession). Carregue antes de mexer em algum desses ou ao criar uma rotina nova em segundo plano."
 user-invocable: false
 ---
 
@@ -8,6 +8,9 @@ user-invocable: false
 
 Coisas que o bot faz sozinho, fora do fluxo de uma mensagem.
 
+- O sorteio do presidente também é rotina: o `runSuccession`, a cada `core.ReminderTick`, abre a
+  vaga de quem ficou sem presidente e sorteia um quando o prazo pra eleger acaba, anunciando pelo
+  `announce` (skill `economia-presidencia`).
 - O Campo gravitacional do Meteorito do Bendegó também é rotina: o `runGravity`, a cada
   `core.ReminderTick`, paga o acumulado da `campo_gravitacional` que tá esperando há
   `gravityEvery` (6h) e anuncia pelo `announce` (skill `economia-itens`).

@@ -1,6 +1,6 @@
 ---
 name: economia-crime
-description: "Crime e justiça da economia (!prender, !fugir, !libertar, !denunciar, !sequestrar e !venderrefem, !matar, !recompensa e o procurado do dia runWanted, !reviver, morte bury/die, saúde saude.go e !hospital, !assalto, !quadrilha, abuso de poder abuseKinds, fiança/hospital/resgate buyExit, !subornar, tribunal do !processar/!processaria, baseJail/lockUp/sentence, crime_em). Carregue antes de mexer em qualquer um desses comandos ou num caminho novo de cadeia, morte ou flagrante."
+description: "Crime e justiça da economia (!prender, !fugir, !libertar, !denunciar, !sequestrar e !venderrefem, !matar, !recompensa e o procurado do dia runWanted, !reviver, morte bury/die, saúde saude.go e !hospital, !assalto, !quadrilha, abuso de poder abuseKinds, fiança/hospital/resgate buyExit, flagrante flagrantOdds, tribunal do !processar/!processaria, baseJail/lockUp/sentence, crime_em). Carregue antes de mexer em qualquer um desses comandos ou num caminho novo de cadeia, morte ou flagrante."
 user-invocable: false
 ---
 
@@ -233,17 +233,10 @@ Cadeia, flagrante, morte, saúde e tribunal.
   mela uma venda de refém pendente. O `!hospital` tem `WhileDead` no `economyCommands`, que é
   o que deixa ele passar pelo `holdIfDead`; com a pessoa viva, ele não passa pelo `buyExit` e vira o
   tratamento da saúde (`treat`).
-- O `!subornar pagar` (`suborno.go`) cobra `bribePercent` do saldo, com piso `bribeFloor`, e as
-  moedas somem. Em troca grava `propina_ate` na `carteiras` por `bribeHold` (pagar de novo soma o
-  tempo), e o `paidOff` marca `bribed` na profissão. Enquanto vale, o `bribed` barra a cadeia de vez (o
-  presidente, ao contrário, só tem a imunidade parcial do `immunity()`, skill
-  `economia-presidencia`): o `arrestShield` recusa o `!prender` e o `!denunciar`, a batida do
-  `!mercadonegro` vira zero e o `flagrantOdds` zera a chance de ser pego na hora. O X-9 do
-  `noSnitch` continua valendo, porque quem entrega é a quadrilha. O flagrante na hora
-  (`!sequestrar`, `!matar`, `!fugir @pessoa`, o `jailCrew` do `!assalto`, o desvio da `!igreja` e o
-  `nabbed` dos eventos) passa pelo `flagrantOdds(chance)`: zero pra subornado e pro `elusive` do
-  Gorro do Saci, a chance vezes `1 - immunity()` pro presidente e a chance cheia pro resto. No
-  `jailCrew`, quem escapou assim fica com `shielded`, que escolhe o texto do `fate`. O Gorro só
-  escapa do flagrante, não do `!prender`, do `!denunciar` nem da batida do `!mercadonegro`. No `!processar`, o `trialBribes` lê a
-  propina dos dois lados na hora da sentença: se só um pagou, o `riggedVerdict` dá a vitória pra
-  ele sem olhar a enquete (nem o quórum); se os dois pagaram, o júri decide normalmente.
+- O flagrante na hora (`!sequestrar`, `!matar`, `!fugir @pessoa`, o `jailCrew` do `!assalto`, o
+  desvio da `!igreja` e o `nabbed` dos eventos) passa pelo `flagrantOdds(chance)` (`prender.go`):
+  zero pro `elusive` do Gorro do Saci, a chance vezes `1 - immunity()` pro presidente (skill
+  `economia-presidencia`) e a chance cheia pro resto. No `jailCrew`, quem escapou assim fica com
+  `shielded`, que escolhe o texto do `fate`. O Gorro só escapa do flagrante, não do `!prender`, do
+  `!denunciar` nem da batida do `!mercadonegro`. Não tem jeito de comprar a polícia nem o juiz: o
+  `!processar` sempre sai pela enquete do júri.
