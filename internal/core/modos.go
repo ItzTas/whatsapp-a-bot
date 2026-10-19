@@ -14,26 +14,27 @@ import (
 )
 
 const (
-	ModeWords        = "palavras"
-	ModeLaughs       = "risada"
-	modeRomance      = "romance"
-	modeFamily       = "familia"
-	modeGames        = "jogos"
-	modeMeters       = "medidores"
-	modeStats        = "estatisticas"
-	ModeJokes        = "zoeira"
-	modeAI           = "ia"
-	modeFun          = "diversao"
-	ModeUtilities    = "utilidades"
-	ModeEconomy      = "economia"
-	ModeModeration   = "moderacao"
-	modeAIUnlimited  = "iasemlimite"
-	ModeAIMeddling   = "iaenxerida"
-	ModeAIInvent     = "iainventa"
-	ModeAutoDownload = "baixarlinks"
-	ModeConsent      = "consentimento"
-	ModeCity         = "cidadedorme"
-	modeAll          = "tudo"
+	ModeWords         = "palavras"
+	ModeLaughs        = "risada"
+	modeRomance       = "romance"
+	modeFamily        = "familia"
+	modeGames         = "jogos"
+	modeMeters        = "medidores"
+	modeStats         = "estatisticas"
+	ModeJokes         = "zoeira"
+	modeAI            = "ia"
+	modeFun           = "diversao"
+	ModeUtilities     = "utilidades"
+	ModeEconomy       = "economia"
+	ModeModeration    = "moderacao"
+	modeAIUnlimited   = "iasemlimite"
+	ModeAIMeddling    = "iaenxerida"
+	ModeAIInvent      = "iainventa"
+	ModeAutoDownload  = "baixarlinks"
+	ModeConsent       = "consentimento"
+	ModeCity          = "cidadedorme"
+	ModeAnnouncements = "anuncios"
+	modeAll           = "tudo"
 )
 
 type chatMode struct {
@@ -87,7 +88,9 @@ func chatModes() []chatMode {
 		{name: modeMeters, description: "libera os medidores, tipo !medidor, !gado, !gay, !rankinggay e !euanime"},
 		{name: modeStats, description: "libera as estatísticas, tipo !ranking, !palavra, !tu, !palhaço, !retrospectiva, !primeiramsg e !horário"},
 		{name: ModeJokes, description: "libera a zoeira, tipo !kkk, !chute, !apelido e !frase"},
-		{name: ModeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !trabalhar, !profissao, !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !assalto, !quadrilha, !sequestrar, !venderrefem, !matar, !reviver, !prender, !fugir, !denunciar, !processar, !votar, !presidente, !decreto, !impeachment, !golpe, !transferir, !poupar, !conjunta, !agiota, !emprestimo, !acoes, !loteria, !bolao, !ricos, !imposto, !fianca, !hospital, !saude, !resgate, !seguranca, !imovel, !empregados, !titulo, !igreja, !doar, !zoar, !abencoar e !amaldicoar, e os itens: !mochila, !item, !loja, !petshop, !luxo, !mercadonegro, !comprar, !vender, !aceitar, !recusar, !leilao, !lance, !dar, !usar, !pescar, !minerar, !vasculhar, !catar e !furtar. Com ele, quem acerta o !quiz, o !quemfalou, a !forca, o !termo, o !completa, o !emoji, a !bandeira ou a mentira do !2verdades1mentira ou vence o !stop, o !impostor ou o !espiao ganha moedas (se pelo menos 2 pessoas jogarem), o !roleta e o !jokenpo @pessoa aceitam aposta, o !tu mostra o saldo, quem casou pelo pedido do consentimento e pede divórcio paga pensão, quem é pego no !trair ou no !traircom paga indenização e quem é preso no !prender ou num !assalto que deu errado fica sem apostar, roubar, furtar, sequestrar e assaltar até sair da cadeia, quem é sequestrado fica igual até sair do cativeiro ou conseguir !fugir, quem morre no !matar, de overdose ou com a saúde zerada (dá pra se machucar no !trabalhar das profissões perigosas e nas extrações) fica sem nenhum comando de economia até ressuscitar ou alguém !reviver e o enterro leva um pedaço do saldo, e quem pega moedas com o !agiota e passa do prazo pode ser morto, preso, sequestrado ou processado por quem emprestou, e quem pega o !emprestimo do banco e passa do prazo tem o saldo penhorado até quitar"},
+		{name: ModeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !missoes, !eventos, !trabalhar,!profissao, !postar, !fama, !publi, !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !assalto, !quadrilha, !sequestrar, !venderrefem, !matar, !reviver, !prender, !fugir, !denunciar, !processar, !votar, !presidente, !decreto, !impeachment, !golpe, !transferir, !poupar, !conjunta, !agiota, !emprestimo, !acoes, !loteria, !bolao, !bicho, !ricos, !imposto, !fianca, !hospital, !saude, !resgate, !seguranca, !imovel, !empregados, !titulo, !implante, !igreja, !doar, !zoar, !abencoar e !amaldicoar, e os itens: !mochila, !item, !loja, !petshop, !luxo, !mercadonegro, !comprar, !vender, !aceitar, !recusar, !leilao, !lance, !dar, !usar, !aprimorar, !pescar, !minerar, !vasculhar, !catar e !furtar. De vez em quando o !trabalhar, as extrações e os crimes soltam um evento com enquete, em que só quem tá nele escolhe o que fazer, e a escolha pode dar moeda, item, droga, ferimento, cadeia ou até morte. Com ele, quem acerta o !quiz, o !quemfalou, a !forca, o !termo, o !completa, o !emoji, a !bandeira ou a mentira do !2verdades1mentira ou vence o !stop, o !impostor ou o !espiao ganha moedas (se pelo menos 2 pessoas jogarem), o !roleta e o !jokenpo @pessoa aceitam aposta, o !tu mostra o saldo, quem casou pelo pedido do consentimento e pede divórcio paga pensão, quem é pego no !trair ou no !traircom paga indenização e quem é preso no !prender ou num !assalto que deu errado fica sem apostar, roubar, furtar, sequestrar e assaltar até sair da cadeia, quem é sequestrado fica igual até sair do cativeiro ou conseguir !fugir, quem morre no !matar, de overdose ou com a saúde zerada (dá pra se machucar no !trabalhar das profissões perigosas e nas extrações) fica sem nenhum comando de economia até ressuscitar ou alguém !reviver e o enterro leva um pedaço do saldo, e quem pega moedas com o !agiota e passa do prazo pode ser morto, preso, sequestrado ou processado por quem emprestou, e quem pega o !emprestimo do banco e passa do prazo tem o saldo penhorado até quitar", submodes: []chatMode{
+			{name: ModeAnnouncements, description: "o bot avisa nesta conversa o que a economia faz sozinha: o resultado da !loteria e do !bicho, a passada do Leão do !imposto, o fim do !leilao, a penhora do !emprestimo e o procurado do dia da !recompensa. Grupos com a economia vinculada ligam cada um o seu"},
+		}},
 		{name: modeAI, description: "libera o !ia, o !resumo, o !roast, o !signo, o !quemsou, o !quizia, o !emoji, o !processaria, o !cancelar, o !fofoca e o !ficia", submodes: []chatMode{
 			{name: modeAIUnlimited, description: "a IA para de contar quantas perguntas cada um fez na hora e responde sem pausa entre uma pergunta e outra"},
 			{name: ModeAIMeddling, description: "libera o !perseguir, que faz a IA responder toda mensagem da pessoa marcada"},

@@ -42,6 +42,12 @@ const (
 
 func (b *Bot) comandos(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat
+	titles, rest := commandsMenuFilter(QuestionFrom(MessageText(evt.Message)))
+	lifetime, ok := commandsMenuLifetime(rest)
+	if !ok {
+		return b.ReplyTo(ctx, evt, commandsMenuUsage(rest))
+	}
+
 	var (
 		active []string
 		owner  bool
@@ -59,7 +65,12 @@ func (b *Bot) comandos(ctx context.Context, evt *events.Message) error {
 	if owner {
 		commands = slices.Concat(commands, b.OwnerCommands())
 	}
-	lifetime := commandsMenuLifetime(QuestionFrom(MessageText(evt.Message)))
+	if len(titles) > 0 {
+		commands = slices.DeleteFunc(commands, func(c Command) bool { return !titles[c.Category.title] })
+	}
+	if len(commands) == 0 {
+		return b.ReplyTo(ctx, evt, "nenhuma dessas categorias tá liberada nesta conversa 😕 veja os modos ligados com !modos")
+	}
 	resp, err := b.Client.SendMessage(ctx, chat, &waE2E.Message{Conversation: proto.String(commandsMenu(commands, lifetime))})
 	if err != nil {
 		return err
@@ -68,7 +79,42 @@ func (b *Bot) comandos(ctx context.Context, evt *events.Message) error {
 	return nil
 }
 
-func commandsMenuLifetime(arg string) time.Duration {
+func commandsMenuFilter(arg string) (map[string]bool, string) {
+	categoryByWord := map[string]string{}
+	for _, c := range menuCategories() {
+		words := strings.Fields(FoldLetters(c.title))[1:]
+		for _, w := range append(words, strings.Join(words, "")) {
+			categoryByWord[w] = c.title
+		}
+	}
+	titles := map[string]bool{}
+	var rest []string
+	for _, word := range strings.Fields(FoldLetters(arg)) {
+		title, ok := categoryByWord[word]
+		if !ok {
+			rest = append(rest, word)
+			continue
+		}
+		titles[title] = true
+	}
+	return titles, strings.Join(rest, " ")
+}
+
+func commandsMenuUsage(unknown string) string {
+	var names []string
+	for _, c := range menuCategories() {
+		if c == OwnerCategory {
+			continue
+		}
+		names = append(names, c.title)
+	}
+	return fmt.Sprintf("não entendi *%s* 🤔 manda uma categoria e/ou um tempo, tipo `!menu economia 5min`\n\n*Categorias:* %s\n*Tempo:* 30s, 5min, 2h...", unknown, strings.Join(names, ", "))
+}
+
+func commandsMenuLifetime(arg string) (time.Duration, bool) {
+	if arg == "" {
+		return commandsMenuDefaultLifetime, true
+	}
 	units := map[string]time.Duration{
 		"":         time.Minute,
 		"s":        time.Second,
@@ -88,9 +134,9 @@ func commandsMenuLifetime(arg string) time.Duration {
 	unit, known := units[arg[len(digits):]]
 	n, err := strconv.Atoi(digits)
 	if !known || err != nil || n <= 0 {
-		return commandsMenuDefaultLifetime
+		return 0, false
 	}
-	return min(max(time.Duration(n)*unit, commandsMenuMinLifetime), commandsMenuMaxLifetime)
+	return min(max(time.Duration(n)*unit, commandsMenuMinLifetime), commandsMenuMaxLifetime), true
 }
 
 func (b *Bot) revokeCommandsMenu(ctx context.Context, chat types.JID, id types.MessageID, lifetime time.Duration) {
@@ -104,9 +150,12 @@ func (b *Bot) revokeCommandsMenu(ctx context.Context, chat types.JID, id types.M
 	}
 }
 
+func menuCategories() []Category {
+	return []Category{RomanceCategory, FamilyCategory, GamesCategory, CityCategory, MetersCategory, StatsCategory, JokesCategory, EconomyCategory, AICategory, ModerationCategory, helpCategory, UtilitiesCategory, OwnerCategory}
+}
+
 func menuRank(c Category) int {
-	order := []Category{RomanceCategory, FamilyCategory, GamesCategory, CityCategory, MetersCategory, StatsCategory, JokesCategory, EconomyCategory, AICategory, ModerationCategory, helpCategory, UtilitiesCategory, OwnerCategory}
-	return slices.IndexFunc(order, func(o Category) bool { return o.title == c.title })
+	return slices.IndexFunc(menuCategories(), func(o Category) bool { return o.title == c.title })
 }
 
 func commandsMenu(commands []Command, lifetime time.Duration) string {
@@ -149,8 +198,8 @@ func (b *Bot) helpCommands() []Command {
 			Aliases:  []string{"menu"},
 			Category: helpCategory,
 			Help: []Usage{
-				{"!comandos [tempo]", "mostra esta lista, que some depois do tempo escolhido (ex.: 30s, 5min, 2h; padrão 10 minutos)"},
-				{"!menu [tempo]", "mostra esta lista, que some depois do tempo escolhido (ex.: 30s, 5min, 2h; padrão 10 minutos)"},
+				{"!comandos [categoria] [tempo]", "mostra esta lista (ou só as categorias pedidas, ex.: !comandos economia jogos), que some depois do tempo escolhido (ex.: 30s, 5min, 2h; padrão 10 minutos)"},
+				{"!menu [categoria] [tempo]", "mostra esta lista (ou só as categorias pedidas, ex.: !menu economia 5min), que some depois do tempo escolhido (ex.: 30s, 5min, 2h; padrão 10 minutos)"},
 			},
 			Run: b.comandos,
 		},
