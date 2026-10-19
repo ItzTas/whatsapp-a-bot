@@ -26,12 +26,22 @@ func (p Profession) paidOff(on bool) Profession {
 	return p
 }
 
-func (p Profession) untouchable() bool {
-	return p.president || p.bribed
+func (p Profession) violenceGuard() float64 {
+	return p.guard + p.cordon
 }
 
-func (p Profession) slipsAway() bool {
-	return p.untouchable() || p.elusive
+func (p Profession) immunity() float64 {
+	if p.president {
+		return presidentImmunity
+	}
+	return 0
+}
+
+func (p Profession) flagrantOdds(odds float64) float64 {
+	if p.bribed || p.elusive {
+		return 0
+	}
+	return odds * (1 - p.immunity())
 }
 
 func bribePrice(balance int64) int64 {
@@ -39,9 +49,6 @@ func bribePrice(balance int64) int64 {
 }
 
 func arrestShield(suspect types.JID, job Profession) string {
-	if job.president {
-		return immunityText(suspect)
-	}
 	if job.bribed {
 		return fmt.Sprintf("💰 @%s tá com as autoridades no bolso: a viatura chegou, o delegado viu quem era e foi embora tomar um café", suspect.User)
 	}

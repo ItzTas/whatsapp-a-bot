@@ -43,6 +43,11 @@ type high struct {
 	heist    float64
 	cashback int64
 	revive   float64
+	kidnap   float64
+	kill     float64
+	guard    float64
+	rush     int64
+	luck     int
 }
 
 type smuggling struct {
@@ -96,6 +101,11 @@ func (h *high) effects() []string {
 		{h.heist > 0, fmt.Sprintf("+%d%% pra equipe no !assalto", percent(h.heist))},
 		{h.cashback > 0, fmt.Sprintf("%d%% de volta quando perde no !apostar e no !cassino", h.cashback)},
 		{h.revive > 0, fmt.Sprintf("poder de !reviver alguém com %d%% de chance", percent(h.revive))},
+		{h.kidnap > 0, fmt.Sprintf("+%d%% de chance no !sequestrar", percent(h.kidnap))},
+		{h.kill > 0, fmt.Sprintf("+%d%% no !matar (e libera o !matar pra qualquer profissão)", percent(h.kill))},
+		{h.guard > 0, fmt.Sprintf("quem tenta te roubar, furtar, sequestrar ou matar tem %d%% menos chance", percent(h.guard))},
+		{h.rush > 0, fmt.Sprintf("espera %d%% menos no !trabalhar, nas extrações e nos crimes", h.rush)},
+		{h.luck > 0, fmt.Sprintf("+%s no %s (fica com o melhor achado)", core.CountLabel(h.luck, "sorteio extra", "sorteios extras"), extractionCommands())},
 	}
 	var found []string
 	for _, p := range parts {
@@ -140,11 +150,15 @@ func contrabandIDs(keep func(item) bool) []any {
 }
 
 func hotTool(it item) bool {
-	return it.gear != nil && it.gear.tool && it.rarity == legendary
+	return it.gear != nil && it.gear.tool && it.rarity == legendary && it.upgrades == ""
 }
 
 func hotGear(it item) bool {
 	return hotTool(it) || (it.gear != nil && it.gear.relicLure > 0)
+}
+
+func oneOfAKind(it item) bool {
+	return hotGear(it) || it.graft != nil
 }
 
 func hotTools() []item {
@@ -164,6 +178,8 @@ func hotGearArrivals(chat types.JID, now time.Time) []item {
 			arrived = append(arrived, it)
 		}
 	}
+	grafts := implantGoods()
+	arrived = append(arrived, grafts[dailyRand(chat, now, "muamba:implante").IntN(len(grafts))])
 	r := dailyRand(chat, now, "muamba:ferramenta")
 	if r.Float64() >= hotToolChance {
 		return arrived
@@ -216,7 +232,7 @@ func inStock(stock []item) func(item) bool {
 }
 
 func blackMarketStock(chat types.JID, now time.Time) []item {
-	pool := contraband()
+	pool := slices.DeleteFunc(contraband(), func(it item) bool { return it.graft != nil })
 	dailyRand(chat, now, "mercadonegro").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 	stock := append(pool[:min(blackMarketStockSize, len(pool))], hotGearArrivals(chat, now)...)
 	slices.SortFunc(stock, compareItems)
@@ -236,10 +252,10 @@ func blackMarketPayout(chat types.JID, it item, quantity int64, now time.Time) i
 }
 
 func (p Profession) raidOdds() float64 {
-	if p.untouchable() || p.divine {
+	if p.bribed || p.divine {
 		return 0
 	}
-	return raidChance
+	return raidChance * (1 - p.immunity())
 }
 
 func (p Profession) armed(w item) Profession {
@@ -271,6 +287,12 @@ func (p Profession) drugged(id string) Profession {
 	p.heistBonus += h.heist
 	p.cashback += h.cashback
 	p.reviveChance += h.revive
+	p.kidnapBonus += h.kidnap
+	p.killChance += h.kill
+	p.guard += h.guard
+	p.every = p.every * time.Duration(100-h.rush) / 100
+	p.haste -= h.rush
+	p.gatherLuck += h.luck
 	return p
 }
 
@@ -296,6 +318,16 @@ func lethalWeapons() string {
 	var labels []string
 	for _, it := range contraband() {
 		if it.arms != nil && it.arms.kill > 0 {
+			labels = append(labels, it.label())
+		}
+	}
+	return core.JoinWithAnd(labels)
+}
+
+func lethalDrugs() string {
+	var labels []string
+	for _, it := range contraband() {
+		if it.high != nil && it.high.kill > 0 {
 			labels = append(labels, it.label())
 		}
 	}
@@ -339,8 +371,9 @@ func blackMarketText(chat types.JID, sold map[string]bool, now time.Time) string
 	}{
 		{"🔫 *Armas*", func(it item) bool { return it.arms != nil }},
 		{"💊 *Drogas*", func(it item) bool { return it.high != nil }},
-		{"🕶️ *Contrabando*", func(it item) bool { return it.illegal && it.arms == nil && it.high == nil }},
+		{"🕶️ *Contrabando*", func(it item) bool { return it.illegal && it.arms == nil && it.high == nil && it.graft == nil }},
 		{"🧰 *Muamba*", hotGear},
+		{"🦾 *Implante do dia*", func(it item) bool { return it.graft != nil }},
 	}
 	for _, s := range sections {
 		goods := slices.DeleteFunc(slices.Clone(stock), func(it item) bool { return !s.keep(it) })
@@ -360,6 +393,8 @@ func blackMarketText(chat types.JID, sold map[string]bool, now time.Time) string
 		fmt.Sprintf("_Compra com !mercadonegro comprar <item> e vende com !mercadonegro vender <item>, a %d%% do preço do dia (dá pra vender qualquer coisa ilegal, mesmo fora do estoque). Manda !item <nome> pra ver o que cada um faz_", blackMarketBuyback),
 		"",
 		fmt.Sprintf("_De vez em quando chega muamba desviada: uma ferramenta de extração lendária por dia no máximo (%d%% de chance de vir uma, sorteada entre as %d) e %s, com %d%% de chance por dia. Só vem uma de cada, e quem comprar primeiro leva. Ela não é ilegal, então a polícia não apreende, mas o receptador não compra de volta: revende no !vender_", percent(hotToolChance), len(hotTools()), hotGearLabels(), percent(hotGearChance)),
+		"",
+		fmt.Sprintf("_Todo dia chega um implante desviado, sorteado entre os %d, e só vem um: quem comprar primeiro leva. Ele vai pra mochila, e aí é !implante instalar <nome>. O clandestino 🚨 é contrabando, o legal é muamba_", len(implants)),
 		"",
 		fmt.Sprintf("⚠️ Toda negociação conta como crime (a polícia pode te !prender) e tem %d%% de chance de dar batida: aí você vai preso, perde a mercadoria e paga multa. Quem é preso ainda perde tudo o que é ilegal da mochila", percent(raidChance)),
 		"",
@@ -413,7 +448,7 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 	if quantity <= 0 || quantity > blackMarketMaxDeal {
 		return b.SendText(ctx, chat, fmt.Sprintf("O contato só passa de 1 a %d de uma vez, pra não chamar atenção", blackMarketMaxDeal))
 	}
-	if hotGear(it) && quantity > 1 {
+	if oneOfAKind(it) && quantity > 1 {
 		return b.SendText(ctx, chat, fmt.Sprintf("Só chegou um %s, muamba não vem no atacado", it.label()))
 	}
 	acc := b.Account(ctx, person)
@@ -424,7 +459,7 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 	cost := blackMarketPrice(chat, it, now) * quantity
 	r, err := b.Wallets.smuggle(ctx, chat, acc, smuggling{
 		give: func(tx *ledgerTx) error {
-			if hotGear(it) {
+			if oneOfAKind(it) {
 				if err := claimHotGear(ctx, tx, chat, acc, it, now); err != nil {
 					return err
 				}
@@ -453,8 +488,11 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 	}
 	text := fmt.Sprintf("🕶️ @%s encontrou o contato %s e levou %s por %s. Ninguém viu nada\n💰 Saldo: %s",
 		person.User, core.PickOne(contacts), quantityLabel(it, quantity), Coins(cost), Coins(r.balance))
-	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
-	return err
+	if _, err := b.SendMentions(ctx, chat, text, []types.JID{person}); err != nil {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!mercadonegro", won: true})
+	return nil
 }
 
 func (b *bot) sellContraband(ctx context.Context, evt *events.Message, q itemQuery) error {
@@ -464,7 +502,7 @@ func (b *bot) sellContraband(ctx context.Context, evt *events.Message, q itemQue
 	if q.name == "" {
 		return b.SendText(ctx, chat, fmt.Sprintf("Diz o que quer vender: !mercadonegro vender peixeira (ou tudo). O receptador paga %d%% do preço do dia", blackMarketBuyback))
 	}
-	it, have, problem, err := b.heldItem(ctx, chat, acc, q.name)
+	it, have, problem, err := b.heldForSale(ctx, chat, acc, q.name)
 	if err != nil {
 		return err
 	}
@@ -504,8 +542,11 @@ func (b *bot) sellContraband(ctx context.Context, evt *events.Message, q itemQue
 	}
 	text := fmt.Sprintf("🕶️ @%s passou %s pra um receptador e saiu com %s no bolso (%s)\n💰 Saldo: %s",
 		person.User, quantityLabel(it, quantity), Coins(payout), priceTrend(blackMarketPercent(chat, it, now)), Coins(r.balance))
-	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
-	return err
+	if _, err := b.SendMentions(ctx, chat, text, []types.JID{person}); err != nil {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!mercadonegro", won: true})
+	return nil
 }
 
 func (b *bot) sendRaid(ctx context.Context, chat types.JID, person types.JID, job Profession, r raid, doing string) error {
@@ -653,32 +694,38 @@ func (s *walletStore) takeDrug(ctx context.Context, chat types.JID, acc core.Acc
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}
-		var (
-			active string
-			until  int64
-		)
-		err := tx.QueryRowContext(ctx, "SELECT droga, droga_ate FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key).Scan(&active, &until)
-		if err != nil {
-			return err
-		}
-		odds := it.high.overdose
-		if mixed, ok := itemByID(active); ok && until > now.Unix() {
-			d.mixed = mixed
-			odds += drugMixOverdose
-		}
-		if d.overdosed = rand.Float64() < odds; !d.overdosed {
-			_, err = tx.ExecContext(ctx,
-				"UPDATE carteiras SET droga = ?, droga_ate = ? WHERE chat = ? AND pessoa = ?",
-				it.id, now.Add(it.high.lasts).Unix(), chat.String(), acc.Key,
-			)
-			return err
-		}
-		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET droga = '', droga_ate = 0 WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key)
-		if err != nil {
-			return err
-		}
-		d.death, err = die(ctx, tx, chat, acc, now)
+		var err error
+		d, err = getHigh(ctx, tx, chat, acc, it, now)
 		return err
 	})
+	return d, err
+}
+
+func getHigh(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, it item, now time.Time) (d dose, err error) {
+	var (
+		active string
+		until  int64
+	)
+	err = tx.QueryRowContext(ctx, "SELECT droga, droga_ate FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key).Scan(&active, &until)
+	if err != nil {
+		return d, err
+	}
+	odds := it.high.overdose
+	if mixed, ok := itemByID(active); ok && until > now.Unix() {
+		d.mixed = mixed
+		odds += drugMixOverdose
+	}
+	if d.overdosed = rand.Float64() < odds; !d.overdosed {
+		_, err = tx.ExecContext(ctx,
+			"UPDATE carteiras SET droga = ?, droga_ate = ? WHERE chat = ? AND pessoa = ?",
+			it.id, now.Add(it.high.lasts).Unix(), chat.String(), acc.Key,
+		)
+		return d, err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET droga = '', droga_ate = 0 WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key)
+	if err != nil {
+		return d, err
+	}
+	d.death, err = die(ctx, tx, chat, acc, now)
 	return d, err
 }

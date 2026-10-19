@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	crimeWindow    = 2 * time.Hour
+	crimeWindow    = 30 * time.Minute
 	baseJail       = 10 * time.Minute
 	fineMinPercent = 1
 	fineMaxPercent = 3
@@ -50,16 +50,23 @@ var (
 	abuseKinds = []abuseKind{arrestAbuse, workAbuse, robAbuse, kidnapAbuse}
 )
 
+type arrestOdds struct {
+	chance   float64
+	immunity float64
+}
+
 type arrest struct {
 	wait      time.Duration
 	held      time.Duration
 	clean     bool
 	dismissed bool
+	immune    bool
 	abuse     powerAbuse
 	crimeAgo  time.Duration
 	freed     types.JID
 	fine      int64
 	seized    []stack
+	unplugged []implant
 }
 
 func (b *bot) prender(ctx context.Context, evt *events.Message) error {
@@ -89,7 +96,7 @@ func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 	if copJob.jailTime == 0 {
 		sentence, every = Profession{jailTime: baseJail}.sentence(suspectJob), copJob.collectionEvery()
 	}
-	a, err := b.Wallets.arrest(ctx, chat, copAcc, suspectAcc, cooldown{column: "prisao_em", every: copJob.hasted(every)}, copJob.abuse(arrestAbuse), sentence, 1, owed != nil, true, time.Now())
+	a, err := b.Wallets.arrest(ctx, chat, copAcc, suspectAcc, cooldown{column: "prisao_em", every: copJob.hasted(every)}, copJob.abuse(arrestAbuse), sentence, arrestOdds{chance: 1, immunity: suspectJob.immunity()}, owed != nil, true, time.Now())
 	if err != nil {
 		return fmt.Errorf("prender: %w", err)
 	}
@@ -103,13 +110,13 @@ func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 		text = debtArrestText(a, copJob, suspectJob, sentence, owed)
 	}
 	rescue, freed := a.rescue()
-	_, err = b.SendMentions(ctx, chat, text+seizedText(a.seized)+rescue, append([]types.JID{cop, suspect}, freed...))
+	_, err = b.SendMentions(ctx, chat, text+seizedText(a.seized)+seizedImplantsText(a.unplugged)+rescue, append([]types.JID{cop, suspect}, freed...))
 	return err
 }
 
 func debtArrestText(a arrest, copJob, suspectJob Profession, sentence time.Duration, owed *debt) string {
 	cop, suspect := owed.lender.JID, owed.debtor.JID
-	if a.held > 0 || a.wait > 0 {
+	if a.held > 0 || a.wait > 0 || a.immune {
 		return arrestText(a, copJob, suspectJob, sentence, cop, suspect)
 	}
 	return fmt.Sprintf("⚖️ @%s cansou de esperar e mandou prender @%s por calote! Fica %s na cadeia, sem poder apostar, roubar nem furtar", cop.User, suspect.User, core.FormatWait(sentence)) +
@@ -167,6 +174,9 @@ func arrestText(a arrest, copJob, suspectJob Profession, sentence time.Duration,
 	}
 	if a.wait > 0 {
 		return fmt.Sprintf("📝 @%s ainda tá preenchendo a papelada da última prisão. Espera %s pra prender de novo", cop.User, core.FormatWait(a.wait))
+	}
+	if a.immune {
+		return immunityText(cop, suspect) + a.abuse.note("Abusou do poder e pulou a papelada, mas a imunidade segurou mesmo assim")
 	}
 	if a.abuse.used {
 		return fmt.Sprintf("😈 %s @%s abusou do poder, pulou a papelada e prendeu @%s pelo crime de %s atrás! Fica %s na cadeia, sem poder apostar, roubar nem furtar. %s", copJob.badge(), cop.User, suspect.User, core.FormatWait(a.crimeAgo), core.FormatWait(sentence), a.abuse.nextText()) + jailFactorText(suspect, suspectJob) + paidFineText(a.fine, cop)
@@ -226,14 +236,14 @@ func (b *bot) holdIfJailed(ctx context.Context, evt *events.Message) bool {
 	if left == 0 {
 		return false
 	}
-	text := fmt.Sprintf("🔒 @%s tá na cadeia e só sai em %s. Até lá nada de apostar, roubar, furtar, sequestrar, matar nem assaltar, a não ser que consiga !fugir, alguém te !libertar ou você pague a !fianca", person.User, core.FormatWait(left))
+	text := fmt.Sprintf("🔒 @%s tá na cadeia e só sai em %s. Até lá nada de apostar, roubar, furtar, sequestrar, matar, assaltar nem trocar de profissão, a não ser que consiga !fugir, alguém te !libertar ou você pague a !fianca", person.User, core.FormatWait(left))
 	if _, err := b.SendMentions(ctx, chat, text, []types.JID{person}); err != nil {
 		b.Client.Log.Errorf("avisar que tá preso: %v", err)
 	}
 	return true
 }
 
-func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect core.Account, cd cooldown, abuse abuser, jail time.Duration, chance float64, collecting, copKeepsFine bool, now time.Time) (a arrest, err error) {
+func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect core.Account, cd cooldown, abuse abuser, jail time.Duration, odds arrestOdds, collecting, copKeepsFine bool, now time.Time) (a arrest, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, suspect); err != nil {
 			return err
@@ -254,7 +264,10 @@ func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect c
 		if a.wait, a.abuse, err = stampOrAbuse(ctx, tx, chat, cop, cd, abuse, now); err != nil || a.wait > 0 {
 			return err
 		}
-		if a.dismissed = rand.Float64() >= chance; a.dismissed {
+		if a.dismissed = rand.Float64() >= odds.chance; a.dismissed {
+			return nil
+		}
+		if a.immune = rand.Float64() < odds.immunity; a.immune {
 			return nil
 		}
 		query := "UPDATE carteiras SET preso_ate = ?, crime_em = 0 WHERE chat = ? AND pessoa = ?"
@@ -275,6 +288,9 @@ func (s *walletStore) arrest(ctx context.Context, chat types.JID, cop, suspect c
 			}
 		}
 		if a.seized, err = seizeContraband(ctx, tx, chat, suspect); err != nil {
+			return err
+		}
+		if a.unplugged, err = seizeImplants(ctx, tx, chat, suspect); err != nil {
 			return err
 		}
 		a.freed, err = freeHostage(ctx, tx, chat, suspect, now)

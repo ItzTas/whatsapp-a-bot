@@ -27,6 +27,8 @@ type activity struct {
 	plainLuck int
 	gradeLuck int
 	rotten    bool
+	starfall  bool
+	mythics   bool
 	hazard    hazard
 	safety    int64
 	loot      []drop
@@ -218,6 +220,7 @@ type gear struct {
 	spent       bool
 	metal       bool
 	alwaysFinds bool
+	pull        int
 }
 
 func (g *gear) fits(a activity) bool {
@@ -228,6 +231,7 @@ type kit struct {
 	activity
 	armed bool
 	grace int64
+	pull  int
 	worn  []item
 	spent []item
 }
@@ -235,7 +239,7 @@ type kit struct {
 func (a activity) equip(bag []stack) kit {
 	k := kit{activity: a, armed: a.tool == "" || slices.ContainsFunc(bag, func(s stack) bool { return s.item.id == a.tool })}
 	best, hasTool := a.bestTool(bag)
-	var metalOnly bool
+	var metalOnly, lured bool
 	for _, s := range bag {
 		g := s.item.gear
 		if !g.fits(a) || g.tool && s.item.id != best.id {
@@ -249,6 +253,7 @@ func (a activity) equip(bag []stack) kit {
 		}
 		k.gradeLuck += g.grade
 		k.safety += g.safety
+		k.pull += g.pull
 		k.cooldown.every = k.cooldown.every * time.Duration(100-g.faster) / 100
 		if g.spent {
 			k.spent = append(k.spent, s.item)
@@ -266,8 +271,14 @@ func (a activity) equip(bag []stack) kit {
 			k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { return d.item == "" })
 		}
 		metalOnly = metalOnly || g.metal
+		lured = lured || g.relicLure > 0
 	}
-	if !slices.ContainsFunc(k.worn, func(it item) bool { return it.rarity == relic }) {
+	if !lured {
+		k.plainLuck += k.luck
+		k.luck = 0
+	}
+	k.starfall = slices.ContainsFunc(k.worn, extractionRelic)
+	if !k.mythics && !slices.ContainsFunc(k.worn, func(it item) bool { return it.rarity >= relic }) {
 		k.loot = slices.DeleteFunc(slices.Clone(k.loot), func(d drop) bool { it, _ := itemByID(d.item); return it.rarity == mythic })
 	}
 	if metalOnly {
@@ -298,8 +309,8 @@ func (a activity) source(it item) string {
 		return a.command
 	}
 	var unlockers []string
-	for _, r := range relics() {
-		if r.gear.fits(a) {
+	for _, r := range catalog {
+		if r.rarity >= relic && r.gear.fits(a) {
 			unlockers = append(unlockers, r.name)
 		}
 	}
@@ -390,15 +401,16 @@ func gearPerk(g *gear) string {
 		{g.sturdy > 0 && g.sturdy < 100, fmt.Sprintf("quebra %d%% menos", g.sturdy)},
 		{g.grace > 0, fmt.Sprintf("não quebra nos primeiros %d usos", g.grace)},
 		{g.luck > 0, fmt.Sprintf("dá %dx mais sorte no que acha", g.luck+1)},
-		{g.skipsRelics, "mas essa sorte não ajuda a achar o Relicário perdido"},
+		{g.skipsRelics, "mas essa sorte não ajuda a achar o Relicário perdido, nem com a bússola"},
 		{g.faster > 0, fmt.Sprintf("espera %d%% menos", g.faster)},
 		{g.fewerJunk > 0, fmt.Sprintf("vem %d%% menos item comum e mão vazia", g.fewerJunk)},
 		{g.moreRare > 0, fmt.Sprintf("vem %d%% mais item raro, épico e lendário", g.moreRare)},
 		{g.grade > 0, fmt.Sprintf("o que acha vem com qualidade melhor: fica com a melhor de %d", g.grade+1)},
 		{g.safety > 0, fmt.Sprintf("se machuca %d%% menos", g.safety)},
-		{g.relicLure > 0, fmt.Sprintf("deixa %dx mais fácil achar o Relicário perdido", g.relicLure)},
+		{g.relicLure > 0, fmt.Sprintf("deixa %dx mais fácil achar o Relicário perdido, e só com ela a sorte dos outros itens e da profissão ajuda a achar ele", g.relicLure)},
 		{g.metal, "só sai item de metal, então nunca vem de mão vazia"},
 		{g.alwaysFinds, "nunca vem de mão vazia"},
+		{g.pull > 0, fmt.Sprintf("traz %d itens de cada vez", g.pull+1)},
 		{g.spent, "gasta 1 a cada vez"},
 	}
 	var found []string
@@ -417,6 +429,24 @@ func (a activity) drop() item {
 }
 
 func (a activity) roll() haul {
+	h := a.find()
+	h.broke = a.tool != "" && rand.Float64() < a.breaks
+	return h
+}
+
+func (a activity) find() haul {
+	h := haul{found: a.pick()}
+	if h.found.gradable() {
+		h.grade = rollQuality(a.gradeLuck, a.rotten)
+	}
+	return h
+}
+
+func (a activity) pick() item {
+	if a.starfall && rand.Float64() < starfallOdds {
+		rock, _ := itemByID(skyRockID)
+		return rock
+	}
 	found := a.drop()
 	for range a.luck {
 		if other := a.drop(); other.value > found.value {
@@ -428,11 +458,7 @@ func (a activity) roll() haul {
 			found = other
 		}
 	}
-	h := haul{found: found, broke: a.tool != "" && rand.Float64() < a.breaks}
-	if found.gradable() {
-		h.grade = rollQuality(a.gradeLuck, a.rotten)
-	}
-	return h
+	return found
 }
 
 func (b *bot) gather(base activity) core.Handler {
@@ -444,15 +470,28 @@ func (b *bot) gather(base activity) core.Handler {
 		if err != nil {
 			return err
 		}
-		a := job.forage(job.craft.apply(base))
+		now := time.Now()
+		pit := b.craterIn(chat, base, now)
+		a := pit.dig(job.forage(job.craft.apply(base)))
 		a.cooldown.every = a.cooldown.every * time.Duration(100+job.decrees.level(gatherDecree)) / 100
-		g, err := b.Wallets.gather(ctx, chat, acc, a, time.Now())
+		g, err := b.Wallets.gather(ctx, chat, acc, a, pit, now)
 		if err != nil {
 			return fmt.Errorf("%s: %w", a.command, err)
 		}
+		if !g.noTool && g.wait == 0 {
+			b.advance(chat, acc, gatherGoal, 1)
+		}
 		hurtText, freed := g.injury.text(person)
-		_, err = b.SendMentions(ctx, chat, a.report(g, person)+job.decrees.note(gatherDecree)+hurtText, append([]types.JID{person}, freed...))
-		return err
+		people := append([]types.JID{person}, freed...)
+		if g.toll > 0 {
+			people = append(people, pit.owner.JID)
+		}
+		_, err = b.SendMentions(ctx, chat, a.report(g, person)+pit.note(g)+job.decrees.note(gatherDecree)+hurtText, people)
+		if err != nil || g.noTool || g.wait > 0 || g.injury.died {
+			return err
+		}
+		b.stirEvent(ctx, evt, eventSpot{place: a.command, won: g.found.id != ""})
+		return nil
 	}
 }
 
@@ -468,17 +507,39 @@ func (a activity) report(g gathering, person types.JID) string {
 	if g.found.id != "" {
 		text = fmt.Sprintf(core.PickOne(a.found), person.User, g.found.label()+g.grade.tag()) + "\n" + g.grade.summary(g.found)
 	}
-	if g.found.rarity == mythic {
-		text += fmt.Sprintf("\n\n🟠 *MÍTICO!* Isso só aparece pra quem extrai com relíquia, e o mercado paga pelo menos %d%% do valor dele no !vender", mythicSalePercent)
+	for _, extra := range g.pulled {
+		if extra.found.id != "" {
+			text += fmt.Sprintf("\n\n☄️ A gravidade do Bendegó puxou junto %s\n%s", extra.found.label()+extra.grade.tag(), extra.grade.summary(extra.found))
+		}
 	}
-	if g.found.relicOdds > 0 {
-		text += fmt.Sprintf("\n\n🏛️ Achado raríssimo! Abre com !usar %s e reza: em %d%% das vezes sai uma relíquia", core.FoldLetters(g.found.name), percent(g.found.relicOdds))
-	}
+	text += findNotes(append([]haul{g.haul}, g.pulled...))
 	if len(g.worn) > 0 {
 		text += "\n\n🧰 Com " + wornList(g.worn, g.spent)
 	}
 	if g.broke {
 		text += fmt.Sprintf("\n\n💥 %s quebrou! Compra outra na !loja", g.broken.label())
+	}
+	return text
+}
+
+func findNotes(finds []haul) string {
+	notes := []struct {
+		hit  func(item) bool
+		text func(item) string
+	}{
+		{func(it item) bool { return it.rarity == mythic }, func(item) string {
+			return fmt.Sprintf("🟠 *MÍTICO!* Isso só aparece pra quem extrai com relíquia, e o mercado paga pelo menos %d%% do valor dele no !vender", mythicSalePercent)
+		}},
+		{func(it item) bool { return it.relicOdds > 0 }, func(it item) string {
+			return fmt.Sprintf("🏛️ Achado raríssimo! Abre com !usar %s e reza: em %d%% das vezes sai uma relíquia", core.FoldLetters(it.name), percent(it.relicOdds))
+		}},
+		{func(it item) bool { return it.id == skyRockID }, starfallNote},
+	}
+	var text string
+	for _, n := range notes {
+		if i := slices.IndexFunc(finds, func(h haul) bool { return n.hit(h.found) }); i >= 0 {
+			text += "\n\n" + n.text(finds[i].found)
+		}
 	}
 	return text
 }

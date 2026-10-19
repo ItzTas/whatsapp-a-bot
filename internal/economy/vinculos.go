@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"golang.org/x/sync/errgroup"
@@ -210,8 +211,8 @@ func (b *bot) economyGroups(ctx context.Context, root types.JID) []types.JID {
 	return slices.DeleteFunc(ledgers.members(root), func(group types.JID) bool { return !b.EconomyOn(ctx, group) })
 }
 
-func (b *bot) announce(ctx context.Context, root types.JID, text string, featured types.JID) error {
-	groups := b.economyGroups(ctx, root)
+func (b *bot) announce(ctx context.Context, root types.JID, text string, featured ...types.JID) error {
+	groups := ledgers.members(root)
 	errs := make([]error, len(groups))
 	var g errgroup.Group
 	for i, group := range groups {
@@ -224,12 +225,16 @@ func (b *bot) announce(ctx context.Context, root types.JID, text string, feature
 	return errors.Join(errs...)
 }
 
-func (b *bot) announceIn(ctx context.Context, group types.JID, text string, featured types.JID) error {
-	allowed, err := b.AllowedIn(ctx, group, []types.JID{featured})
+func (b *bot) announceIn(ctx context.Context, group types.JID, text string, featured []types.JID) error {
+	on, err := b.ChatModeOn(ctx, group, core.ModeAnnouncements)
+	if err != nil || !on {
+		return err
+	}
+	allowed, err := b.AllowedIn(ctx, group, featured)
 	if err != nil || !allowed {
 		return err
 	}
-	_, err = b.SendMentions(ctx, group, text, []types.JID{featured})
+	_, err = b.SendMentions(ctx, group, text, featured)
 	return err
 }
 

@@ -24,6 +24,9 @@ type bot struct {
 	elections      sync.Map
 	impeachments   sync.Map
 	coups          sync.Map
+	craters        sync.Map
+	missionSteps   missionLog
+	scenes         sceneBoard
 	Wallets        *walletStore
 }
 
@@ -32,16 +35,24 @@ type Module = bot
 func (b *bot) Register() {
 	b.AddCommands(b.economyCommands)
 	b.AddOwnerCommands(b.economyOwnerCommands)
+	b.AddAfterMessage(b.settleMissions)
+	b.AddAfterMessage(b.announceAssemblies)
 	b.AddAfterMessage(b.announcePayouts)
 	b.AddReactor(b.reactToAilments)
 	b.AddObserver("responder o tribunal", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.trialPolls) })
 	b.AddObserver("responder !blackjack", b.answerBlackjack)
 	b.AddObserver("responder !crash", b.answerCrash)
+	b.AddCommandFilter(b.answerCrashCommand)
+	b.AddObserver("responder evento", b.answerEvent)
 	b.AddGuard(b.economyGuard)
+	b.OnModeOff(core.ModeEconomy, b.haltEvents)
 	b.AddJob(b.runLottery)
+	b.AddJob(b.runAnimalGame)
 	b.AddJob(b.runTaxes)
 	b.AddJob(b.runAuctions)
 	b.AddJob(b.runLoanSeizures)
+	b.AddJob(b.runWanted)
+	b.AddJob(b.runGravity)
 	b.AddRestorers(map[string]core.GameRestorer{
 		blackjackKind:   b.restoreBlackjack,
 		crashKind:       b.restoreCrash,
@@ -55,6 +66,8 @@ func (b *bot) Register() {
 		electionKind:    b.restoreElection,
 		impeachmentKind: b.restoreImpeachment,
 		coupKind:        b.restoreCoup,
+		eventKind:       b.restoreEvent,
+		craterKind:      b.restoreCrater,
 	})
 }
 

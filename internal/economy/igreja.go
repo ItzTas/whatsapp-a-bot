@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,6 +20,8 @@ const (
 	churchFoundPercent = 10
 	churchFoundFloor   = 5_000
 	churchNameMax      = 30
+	churchTitheMax     = 30
+	unsetTithe         = -1
 )
 
 var conversionCooldown = cooldown{column: "conversao_em", every: 24 * time.Hour}
@@ -98,12 +101,19 @@ type church struct {
 	coffer    int64
 	members   int
 	temple    int
+	tithe     int64
 }
 
 type tithe struct {
 	church  string
 	percent int64
 	paid    int64
+}
+
+type retithe struct {
+	church string
+	from   int64
+	to     int64
 }
 
 type departure struct {
@@ -143,21 +153,28 @@ func (d doctrine) label() string {
 	return d.emoji + " *" + d.name + "*"
 }
 
-func (d doctrine) titheText() string {
-	return fmt.Sprintf("%d%% do !trabalhar e do !daily", d.tithe)
+func (d doctrine) titheOr(set int64) int64 {
+	if set == unsetTithe {
+		return d.tithe
+	}
+	return set
+}
+
+func titheText(percent int64) string {
+	return fmt.Sprintf("%d%% do !trabalhar e do !daily", percent)
 }
 
 func (d doctrine) effectAt(level int) string {
 	return d.effect(templeAt(level).power)
 }
 
-func (p Profession) devoted(church, id string, level int) Profession {
+func (p Profession) devoted(church, id string, level int, tithe int64) Profession {
 	d, ok := doctrineByID(id)
 	if !ok {
 		return p
 	}
 	p = d.apply(p, templeAt(level).power)
-	p.church, p.doctrineID, p.templeLevel = church, id, level
+	p.church, p.doctrineID, p.templeLevel, p.churchTithe = church, id, level, d.titheOr(tithe)
 	return p
 }
 
@@ -166,7 +183,7 @@ func churchPerks(p Profession) []string {
 	if !ok {
 		return nil
 	}
-	return []string{fmt.Sprintf("⛪ É fiel da *%s* (%s), de doutrina %s (já conta nas vantagens acima), e dá %s de dízimo pro cofre dela", p.church, templeAt(p.templeLevel).label(), d.label(), d.titheText())}
+	return []string{fmt.Sprintf("⛪ É fiel da *%s* (%s), de doutrina %s (já conta nas vantagens acima), e dá %s de dízimo pro cofre dela", p.church, templeAt(p.templeLevel).label(), d.label(), titheText(p.churchTithe))}
 }
 
 func (t tithe) text() string {
@@ -283,10 +300,11 @@ func (b *bot) igreja(ctx context.Context, evt *events.Message) error {
 		"reformar": b.rebuildTemple, "templo": b.rebuildTemple, "construir": b.rebuildTemple,
 		"milagre": b.churchMiracle, "repartir": b.churchMiracle, "distribuir": b.churchMiracle,
 		"desviar": b.embezzle, "desvio": b.embezzle,
+		"dizimo": b.setTithe, "taxa": b.setTithe,
 	}
 	action, ok := actions[args[0]]
 	if !ok {
-		return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Use assim: !igreja, !igreja lista, !igreja doutrinas, !igreja fundar <doutrina> <nome>, !igreja entrar <nome>, !igreja sair, !igreja ofertar <valor>, !igreja reformar, !igreja milagre <valor> ou !igreja desviar <valor>")
+		return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Use assim: !igreja, !igreja lista, !igreja doutrinas, !igreja fundar <doutrina> <nome>, !igreja entrar <nome>, !igreja sair, !igreja ofertar <valor>, !igreja reformar, !igreja dizimo <porcentagem>, !igreja milagre <valor> ou !igreja desviar <valor>")
 	}
 	return action(ctx, evt, core.TextAfterFields(text, 2))
 }
@@ -305,7 +323,7 @@ func (b *bot) myChurch(ctx context.Context, evt *events.Message) error {
 		"⛪ *" + c.name + "*",
 		fmt.Sprintf("🧱 %s, com a doutrina a %d%% da força", t.label(), t.power),
 		fmt.Sprintf("📜 Doutrina %s: %s", c.doctrine.label(), c.doctrine.effectAt(c.temple)),
-		"🧾 Dízimo: " + c.doctrine.titheText(),
+		"🧾 Dízimo: " + titheText(c.tithe),
 		"👑 Líder: @" + c.leader.User,
 		"🐑 " + core.CountLabel(c.members, "fiel", "fiéis"),
 		"🏦 Cofre: " + Coins(c.coffer),
@@ -330,7 +348,7 @@ func (b *bot) listChurches(ctx context.Context, evt *events.Message, _ string) e
 		lines = append(lines, fmt.Sprintf("*%s*: %s, cofre de %s\n    🧱 %s · 📜 %s · 👑 @%s", c.name, core.CountLabel(c.members, "fiel", "fiéis"), Coins(c.coffer), templeAt(c.temple).label(), c.doctrine.label(), c.leader.User))
 		leaders = append(leaders, c.leader)
 	}
-	lines = append(lines, "", "_Pra entrar numa: !igreja entrar <nome>. Todo fiel ganha o efeito da doutrina e paga o dízimo dela pro cofre. "+foundingHint()+"_")
+	lines = append(lines, "", "_Pra entrar numa: !igreja entrar <nome>. Todo fiel ganha o efeito da doutrina e paga o dízimo da igreja pro cofre. "+foundingHint()+"_")
 	_, err = b.SendMentions(ctx, chat, strings.Join(lines, "\n"), leaders)
 	return err
 }
@@ -338,11 +356,11 @@ func (b *bot) listChurches(ctx context.Context, evt *events.Message, _ string) e
 func (b *bot) doctrinesMenu(ctx context.Context, evt *events.Message, _ string) error {
 	lines := []string{
 		"📜 *Doutrinas*",
-		"_Quem funda a igreja escolhe a doutrina. Todo fiel ganha o efeito dela e paga o dízimo dela, uma parte do que entra no !trabalhar e no !daily, pro cofre da igreja_",
+		fmt.Sprintf("_Quem funda a igreja escolhe a doutrina. Todo fiel ganha o efeito dela e paga o dízimo, uma parte do que entra no !trabalhar e no !daily, pro cofre da igreja. A igreja começa com o dízimo padrão da doutrina, e o líder muda quando quiser com !igreja dizimo <porcentagem> (de 0 a %d%%)_", churchTitheMax),
 		"",
 	}
 	for _, d := range doctrines {
-		lines = append(lines, fmt.Sprintf("%s · dízimo de %d%%\n    _%s_\n    ✨ %s", d.label(), d.tithe, d.flavor, d.effectAt(0)))
+		lines = append(lines, fmt.Sprintf("%s · dízimo padrão de %d%%\n    _%s_\n    ✨ %s", d.label(), d.tithe, d.flavor, d.effectAt(0)))
 	}
 	last := temples[len(temples)-1]
 	lines = append(lines, "", fmt.Sprintf("_Esse é o efeito numa %s. Cada reforma do templo (!igreja reformar) deixa a doutrina mais forte, até %d%% num %s_", templeAt(0).label(), last.power, last.label()), "_"+foundingHint()+"_")
@@ -380,8 +398,8 @@ func (b *bot) foundChurch(ctx context.Context, evt *events.Message, rest string)
 	if cv.wait > 0 {
 		return b.SendText(ctx, chat, conversionWaitText(cv.wait))
 	}
-	text := fmt.Sprintf("⛪ @%s pagou %s e fundou a *%s*, de doutrina %s!\n_%s_\n✨ Todo fiel: %s\n🧾 Dízimo: %s, pro cofre da igreja\nPra entrar: !igreja entrar %s",
-		person.User, Coins(cv.price), name, d.label(), d.flavor, d.effectAt(0), d.titheText(), name) + cv.left.text()
+	text := fmt.Sprintf("⛪ @%s pagou %s e fundou a *%s*, de doutrina %s!\n_%s_\n✨ Todo fiel: %s\n🧾 Dízimo: %s, pro cofre da igreja (o líder muda com !igreja dizimo <porcentagem>)\nPra entrar: !igreja entrar %s",
+		person.User, Coins(cv.price), name, d.label(), d.flavor, d.effectAt(0), titheText(d.tithe), name) + cv.left.text()
 	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{person}, cv.left.people()...))
 	return err
 }
@@ -411,7 +429,7 @@ func (b *bot) joinChurch(ctx context.Context, evt *events.Message, rest string) 
 		return b.SendText(ctx, chat, conversionWaitText(cv.wait))
 	}
 	text := fmt.Sprintf("🐑 @%s entrou pro rebanho da *%s*!\n✨ Doutrina %s: %s\n🧾 Dízimo: %s, pro cofre da igreja",
-		person.User, c.name, c.doctrine.label(), c.doctrine.effectAt(c.temple), c.doctrine.titheText()) + cv.left.text()
+		person.User, c.name, c.doctrine.label(), c.doctrine.effectAt(c.temple), titheText(c.tithe)) + cv.left.text()
 	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{person}, cv.left.people()...))
 	return err
 }
@@ -431,13 +449,59 @@ func (b *bot) leaveChurch(ctx context.Context, evt *events.Message, _ string) er
 	return err
 }
 
+func parseTithe(rest string) (int64, bool) {
+	percent, err := strconv.ParseInt(strings.TrimSuffix(firstWord(rest), "%"), 10, 64)
+	return percent, err == nil && percent >= 0 && percent <= churchTitheMax
+}
+
+func (r retithe) text(leader types.JID) string {
+	if r.from == r.to {
+		return fmt.Sprintf("🧾 O dízimo da *%s* já é de %d%%", r.church, r.to)
+	}
+	return fmt.Sprintf("🧾 @%s mudou o dízimo da *%s* de %d%% pra %d%%. Agora os fiéis dão %s pro cofre", leader.User, r.church, r.from, r.to, titheText(r.to))
+}
+
+func (b *bot) setTithe(ctx context.Context, evt *events.Message, rest string) error {
+	chat := evt.Info.Chat.ToNonAD()
+	person := evt.Info.Sender.ToNonAD()
+	percent, ok := parseTithe(rest)
+	if !ok {
+		return b.SendText(ctx, chat, fmt.Sprintf("Use assim: !igreja dizimo <porcentagem>, de 0 a %d, tipo !igreja dizimo 15", churchTitheMax))
+	}
+	r, err := b.Wallets.setTithe(ctx, chat, b.Account(ctx, person), percent)
+	if errors.Is(err, errNotLeader) {
+		return b.SendText(ctx, chat, "Só o líder da igreja muda o dízimo 👑 Quem é o líder aparece no !igreja")
+	}
+	if text, refused := churchRefusal(err); refused {
+		return b.SendText(ctx, chat, text)
+	}
+	if err != nil {
+		return fmt.Errorf("mudar dízimo: %w", err)
+	}
+	_, err = b.SendMentions(ctx, chat, r.text(person), []types.JID{person})
+	return err
+}
+
+func (s *walletStore) setTithe(ctx context.Context, chat types.JID, acc core.Account, percent int64) (r retithe, err error) {
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
+		f, err := ledFlock(ctx, tx, chat, acc)
+		if err != nil {
+			return err
+		}
+		r = retithe{church: f.name, from: f.tithe, to: percent}
+		_, err = tx.ExecContext(ctx, "UPDATE igrejas SET dizimo = ? WHERE id = ?", percent, f.id)
+		return err
+	})
+	return r, err
+}
+
 func (s *walletStore) loadChurches(ctx context.Context, where string, args ...any) (all []church, err error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT i.id, i.nome, i.doutrina, i.cofre, i.templo, i.lider, l.jid,
+		`SELECT i.id, i.nome, i.doutrina, i.cofre, i.templo, COALESCE(i.dizimo, ?), i.lider, l.jid,
 		        (SELECT COUNT(*) FROM carteiras f WHERE f.chat = i.chat AND f.igreja = i.id) AS fieis
 		 FROM igrejas i JOIN carteiras l ON l.chat = i.chat AND l.pessoa = i.lider
 		 WHERE `+where+` ORDER BY fieis DESC, i.cofre DESC`,
-		args...,
+		append([]any{unsetTithe}, args...)...,
 	)
 	if err != nil {
 		return nil, err
@@ -448,14 +512,16 @@ func (s *walletStore) loadChurches(ctx context.Context, where string, args ...an
 		var (
 			c               church
 			doctrineID, jid string
+			tithe           int64
 		)
-		if err := rows.Scan(&c.id, &c.name, &doctrineID, &c.coffer, &c.temple, &c.leaderKey, &jid, &c.members); err != nil {
+		if err := rows.Scan(&c.id, &c.name, &doctrineID, &c.coffer, &c.temple, &tithe, &c.leaderKey, &jid, &c.members); err != nil {
 			return nil, err
 		}
 		if c.leader, err = types.ParseJID(jid); err != nil {
 			return nil, err
 		}
 		c.doctrine, _ = doctrineByID(doctrineID)
+		c.tithe = c.doctrine.titheOr(tithe)
 		all = append(all, c)
 	}
 	return all, rows.Err()
@@ -617,13 +683,13 @@ func payTithe(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Accoun
 	}
 	var (
 		t          tithe
-		id         int64
+		id, set    int64
 		doctrineID string
 	)
 	err := tx.QueryRowContext(ctx,
-		"SELECT i.id, i.nome, i.doutrina FROM carteiras c JOIN igrejas i ON i.id = c.igreja WHERE c.chat = ? AND c.pessoa = ?",
-		chat.String(), acc.Key,
-	).Scan(&id, &t.church, &doctrineID)
+		"SELECT i.id, i.nome, i.doutrina, COALESCE(i.dizimo, ?) FROM carteiras c JOIN igrejas i ON i.id = c.igreja WHERE c.chat = ? AND c.pessoa = ?",
+		unsetTithe, chat.String(), acc.Key,
+	).Scan(&id, &t.church, &doctrineID, &set)
 	if errors.Is(err, sql.ErrNoRows) {
 		return tithe{}, nil
 	}
@@ -631,7 +697,8 @@ func payTithe(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Accoun
 		return tithe{}, err
 	}
 	d, _ := doctrineByID(doctrineID)
-	t.percent, t.paid = d.tithe, income*d.tithe/100
+	t.percent = d.titheOr(set)
+	t.paid = income * t.percent / 100
 	if t.paid == 0 {
 		return tithe{}, nil
 	}

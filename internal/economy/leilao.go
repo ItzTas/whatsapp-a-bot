@@ -48,7 +48,7 @@ type dueAuction struct {
 }
 
 func auctionGoods(it item) bool {
-	return (it.rarity == epic || it.rarity == legendary) && !it.illegal && !it.shop && it.relicOdds == 0
+	return (it.rarity == epic || it.rarity == legendary) && !it.illegal && !it.shop && it.relicOdds == 0 && it.upgrades == "" && it.graft == nil
 }
 
 func auctionOpening(it item) int64 {

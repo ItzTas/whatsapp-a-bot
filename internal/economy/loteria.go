@@ -51,7 +51,7 @@ type lotteryWin struct {
 	prize  int64
 }
 
-type pendingLottery struct {
+type pendingDraw struct {
 	chat types.JID
 	at   time.Time
 }
@@ -170,7 +170,7 @@ func (b *bot) runLottery(ctx context.Context) {
 
 func (b *bot) drawDueLotteries(ctx context.Context) {
 	now := time.Now()
-	due, err := b.Wallets.dueLotteries(ctx, now)
+	due, err := b.Wallets.dueDraws(ctx, "loteria_bilhetes", now)
 	if err != nil {
 		b.Client.Log.Errorf("procurar sorteios da loteria: %v", err)
 		return
@@ -182,7 +182,7 @@ func (b *bot) drawDueLotteries(ctx context.Context) {
 	}
 }
 
-func (b *bot) runDraw(ctx context.Context, pending pendingLottery, now time.Time) error {
+func (b *bot) runDraw(ctx context.Context, pending pendingDraw, now time.Time) error {
 	next := nextLotteryDraw(now)
 	d, err := b.Wallets.drawLottery(ctx, pending, next)
 	if err != nil || len(d.tickets) == 0 {
@@ -309,9 +309,9 @@ func (s *walletStore) lastLotteryWin(ctx context.Context, chat types.JID) (w lot
 	return w, err == nil, err
 }
 
-func (s *walletStore) dueLotteries(ctx context.Context, now time.Time) (due []pendingLottery, err error) {
+func (s *walletStore) dueDraws(ctx context.Context, table string, now time.Time) (due []pendingDraw, err error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT DISTINCT chat, sorteio FROM loteria_bilhetes WHERE sorteio <= ? ORDER BY sorteio",
+		"SELECT DISTINCT chat, sorteio FROM "+table+" WHERE sorteio <= ? ORDER BY sorteio",
 		now.Unix(),
 	)
 	if err != nil {
@@ -334,12 +334,12 @@ func (s *walletStore) dueLotteries(ctx context.Context, now time.Time) (due []pe
 		if ledgers.linked(jid) {
 			continue
 		}
-		due = append(due, pendingLottery{chat: jid, at: time.Unix(at, 0)})
+		due = append(due, pendingDraw{chat: jid, at: time.Unix(at, 0)})
 	}
 	return due, rows.Err()
 }
 
-func (s *walletStore) drawLottery(ctx context.Context, pending pendingLottery, next time.Time) (d lotteryDraw, err error) {
+func (s *walletStore) drawLottery(ctx context.Context, pending pendingDraw, next time.Time) (d lotteryDraw, err error) {
 	chat := pending.chat.String()
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		tickets, err := takeLotteryTickets(ctx, tx, pending)
@@ -376,7 +376,7 @@ func (s *walletStore) drawLottery(ctx context.Context, pending pendingLottery, n
 	return d, err
 }
 
-func takeLotteryTickets(ctx context.Context, tx *ledgerTx, pending pendingLottery) (tickets []lotteryTicket, err error) {
+func takeLotteryTickets(ctx context.Context, tx *ledgerTx, pending pendingDraw) (tickets []lotteryTicket, err error) {
 	rows, err := tx.QueryContext(ctx,
 		"DELETE FROM loteria_bilhetes WHERE chat = ? AND sorteio = ? RETURNING pessoa, jid, quantidade",
 		pending.chat.String(), pending.at.Unix(),

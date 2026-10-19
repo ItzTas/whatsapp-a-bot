@@ -15,15 +15,15 @@ import (
 func (b *bot) mochila(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := core.FirstMentionOrSender(evt).ToNonAD()
-	held, err := b.Wallets.inventory(ctx, chat, b.Account(ctx, person))
+	held, favorites, err := b.shelf(ctx, chat, b.Account(ctx, person))
 	if err != nil {
-		return fmt.Errorf("ler mochila: %w", err)
+		return err
 	}
-	_, err = b.SendMentions(ctx, chat, backpackText(person, held), []types.JID{person})
+	_, err = b.SendMentions(ctx, chat, backpackText(person, held, favorites), []types.JID{person})
 	return err
 }
 
-func backpackText(person types.JID, held []stack) string {
+func backpackText(person types.JID, held []stack, favorites map[string]bool) string {
 	if len(held) == 0 {
 		return fmt.Sprintf("🎒 A mochila de @%s tá vazia 🪹\n\n_Dá pra conseguir itens com !vasculhar, !pescar, !minerar e !catar, ou comprando na !loja_", person.User)
 	}
@@ -47,8 +47,8 @@ func backpackText(person types.JID, held []stack) string {
 	}
 	lines := []string{fmt.Sprintf("🎒 *Mochila de @%s*", person.User)}
 	lines = append(lines, categoryGroups(lots, func(l lot) item { return l.item }, func(l lot) string {
-		return fmt.Sprintf("#%d %s %dx %s %s%s · 🪙 %s", l.item.number(), rarities[l.item.rarity].emoji, l.grade.quantity, l.item.emoji,
-			l.item.name, l.grade.quality.tag(), core.Thousands(l.grade.quality.price(l.item.value)))
+		return fmt.Sprintf("#%d %s %dx %s %s%s%s · 🪙 %s", l.item.number(), rarities[l.item.rarity].emoji, l.grade.quantity, l.item.emoji,
+			l.item.name, l.grade.quality.tag(), favoriteMark(favorites[l.item.id]), core.Thousands(l.grade.quality.price(l.item.value)))
 	})...)
 	lines = append(lines, "", rarityLegend())
 	if graded {
@@ -57,8 +57,16 @@ func backpackText(person types.JID, held []stack) string {
 	lines = append(lines, "",
 		fmt.Sprintf("📦 %s, valendo %s", core.CountLabel(int(units), "item", "itens"), Coins(worth)),
 		fmt.Sprintf("_No mercado sairia tudo por %s. Manda !item <nome> pra ver o que cada um faz_", Coins(market)),
-		"_Pra vender vários de uma vez, manda os números com #: !vender #12 #40 #87_")
+		"_Pra vender vários de uma vez, manda os números com #: !vender #12 #40 #87_",
+		"_⭐ é favorito, que não sai em nenhuma venda (só as cópias no !vender duplicados). Favorita com !favoritar <item> ou !favoritar tudo_")
 	return strings.Join(lines, "\n")
+}
+
+func favoriteMark(favorite bool) string {
+	if !favorite {
+		return ""
+	}
+	return " ⭐"
 }
 
 func (b *bot) heldItem(ctx context.Context, chat types.JID, acc core.Account, name string) (item, int64, string, error) {
@@ -133,6 +141,9 @@ func (b *bot) usar(ctx context.Context, evt *events.Message) error {
 	if problem != "" {
 		return b.SendText(ctx, chat, problem)
 	}
+	if it.graft != nil {
+		return b.implantSurgery(ctx, evt, *it.graft)
+	}
 	if it.use == "" {
 		return b.SendText(ctx, chat, unusableText(it))
 	}
@@ -194,6 +205,9 @@ func (b *bot) boxLuck(ctx context.Context, chat types.JID, acc core.Account, it 
 }
 
 func effectText(it item, e itemEffect) string {
+	if e.prize.rarity == primordial {
+		return fmt.Sprintf("\n\n⚫ *PRIMORDIAL!* Saiu %s, mais raro que qualquer relíquia\n%s\n✨ %s", e.prize.label(), e.prize.summary(), perk(e.prize))
+	}
 	if e.prize.rarity == relic {
 		return fmt.Sprintf("\n\n🏛️ *RELÍQUIA!* Saiu %s, uma das coisas mais raras que existem\n%s", e.prize.label(), e.prize.summary())
 	}

@@ -17,16 +17,17 @@ import (
 
 const (
 	presidentTaxPercent   = 5
-	presidentAid          = 200
+	presidentAid          = 500
 	presidentBoxItem      = "caixa-misteriosa"
 	presidentPardons      = 2
-	presidentSeizePercent = 10
+	presidentSeizePercent = 7
 	workDecreeMaxCut      = 50
 	workDecreeMaxRaise    = 20
 	decreeSwing           = 50
 	shopTaxDecreeMax      = 20
 	pixDecreeMax          = 10
 	betTaxDecreeMax       = 10
+	casinoDecreeMaxRaise  = 20
 	interestDecreeMax     = 10
 	savingsTaxDecreeMax   = 50
 	bailTaxDecreeMax      = 30
@@ -34,7 +35,6 @@ const (
 	stockDecreeSwing      = 30
 	curfewPenalty         = 0.15
 	termOverText          = "🏛️ O mandato acabou bem agora, então o decreto não valeu. Só quem ganhar a próxima eleição (!votar) baixa decreto de novo"
-	casinoClosedText      = "🚫🎰 O cassino tá fechado por decreto do presidente. Só abre de novo quando o decreto for revogado ou cair"
 )
 
 var errDecreeIdle = errors.New("decreto sem efeito")
@@ -164,32 +164,21 @@ var (
 		syntax:  "!decreto extracao -30", about: "muda a espera do !pescar, do !minerar, do !vasculhar, do !catar e dos !empregados",
 	}
 	casinoDecree = percentDecree{
-		names: []string{"cassino", "premio", "premios"}, column: "cassino_pct", lo: -decreeSwing, hi: decreeSwing, popular: true,
-		raised: "o cassino paga %d%% mais nos prêmios", lowered: "o cassino paga %d%% menos nos prêmios",
-		revoked: "o cassino volta a pagar os prêmios normais",
-		syntax:  "!decreto cassino 20", about: "muda o lucro de quem ganha no !apostar, !cassino, !blackjack, !crash, !corrida e !roleta. Vale o decreto da hora da aposta",
+		names: []string{"cassino", "premio", "premios", "apostas", "aposta"}, column: "cassino_pct", lo: -betTaxDecreeMax, hi: casinoDecreeMaxRaise, popular: true,
+		raised:  "o cassino paga %d%% mais nos prêmios",
+		lowered: "o cassino cobra %d%% de taxa pro presidente: quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou",
+		revoked: "o cassino volta ao normal, sem prêmio a mais nem taxa",
+		syntax:  "!decreto cassino 20", about: "mexe no " + casinoGames + ": positivo aumenta o lucro de quem ganha e negativo cobra uma taxa que vai pro bolso do presidente, em que quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou. Vale o decreto da hora da aposta (dá pra mandar !decreto imposto aposta 5 também)",
 	}
-	betTaxDecree = percentDecree{
-		names: []string{"apostas", "aposta", "impostoaposta", "impostoapostas", "taxaaposta", "taxaapostas"}, column: "apostas_pct", hi: betTaxDecreeMax,
-		raised:  "o cassino cobra %d%% de taxa pro presidente: quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou",
-		revoked: "as apostas do cassino voltam a não pagar taxa",
-		syntax:  "!decreto apostas 5", about: "cobra uma taxa no !apostar, !cassino, !blackjack, !crash, !corrida e !roleta, que vai pro bolso do presidente: quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou",
-	}
-	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, casinoDecree, betTaxDecree}
+	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, casinoDecree}
 
-	betsDecree = toggleDecree{
-		names: []string{"bets", "jogatina"}, column: "cassino_fechado", emoji: "🚫🎰",
-		effect:  "o cassino fica fechado (nada de !apostar, !cassino, !blackjack, !crash, !corrida nem aposta no !roleta)",
-		revoked: "o cassino reabriu. Façam suas apostas 🎰",
-		syntax:  "!decreto bets", about: "fecha (ou reabre) o cassino: ninguém começa aposta no !apostar, !cassino, !blackjack, !crash, !corrida nem no !roleta. Quem já tava numa rodada termina ela",
-	}
 	curfewDecree = toggleDecree{
 		names: []string{"recolher", "toque", "toquederecolher"}, column: "toque_recolher", emoji: "🌃",
 		effect:  fmt.Sprintf("vale o toque de recolher (!roubar, !furtar, !sequestrar, !matar e !assalto com %d%% menos chance)", percent(curfewPenalty)),
 		revoked: "acabou o toque de recolher 🌅",
 		syntax:  "!decreto recolher", about: fmt.Sprintf("liga (ou desliga) o toque de recolher: !roubar, !furtar, !sequestrar, !matar e !assalto ficam com %d%% menos chance", percent(curfewPenalty)),
 	}
-	toggleDecrees = []toggleDecree{betsDecree, curfewDecree}
+	toggleDecrees = []toggleDecree{curfewDecree}
 
 	taxOnce = onceDecree{
 		names: []string{"imposto", "impostos", "taxar"}, column: "imposto_cobrado", limit: 1, label: "imposto",
@@ -441,6 +430,12 @@ func (p presidency) incomeLevy(acc core.Account) PixLevy {
 	return p.levy(incomeTaxDecree, acc)
 }
 
+func (p presidency) casinoLevy(acc core.Account) PixLevy {
+	levy := p.levy(casinoDecree, acc)
+	levy.percent = max(-levy.percent, 0)
+	return levy
+}
+
 func (p presidency) levy(pd percentDecree, payers ...core.Account) PixLevy {
 	for _, payer := range payers {
 		if payer.Key == p.president.Key {
@@ -507,6 +502,10 @@ func (b *bot) decrees() map[string]decree {
 			runs[name] = run
 		}
 	}
+	taxed := taxedRun(runs[casinoDecree.names[0]])
+	for _, name := range []string{"impostoaposta", "impostoapostas", "taxaaposta", "taxaapostas"} {
+		runs[name] = taxed
+	}
 	for _, td := range toggleDecrees {
 		run := b.toggleDecreeRun(td)
 		for _, name := range td.names {
@@ -531,6 +530,15 @@ func (b *bot) decrees() map[string]decree {
 		}
 	}
 	return runs
+}
+
+func taxedRun(run decree) decree {
+	return func(ctx context.Context, call decreeCall) (string, error) {
+		if len(call.args) > 0 && !strings.HasPrefix(call.args[0], "-") {
+			call.args = append([]string{"-" + call.args[0]}, call.args[1:]...)
+		}
+		return run(ctx, call)
+	}
 }
 
 func percentDecreeHelp(revokeHint string) []core.Usage {

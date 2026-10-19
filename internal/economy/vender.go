@@ -91,8 +91,10 @@ func parseCategorySale(text string) (string, bool) {
 	return strings.Join(fields[2:], " "), true
 }
 
+type salePick func(held []stack, favorites map[string]bool, percent int64) ([]marketSale, []string)
+
 type bulkSale struct {
-	pick func(held []stack, percent int64) ([]marketSale, []string)
+	pick salePick
 	hint string
 }
 
@@ -105,7 +107,7 @@ func parseBulkSale(text string) (bulkSale, bool) {
 		pick: salesWhere(func(it item) bool { return effectPerk(it) == "" && !it.pet }, "Você não tem nenhuma bugiganga na mochila"),
 		hint: "_Bugiganga é o que não tem efeito de verdade: o que não tem \"Pra que serve\", os presentes e o que o !usar só faz graça (comida, Nokia, Tamagotchi...). Os bichinhos ficam em casa_",
 	}
-	duplicates := bulkSale{pick: duplicateSales, hint: "_Fica 1 de cada item na mochila, sempre o de melhor qualidade_"}
+	duplicates := bulkSale{pick: duplicateSales, hint: "_Fica 1 de cada item na mochila, sempre o de melhor qualidade, e isso vale até pros favoritos ⭐_"}
 	modes := map[string]bulkSale{
 		"inuteis": useless, "inutil": useless, "sobras": useless,
 		"bugigangas": trinkets, "bugiganga": trinkets, "tralhas": trinkets,
@@ -140,7 +142,7 @@ func parseItemNumbers(text string) ([]int, bool) {
 }
 
 func (b *bot) sellNumbered(ctx context.Context, evt *events.Message, numbers []int) error {
-	pick := func(held []stack, percent int64) ([]marketSale, []string) {
+	pick := func(held []stack, favorites map[string]bool, percent int64) ([]marketSale, []string) {
 		var (
 			sales    []marketSale
 			problems []string
@@ -151,7 +153,7 @@ func (b *bot) sellNumbered(ctx context.Context, evt *events.Message, numbers []i
 				continue
 			}
 			seen[n] = true
-			sale, problem := numberedSale(n, held, percent)
+			sale, problem := numberedSale(n, held, favorites, percent)
 			if problem != "" {
 				problems = append(problems, problem)
 				continue
@@ -172,19 +174,24 @@ func (b *bot) sellCategory(ctx context.Context, evt *events.Message, kind string
 		}
 		return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Qual tipo? Manda assim: !vender tipo pesca\n\nOs tipos são os mesmos da !mochila:\n"+strings.Join(names, "\n"))
 	}
-	pick := func(held []stack, percent int64) ([]marketSale, []string) {
-		return categorySales(c, held, percent)
+	pick := func(held []stack, favorites map[string]bool, percent int64) ([]marketSale, []string) {
+		return categorySales(c, held, favorites, percent)
 	}
 	return b.sellBatch(ctx, evt, pick, "_Os tipos são os mesmos da !mochila, e o !item <tipo> mostra o que cai em cada um_")
 }
 
-func categorySales(c int, held []stack, percent int64) ([]marketSale, []string) {
+func categorySales(c int, held []stack, favorites map[string]bool, percent int64) ([]marketSale, []string) {
 	var (
 		sales    []marketSale
 		problems []string
+		kept     []item
 	)
 	for _, s := range held {
 		if s.item.category() != c {
+			continue
+		}
+		if favorites[s.item.id] {
+			kept = append(kept, s.item)
 			continue
 		}
 		if s.item.illegal {
@@ -193,28 +200,36 @@ func categorySales(c int, held []stack, percent int64) ([]marketSale, []string) 
 		}
 		sales = append(sales, marketSale{item: s.item, quantity: s.quantity, percent: percent})
 	}
-	if len(sales)+len(problems) == 0 {
+	if len(sales)+len(problems)+len(kept) == 0 {
 		problems = append(problems, "Você não tem nada de "+itemCategories[c].heading()+" na mochila")
 	}
-	return sales, problems
+	return sales, append(problems, favoritesKept(kept)...)
 }
 
-func salesWhere(sellable func(item) bool, empty string) func(held []stack, percent int64) ([]marketSale, []string) {
-	return func(held []stack, percent int64) ([]marketSale, []string) {
-		var sales []marketSale
+func salesWhere(sellable func(item) bool, empty string) salePick {
+	return func(held []stack, favorites map[string]bool, percent int64) ([]marketSale, []string) {
+		var (
+			sales []marketSale
+			kept  []item
+		)
 		for _, s := range held {
-			if sellable(s.item) && !s.item.illegal {
-				sales = append(sales, marketSale{item: s.item, quantity: s.quantity, percent: percent})
+			if !sellable(s.item) || s.item.illegal {
+				continue
 			}
+			if favorites[s.item.id] {
+				kept = append(kept, s.item)
+				continue
+			}
+			sales = append(sales, marketSale{item: s.item, quantity: s.quantity, percent: percent})
 		}
-		if len(sales) == 0 {
+		if len(sales)+len(kept) == 0 {
 			return nil, []string{empty}
 		}
-		return sales, nil
+		return sales, favoritesKept(kept)
 	}
 }
 
-func duplicateSales(held []stack, percent int64) ([]marketSale, []string) {
+func duplicateSales(held []stack, _ map[string]bool, percent int64) ([]marketSale, []string) {
 	var (
 		sales    []marketSale
 		problems []string
@@ -235,22 +250,23 @@ func duplicateSales(held []stack, percent int64) ([]marketSale, []string) {
 	return sales, problems
 }
 
-func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick func(held []stack, percent int64) ([]marketSale, []string), hint string) error {
+func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick salePick, hint string) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
 	var (
-		held []stack
-		job  Profession
+		held      []stack
+		favorites map[string]bool
+		job       Profession
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { held, err = b.Wallets.inventory(gctx, chat, acc); return err })
+	g.Go(func() (err error) { held, favorites, err = b.shelf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("preparar venda em lote: %w", err)
 	}
 
-	sales, problems := pick(held, job.marketPercent())
+	sales, problems := pick(held, favorites, job.marketPercent())
 	if len(sales) == 0 {
 		return b.SendText(ctx, chat, "Nada foi vendido 🤷\n"+strings.Join(problems, "\n")+"\n\n"+hint)
 	}
@@ -268,6 +284,7 @@ func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick func(held
 		total += sale.payout
 		lines = append(lines, fmt.Sprintf("#%d %s%s · %s", sale.item.number(), quantityLabel(sale.item, sale.quantity), gradesLabel(sale.grades), Coins(sale.payout)))
 	}
+	b.advance(chat, acc, saleGoal, total)
 	lines = append(lines, "", "💵 Total: "+Coins(total)+marketBonus(job, person)+mythicNote(sold), "💰 Saldo: "+Coins(balance))
 	if len(problems) > 0 {
 		lines = append(lines, "", "⚠️ Ficou de fora:")
@@ -277,7 +294,7 @@ func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick func(held
 	return err
 }
 
-func numberedSale(n int, held []stack, percent int64) (marketSale, string) {
+func numberedSale(n int, held []stack, favorites map[string]bool, percent int64) (marketSale, string) {
 	it, ok := itemByNumber(n)
 	if !ok {
 		return marketSale{}, fmt.Sprintf("#%d não é o número de nenhum item", n)
@@ -285,6 +302,9 @@ func numberedSale(n int, held []stack, percent int64) (marketSale, string) {
 	have := quantityOf(held, it.id)
 	if have == 0 {
 		return marketSale{}, fmt.Sprintf("#%d %s não tá na sua mochila", n, it.label())
+	}
+	if favorites[it.id] {
+		return marketSale{}, fmt.Sprintf("#%d ⭐ %s tá nos favoritos (!desfavoritar pra vender)", n, it.label())
 	}
 	if it.illegal {
 		return marketSale{}, fmt.Sprintf("#%d %s o mercado não compra, só o !mercadonegro vender", n, it.label())
@@ -312,9 +332,9 @@ func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 	acc := b.Account(ctx, person)
 	q := parseItemQuery(core.MessageText(evt.Message))
 	if q.name == "" {
-		return b.SendText(ctx, chat, fmt.Sprintf("Diz o que quer vender: !vender todynho (ou !vender todynho 3, ou tudo). Pra vender vários de uma vez, usa os números da !mochila com #: !vender #12 #40 #87, ou vende um tipo inteiro: !vender tipo pesca, ou tudo que não serve pra nada: !vender inuteis (ou !vender bugigangas, que leva junto o que o !usar só faz graça), ou o que tá repetido: !vender duplicados. O mercado paga %d%% do valor, e com !vender @pessoa todynho 50 você vende pra alguém do grupo pelo preço que quiser", marketSalePercent))
+		return b.SendText(ctx, chat, fmt.Sprintf("Diz o que quer vender: !vender todynho (ou !vender todynho 3, ou tudo). Pra vender vários de uma vez, usa os números da !mochila com #: !vender #12 #40 #87, ou vende um tipo inteiro: !vender tipo pesca, ou tudo que não serve pra nada: !vender inuteis (ou !vender bugigangas, que leva junto o que o !usar só faz graça), ou o que tá repetido: !vender duplicados. Item favorito (!favoritar) só sai no !vender duplicados. O mercado paga %d%% do valor, e com !vender @pessoa todynho 50 você vende pra alguém do grupo pelo preço que quiser", marketSalePercent))
 	}
-	it, have, problem, err := b.heldItem(ctx, chat, acc, q.name)
+	it, have, problem, err := b.heldForSale(ctx, chat, acc, q.name)
 	if err != nil {
 		return err
 	}
@@ -340,6 +360,7 @@ func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return fmt.Errorf("vender item: %w", err)
 	}
+	b.advance(chat, acc, saleGoal, sold[0].payout)
 	buyers := []string{
 		"pro Seu Zé do ferro-velho", "pra uma tia do brechó", "pra um gringo perdido na feira", "pro cara da OLX que pediu desconto",
 		"pro agiota do bairro", "pra um colecionador meio estranho", "pro dono do bar da esquina", "pra um tiozinho no Marketplace",
@@ -366,7 +387,7 @@ func (b *bot) offerItem(ctx context.Context, evt *events.Message, buyer types.JI
 	price := q.numbers[len(q.numbers)-1]
 	q.numbers = q.numbers[:len(q.numbers)-1]
 
-	it, have, problem, err := b.heldItem(ctx, chat, sellerAcc, q.name)
+	it, have, problem, err := b.heldForSale(ctx, chat, sellerAcc, q.name)
 	if err != nil {
 		return err
 	}

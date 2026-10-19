@@ -78,11 +78,8 @@ func (b *bot) fugir(ctx context.Context, evt *events.Message) error {
 func (b *bot) helpEscape(ctx context.Context, chat types.JID, job Profession, helper, friend types.JID, helperAcc, friendAcc core.Account) error {
 	odds := rescueOdds{
 		getaway: getawayOdds{jail: job.escapeOdds(), captivity: job.breakoutOdds()},
-		caught:  rescueCaught,
+		caught:  job.flagrantOdds(rescueCaught),
 		jail:    Profession{jailTime: baseJail}.sentence(job),
-	}
-	if job.slipsAway() {
-		odds.caught = 0
 	}
 	r, err := b.Wallets.rescue(ctx, chat, helperAcc, friendAcc, odds, time.Now())
 	if err != nil {
@@ -93,7 +90,7 @@ func (b *bot) helpEscape(ctx context.Context, chat types.JID, job Profession, he
 }
 
 func (p Profession) escapeOdds() float64 {
-	return clampChance(escapeChance + p.escapeBonus)
+	return clampChance(escapeChance + p.escapeBonus - p.celebrity().escape)
 }
 
 func (p Profession) breakoutOdds() float64 {
@@ -110,7 +107,7 @@ func escapeText(e escape, job Profession, user string) string {
 	if e.wait > 0 {
 		return fmt.Sprintf("👮 Os guardas ainda tão de olho em @%s depois da última tentativa. Espera %s pra tentar fugir de novo (ou sai em %s)", user, core.FormatWait(e.wait), core.FormatWait(e.left))
 	}
-	edge := escapeEdgeText(job, job.escapeBonus, job.escapeOdds())
+	edge := escapeEdgeText(job, job.escapeBonus, job.escapeOdds()) + recognizedText(job, user)
 	if e.success {
 		return fmt.Sprintf("🏃 @%s fugiu da cadeia! Mas fuga também é crime: a polícia pode !prender de novo nas próximas %s", user, core.FormatWait(crimeWindow)) + edge
 	}
@@ -149,7 +146,7 @@ func rescueText(r rescue, job Profession, helper, friend types.JID) string {
 	if r.captive {
 		return captiveRescueText(r, job, helper, friend)
 	}
-	edge := escapeEdgeText(job, job.escapeBonus, job.escapeOdds())
+	edge := escapeEdgeText(job, job.escapeBonus, job.escapeOdds()) + recognizedText(job, helper.User)
 	if r.success {
 		plans := []string{
 			"escondeu uma lima dentro de um bolo de fubá e serrou as grades de",

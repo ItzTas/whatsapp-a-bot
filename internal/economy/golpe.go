@@ -265,7 +265,7 @@ func (a coupAttempt) odds() float64 {
 	if a.godDefending() {
 		return 0
 	}
-	chance := coupChance + coupHelp*float64(len(a.plotters)-len(a.guards)-1) - a.head.guard - a.head.curfew()
+	chance := coupChance + coupHelp*float64(len(a.plotters)-len(a.guards)-1) - a.head.violenceGuard() - a.head.curfew()
 	for _, r := range a.plotters {
 		chance += r.job.arsenal().crime
 	}

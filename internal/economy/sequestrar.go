@@ -38,6 +38,7 @@ type kidnapping struct {
 	fine     int64
 	jail     time.Duration
 	jailFine int64
+	scuffle  scuffle
 }
 
 type kidnapOdds struct {
@@ -45,6 +46,7 @@ type kidnapOdds struct {
 	success float64
 	caught  float64
 	jail    time.Duration
+	risk    crimeRisk
 }
 
 type captivity struct {
@@ -84,30 +86,40 @@ func (b *bot) sequestrar(ctx context.Context, evt *events.Message) error {
 	odds := kidnapOdds{
 		lawful:  owed != nil,
 		success: kidnapperJob.kidnapOdds(victimJob, owed),
-		caught:  victimJob.caughtOdds(),
+		caught:  kidnapperJob.flagrantOdds(victimJob.caughtOdds()),
 		jail:    Profession{jailTime: baseJail}.sentence(kidnapperJob),
+		risk:    kidnapRisk.by(kidnapperJob).on(victimJob),
 	}
-	if kidnapperJob.slipsAway() || odds.lawful {
+	if odds.lawful {
 		odds.caught = 0
 	}
 	k, err := b.Wallets.kidnap(ctx, chat, kidnapperAcc, victimAcc, kidnapperJob.kidnapCooldown(), kidnapperJob.abuse(kidnapAbuse), odds, time.Now())
 	if err != nil {
 		return fmt.Errorf("sequestrar: %w", err)
 	}
-	people := []types.JID{kidnapper, victim}
+	hurtText, freed := k.scuffle.text(kidnapper, victim)
+	people := append([]types.JID{kidnapper, victim}, freed...)
 	abused := k.abuse.note("Abusou do poder e sequestrou sem esperar a poeira baixar")
 	if k.lawful {
 		abused += debtCollectionText(owed)
 	}
 	if k.success {
-		return b.SendGIF(ctx, chat, "sequestrar", kidnapCaption(kidnapperJob, victimJob, kidnapper, victim, k.lawful)+abused, people)
+		if err := b.SendGIF(ctx, chat, "sequestrar", kidnapCaption(kidnapperJob, victimJob, kidnapper, victim, k.lawful)+abused+hurtText, people); err != nil || k.scuffle.criminal.died {
+			return err
+		}
+		b.stirEvent(ctx, evt, eventSpot{place: "!sequestrar", won: true, victim: victim})
+		return nil
 	}
-	_, err = b.SendMentions(ctx, chat, kidnapText(k, victimJob, kidnapper, victim)+abused, people)
-	return err
+	_, err = b.SendMentions(ctx, chat, kidnapText(k, victimJob, kidnapper, victim)+abused+hurtText, people)
+	if err != nil || k.wait > 0 || k.holding || k.taken || k.jailed || k.jail > 0 || k.scuffle.criminal.died {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!sequestrar", victim: victim})
+	return nil
 }
 
 func (p Profession) kidnapOdds(victim Profession, owed *debt) float64 {
-	return clampChance(kidnapChance + p.kidnapBonus + p.collectionEdge(owed) - victim.guard - p.curfew())
+	return clampChance(kidnapChance + p.kidnapBonus + p.collectionEdge(owed) - victim.violenceGuard() - p.curfew())
 }
 
 func (p Profession) caughtOdds() float64 {
@@ -125,15 +137,15 @@ func (p Profession) kidnapCooldown() cooldown {
 }
 
 func (p Profession) ransomRange(hostage Profession) (int64, int64) {
-	return p.ransomOf(hostage.min), p.ransomOf(hostage.max)
+	return p.ransomOf(hostage, hostage.min), p.ransomOf(hostage, hostage.max)
 }
 
-func (p Profession) ransomOf(earnings int64) int64 {
-	return earnings * hostagePriceFactor * (100 + p.ransomBonus) / 100
+func (p Profession) ransomOf(hostage Profession, earnings int64) int64 {
+	return earnings * hostagePriceFactor * (100 + p.ransomBonus + hostage.celebrity().ransom) / 100
 }
 
 func (p Profession) ransom(hostage Profession) int64 {
-	return p.ransomOf(hostage.min + rand.Int64N(hostage.max-hostage.min+1))
+	return p.ransomOf(hostage, hostage.min+rand.Int64N(hostage.max-hostage.min+1))
 }
 
 func kidnapCaption(kidnapperJob, victimJob Profession, kidnapper, victim types.JID, lawful bool) string {
@@ -157,7 +169,7 @@ func kidnapCaption(kidnapperJob, victimJob Profession, kidnapper, victim types.J
 		core.PickOne(hideouts),
 		victim.User, core.FormatWait(hostageHold),
 		victim.User, victimJob.title, Coins(low), Coins(high),
-	)
+	) + fameRansomText(victimJob, victim.User)
 	if lawful {
 		return text
 	}
@@ -306,9 +318,10 @@ func saleCaption(sellerJob, hostageJob Profession, seller types.JID, h hostage, 
 		"um fazendeiro que precisava de espantalho", "um streamer, pra ser moderador sem salário",
 	}
 	hostageUser := h.acc.JID.User
+	low, high := sellerJob.ransomRange(hostageJob)
 	lines := []string{
 		fmt.Sprintf("🤝 @%s vendeu @%s pra %s por %s!", seller.User, hostageUser, core.PickOne(buyers), Coins(price)),
-		fmt.Sprintf("💼 @%s %s, então valia de %s a %s", hostageUser, hostageJob.title, Coins(sellerJob.ransomOf(hostageJob.min)), Coins(sellerJob.ransomOf(hostageJob.max))),
+		fmt.Sprintf("💼 @%s %s, então valia de %s a %s", hostageUser, hostageJob.title, Coins(low), Coins(high)) + fameRansomText(hostageJob, hostageUser),
 	}
 	if sellerJob.ransomBonus > 0 {
 		lines = append(lines, fmt.Sprintf("📈 @%s %s e conhece os compradores certos: vendeu %d%% mais caro", seller.User, sellerJob.title, sellerJob.ransomBonus))
@@ -328,9 +341,9 @@ func (b *bot) holdIfHostage(ctx context.Context, evt *events.Message) bool {
 	if c.left == 0 {
 		return false
 	}
-	text := fmt.Sprintf("🪢 @%s tá em cativeiro e só escapa em %s. Até lá nada de apostar, roubar, furtar nem sequestrar, a não ser que consiga !fugir, que a polícia !prender quem sequestrou ou que alguém pague o !resgate", person.User, core.FormatWait(c.left))
+	text := fmt.Sprintf("🪢 @%s tá em cativeiro e só escapa em %s. Até lá nada de apostar, roubar, furtar, sequestrar nem trocar de profissão, a não ser que consiga !fugir, que a polícia !prender quem sequestrou ou que alguém pague o !resgate", person.User, core.FormatWait(c.left))
 	if c.sold {
-		text = fmt.Sprintf("📦 @%s foi vendido(a) no mercado clandestino e tá trabalhando pra quem comprou. Só sai em %s, e até lá nada de apostar, roubar, furtar nem sequestrar, a não ser que consiga !fugir ou alguém pague o !resgate", person.User, core.FormatWait(c.left))
+		text = fmt.Sprintf("📦 @%s foi vendido(a) no mercado clandestino e tá trabalhando pra quem comprou. Só sai em %s, e até lá nada de apostar, roubar, furtar, sequestrar nem trocar de profissão, a não ser que consiga !fugir ou alguém pague o !resgate", person.User, core.FormatWait(c.left))
 	}
 	if _, err := b.SendMentions(ctx, chat, text, []types.JID{person}); err != nil {
 		b.Client.Log.Errorf("avisar que tá em cativeiro: %v", err)
@@ -377,22 +390,12 @@ func (s *walletStore) kidnap(ctx context.Context, chat types.JID, kidnapper, vic
 				return err
 			}
 		}
-		if k.success = rand.Float64() < odds.success; k.success {
-			_, err = tx.ExecContext(ctx,
-				"INSERT INTO sequestros (chat, refem, refem_jid, sequestrador, ate) VALUES (?, ?, ?, ?, ?)",
-				chat.String(), victim.Key, victim.JID.String(), kidnapper.Key, now.Add(hostageHold).Unix(),
-			)
+		k.success = rand.Float64() < odds.success
+		if err := k.settle(ctx, tx, chat, kidnapper, victim, now); err != nil {
 			return err
 		}
-		var balance int64
-		err = tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), kidnapper.Key).Scan(&balance)
-		if err != nil {
+		if k.scuffle, err = odds.risk.clash(ctx, tx, chat, kidnapper, victim, k.success, k.success, now); err != nil || k.success || k.scuffle.criminal.died {
 			return err
-		}
-		if k.fine = balance * (10 + rand.Int64N(11)) / 100; k.fine > 0 {
-			if err := moveCoins(ctx, tx, chat, kidnapper, victim, k.fine); err != nil {
-				return err
-			}
 		}
 		if rand.Float64() >= odds.caught {
 			return nil
@@ -409,6 +412,25 @@ func (s *walletStore) kidnap(ctx context.Context, chat types.JID, kidnapper, vic
 		return err
 	})
 	return k, err
+}
+
+func (k *kidnapping) settle(ctx context.Context, tx *ledgerTx, chat types.JID, kidnapper, victim core.Account, now time.Time) error {
+	if k.success {
+		_, err := tx.ExecContext(ctx,
+			"INSERT INTO sequestros (chat, refem, refem_jid, sequestrador, ate) VALUES (?, ?, ?, ?, ?)",
+			chat.String(), victim.Key, victim.JID.String(), kidnapper.Key, now.Add(hostageHold).Unix(),
+		)
+		return err
+	}
+	var balance int64
+	err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), kidnapper.Key).Scan(&balance)
+	if err != nil {
+		return err
+	}
+	if k.fine = balance * (10 + rand.Int64N(11)) / 100; k.fine == 0 {
+		return nil
+	}
+	return moveCoins(ctx, tx, chat, kidnapper, victim, k.fine)
 }
 
 func (s *walletStore) captivity(ctx context.Context, chat types.JID, acc core.Account, now time.Time) (captivity, error) {

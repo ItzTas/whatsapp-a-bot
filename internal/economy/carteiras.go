@@ -4,10 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math/rand/v2"
 	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow/types"
+)
+
+const (
+	alarmChance  = 0.6
+	alarmGangCut = 0.15
 )
 
 var (
@@ -41,8 +47,10 @@ type robbery struct {
 	abuse   powerAbuse
 	poor    bool
 	alarmed bool
+	silent  bool
 	success bool
 	amount  int64
+	scuffle scuffle
 }
 
 type workday struct {
@@ -50,6 +58,7 @@ type workday struct {
 	paid    int64
 	tax     int64
 	tithe   tithe
+	pulled  int64
 	abuse   powerAbuse
 	injury  injury
 	garnish debtGarnish
@@ -93,7 +102,7 @@ func (s *walletStore) Richest(ctx context.Context, chat types.JID, limit int) (w
 	return wallets, rows.Err()
 }
 
-func (s *walletStore) claim(ctx context.Context, chat types.JID, acc core.Account, cd cooldown, amount int64, levy PixLevy, now time.Time) (w workday, err error) {
+func (s *walletStore) claim(ctx context.Context, chat types.JID, acc core.Account, cd cooldown, amount int64, gift item, levy PixLevy, now time.Time) (w workday, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
@@ -118,6 +127,11 @@ func (s *walletStore) claim(ctx context.Context, chat types.JID, acc core.Accoun
 		if err != nil {
 			return err
 		}
+		if gift.id != "" {
+			if err := addItems(ctx, tx, chat, acc, gift.id, 1); err != nil {
+				return err
+			}
+		}
 		return payLevy(ctx, tx, chat, levy, w.tax)
 	})
 	return w, err
@@ -139,7 +153,10 @@ func (s *walletStore) work(ctx context.Context, chat types.JID, acc core.Account
 		if w.tithe, err = payTithe(ctx, tx, chat, acc, max(w.paid, 0)); err != nil {
 			return err
 		}
-		net := w.paid - w.tax - w.tithe.paid
+		if w.pulled, err = pullGravity(ctx, tx, chat, acc, max(w.paid, 0), now); err != nil {
+			return err
+		}
+		net := w.paid - w.tax - w.tithe.paid - w.pulled
 		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", net, chat.String(), acc.Key)
 		if err != nil {
 			return err
@@ -173,6 +190,7 @@ type standing struct {
 	church     string
 	doctrine   string
 	temple     int
+	tithe      int64
 }
 
 func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Account) (st standing, err error) {
@@ -183,11 +201,11 @@ func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Acc
 		        c.imovel, c.seguranca_ate > ?, c.propina_ate > ?,
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END,
-		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0)
+		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0), COALESCE(i.dizimo, ?)
 		 FROM carteiras c LEFT JOIN igrejas i ON i.id = c.igreja
 		 WHERE c.chat = ? AND c.pessoa = ?`,
-		now, now, now, curseKind, now, now, chat.String(), acc.Key,
-	).Scan(&st.profession, &st.president, &st.estate, &st.guarded, &st.bribed, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple)
+		now, now, now, curseKind, now, now, unsetTithe, chat.String(), acc.Key,
+	).Scan(&st.profession, &st.president, &st.estate, &st.guarded, &st.bribed, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple, &st.tithe)
 	if errors.Is(err, sql.ErrNoRows) {
 		return standing{}, nil
 	}
@@ -291,7 +309,7 @@ func (s *walletStore) payShare(ctx context.Context, chat types.JID, payer core.A
 	return each, err
 }
 
-func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, abuse abuser, now time.Time, minVictim int64,
+func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, abuse abuser, risk crimeRisk, now time.Time, minVictim int64,
 	outcome func(thiefBalance, victimBalance int64) (success bool, amount int64)) (r robbery, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range []core.Account{thief, victim} {
@@ -318,22 +336,38 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if err != nil {
 			return err
 		}
-		err = takeItems(ctx, tx, chat, victim, alarmItemID, 1)
-		if err == nil {
-			r.alarmed = true
-			return nil
-		}
-		if !errors.Is(err, errNoItems) {
+		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, alarmChance); err != nil {
 			return err
 		}
-
-		r.success, r.amount = outcome(thiefBalance, victimBalance)
-		if r.success {
-			return moveCoins(ctx, tx, chat, victim, thief, r.amount)
+		if err := r.settle(ctx, tx, chat, thief, victim, thiefBalance, victimBalance, outcome); err != nil {
+			return err
 		}
-		return moveCoins(ctx, tx, chat, thief, victim, r.amount)
+		r.scuffle, err = risk.clash(ctx, tx, chat, thief, victim, r.success, r.success, now)
+		return err
 	})
 	return r, err
+}
+
+func (r *robbery) settle(ctx context.Context, tx *ledgerTx, chat types.JID, thief, victim core.Account, thiefBalance, victimBalance int64,
+	outcome func(thiefBalance, victimBalance int64) (success bool, amount int64)) error {
+	if r.alarmed {
+		return nil
+	}
+	if r.success, r.amount = outcome(thiefBalance, victimBalance); r.success {
+		return moveCoins(ctx, tx, chat, victim, thief, r.amount)
+	}
+	return moveCoins(ctx, tx, chat, thief, victim, r.amount)
+}
+
+func soundAlarm(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Account, chance float64) (fired, silent bool, err error) {
+	held, err := gradesIn(ctx, tx, backpackTable, chat, victim, alarmItemID)
+	if err != nil || len(held) == 0 {
+		return false, false, err
+	}
+	if rand.Float64() >= chance {
+		return false, true, nil
+	}
+	return true, false, takeItems(ctx, tx, chat, victim, alarmItemID, 1)
 }
 
 func (s *walletStore) Savings(ctx context.Context, chat types.JID, acc core.Account) (sv Savings, found bool, err error) {

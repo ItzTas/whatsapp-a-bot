@@ -56,6 +56,7 @@ type flock struct {
 	leader   string
 	coffer   int64
 	temple   int
+	tithe    int64
 }
 
 type rebuild struct {
@@ -157,10 +158,10 @@ func leaderDraw(c church, found bool, acc core.Account, rest, usage string) (int
 
 func embezzleOddsFor(job Profession, amount, coffer int64) embezzleOdds {
 	odds := embezzleOdds{
-		caught: embezzleCaughtBase + embezzleCaughtScale*min(float64(amount)/float64(coffer), 1),
+		caught: job.flagrantOdds(embezzleCaughtBase + embezzleCaughtScale*min(float64(amount)/float64(coffer), 1)),
 		jail:   Profession{jailTime: baseJail}.sentence(job),
 	}
-	if job.slipsAway() || job.divine {
+	if job.divine {
 		odds.caught = 0
 	}
 	return odds
@@ -304,13 +305,18 @@ func embezzleText(e embezzlement, job Profession, amount int64, person types.JID
 func flockOf(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (flock, error) {
 	var f flock
 	err := tx.QueryRowContext(ctx,
-		"SELECT i.id, i.nome, i.doutrina, i.lider, i.cofre, i.templo FROM carteiras c JOIN igrejas i ON i.id = c.igreja WHERE c.chat = ? AND c.pessoa = ?",
-		chat.String(), acc.Key,
-	).Scan(&f.id, &f.name, &f.doctrine, &f.leader, &f.coffer, &f.temple)
+		"SELECT i.id, i.nome, i.doutrina, i.lider, i.cofre, i.templo, COALESCE(i.dizimo, ?) FROM carteiras c JOIN igrejas i ON i.id = c.igreja WHERE c.chat = ? AND c.pessoa = ?",
+		unsetTithe, chat.String(), acc.Key,
+	).Scan(&f.id, &f.name, &f.doctrine, &f.leader, &f.coffer, &f.temple, &f.tithe)
 	if errors.Is(err, sql.ErrNoRows) {
 		return flock{}, errNotFaithful
 	}
-	return f, err
+	if err != nil {
+		return flock{}, err
+	}
+	d, _ := doctrineByID(f.doctrine)
+	f.tithe = d.titheOr(f.tithe)
+	return f, nil
 }
 
 func ledFlock(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (flock, error) {

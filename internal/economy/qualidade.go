@@ -90,9 +90,9 @@ func worstQuality() quality {
 }
 
 func (it item) gradable() bool {
-	return it.gear == nil && it.prizes == nil && it.loot == nil && it.relicOdds == 0 && it.rarity != relic &&
+	return it.gear == nil && it.prizes == nil && it.loot == nil && it.relicOdds == 0 && it.rarity < relic &&
 		!it.luxury && !it.illegal && !it.pet && it.arms == nil && it.high == nil && it.flex == nil &&
-		it.bless == "" && it.hex == "" && it.trade == nil && it.resets == nil && it.heist == 0 && it.heal == 0
+		it.bless == "" && it.hex == "" && it.trade == nil && it.resets == nil && it.heist == 0 && it.heal == 0 && it.graft == nil && it.networks == nil
 }
 
 func worthOf(it item, grades []grade) int64 {

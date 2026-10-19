@@ -22,8 +22,28 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "daily",
 			Aliases:  []string{"diario"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!daily", fmt.Sprintf("pega de %d a %d moedas grátis, uma vez por dia 🎁", dailyMin, dailyMax)}},
+			Help:     []core.Usage{{"!daily", fmt.Sprintf("pega de %d a %d moedas grátis, uma vez por dia 🎁 Quem tem bichinho do !petshop às vezes ganha um item que ele traz", dailyMin, dailyMax)}},
 			Run:      b.daily,
+		},
+		{
+			Name:     "missoes",
+			Aliases:  []string{"missao", "metas"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!missoes", fmt.Sprintf("mostra as suas %d missões do dia 🎯 Cada pessoa tem as suas, tipo trabalhar umas vezes, ganhar no !cassino ou vender pro mercado, e elas trocam à meia-noite. A recompensa cai sozinha quando a missão fecha, e quem fecha as %d ainda leva mais %s e %s", missionsPerDay, missionsPerDay, Coins(missionBonus), missionPrize().label())},
+				{"!missoes @pessoa", "mostra as missões da pessoa marcada"},
+			},
+			Run: b.missoes,
+		},
+		{
+			Name:     "eventos",
+			Aliases:  []string{"evento", "aventuras"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!eventos", fmt.Sprintf("mostra o seu diário de eventos 📖 Em %d%% das vezes, o !trabalhar, o %s e os crimes soltam um evento: o bot conta uma situação e manda uma enquete, e só quem tá no evento escolhe o que fazer (também dá pra responder a mensagem com o número da opção). Cada escolha pode dar moeda, item, droga, ferimento, cadeia ou até morte, e quem não escolhe em %s fica parado e aceita o que vier. O diário mostra quantos eventos você já descobriu de cada tipo e os raros que já viveu", percent(eventChance), extractionCommands(), core.FormatWait(eventIdle))},
+				{"!eventos @pessoa", "mostra o diário de eventos da pessoa marcada"},
+			},
+			Run: b.eventos,
 		},
 		{
 			Name:     "trabalhar",
@@ -33,6 +53,35 @@ func (b *bot) economyCommands() []core.Command {
 			Run:      b.trabalhar,
 		},
 		{
+			Name:     "postar",
+			Aliases:  []string{"post", "postagem", "gravar"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!postar <rede>", fmt.Sprintf("posta no %s e ganha (ou perde) seguidores 📲 Dá pra postar a cada %s, numa rede por vez, e precisa de um aparelho na mochila (o 📱 Celular posta no TikTok e no Instagram, o 💻 Computador no YouTube e na Twitch, os dois na !loja). Cada rede tem o seu jeito: o TikTok viraliza e cancela mais, o YouTube cresce devagar e firme, o Instagram fica no meio e a Twitch perde seguidor rápido quando você some. Quanto rende depende da profissão: quem é de Arte e mídia alcança mais gente, e youtuber, streamer, influencer e mais alguns têm a rede deles (veja !profissao). Ficar famoso é muito difícil, e rede parada perde seguidor", platformNames(), core.FormatWait(postCooldown.every))},
+				{"!postar", "mostra as redes e o jeito de cada uma"},
+			},
+			Run: b.postar,
+		},
+		{
+			Name:     "fama",
+			Aliases:  []string{"seguidores", "famoso", "famosa"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!fama", "mostra seus seguidores em cada rede, o total e o seu nível de fama 🌟 Os níveis são " + fameTierList() + ". A partir de conhecido(a) no bairro já dá pra fazer !publi, mas fama tem preço: quem te sequestra vende mais caro, a polícia acredita mais em denúncia contra você e fugir da cadeia fica mais difícil, cada vez mais conforme o nível"},
+				{"!fama @pessoa", "mostra a fama da pessoa marcada"},
+			},
+			Run: b.fama,
+		},
+		{
+			Name:     "publi",
+			Aliases:  []string{"publicidade", "patrocinio", "publipost"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!publi", fmt.Sprintf("faz publicidade pros seus seguidores e ganha moedas 💼 Precisa de pelo menos %s no total (veja !fama). Quanto mais seguidor, maior a marca e o cachê, e o Instagram é a rede que paga melhor por seguidor. O cachê tem teto, que sobe com o nível de fama: vai de %s pra quem é %s até %s pra quem é %s. Dá pra fazer a cada %s, mas tem %d%% de chance da galera achar forçado e você perder de %d%% a %d%% dos seguidores", followerCount(fameTiers[1].min), Coins(fameTiers[1].ceiling), fameTiers[1].name, Coins(fameTiers[len(fameTiers)-1].ceiling), fameTiers[len(fameTiers)-1].name, core.FormatWait(sponsorCooldown.every), percent(sponsorBacklash), backlashMin, backlashMax)},
+			},
+			Run: b.publi,
+		},
+		{
 			Name:     "profissao",
 			Aliases:  []string{"profissoes", "emprego", "carreira"},
 			Category: core.EconomyCategory,
@@ -40,7 +89,7 @@ func (b *bot) economyCommands() []core.Command {
 				{"!profissao", fmt.Sprintf("mostra as %d profissões, separadas por área 💼 Cada uma tem seu efeito: umas roubam melhor, outras pescam sem vara, vendem mais caro, pagam menos pensão...", len(professions))},
 				{"!profissao <área>", "mostra quanto paga e o que tem de especial cada profissão da área, tipo !profissao crime"},
 				{"!profissao ver <nome>", "mostra os detalhes de uma profissão (só !profissao ver mostra a sua)"},
-				{"!profissao <nome>", "vira essa profissão. Dá pra trocar uma vez a cada " + core.FormatWait(professionChangeEvery)},
+				{"!profissao <nome>", "vira essa profissão. Dá pra trocar uma vez a cada " + core.FormatWait(professionChangeEvery) + ", e quem tá na cadeia ou em cativeiro não troca"},
 			},
 			Run: b.profissao,
 		},
@@ -84,7 +133,7 @@ func (b *bot) economyCommands() []core.Command {
 			Help: []core.Usage{
 				{"!crash <valor>", fmt.Sprintf("entra no foguete 🚀 A primeira aposta abre a rodada e o resto tem %s pra entrar. Depois ele decola, o multiplicador sobe até explodir e quem saca antes leva a aposta vezes o multiplicador", formatSeconds(crashWindow))},
 				{"!crash <valor> 2x", "entra já com saque automático quando chegar em 2x (também aceita 1.5x ou 1,5x)"},
-				{"sacar", "saca na hora com o multiplicador atual, antes de explodir (!crash sacar também funciona)"},
+				{"sacar", "saca na hora com o multiplicador atual, antes de explodir (!sacar e !crash sacar também funcionam)"},
 			},
 			Run:          b.crash,
 			BarredInJail: true,
@@ -104,7 +153,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "roubar",
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de 10%% a 30%% do saldo dela, se der errado paga indenização 🦹 Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tá protegido", core.FormatWait(robEvery))},
+				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de %d%% a %d%% do saldo dela, se der errado paga indenização 🦹 A porcentagem vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, então rico perde uma fatia bem menor (o valor de roubo aparece no !saldo). Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tem %d%% de chance de ele disparar e barrar o roubo", robLootMin, robLootMax, core.FormatWait(robEvery), percent(alarmChance))},
 			},
 			Run:          b.roubar,
 			BarredInJail: true,
@@ -124,7 +173,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"gangue", "bonde"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!quadrilha @pessoa", fmt.Sprintf("junta uma quadrilha de até %d pra roubar a pessoa marcada 🦹 Quem manda primeiro abre, e o resto tem %s pra mandar !quadrilha e entrar. Com %d sai na hora, e se o tempo acabar com pelo menos %d a quadrilha parte pra cima assim mesmo. A chance começa igual à do !roubar, soma o bônus de roubo da profissão de cada um e mais %d%% por pessoa a mais, e cai com a proteção da vítima. Se der certo, a quadrilha leva de %d%% a %d%% do saldo da vítima e divide igual. Se der errado, cada um paga indenização pra vítima. Usa a mesma espera do !roubar, marca o crime de todo mundo (dá pra !prender e !denunciar) e o 🚨 alarme da vítima protege igual", gangSize, core.FormatWait(gangWindow), gangSize, gangMin, percent(gangHelp), gangLootMin, gangLootMax)},
+				{"!quadrilha @pessoa", fmt.Sprintf("junta uma quadrilha de até %d pra roubar a pessoa marcada 🦹 Quem manda primeiro abre, e o resto tem %s pra mandar !quadrilha e entrar. Com %d sai na hora, e se o tempo acabar com pelo menos %d a quadrilha parte pra cima assim mesmo. A chance começa igual à do !roubar, soma o bônus de roubo da profissão de cada um e mais %d%% por pessoa a mais, e cai com a proteção da vítima. Se der certo, a quadrilha leva de %d%% a %d%% do saldo da vítima, nas mesmas faixas do valor de roubo, e divide igual. Se der errado, cada um paga indenização pra vítima. Usa a mesma espera do !roubar, marca o crime de todo mundo (dá pra !prender e !denunciar) e o 🚨 alarme da vítima dispara menos: a chance dele cai %d%% por pessoa a mais na quadrilha", gangSize, core.FormatWait(gangWindow), gangSize, gangMin, percent(gangHelp), gangLootMin, gangLootMax, percent(alarmGangCut))},
 			},
 			Run:          b.quadrilha,
 			BarredInJail: true,
@@ -134,7 +183,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"prisao", "cadeia"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!prender @pessoa", "prende a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou numa !quadrilha, negociou no !mercadonegro ou desviou o cofre da igreja nas últimas " + core.FormatWait(crimeWindow) + " 🚔 Cada crime só rende uma prisão, e se ela tiver um refém no cativeiro ele é libertado. Enquanto tá na cadeia ela não pode !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !furtar, !sequestrar, !assalto nem !quadrilha. Só a polícia prende (" + arrestingProfessions() + "), e a cadeia é de " + core.FormatWait(baseJail) + ". A profissão de quem é preso aumenta ou diminui esse tempo (bandido pega mais, advogado pega menos, veja !profissao). Quem tá preso pode tentar !fugir, ou um juiz, advogado ou delegado pode tentar !libertar. Quem emprestou moedas com o !agiota pode prender quem passou do prazo sem pagar, mesmo sem ser da polícia e sem crime nenhum"},
+				{"!prender @pessoa", "prende a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou numa !quadrilha, negociou no !mercadonegro ou desviou o cofre da igreja nas últimas " + core.FormatWait(crimeWindow) + " 🚔 Cada crime só rende uma prisão, e se ela tiver um refém no cativeiro ele é libertado. Enquanto tá na cadeia ela não pode !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !furtar, !sequestrar, !assalto, !quadrilha nem trocar de !profissao. Só a polícia prende (" + arrestingProfessions() + "), e a cadeia é de " + core.FormatWait(baseJail) + ". A profissão de quem é preso aumenta ou diminui esse tempo (bandido pega mais, advogado pega menos, veja !profissao). Quem tá preso pode tentar !fugir, ou um juiz, advogado ou delegado pode tentar !libertar. Quem emprestou moedas com o !agiota pode prender quem passou do prazo sem pagar, mesmo sem ser da polícia e sem crime nenhum"},
 			},
 			Run: b.prender,
 		},
@@ -143,7 +192,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"fuga", "escapar"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!fugir", fmt.Sprintf("tenta fugir da cadeia ou do cativeiro 🏃 Na cadeia a chance normal é de %d%%, e a profissão muda ela (piloto de fuga, mágico e chaveiro escapam fácil, e a polícia presa fica marcada). Se der certo sai na hora, mas fuga é crime e a polícia pode !prender de novo. Se der errado ganha mais %s de cadeia. No cativeiro a chance normal é de %d%%, e aqui a polícia, o segurança, o mágico e o chaveiro se dão bem (veja !profissao). Fugir de sequestro não é crime, mas se der errado fica mais %s amarrado(a). Dá pra tentar a cada %s, e cada nova prisão corta %d%% da espera que faltava", percent(escapeChance), core.FormatWait(escapePenalty), percent(breakoutChance), core.FormatWait(breakoutPenalty), core.FormatWait(escapeCooldown.every), arrestEaseCut)},
+				{"!fugir", fmt.Sprintf("tenta fugir da cadeia ou do cativeiro 🏃 Na cadeia a chance normal é de %d%%, e a profissão muda ela (piloto de fuga, mágico e chaveiro escapam fácil, e a polícia presa fica marcada), e quem é famoso(a) tem menos chance, porque todo mundo reconhece (veja !fama). Se der certo sai na hora, mas fuga é crime e a polícia pode !prender de novo. Se der errado ganha mais %s de cadeia. No cativeiro a chance normal é de %d%%, e aqui a polícia, o segurança, o mágico e o chaveiro se dão bem (veja !profissao). Fugir de sequestro não é crime, mas se der errado fica mais %s amarrado(a). Dá pra tentar a cada %s, e cada nova prisão corta %d%% da espera que faltava", percent(escapeChance), core.FormatWait(escapePenalty), percent(breakoutChance), core.FormatWait(breakoutPenalty), core.FormatWait(escapeCooldown.every), arrestEaseCut)},
 				{"!fugir @pessoa", fmt.Sprintf("tenta tirar a pessoa marcada da cadeia ou do cativeiro 🪚 A chance é a mesma do !fugir, mas quem conta é a sua profissão. Tirar alguém da cadeia é crime: se der certo, a polícia pode !prender os dois, e se der errado você tem %d%% de chance de ser pego(a) na hora e ir pra cadeia (com multa). Tirar do cativeiro não é crime e não dá cadeia. Usa a mesma espera do seu !fugir, e quem tá preso ou em cativeiro não consegue ajudar ninguém", percent(rescueCaught))},
 			},
 			Run: b.fugir,
@@ -163,7 +212,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"denuncia", "dedurar", "x9"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!denunciar @pessoa", fmt.Sprintf("liga pro 190 e dedura a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou numa !quadrilha, negociou no !mercadonegro ou desviou o cofre da igreja nas últimas %s 📞 Qualquer um pode denunciar, mas a polícia só acredita em %d%% das vezes, e a profissão muda isso (detetive, promotor e porteiro são levados a sério, golpista e cartomante quase nunca, veja !profissao). Se colar, a pessoa pega %s de cadeia (mais ou menos conforme a profissão dela) e solta o refém se tiver um. Bandido não pode denunciar: se tentar, a quadrilha entrega ele e quem vai preso é ele. Dá pra denunciar a cada %s", core.FormatWait(crimeWindow), percent(reportChance), core.FormatWait(baseJail), core.FormatWait(reportCooldown.every))},
+				{"!denunciar @pessoa", fmt.Sprintf("liga pro 190 e dedura a pessoa marcada, se ela tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto ou numa !quadrilha, negociou no !mercadonegro ou desviou o cofre da igreja nas últimas %s 📞 Qualquer um pode denunciar, mas a polícia só acredita em %d%% das vezes, e a profissão muda isso (detetive, promotor e porteiro são levados a sério, golpista e cartomante quase nunca, veja !profissao), e contra quem é famoso(a) a polícia acredita mais (veja !fama). Se colar, a pessoa pega %s de cadeia (mais ou menos conforme a profissão dela) e solta o refém se tiver um. Bandido não pode denunciar: se tentar, a quadrilha descobre e sorteia o castigo, que pode ser cadeia, morte ou cativeiro com quem ele dedurou. Dá pra denunciar a cada %s", core.FormatWait(crimeWindow), percent(reportChance), core.FormatWait(baseJail), core.FormatWait(reportCooldown.every))},
 			},
 			Run: b.denunciar,
 		},
@@ -181,7 +230,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"voto", "eleger"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!votar @pessoa", fmt.Sprintf("vota na pessoa marcada (ou em você mesmo, com !votar eu) pra presidente da conversa 🗳️ Se ninguém é presidente, o primeiro voto abre a eleição, e a urna fica aberta %s: cada um vota uma vez e pode mudar o voto até fechar. Precisa de pelo menos %d votos pra valer, e empate se resolve na sorte. Quem ganha fica %s no cargo, e só depois disso tem eleição de novo. Veja os poderes no !presidente", core.FormatWait(electionWindow), electionQuorum, core.FormatWait(termLength))},
+				{"!votar @pessoa", fmt.Sprintf("vota na pessoa marcada (ou em você mesmo, com !votar eu) pra presidente da conversa 🗳️ Se ninguém é presidente, o primeiro voto abre a eleição, e a urna fica aberta %s: cada um vota uma vez e pode mudar o voto até fechar. Precisa de pelo menos %d votos pra valer. Se der empate, tem segundo turno só entre quem empatou: os votos zeram e a urna abre de novo por %s, e se empatar de novo a sorte decide. Quem ganha fica %s no cargo, e só depois disso tem eleição de novo. Veja os poderes no !presidente", core.FormatWait(electionWindow), electionQuorum, core.FormatWait(runoffWindow), core.FormatWait(termLength))},
 			},
 			Run: b.votar,
 		},
@@ -238,7 +287,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"sequestro", "raptar"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!sequestrar @pessoa", fmt.Sprintf("tenta levar a pessoa marcada pro cativeiro 🚐 Se der certo ela fica %s sem poder !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !furtar nem !sequestrar, ou até ela conseguir !fugir ou a polícia !prender quem sequestrou. Se der errado você paga indenização e ainda pode ir preso na hora (bem mais fácil se a vítima for da polícia). Dá pra tentar a cada %s, um refém por vez, e a profissão de cada um muda a espera e a chance (veja !profissao). Se a vítima te deve no !agiota e passou do prazo, é cobrança: não é crime e você não vai preso na hora", core.FormatWait(hostageHold), core.FormatWait(kidnapCooldown.every))},
+				{"!sequestrar @pessoa", fmt.Sprintf("tenta levar a pessoa marcada pro cativeiro 🚐 Se der certo ela fica %s sem poder !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !furtar, !sequestrar nem trocar de !profissao, ou até ela conseguir !fugir ou a polícia !prender quem sequestrou. Se der errado você paga indenização e ainda pode ir preso na hora (bem mais fácil se a vítima for da polícia). Dá pra tentar a cada %s, um refém por vez, e a profissão de cada um muda a espera e a chance (veja !profissao). Se a vítima te deve no !agiota e passou do prazo, é cobrança: não é crime e você não vai preso na hora", core.FormatWait(hostageHold), core.FormatWait(kidnapCooldown.every))},
 			},
 			Run:          b.sequestrar,
 			BarredInJail: true,
@@ -248,7 +297,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"vendersequestrado"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!venderrefem", fmt.Sprintf("leva o seu refém pro mercado clandestino 🤝 O negócio fecha em %s, e até lá a polícia ainda pode !prender você e libertar o refém, ou ele pode !fugir. O preço depende da profissão do refém (quem ganha mais vale mais) e da sua (contrabandista, cambista e golpista vendem mais caro). Depois de vendido, o refém fica no máximo mais %s trabalhando pra quem comprou, sem poder apostar, a não ser que consiga !fugir, e nem a polícia resgata mais", core.FormatWait(hostageSaleWait), core.FormatWait(soldHostageHold))},
+				{"!venderrefem", fmt.Sprintf("leva o seu refém pro mercado clandestino 🤝 O negócio fecha em %s, e até lá a polícia ainda pode !prender você e libertar o refém, ou ele pode !fugir. O preço depende da profissão do refém (quem ganha mais vale mais), da fama dele (famoso vale mais, veja !fama) e da sua profissão (contrabandista, cambista e golpista vendem mais caro). Depois de vendido, o refém fica no máximo mais %s trabalhando pra quem comprou, sem poder apostar, a não ser que consiga !fugir, e nem a polícia resgata mais", core.FormatWait(hostageSaleWait), core.FormatWait(soldHostageHold))},
 			},
 			Run:          b.venderrefem,
 			BarredInJail: true,
@@ -271,7 +320,7 @@ func (b *bot) economyCommands() []core.Command {
 				{"!recompensa @pessoa <valor>", "bota moedas na cabeça da pessoa 🎯 O valor sai do teu saldo na hora e soma com o que os outros já botaram. Quem conseguir !matar ela leva tudo (também aceita metade, 10% ou tudo)"},
 				{"!recompensa @pessoa", "mostra quanto vale a cabeça da pessoa"},
 				{"!recompensa retirar @pessoa", "tira a recompensa que você botou na pessoa e devolve as moedas"},
-				{"!recompensa", fmt.Sprintf("mostra as %d cabeças mais valiosas da conversa", bountyBoardSize)},
+				{"!recompensa", fmt.Sprintf("mostra as %d cabeças mais valiosas da conversa e o procurado do dia: todo dia às %dh o bot bota de %d a %d moedas na cabeça de alguém que mexeu na economia nos últimos dias", bountyBoardSize, wantedHour, wantedMin, wantedMax)},
 			},
 			Run: b.recompensa,
 		},
@@ -300,7 +349,7 @@ func (b *bot) economyCommands() []core.Command {
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
 				{"!amaldicoar", "mostra todas as maldições, quem pode jogar cada uma e as que tão em você agora 🕯️"},
-				{"!amaldicoar @pessoa <maldição>", fmt.Sprintf("joga uma maldição na pessoa por um tempo: ganha menos, fica mais fácil de roubar, perde sorte no crime, fica mais tempo preso... Cada profissão de fé e feitiçaria tem as suas e a sua chance de pegar, e quando falha a praga tem %d%% de chance de voltar pra quem jogou. Quem não tem a profissão pode jogar com item, no !usar <item> @pessoa (veja no !item encantos), com %d%% de chance de pegar. Quem tem o %s joga qualquer maldição, e a que jogam nele volta pra quem jogou. Quem tá amaldiçoado se livra com uma !abencoar @pessoa purificacao ou com um !usar sal grosso", percent(hexBackfire), percent(itemHexChance), mirrorLabel())},
+				{"!amaldicoar @pessoa <maldição>", fmt.Sprintf("joga uma maldição na pessoa por um tempo: ganha menos, fica mais fácil de roubar, perde sorte no crime, fica mais tempo preso... Cada profissão de fé e feitiçaria tem as suas e a sua chance de pegar, e quando falha a praga tem %d%% de chance de voltar pra quem jogou. Quem não tem a profissão pode jogar com item, no !usar <item> @pessoa (veja no !item encantos), com %d%% de chance de pegar. Quem tem o %s joga qualquer maldição, e a que jogam nele volta pra quem jogou. Quem tá amaldiçoado se livra com uma !abencoar @pessoa purificacao ou com um !usar sal grosso, menos da Casa assombrada, que só sai com !imovel exorcizar", percent(hexBackfire), percent(itemHexChance), mirrorLabel())},
 			},
 			Run: b.amaldicoar,
 		},
@@ -421,6 +470,19 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.bolao,
 		},
 		{
+			Name:     "bicho",
+			Aliases:  []string{"bixo", "jogodobicho", "fezinha"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!bicho <valor> <bicho>", fmt.Sprintf("faz uma fezinha no jogo do bicho 🦁, tipo !bicho 50 vaca (também aceita metade, 10%% e tudo). Tem extração todo dia às %s, e o resultado é o mesmo pra todo mundo. Se der o seu bicho na cabeça, paga %dx, e o prêmio cai no saldo na hora da extração", animalSchedule(), animalGroupBet.odds)},
+				{"!bicho <valor> <número>", fmt.Sprintf("joga num número em vez do bicho: %s, tipo !bicho 5 1234. Cada tipo tem uma aposta máxima, e cada pessoa faz até %d apostas por extração. O bicho é clandestino: o decreto do cassino não pega nele", animalNumberOdds(), animalBetsPerDraw)},
+				{"!bicho", "mostra a próxima extração, as suas apostas esperando resultado e os últimos resultados"},
+				{"!bicho tabela", "mostra os 25 bichos com as dezenas de cada um, quanto cada tipo de aposta paga e a aposta máxima"},
+			},
+			Run:          b.bicho,
+			BarredInJail: true,
+		},
+		{
 			Name:     "ricos",
 			Aliases:  []string{"forbes"},
 			Category: core.EconomyCategory,
@@ -432,7 +494,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"impostos", "leao", "iptu"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!imposto", fmt.Sprintf("mostra as faixas do imposto sobre fortuna e quanto você paga 🦁 Todo dia às %dh o Leão cobra de quem tem mais de %s, mais o IPTU de quem tem imóvel, e as moedas somem", taxHour, Coins(taxBrackets[0].above))},
+				{"!imposto", fmt.Sprintf("mostra as faixas do imposto sobre fortuna e quanto você paga 🦁 Todo dia às %dh o Leão cobra de quem tem mais de %s, mais o IPTU de quem tem imóvel, e as moedas somem. Um contador no !empregados corta parte disso", taxHour, Coins(taxBrackets[0].above))},
 				{"!imposto @pessoa", "mostra quanto a pessoa marcada paga"},
 			},
 			Run: b.imposto,
@@ -463,7 +525,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"vida", "hp"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!saude", fmt.Sprintf("mostra sua saúde ❤️ (de 0 a %d), quanto falta pra sarar e a chance de se machucar no !trabalhar e em cada extração. Recupera sozinho 1 ponto a cada %s, ou na hora com o !hospital ou com !usar curativo. Equipamento de proteção (tem na !loja) diminui a chance de se machucar. Se zerar, morre por %s e o enterro leva de %d%% a %d%% do saldo", MaxHealth, core.FormatWait(healthRegenEvery), core.FormatWait(deathHold), deathLossMinPercent, deathLossMaxPercent)},
+				{"!saude", fmt.Sprintf("mostra sua saúde ❤️ (de 0 a %d), quanto falta pra sarar e a chance de se machucar no !trabalhar, em cada extração e em cada crime (quem é vítima de crime também pode se machucar, mas não morre disso). Recupera sozinho 1 ponto a cada %s (mais rápido com um enfermeiro no !empregados), ou na hora com o !hospital ou com !usar curativo. Equipamento de proteção (tem na !loja) diminui a chance de se machucar. Se zerar, morre por %s e o enterro leva de %d%% a %d%% do saldo", MaxHealth, core.FormatWait(healthRegenEvery), core.FormatWait(deathHold), deathLossMinPercent, deathLossMaxPercent)},
 				{"!saude @pessoa", "mostra a saúde da pessoa marcada"},
 			},
 			Run: b.saude,
@@ -512,6 +574,7 @@ func (b *bot) economyCommands() []core.Command {
 				{"!imovel depositar <valor>", "esconde moedas no cofre de casa, onde ninguém rouba e a multa e o enterro não pegam. Cada imóvel tem um cofre de um tamanho, e moeda no cofre não serve pra nada até voltar pro saldo (dá pra mandar metade, 10% ou tudo)"},
 				{"!imovel sacar <valor>", "tira moedas do cofre de casa e põe de volta no saldo"},
 				{"!imovel cofre", "mostra quanto você tem no cofre de casa (ou quem for marcado) e quanto ainda cabe"},
+				{"!imovel exorcizar", fmt.Sprintf("espanta o espírito da Casa assombrada (a maldição do !amaldicoar) pagando %d dias de IPTU pra quem mandou ele 👻 Enquanto a casa tá assombrada, a proteção e os bônus do imóvel viram o contrário e o IPTU vem %dx", hauntRansomDays, hauntTaxFactor)},
 			},
 			Run: b.imovel,
 		},
@@ -520,12 +583,20 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"empregado", "funcionarios", "funcionario"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!empregados", "mostra seus empregados, o que eles já acharam e quem dá pra contratar 👷 Eles fazem o " + extractionCommands() + " sozinhos, mas nunca acham relíquia, mítico nem lendário"},
+				{"!empregados", "mostra seus empregados, o que eles já acharam e quem dá pra contratar 👷 Eles fazem o " + extractionCommands() + " sozinhos, mas nunca acham relíquia, mítico nem lendário. O caçador de bússola só procura a Bússola do relicário e quase nunca acha. O apostador e o corretor trazem moedas, o contador corta o imposto e o enfermeiro faz a saúde voltar mais rápido"},
 				{"!empregados contratar <nome>", "contrata um empregado. Precisa de imóvel, e quanto melhor o imóvel, mais vagas"},
-				{"!empregados coletar", "pega o que os empregados acharam e paga o salário deles. Sem saldo pro salário, eles fazem greve"},
+				{"!empregados coletar", "pega o que os empregados trouxeram e paga o salário deles. Sem saldo pro salário, eles fazem greve. O contador e o enfermeiro não têm nada pra coletar"},
 				{"!empregados demitir <nome>", "manda um empregado embora, e o que ele achou e você não coletou vai junto"},
 			},
 			Run: b.empregados,
+		},
+		{
+			Name:     "contratar",
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!contratar <nome>", "o mesmo que !empregados contratar <nome>"},
+			},
+			Run: b.contratar,
 		},
 		{
 			Name:     "titulo",
@@ -539,18 +610,32 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.titulo,
 		},
 		{
+			Name:     "implante",
+			Aliases:  []string{"implantes", "cirurgia", "ciborgue"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!implante", fmt.Sprintf("mostra a clínica de implantes 🦾 Tem %d implantes, um por parte do corpo (cérebro, olhos e braço), que ajudam a ganhar mais no !trabalhar, nas extrações, no !vender, no !acoes, no cassino ou no crime. Eles chegam no !mercadonegro, um por dia, e vão pra mochila de quem comprar", len(implants))},
+				{"!implante instalar <nome>", fmt.Sprintf("instala um implante que tá na sua mochila (o !usar faz o mesmo). O corpo pode rejeitar: aí o implante vai pro lixo e você perde até %d de saúde, e se já tiver machucado(a) pode morrer", implantRejectHarm)},
+				{"!implante manutencao", fmt.Sprintf("paga a manutenção dos seus implantes por %s. Sem manutenção, o implante desliga e para de dar a vantagem", upkeepSpan(implantUpkeepMax))},
+				{"!implante tirar <nome>", fmt.Sprintf("tira um implante (pelo nome ou pela parte do corpo) e devolve pra mochila. Cada saída do corpo desgasta, e na %dª vez ele quebra", implantWearMax)},
+				{"!implante ver [@pessoa]", fmt.Sprintf("mostra os implantes da pessoa, a manutenção e o desgaste de cada um. Quem mata no !matar tem %d%% de chance de arrancar um implante da vítima e levar pra mochila, e a polícia arranca os clandestinos de quem vai preso", percent(implantRipChance))},
+			},
+			Run: b.implante,
+		},
+		{
 			Name:     "igreja",
 			Aliases:  []string{"igrejas", "religiao", "seita"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!igreja", "mostra a sua igreja, ou as igrejas do grupo se você ainda não é fiel de nenhuma ⛪ Cada igreja tem uma doutrina, e todo fiel ganha o efeito dela e paga o dízimo dela, uma parte do que entra no !trabalhar e no !daily, pro cofre da igreja"},
+				{"!igreja", "mostra a sua igreja, ou as igrejas do grupo se você ainda não é fiel de nenhuma ⛪ Cada igreja tem uma doutrina, e todo fiel ganha o efeito dela e paga o dízimo da igreja, uma parte do que entra no !trabalhar e no !daily, pro cofre dela"},
 				{"!igreja lista", "mostra as igrejas do grupo, com os fiéis, o cofre e o líder de cada uma"},
-				{"!igreja doutrinas", "mostra as doutrinas, com o efeito e o dízimo de cada uma"},
+				{"!igreja doutrinas", "mostra as doutrinas, com o efeito e o dízimo padrão de cada uma"},
 				{"!igreja fundar <doutrina> <nome>", fmt.Sprintf("funda uma igreja e vira o líder dela. Só pra quem é de %s, e custa %d%% do saldo (no mínimo %s)", areas[areaFe].name, churchFoundPercent, Coins(churchFoundFloor))},
 				{"!igreja entrar <nome>", fmt.Sprintf("vira fiel de uma igreja. Entrar numa igreja (ou fundar uma) tem espera de %s", core.FormatWait(conversionCooldown.every))},
 				{"!igreja sair", "larga a igreja. Se o líder sai, quem tá há mais tempo na igreja assume, e se não sobrar ninguém a igreja fecha e o cofre some"},
 				{"!igreja ofertar <valor>", "bota moedas suas no cofre da sua igreja (aceita metade, 10% e tudo)"},
 				{"!igreja reformar", fmt.Sprintf("o líder usa o cofre pra reformar o templo (%s), e cada reforma deixa a doutrina mais forte, até %d%% no último", templeLadder(), temples[len(temples)-1].power)},
+				{"!igreja dizimo <porcentagem>", fmt.Sprintf("o líder escolhe quanto os fiéis dão de dízimo pro cofre, de 0 a %d%%. A igreja começa com o dízimo padrão da doutrina", churchTitheMax)},
 				{"!igreja milagre <valor>", "o líder reparte moedas do cofre em partes iguais entre os outros fiéis"},
 				{"!igreja desviar <valor>", fmt.Sprintf("o líder põe moedas do cofre no próprio bolso, uma vez a cada %s. É crime: dá pra ser preso depois, e tem de %d%% a %d%% de chance (quanto mais tira, maior) de ser pego na hora, ir pra cadeia, deixar o dinheiro no cofre e perder a liderança pra quem tá há mais tempo na igreja", core.FormatWait(embezzleCooldown.every), percent(embezzleCaughtBase), percent(embezzleCaughtBase+embezzleCaughtScale))},
 			},
@@ -614,6 +699,27 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.mochila,
 		},
 		{
+			Name:     "favoritar",
+			Aliases:  []string{"fav", "favorito"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!favoritar <item>", "marca um item da mochila como favorito ⭐ e ele não sai em nenhuma venda (!vender, !vender @pessoa, !mercadonegro vender nem nas vendas em lote). Só as cópias repetidas saem no !vender duplicados, que sempre deixa 1"},
+				{"!favoritar #<número> [#número...]", "favorita vários pelos números da !mochila, tipo !favoritar #12 #40"},
+				{"!favoritar tudo", "favorita tudo o que tá na mochila agora"},
+			},
+			Run: b.favoritar,
+		},
+		{
+			Name:     "desfavoritar",
+			Aliases:  []string{"desfav"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!desfavoritar <item>", "tira o item dos favoritos, e ele volta a poder ser vendido 💔 Também aceita os números da !mochila (!desfavoritar #12 #40)"},
+				{"!desfavoritar tudo", "tira todos os itens dos favoritos"},
+			},
+			Run: b.desfavoritar,
+		},
+		{
 			Name:     "item",
 			Aliases:  []string{"itens", "catalogo"},
 			Category: core.EconomyCategory,
@@ -635,7 +741,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "petshop",
 			Aliases:  []string{"pets", "pet", "bichos"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!petshop", "mostra os bichinhos fofos que dá pra levar pra casa 🐾"}},
+			Help:     []core.Usage{{"!petshop", "mostra os bichinhos fofos que dá pra levar pra casa 🐾 De vez em quando eles trazem um item no seu !daily"}},
 			Run:      b.petshop,
 		},
 		{
@@ -658,7 +764,7 @@ func (b *bot) economyCommands() []core.Command {
 				{"!vender tipo <tipo>", "vende tudo o que você tem de um tipo da !mochila, tipo !vender tipo pesca (os ilegais ficam de fora)"},
 				{"!vender inuteis", "vende tudo da mochila que não tem efeito nenhum (peixe, minério, lixo, inseto...), lendários e míticos inclusos"},
 				{"!vender bugigangas", "vende os inúteis e mais o que dá pra !usar mas não faz nada de verdade (comida, presente, Nokia, Tamagotchi...). Os bichinhos ficam"},
-				{"!vender duplicados", "vende tudo que tá repetido e deixa 1 de cada item, sempre o de melhor qualidade"},
+				{"!vender duplicados", "vende tudo que tá repetido e deixa 1 de cada item, sempre o de melhor qualidade. É a única venda que mexe nos favoritos ⭐ (só nas cópias)"},
 				{"!vender @pessoa <item> <preço>", fmt.Sprintf("oferece o item pra pessoa marcada pelo preço que você quiser, e ela tem %s pra responder com !aceitar ou !recusar 🤝", core.FormatWait(offerWindow))},
 				{"!vender @pessoa <item> <quantidade> <preço>", "vende vários de uma vez, com o preço sendo o total"},
 			},
@@ -711,6 +817,27 @@ func (b *bot) economyCommands() []core.Command {
 				{"!usar <item>", "usa um item: come, bebe, abre caixa, raspa raspadinha... cada um faz uma coisa (veja no !item <nome>) ✨ Item de bênção (trevo, terço, olho grego...) abençoa quem usa, item de cura (curativo, kit de primeiros socorros) recupera saúde, e item de maldição se joga em alguém, tipo !usar gato preto @pessoa. Dá pra mandar !comer, !beber ou !abrir também"},
 			},
 			Run: b.usar,
+		},
+		{
+			Name:     "aprimorar",
+			Aliases:  []string{"aprimoramento", "ferreiro", "upgrade"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!aprimorar", "mostra as ferramentas de extração que dá pra aprimorar e quanto custa cada uma 🔧"},
+				{"!aprimorar <ferramenta>", "paga o ferreiro e troca a ferramenta da mochila pela versão aprimorada, que acha coisa melhor e se paga mais rápido. Dá pra aprimorar as raras, épicas e lendárias do !pescar, do !minerar e do !catar, uma vez só cada, e o preço é metade do valor da ferramenta. Se a aprimorada quebrar, o aprimoramento vai junto"},
+			},
+			Run: b.aprimorar,
+		},
+		{
+			Name:         "primordial",
+			Aliases:      []string{"primordiais"},
+			Category:     core.EconomyCategory,
+			BarredInJail: true,
+			Help: []core.Usage{
+				{"!primordial", "mostra os seus itens primordiais ⚫ (a raridade mais alta que existe) e o que cada um faz. Sem nenhum, mostra como conseguir o primeiro"},
+				{"!primordial <item>", fmt.Sprintf("desperta a habilidade do item primordial. Hoje só existe o Meteorito do Bendegó: !primordial bendego abre uma cratera no grupo por %s, uma vez por dia, onde quem mandar !minerar acha mítico mesmo sem relíquia e com mais sorte, mas paga %d%% do valor de cada achado de pedágio pro dono", core.FormatWait(craterOpen), craterToll)},
+			},
+			Run: b.primordial,
 		},
 		{
 			Name:     "pescar",

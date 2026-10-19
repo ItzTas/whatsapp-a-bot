@@ -40,19 +40,28 @@ func (b *bot) furtar(ctx context.Context, evt *events.Message) error {
 		}
 		wanted = matches[0]
 	}
-	if wanted.rarity == relic {
-		return b.SendText(ctx, chat, fmt.Sprintf("🏛️ %s é relíquia, e relíquia não se furta. Escolhe outro item da mochila", wanted.label()))
+	if wanted.rarity >= relic {
+		r := rarities[wanted.rarity]
+		return b.SendText(ctx, chat, fmt.Sprintf("🏛️ %s é %s, e %s não se furta. Escolhe outro item da mochila", wanted.label(), r.name, r.name))
 	}
 	thiefJob, victimJob, err := b.rivalProfessions(ctx, chat, thiefAcc, victimAcc)
 	if err != nil {
 		return err
 	}
-	t, err := b.Wallets.stealItem(ctx, chat, thiefAcc, victimAcc, thiefJob.theftCooldown(), time.Now(), theftChoice(wanted, thiefJob.theftBonus-victimJob.guard-thiefJob.curfew()))
+	t, err := b.Wallets.stealItem(ctx, chat, thiefAcc, victimAcc, thiefJob.theftCooldown(), theftRisk.by(thiefJob), time.Now(), theftChoice(wanted, thiefJob.theftBonus-victimJob.guard-thiefJob.curfew()))
 	if err != nil {
 		return fmt.Errorf("furtar item: %w", err)
 	}
-	_, err = b.SendMentions(ctx, chat, theftText(t, wanted, thief, victim), []types.JID{thief, victim})
-	return err
+	if t.success {
+		b.advance(chat, thiefAcc, crimeGoal, 1)
+	}
+	hurtText, freed := t.scuffle.text(thief, victim)
+	_, err = b.SendMentions(ctx, chat, theftText(t, wanted, thief, victim)+hurtText, append([]types.JID{thief, victim}, freed...))
+	if err != nil || t.wait > 0 || t.empty || t.scuffle.criminal.died {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!furtar", won: t.success, victim: victim})
+	return nil
 }
 
 func theftChoice(wanted item, bonus float64) func(loot []stack) (item, bool) {
@@ -65,7 +74,7 @@ func theftChoice(wanted item, bonus float64) func(loot []stack) (item, bool) {
 		}
 	}
 	return func(loot []stack) (item, bool) {
-		loot = slices.DeleteFunc(slices.Clone(loot), func(s stack) bool { return s.item.rarity == relic })
+		loot = slices.DeleteFunc(slices.Clone(loot), func(s stack) bool { return s.item.rarity >= relic })
 		if len(loot) == 0 {
 			return item{}, false
 		}

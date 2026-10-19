@@ -199,9 +199,7 @@ func (s *walletStore) unstash(ctx context.Context, chat types.JID, acc core.Acco
 }
 
 func shiftItems(ctx context.Context, tx *ledgerTx, from, to string, chat types.JID, acc core.Account, id string, quantity int64) ([]grade, error) {
-	var wear int64
-	err := tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(usos), 0) FROM "+from+" WHERE chat = ? AND pessoa = ? AND item = ?",
-		chat.String(), acc.Key, id).Scan(&wear)
+	wear, err := wearIn(ctx, tx, from, chat, acc, id)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +210,5 @@ func shiftItems(ctx context.Context, tx *ledgerTx, from, to string, chat types.J
 	if err := addGradesTo(ctx, tx, to, chat, acc, id, grades); err != nil {
 		return nil, err
 	}
-	_, err = tx.ExecContext(ctx, "UPDATE "+to+" SET usos = MAX(usos, ?) WHERE chat = ? AND pessoa = ? AND item = ?",
-		wear, chat.String(), acc.Key, id)
-	return grades, err
+	return grades, keepWear(ctx, tx, to, chat, acc, id, wear)
 }

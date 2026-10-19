@@ -72,21 +72,28 @@ type injury struct {
 	died   bool
 }
 
-func healthAt(stored, since int64, now time.Time) int64 {
-	regen := int64(now.Sub(time.Unix(since, 0)) / healthRegenEvery)
+func regenEvery(kinds []employee) time.Duration {
+	return healthRegenEvery * 100 / time.Duration(100+strongest(kinds, careOf))
+}
+
+func healthAt(stored, since int64, every time.Duration, now time.Time) int64 {
+	regen := int64(now.Sub(time.Unix(since, 0)) / every)
 	return min(MaxHealth, stored+max(regen, 0))
 }
 
 func readHealth(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, now time.Time) (int64, error) {
-	var stored, since int64
-	err := q.QueryRowContext(ctx, "SELECT saude, saude_em FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key).Scan(&stored, &since)
+	var (
+		stored, since int64
+		tipos         string
+	)
+	err := q.QueryRowContext(ctx, "SELECT c.saude, c.saude_em, "+staffKinds+" FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?", chat.String(), acc.Key).Scan(&stored, &since, &tipos)
 	if errors.Is(err, sql.ErrNoRows) {
 		return MaxHealth, nil
 	}
 	if err != nil {
 		return 0, err
 	}
-	return healthAt(stored, since, now), nil
+	return healthAt(stored, since, regenEvery(kindsOf(tipos)), now), nil
 }
 
 func (s *walletStore) Health(ctx context.Context, chat types.JID, acc core.Account, now time.Time) (int64, error) {
@@ -195,7 +202,7 @@ func hazardPerk(h hazard, safety int64) string {
 	return text
 }
 
-func (s *walletStore) heal(ctx context.Context, chat types.JID, acc core.Account, it item, now time.Time) (health int64, err error) {
+func (s *walletStore) heal(ctx context.Context, chat types.JID, acc core.Account, it item, now time.Time) (health, left int64, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
@@ -207,19 +214,51 @@ func (s *walletStore) heal(ctx context.Context, chat types.JID, acc core.Account
 		if current >= MaxHealth {
 			return errHealthy
 		}
-		if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
+		if left, err = spendDose(ctx, tx, chat, acc, it); err != nil {
 			return err
 		}
 		health = min(current+it.heal, MaxHealth)
 		return setHealth(ctx, tx, chat, acc, health, now)
 	})
-	return health, err
+	return health, left, err
+}
+
+func spendDose(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, it item) (left int64, err error) {
+	if it.doses <= 1 {
+		return 0, takeItems(ctx, tx, chat, acc, it.id, 1)
+	}
+	used, err := wearTool(ctx, tx, chat, acc, it.id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, errNoItems
+	}
+	if err != nil {
+		return 0, err
+	}
+	if used < it.doses {
+		return it.doses - used, nil
+	}
+	if err := takeItems(ctx, tx, chat, acc, it.id, 1); err != nil {
+		return 0, err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE inventarios SET usos = 0 WHERE chat = ? AND pessoa = ? AND item = ?",
+		chat.String(), acc.Key, it.id)
+	return 0, err
+}
+
+func dosesText(it item, left int64) string {
+	if it.doses <= 1 {
+		return ""
+	}
+	if left == 0 {
+		return fmt.Sprintf("\n🫙 Era a última dose, e %s acabou", it.label())
+	}
+	return fmt.Sprintf("\n🫙 Ainda sobra %s nessa unidade", core.CountLabel(int(left), "dose", "doses"))
 }
 
 func (b *bot) healWith(ctx context.Context, evt *events.Message, it item) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
-	health, err := b.Wallets.heal(ctx, chat, b.Account(ctx, person), it, time.Now())
+	health, left, err := b.Wallets.heal(ctx, chat, b.Account(ctx, person), it, time.Now())
 	if errors.Is(err, errNoItems) {
 		return b.SendText(ctx, chat, fmt.Sprintf("Não tem mais %s na sua mochila 🎒", it.label()))
 	}
@@ -230,12 +269,15 @@ func (b *bot) healWith(ctx context.Context, evt *events.Message, it item) error 
 	if err != nil {
 		return fmt.Errorf("usar cura: %w", err)
 	}
-	text := fmt.Sprintf(it.use, person.User) + fmt.Sprintf("\n\n🩹 Recuperou até %d de saúde: agora tá com %s", it.heal, healthText(health))
+	text := fmt.Sprintf(it.use, person.User) + fmt.Sprintf("\n\n🩹 Recuperou até %d de saúde: agora tá com %s", it.heal, healthText(health)) + dosesText(it, left)
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
 	return err
 }
 
 func healPerk(it item) string {
+	if it.doses > 1 {
+		return fmt.Sprintf("!usar recupera %d de saúde na hora (até %d), e dá %d doses antes de acabar", it.heal, MaxHealth, it.doses)
+	}
 	return fmt.Sprintf("!usar recupera %d de saúde na hora (até %d), e acaba", it.heal, MaxHealth)
 }
 
@@ -247,22 +289,28 @@ func (b *bot) saude(ctx context.Context, evt *events.Message) error {
 		health int64
 		job    Profession
 		bag    []stack
+		crew   []hire
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { health, err = b.Wallets.Health(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { bag, err = b.Wallets.inventory(gctx, chat, acc); return err })
+	g.Go(func() (err error) { crew, err = b.Wallets.crew(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler saúde: %w", err)
 	}
-	_, err := b.SendMentions(ctx, chat, healthReport(person, health, job, bag), []types.JID{person})
+	_, err := b.SendMentions(ctx, chat, healthReport(person, health, regenEvery(crewKinds(crew)), job, bag), []types.JID{person})
 	return err
 }
 
-func healthReport(person types.JID, health int64, job Profession, bag []stack) string {
+func healthReport(person types.JID, health int64, regen time.Duration, job Profession, bag []stack) string {
 	lines := []string{fmt.Sprintf("🩺 Saúde de @%s: %s", person.User, healthText(health))}
 	if health < MaxHealth {
-		lines = append(lines, fmt.Sprintf("⏳ Recupera 1 ponto a cada %s sozinho: fica 100%% em %s", core.FormatWait(healthRegenEvery), core.FormatWait(time.Duration(MaxHealth-health)*healthRegenEvery)))
+		pace := "sozinho"
+		if regen < healthRegenEvery {
+			pace = "com a ajuda do enfermeiro"
+		}
+		lines = append(lines, fmt.Sprintf("⏳ Recupera 1 ponto a cada %s %s: fica 100%% em %s", core.FormatWait(regen), pace, core.FormatWait(time.Duration(MaxHealth-health)*regen)))
 	}
 	lines = append(lines, "", "*Onde dá pra se machucar*")
 	work := fmt.Sprintf("%s !trabalhar (%s): não machuca", job.emoji, job.name)
@@ -278,7 +326,11 @@ func healthReport(person types.JID, health int64, job Profession, bag []stack) s
 		}
 		lines = append(lines, line)
 	}
-	lines = append(lines, "",
+	lines = append(lines, "", "*Nos crimes*")
+	for _, r := range crimeRisks {
+		lines = append(lines, r.line(job))
+	}
+	lines = append(lines, "_Quem é vítima de crime também pode sair machucado, mas nunca morre disso_", "",
 		fmt.Sprintf("_Se a saúde zerar, morre: fica %s fora da economia e o enterro leva de %d%% a %d%% do saldo. Toda morte leva esse dinheiro, até no !matar e na overdose_", core.FormatWait(deathHold), deathLossMinPercent, deathLossMaxPercent),
 		"_Pra se cuidar: !usar curativo ou kit de primeiros socorros, e equipamento de proteção (tem tudo na !loja)_")
 	return strings.Join(lines, "\n")

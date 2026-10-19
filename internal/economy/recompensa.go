@@ -12,6 +12,7 @@ import (
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/errgroup"
 )
 
 const bountyBoardSize = 10
@@ -62,21 +63,32 @@ func (b *bot) recompensa(ctx context.Context, evt *events.Message) error {
 }
 
 func (b *bot) bountyBoard(ctx context.Context, chat types.JID) error {
-	board, err := b.Wallets.bounties(ctx, chat, bountyBoardSize)
-	if err != nil {
+	var (
+		board    []bounty
+		daily    wantedPost
+		hasDaily bool
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { board, err = b.Wallets.bounties(gctx, chat, bountyBoardSize); return err })
+	g.Go(func() (err error) { daily, hasDaily, err = b.Wallets.wanted(gctx, chat); return err })
+	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler recompensas: %w", err)
 	}
 	if len(board) == 0 {
 		return b.SendText(ctx, chat, "Ninguém tem a cabeça a prêmio por aqui. Bota uma com !recompensa @pessoa 100")
 	}
 	lines := []string{"🎯 *Procurados*", ""}
-	people := make([]types.JID, 0, len(board))
+	people := make([]types.JID, 0, len(board)+1)
 	for i, bt := range board {
 		lines = append(lines, fmt.Sprintf("%d. @%s: %s", i+1, bt.target.User, Coins(bt.total)))
 		people = append(people, bt.target)
 	}
+	if hasDaily {
+		lines = append(lines, "", fmt.Sprintf("🤖 Procurado do dia: @%s, com %s do bot na cabeça", daily.target.User, Coins(daily.prize)))
+		people = append(people, daily.target)
+	}
 	lines = append(lines, "", "Quem conseguir !matar leva o prêmio")
-	_, err = b.SendMentions(ctx, chat, strings.Join(lines, "\n"), people)
+	_, err := b.SendMentions(ctx, chat, strings.Join(lines, "\n"), people)
 	return err
 }
 

@@ -112,7 +112,7 @@ var professions = []Profession{
 	},
 	{
 		name: "influencer de cripto", emoji: "🚀", title: "é influencer de cripto", area: areaBicos, aliases: []string{"cripto"},
-		min: 300, max: 900, every: 36 * time.Minute,
+		min: 300, max: 900, every: 36 * time.Minute, reach: 150, stage: "tiktok",
 		bust: 0.45, bustFine: 300, busts: []string{
 			"divulgou uma moeda de cachorro que virou pó em 10 minutos", "foi pego no golpe da pirâmide que ele mesmo divulgou",
 			"esqueceu a senha da carteira com tudo dentro", "fez live gritando TO THE MOON bem na hora do crash",
@@ -889,6 +889,7 @@ var professions = []Profession{
 		name: "streamer", emoji: "🎮", title: "é streamer", area: areaArte, min: 80, max: 260, every: 16 * time.Minute,
 		bust:       0.3,
 		heistBonus: -0.1,
+		reach:      250, stage: "twitch",
 		tasks: []string{
 			"fez live de 6 horas jogando Minecraft", "recebeu um pix escrito \"te amo\" na live", "fez react de react",
 			"ganhou um sub de um bot", "chorou na live e bombou", "pediu pix na live pra comprar uma cadeira gamer nova",
@@ -899,6 +900,7 @@ var professions = []Profession{
 		name: "youtuber", emoji: "📹", title: "é youtuber", area: areaArte, min: 140, max: 300, every: 28 * time.Minute,
 		doubleChance: 0.12,
 		heistBonus:   -0.1,
+		reach:        250, stage: "youtube",
 		tasks: []string{
 			"gravou \"testei o produto mais barato da Shopee\"", "fez thumbnail com a boca aberta e uma seta vermelha",
 			"pediu pra deixar o like e se inscrever 14 vezes no mesmo vídeo", "fez vlog indo na padaria",
@@ -909,7 +911,7 @@ var professions = []Profession{
 	{
 		name: "youtuber de unboxing", emoji: "📦", title: "é youtuber de unboxing", area: areaArte,
 		aliases: []string{"unboxer", "unboxing"}, min: 70, max: 150, every: 20 * time.Minute,
-		bust: 0.15, heistBonus: -0.1, boxLuck: 1,
+		bust: 0.15, heistBonus: -0.1, boxLuck: 1, reach: 200, stage: "youtube",
 		finds: []string{"caixa-misteriosa", "mercadoria-encalhada", "ring-light", "cupom-vencido"}, findChance: 0.12,
 		tasks: []string{
 			"abriu uma caixa da Shopee em câmera lenta com música épica de fundo", "gastou 20 minutos de vídeo só tirando o plástico bolha",
@@ -927,6 +929,7 @@ var professions = []Profession{
 		discount:    20,
 		reportBonus: 0.1,
 		heistBonus:  -0.1,
+		reach:       250, stage: "instagram",
 		tasks: []string{
 			"postou foto do café da manhã que esfriou enquanto tirava 80 fotos", "fez publi de chá detox segurando a garrafa de ponta-cabeça",
 			"recebeu um recebido e fez unboxing em 12 stories", "postou \"gente, sumi\" depois de 3 horas sem story",
@@ -962,7 +965,7 @@ var professions = []Profession{
 	{
 		name: "mc de funk", emoji: "🎤", title: "é mc de funk", area: areaArte, aliases: []string{"mc", "funkeiro"},
 		min: 90, max: 210, every: 20 * time.Minute,
-		bust: 0.15, peak: peak{from: 22, to: 4, bonus: 80},
+		bust: 0.15, peak: peak{from: 22, to: 4, bonus: 80}, reach: 150, stage: "tiktok",
 		tasks: []string{
 			"lançou um passinho novo e o bairro inteiro já sabia no dia seguinte", "fez show em 4 bailes na mesma noite",
 			"gravou clipe com uma moto alugada e um cordão de ouro de bijuteria", "botou o nome da quebrada no refrão e virou hino",
@@ -1656,7 +1659,7 @@ var professions = []Profession{
 	{
 		name: "bicheiro", emoji: "🎰", title: "é bicheiro", area: areaCrime, aliases: []string{"jogo do bicho"}, min: 80, max: 200,
 		every: 20 * time.Minute,
-		bust:  0.15, cashback: 20, jailFactor: 25, trialEdge: -1,
+		bust:  0.15, cashback: 20, jailFactor: 25, trialEdge: -1, animalLuck: 25,
 		tasks: []string{
 			"anotou a fezinha da padaria inteira num caderninho", "explicou pra tia que sonhar com cobra é dar na cabeça",
 			"pagou o prêmio do avestruz e ficou com o troco", "abriu ponto de bicho do lado da igreja",
@@ -1980,7 +1983,7 @@ var professions = []Profession{
 			"errou a poção e o cliente ficou três dias com soluço", "a vassoura quebrou no meio do voo",
 		},
 		faith: faith{
-			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto", "lerdeza", "dizimo", "panema"}, hexChance: 0.75,
+			blessings: []string{"sorte", "prosperidade"}, curses: []string{"miseria", "azar", "jejum", "encosto", "lerdeza", "dizimo", "panema", "assombracao"}, hexChance: 0.75,
 			blessRite: "fez uma poção da sorte pra", curseRite: "mexeu o caldeirão pensando em",
 		},
 		tasks: []string{
@@ -2022,7 +2025,7 @@ var professions = []Profession{
 			"o demônio era só o Wi-Fi com defeito", "o possuído era um adolescente fingindo pra faltar na escola",
 		},
 		faith: faith{
-			blessings: []string{"purificacao", "libertacao"}, curses: []string{"encosto"}, hexChance: 0.65,
+			blessings: []string{"purificacao", "libertacao"}, curses: []string{"encosto", "assombracao"}, hexChance: 0.65,
 			blessRite: "fez um exorcismo em", curseRite: "mandou um encosto pra cima de",
 		},
 		hazard: hazard{chance: 0.1, harm: 25, wounds: []string{"levou uma rasteira do demônio que saiu do possuído", "levou uma cabeçada de um possuído"}},

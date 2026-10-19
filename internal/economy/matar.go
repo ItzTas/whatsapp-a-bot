@@ -10,6 +10,7 @@ import (
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 	reapLossMaxPercent = 25
 )
 
-var killCooldown = cooldown{column: "assassinato_em", every: 90 * time.Minute}
+var killCooldown = cooldown{column: "assassinato_em", every: 45 * time.Minute}
 
 type killing struct {
 	lawful  bool
@@ -34,18 +35,23 @@ type killing struct {
 	freed   types.JID
 	fine    int64
 	bounty  int64
+	posse   int64
 	lost    int64
 	hold    time.Duration
 	reaped  bool
+	rip     unplugging
+	scuffle scuffle
 }
 
 type killOdds struct {
 	lawful  bool
 	pierce  bool
 	reap    bool
+	posse   bool
 	success float64
 	caught  float64
 	jail    time.Duration
+	risk    crimeRisk
 }
 
 func (b *bot) matar(ctx context.Context, evt *events.Message) error {
@@ -60,48 +66,73 @@ func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 		return b.SendText(ctx, chat, "Se matar não 💛 Se a coisa tiver pesada de verdade, o CVV atende no 188, a qualquer hora")
 	}
 
-	killerJob, victimJob, owed, err := b.rivalsWithDebt(ctx, chat, killerAcc, victimAcc)
-	if err != nil {
+	var (
+		killerJob, victimJob Profession
+		owed                 *debt
+		prize                int64
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+		killerJob, victimJob, owed, err = b.rivalsWithDebt(gctx, chat, killerAcc, victimAcc)
+		return err
+	})
+	g.Go(func() (err error) { prize, err = b.Wallets.wantedPrize(gctx, chat, victimAcc); return err })
+	if err := g.Wait(); err != nil {
 		return err
 	}
-	if killerJob.killChance == 0 && owed == nil {
-		return b.SendText(ctx, chat, "🚫 Só quem é do crime pesado pode matar: "+killingProfessions()+". Ou quem anda armado (tem "+lethalWeapons()+" no !mercadonegro), quem tem a Foice da Comadre Morte, ou quem emprestou moedas com o !agiota pra alguém que passou do prazo")
+	manhunt := killerJob.posse && prize > 0
+	if killerJob.killChance == 0 && owed == nil && !manhunt {
+		return b.SendText(ctx, chat, "🚫 Só quem é do crime pesado pode matar: "+killingProfessions()+". Ou quem anda armado (tem "+lethalWeapons()+" no !mercadonegro), quem tá sob efeito de "+lethalDrugs()+", quem tem a Foice da Comadre Morte, quem tem "+lethalImplants()+" implantado, quem emprestou moedas com o !agiota pra alguém que passou do prazo, ou quem tem o Quepe da Volante, contra o procurado do dia")
 	}
 	odds := killOdds{
 		success: killerJob.killOdds(victimJob),
-		caught:  victimJob.killCaughtOdds(),
+		caught:  killerJob.flagrantOdds(victimJob.killCaughtOdds()),
 		jail:    Profession{jailTime: baseJail}.sentence(killerJob),
 		pierce:  killerJob.divine || killerJob.reaper,
 		reap:    killerJob.reaper,
-	}
-	if killerJob.slipsAway() {
-		odds.caught = 0
+		risk:    killRisk.by(killerJob).on(victimJob),
 	}
 	if owed != nil {
-		odds.success = max(odds.success, clampChance(debtKillChance+killerJob.collectionEdge(owed)-victimJob.guard))
+		odds.success = max(odds.success, clampChance(debtKillChance+killerJob.collectionEdge(owed)-victimJob.violenceGuard()))
 		odds.caught, odds.lawful = 0, true
+	}
+	if manhunt {
+		odds.success = max(odds.success, clampChance(posseKillChance+killerJob.hunts(victimJob)-victimJob.violenceGuard()))
+		odds.caught, odds.lawful, odds.posse = 0, true, true
 	}
 	k, err := b.Wallets.kill(ctx, chat, killerAcc, victimAcc, odds, killerJob.pace(killCooldown), time.Now())
 	if err != nil {
 		return fmt.Errorf("matar: %w", err)
 	}
-	people := []types.JID{killer, victim}
+	hurtText, freed := k.scuffle.text(killer, victim)
+	people := append([]types.JID{killer, victim}, freed...)
 	if !k.freed.IsEmpty() {
 		people = append(people, k.freed)
 	}
 	text := killText(k, killerJob, victimJob, killer, victim)
 	if k.lawful {
-		text += debtCollectionText(owed)
+		text += lawfulKillText(owed, victim)
 	}
-	_, err = b.SendMentions(ctx, chat, text, people)
-	return err
+	_, err = b.SendMentions(ctx, chat, text+hurtText, people)
+	if err != nil || k.dead > 0 || k.jailed || k.wait > 0 || k.jail > 0 || k.scuffle.criminal.died {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!matar", won: k.success, victim: victim})
+	return nil
 }
 
 func (p Profession) killOdds(victim Profession) float64 {
 	if p.divine {
 		return 1
 	}
-	return clampChance(p.killChance - victim.guard - p.curfew())
+	return clampChance(p.killChance + p.hunts(victim) - victim.violenceGuard() - p.curfew())
+}
+
+func lawfulKillText(owed *debt, victim types.JID) string {
+	if owed != nil {
+		return debtCollectionText(owed)
+	}
+	return posseText(victim)
 }
 
 func (p Profession) killCaughtOdds() float64 {
@@ -175,6 +206,12 @@ func deathCaption(k killing, killer, victim types.JID) string {
 	}
 	if k.bounty > 0 {
 		lines = append(lines, fmt.Sprintf("🎯 Tinha recompensa na cabeça de @%s: @%s embolsou %s", victim.User, killer.User, Coins(k.bounty)))
+	}
+	if k.posse > 0 {
+		lines = append(lines, fmt.Sprintf("🤠 A volante paga dobrado pelo procurado do dia: @%s levou mais %s", killer.User, Coins(k.posse)))
+	}
+	if k.rip.id != "" {
+		lines = append(lines, k.rip.ripText(killer, victim))
 	}
 	if k.lawful {
 		return strings.Join(lines, "\n")
@@ -257,8 +294,8 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim c
 			}
 			k.success = !k.vested
 		}
-		if k.vested {
-			return nil
+		if k.scuffle, err = odds.risk.clash(ctx, tx, chat, killer, victim, k.success, !k.success && !k.vested, now); err != nil || k.vested {
+			return err
 		}
 		if k.success {
 			d, err := bury(ctx, tx, chat, victim, odds.funeral(killer), now)
@@ -266,10 +303,16 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim c
 				return err
 			}
 			k.freed, k.lost, k.hold, k.reaped = d.freed, d.lost, d.hold, odds.reap
-			k.bounty, err = claimBounty(ctx, tx, chat, victim, killer)
+			if k.posse, err = posseReward(ctx, tx, chat, victim, killer, odds.posse); err != nil {
+				return err
+			}
+			if k.bounty, err = claimBounty(ctx, tx, chat, victim, killer); err != nil {
+				return err
+			}
+			k.rip, err = ripImplant(ctx, tx, chat, victim, killer)
 			return err
 		}
-		if rand.Float64() >= odds.caught {
+		if k.scuffle.criminal.died || rand.Float64() >= odds.caught {
 			return nil
 		}
 		k.jail = odds.jail

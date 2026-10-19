@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"strconv"
@@ -22,6 +23,8 @@ const (
 	robEvery         = 30 * time.Minute
 	robMinVictim     = 50
 	robSuccessChance = 0.4
+	robLootMin       = 10
+	robLootMax       = 30
 	RichestCount     = 10
 
 	QuizReward          = 50
@@ -74,6 +77,9 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	if home := homeText(job.estate); home != "" {
 		lines = append(lines, home)
 	}
+	if exposure := exposureText(balance); exposure != "" {
+		lines = append(lines, exposure)
+	}
 	if vault.stored > 0 {
 		lines = append(lines, fmt.Sprintf("🔐 No cofre de casa: %s, longe dos ladrões", Coins(vault.stored)))
 	}
@@ -92,15 +98,26 @@ func (b *bot) daily(ctx context.Context, evt *events.Message) error {
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
 	now := time.Now()
-	job, p, err := b.workTerms(ctx, chat, acc, now)
-	if err != nil {
+	var (
+		job  Profession
+		p    presidency
+		pets []item
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { job, p, err = b.workTerms(gctx, chat, acc, now); return err })
+	g.Go(func() (err error) {
+		pets, err = b.Wallets.holding(gctx, chat, acc, func(it item) bool { return it.pet })
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return err
 	}
 	amount := dailyMin + rand.Int64N(dailyMax-dailyMin+1)
 	amount += amount * job.dailyBonus / 100
 	amount += amount * job.decrees.level(dailyDecree) / 100
 	levy := p.incomeLevy(acc)
-	w, err := b.Wallets.claim(ctx, chat, acc, dailyCooldown, amount, levy, now)
+	fetched := fetchGift(pets)
+	w, err := b.Wallets.claim(ctx, chat, acc, dailyCooldown, amount, fetched.gift, levy, now)
 	if err != nil {
 		return fmt.Errorf("pegar moedas: %w", err)
 	}
@@ -108,7 +125,7 @@ func (b *bot) daily(ctx context.Context, evt *events.Message) error {
 		_, err = b.SendMentions(ctx, chat, fmt.Sprintf("⏳ @%s já pegou o daily hoje. Volta em %s", person.User, core.FormatWait(w.wait)), []types.JID{person})
 		return err
 	}
-	text := fmt.Sprintf("🎁 @%s pegou o daily e ganhou %s", person.User, Coins(amount)) + job.decrees.note(dailyDecree) + incomeTaxText(w.tax, levy) + w.tithe.text()
+	text := fmt.Sprintf("🎁 @%s pegou o daily e ganhou %s", person.User, Coins(amount)) + job.decrees.note(dailyDecree) + incomeTaxText(w.tax, levy) + w.tithe.text() + fetched.text()
 	people := []types.JID{person}
 	if w.tax > 0 {
 		people = append(people, levy.payee()...)
@@ -184,6 +201,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	if err != nil {
 		return fmt.Errorf("pagar aposta: %w", err)
 	}
+	b.advance(chat, acc, betGoal, payout-stake)
 	won := max(payout-stake, stake-payout)
 	text := fmt.Sprintf(result, person.User, Coins(won)) + bet.Boost.Tag(stake, payout) + SavedBetText(saved)
 	if refund > 0 {
@@ -212,12 +230,9 @@ func (b *bot) PlaceBet(ctx context.Context, chat types.JID, acc core.Account, ar
 	if err := g.Wait(); err != nil {
 		return wager{}, "", err
 	}
-	if p.decrees.on(betsDecree) {
-		return wager{}, casinoClosedText, nil
-	}
-	levy := p.levy(betTaxDecree, acc)
+	levy := p.casinoLevy(acc)
 	stake, refusal, err := b.stakeAfterLevy(ctx, chat, acc, arg, syntax, levy.percent)
-	return wager{Stake: stake, Boost: PrizeBoost{decree: p.decrees.level(casinoDecree), luck: job.casinoLuck, rescued: rand.Float64() < job.rescueOdds}, Levy: levy, job: job}, refusal, err
+	return wager{Stake: stake, Boost: PrizeBoost{decree: max(p.decrees.level(casinoDecree), 0), luck: job.casinoLuck, rescued: rand.Float64() < job.rescueOdds}, Levy: levy, job: job}, refusal, err
 }
 
 func (b *bot) PlaceStake(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (int64, string, error) {
@@ -263,21 +278,59 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 	chance := clampChance(robSuccessChance + thiefJob.robBonus - victimJob.guard - thiefJob.curfew())
-	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
+	risk := robRisk.by(thiefJob).on(victimJob)
+	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), risk, time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
 	if err != nil {
 		return fmt.Errorf("roubar: %w", err)
 	}
-	_, err = b.SendMentions(ctx, chat, robberyText(r, thief, victim)+r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer"), []types.JID{thief, victim})
-	return err
+	if r.success {
+		b.advance(chat, thiefAcc, crimeGoal, 1)
+	}
+	hurtText, freed := r.scuffle.text(thief, victim)
+	text := robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
+	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{thief, victim}, freed...))
+	if err != nil || r.wait > 0 || r.poor || r.scuffle.criminal.died {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!roubar", won: r.success, victim: victim})
+	return nil
 }
 
 func robOutcome(chance float64, haul int64) func(thiefBalance, victimBalance int64) (bool, int64) {
 	return func(thiefBalance, victimBalance int64) (bool, int64) {
 		if rand.Float64() < chance {
-			return true, min(victimBalance, victimBalance*(10+rand.Int64N(21))*(100+haul)/10_000)
+			return true, min(victimBalance, exposed(victimBalance, robLootMin+rand.Int64N(robLootMax-robLootMin+1))*(100+haul)/100)
 		}
 		return false, thiefBalance * (10 + rand.Int64N(11)) / 100
 	}
+}
+
+func exposed(balance, percent int64) int64 {
+	brackets := []struct{ upTo, weight int64 }{
+		{1_000, 60},
+		{10_000, 45},
+		{100_000, 30},
+		{1_000_000, 15},
+		{math.MaxInt64, 6},
+	}
+	var take, floor int64
+	for _, br := range brackets {
+		if balance <= floor {
+			break
+		}
+		take += (min(balance, br.upTo) - floor) * percent * br.weight
+		floor = br.upTo
+	}
+	return take / (100 * brackets[0].weight)
+}
+
+func exposureText(balance int64) string {
+	if balance < robMinVictim {
+		return ""
+	}
+	most := exposed(balance, robLootMax)
+	share := strings.Replace(strconv.FormatFloat(math.Round(float64(most)*1000/float64(balance))/10, 'f', -1, 64), ".", ",", 1)
+	return fmt.Sprintf("🎯 Valor de roubo: um !roubar leva no máximo %s%% do saldo (%s)", share, Coins(most))
 }
 
 func robberyText(r robbery, thief, victim types.JID) string {
@@ -289,6 +342,9 @@ func robberyText(r robbery, thief, victim types.JID) string {
 	}
 	if r.alarmed {
 		return fmt.Sprintf("🚨 @%s tentou roubar @%s, mas o alarme disparou! O ladrão fugiu de mãos vazias e o alarme queimou", thief.User, victim.User)
+	}
+	if r.silent {
+		return fmt.Sprintf("🔕 O alarme de @%s falhou e não disparou!\n", victim.User) + robberyText(robbery{success: r.success, amount: r.amount}, thief, victim)
 	}
 	if r.success {
 		return fmt.Sprintf("🦹 @%s roubou %s de @%s e saiu correndo!", thief.User, Coins(r.amount), victim.User)
@@ -503,7 +559,7 @@ func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accoun
 		"inseto_em", "furto_em", "cafeina_em", "prisao_em", "abuso_em", "processo_em", "fuga_em", "sequestro_em",
 		"assalto_em", "denuncia_em", "assassinato_em", "libertacao_em", "abuso_trabalho_em", "abuso_roubo_em",
 		"abuso_sequestro_em", "ressurreicao_em", "encanto_em", "disfarce_em", "preso_ate", "morto_ate", "crime_em",
-		"saude_em", "conversao_em", "desvio_em",
+		"saude_em", "conversao_em", "desvio_em", "postagem_em", "publi_em", "cratera_em",
 	}
 	args := []any{chat.String()}
 	for _, acc := range accounts {

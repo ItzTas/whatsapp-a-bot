@@ -58,7 +58,10 @@ func (a ailments) emoji() string {
 }
 
 func (s *walletStore) ailments(ctx context.Context, chat types.JID, acc core.Account, now time.Time) (a ailments, err error) {
-	var stored, since int64
+	var (
+		stored, since int64
+		tipos         string
+	)
 	at := now.Unix()
 	err = s.db.QueryRowContext(ctx,
 		`SELECT c.morto_ate > ?, c.preso_ate > ?,
@@ -66,17 +69,17 @@ func (s *walletStore) ailments(ctx context.Context, chat types.JID, acc core.Acc
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        COALESCE((SELECT GROUP_CONCAT(e.tipo) FROM encantos e WHERE e.chat = c.chat AND e.alvo = c.pessoa AND e.ate > ?), ''),
-		        c.droga_ate > ?, c.saude, c.saude_em
+		        c.droga_ate > ?, c.saude, c.saude_em, `+staffKinds+`
 		 FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?`,
 		at, at, at, clownKind, at, curseKind, at, at, at, chat.String(), acc.Key,
-	).Scan(&a.dead, &a.jailed, &a.hostage, &a.clown, &a.hexed, &a.charms, &a.drugged, &stored, &since)
+	).Scan(&a.dead, &a.jailed, &a.hostage, &a.clown, &a.hexed, &a.charms, &a.drugged, &stored, &since, &tipos)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ailments{health: MaxHealth}, nil
 	}
 	if err != nil {
 		return ailments{}, err
 	}
-	a.health = healthAt(stored, since, now)
+	a.health = healthAt(stored, since, regenEvery(kindsOf(tipos)), now)
 	return a, nil
 }
 

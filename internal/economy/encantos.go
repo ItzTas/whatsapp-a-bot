@@ -121,7 +121,7 @@ var charms = []charm{
 	{id: "multiplicacao", name: "Multiplicação", emoji: "🐟", hold: 12 * time.Hour, boon: boonPercent, boonCap: boonCap, aliases: []string{"multiplicar", "milagre", "peixes", "paes e peixes"},
 		effect: fmt.Sprintf("na próxima vez que o saldo da pessoa subir (trabalho, aposta, venda, pix, o que for), entra mais %d%% do que entrou, em moedas novas, até %s", boonPercent, Coins(boonCap))},
 	{id: "purificacao", name: "Purificação", emoji: "🧂", aliases: []string{"descarrego", "limpeza", "limpar", "exorcismo"},
-		effect: "tira na hora toda maldição da pessoa, até a praga do !zoar"},
+		effect: "tira na hora toda maldição da pessoa, até a praga do !zoar (menos a Casa assombrada, que só sai pagando)"},
 
 	{id: "miseria", name: "Miséria", emoji: "💸", curse: true, hold: 4 * time.Hour, aliases: []string{"pobreza", "falencia"},
 		effect: "o !trabalhar paga 40% menos",
@@ -153,7 +153,7 @@ var charms = []charm{
 			p.interest -= 2
 			return p
 		}},
-	{id: "encosto", name: "Encosto", emoji: "👻", curse: true, hold: 4 * time.Hour, aliases: []string{"assombracao", "espirito"},
+	{id: "encosto", name: "Encosto", emoji: "👻", curse: true, hold: 4 * time.Hour, aliases: []string{"espirito"},
 		effect: "fica 50% mais tempo na cadeia e tem 25% menos chance no !fugir da cadeia e do cativeiro",
 		apply: func(p Profession) Profession {
 			p.jailFactor += 50
@@ -183,6 +183,8 @@ var charms = []charm{
 			p.trialEdge -= 2
 			return p
 		}},
+	{id: hauntID, name: "Casa assombrada", emoji: "🏚️", curse: true, hold: hauntHold, aliases: []string{"assombrar", "fantasma", "poltergeist", "mal assombrada"},
+		effect: hauntEffect, apply: haunted},
 }
 
 type faith struct {
@@ -214,6 +216,7 @@ type spell struct {
 	hit       bool
 	backfire  bool
 	reflected bool
+	vacant    bool
 }
 
 func (c charm) label() string {
@@ -452,6 +455,10 @@ func (b *bot) castCharm(ctx context.Context, evt *events.Message, curse bool) er
 	}
 	order := charmOrder{chat: chat, caster: casterAcc, target: targetAcc, charm: c, odds: odds, pierce: job.divine, cd: job.pace(charmCooldown), now: time.Now()}
 	s, err := b.Wallets.cast(ctx, order)
+	if errors.Is(err, errHomeless) {
+		_, err := b.SendMentions(ctx, chat, homelessHauntText(target), []types.JID{target})
+		return err
+	}
 	if errors.Is(err, errCharmIdle) {
 		_, err := b.SendMentions(ctx, chat, fmt.Sprintf("😌 @%s tá com a alma limpinha, não tem maldição nenhuma pra tirar", target.User), []types.JID{target})
 		return err
@@ -557,11 +564,14 @@ func spellText(s spell, job Profession, c charm, caster, target types.JID) strin
 	if !c.curse {
 		return head + fmt.Sprintf(" e deu %s por %s 😇\n%s", c.label(), core.FormatWait(c.hold), c.effect)
 	}
+	if s.vacant {
+		return head + ", mas " + vacantText(s, caster, target)
+	}
 	if s.reflected {
 		return head + ", mas " + reflectedText(c, caster)
 	}
 	if s.hit {
-		return head + fmt.Sprintf(" e jogou %s por %s 😈\n%s\n%s", c.label(), core.FormatWait(c.hold), c.effect, cureText())
+		return head + fmt.Sprintf(" e jogou %s por %s 😈\n%s\n%s", c.label(), core.FormatWait(c.hold), c.effect, c.cure())
 	}
 	if s.backfire {
 		return head + fmt.Sprintf(", mas a praga voltou! 🔁 Quem ficou com %s por %s foi @%s\n%s", c.label(), core.FormatWait(c.hold), caster.User, c.effect)
@@ -572,6 +582,9 @@ func spellText(s spell, job Profession, c charm, caster, target types.JID) strin
 func (s *walletStore) cast(ctx context.Context, o charmOrder) (sp spell, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, o.chat, o.target); err != nil {
+			return err
+		}
+		if err := o.needsHome(ctx, tx); err != nil {
 			return err
 		}
 		if sp.wait, err = stampCooldown(ctx, tx, o.chat, o.caster, o.cd, o.now); err != nil || sp.wait > 0 {
@@ -601,6 +614,9 @@ func landCharm(ctx context.Context, tx *ledgerTx, o charmOrder) (spell, error) {
 	if sp.backfire || sp.reflected {
 		bearer, author = o.caster, o.target
 	}
+	if sp.vacant, err = o.vacantFor(ctx, tx, bearer); err != nil || sp.vacant {
+		return sp, err
+	}
 	return sp, grantCharm(ctx, tx, o.chat, bearer, author, o.charm, o.now)
 }
 
@@ -612,7 +628,7 @@ func (o charmOrder) bouncesOffMirror(ctx context.Context, tx *ledgerTx, sp spell
 }
 
 func reflectedText(c charm, caster types.JID) string {
-	return fmt.Sprintf("a praga bateu no %s e voltou! 🔁 Quem ficou com %s por %s foi @%s\n%s\n%s", mirrorLabel(), c.label(), core.FormatWait(c.hold), caster.User, c.effect, cureText())
+	return fmt.Sprintf("a praga bateu no %s e voltou! 🔁 Quem ficou com %s por %s foi @%s\n%s\n%s", mirrorLabel(), c.label(), core.FormatWait(c.hold), caster.User, c.effect, c.cure())
 }
 
 func (b *bot) hurlCurse(ctx context.Context, evt *events.Message, it item) error {
@@ -642,7 +658,7 @@ func hurlText(sp spell, it item, c charm, thrower, target types.JID) string {
 		return head + "\n\nMas " + reflectedText(c, thrower)
 	}
 	if sp.hit {
-		return head + fmt.Sprintf("\n\n😈 Pegou! @%s ficou com %s por %s\n%s\n%s", target.User, c.label(), core.FormatWait(c.hold), c.effect, cureText())
+		return head + fmt.Sprintf("\n\n😈 Pegou! @%s ficou com %s por %s\n%s\n%s", target.User, c.label(), core.FormatWait(c.hold), c.effect, c.cure())
 	}
 	if sp.backfire {
 		return head + fmt.Sprintf("\n\n🔁 Mas a praga voltou! Quem ficou com %s por %s foi @%s\n%s", c.label(), core.FormatWait(c.hold), thrower.User, c.effect)
@@ -677,7 +693,7 @@ func grantCharm(ctx context.Context, tx *ledgerTx, chat types.JID, bearer, autho
 func purgeCurses(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, now time.Time) error {
 	curses := []any{soulPactCharm.id}
 	for _, c := range charms {
-		if c.curse {
+		if c.curse && !c.haunts() {
 			curses = append(curses, c.id)
 		}
 	}

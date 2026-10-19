@@ -83,6 +83,7 @@ func (b *bot) imovel(ctx context.Context, evt *events.Message) error {
 		"depositar": b.fillVault, "esconder": b.fillVault,
 		"sacar": b.drainVault,
 		"cofre": b.showVault,
+		"exorcizar": b.exorcizeHome, "exorcismo": b.exorcizeHome, "espantar": b.exorcizeHome, "desassombrar": b.exorcizeHome,
 	}
 	if len(args) > 0 {
 		if run, ok := actions[args[0]]; ok {
@@ -94,7 +95,11 @@ func (b *bot) imovel(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.SendMentions(ctx, chat, estatesMenu(person, job.estate), []types.JID{person})
+	ghost, authors, err := b.hauntedHomeText(ctx, chat, person, job)
+	if err != nil {
+		return fmt.Errorf("ler assombração: %w", err)
+	}
+	_, err = b.SendMentions(ctx, chat, estatesMenu(person, job.estate)+ghost, append([]types.JID{person}, authors...))
 	return err
 }
 

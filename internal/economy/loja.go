@@ -1,6 +1,7 @@
 package economy
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -72,17 +73,114 @@ func (b *bot) loja(ctx context.Context, evt *events.Message) error {
 		lines = append(lines, shopLine(it))
 	}
 	lines = append(lines, fmt.Sprintf("_As ofertas trocam em %s_", core.FormatWait(nextRestock(now))), "",
+		"_Pra ver tudo o que um item faz, manda !item <nome>_",
 		"_Compra com !comprar <item>, tipo !comprar vara de pesca ou !comprar todynho 5. Os bichinhos ficam no !petshop_",
 		fmt.Sprintf("_O resto dos itens só sai no !pescar, no !minerar, no !vasculhar, no !catar ou em caixa, as coisas finas ficam na !luxo e o que é proibido, no !mercadonegro. Vendendo pro mercado, ele paga %d%% do valor_", marketSalePercent))
 	return b.SendText(ctx, chat, strings.Join(lines, "\n"))
 }
 
 func shopLine(it item) string {
-	line := fmt.Sprintf("• %s: 🪙 %s", it.label(), core.Thousands(it.value))
-	if p := perk(it); p != "" {
-		line += " (" + p + ")"
+	r := rarities[it.rarity]
+	line := fmt.Sprintf("%s %s · %s · 🪙 %s", r.emoji, it.label(), r.name, core.Thousands(it.value))
+	if text := brief(it); text != "" {
+		line += " · _" + text + "_"
 	}
 	return line
+}
+
+func brief(it item) string {
+	if it.gear != nil {
+		return gearBrief(it.gear)
+	}
+	if a, ok := activityUsing(it.id); ok {
+		return "ferramenta do " + a.command
+	}
+	protections := map[string]string{
+		lockItemID:      "protege a mochila do !furtar",
+		alarmItemID:     "protege o saldo do !roubar",
+		vestItemID:      "segura um !matar",
+		forgedReleaseID: "tira da cadeia, mas é crime",
+	}
+	if text, ok := protections[it.id]; ok {
+		return text
+	}
+	if it.heal > 0 && it.doses > 1 {
+		return fmt.Sprintf("recupera %d de saúde, %d doses", it.heal, it.doses)
+	}
+	if it.heal > 0 {
+		return fmt.Sprintf("recupera %d de saúde", it.heal)
+	}
+	if it.heist > 0 {
+		return fmt.Sprintf("+%d%% pra equipe no !assalto, e gasta", percent(it.heist))
+	}
+	if it.flex != nil {
+		return cmp.Or(it.flex.brief, it.flex.effect)
+	}
+	if it.trade != nil {
+		a := areas[it.trade.area]
+		return fmt.Sprintf("rende mais no trampo de %s %s", a.emoji, a.name)
+	}
+	if it.networks != nil {
+		return "posta " + networkNames(it.networks)
+	}
+	if c, ok := charmByID(it.bless); ok {
+		return fmt.Sprintf("bênção %s por %s", c.label(), core.FormatWait(c.hold))
+	}
+	if c, ok := charmByID(it.hex); ok {
+		return "joga " + c.label() + " em alguém"
+	}
+	if it.loot != nil {
+		return "sai um item aleatório"
+	}
+	if it.prizes != nil {
+		top := slices.MaxFunc(it.prizes, func(a, b prize) int { return cmp.Compare(a.amount, b.amount) })
+		return "prêmio de até " + Coins(top.amount)
+	}
+	if it.resets != nil {
+		return "zera a espera " + spots("do", "das extrações", resetList(it.resets))
+	}
+	if it.pet {
+		return fmt.Sprintf("às vezes traz um item no !daily (%d%%)", percent(it.fetchChance()))
+	}
+	return ""
+}
+
+func gearBrief(g *gear) string {
+	if g.tool {
+		return "ferramenta melhor " + spots("do", "das extrações", g.activities)
+	}
+	tags := []struct {
+		on   bool
+		text string
+	}{
+		{g.metal, "só vem metal"},
+		{g.relicLure > 0, "acha mais o Relicário perdido"},
+		{g.luck > 0, "acha coisa melhor"},
+		{g.faster > 0, "espera menos"},
+		{g.fewerJunk > 0, "vem menos lixo"},
+		{g.moreRare > 0, "vem mais item raro"},
+		{g.grade > 0, "vem com qualidade melhor"},
+		{g.safety > 0, "se machuca menos"},
+		{g.alwaysFinds, "nunca vem vazio"},
+		{g.spent, "gasta 1 por vez"},
+	}
+	var found []string
+	for _, t := range tags {
+		if t.on {
+			found = append(found, t.text)
+		}
+	}
+	return spots("no", "nas extrações", g.activities) + ": " + core.JoinWithAnd(found)
+}
+
+func spots(prep, everywhere string, commands []string) string {
+	extraction := func(command string) bool {
+		return slices.ContainsFunc(activities, func(a activity) bool { return a.command == command })
+	}
+	if len(commands) == len(activities) && !slices.ContainsFunc(commands, func(c string) bool { return !extraction(c) }) {
+		return everywhere
+	}
+	return prep + " " + core.JoinWithAnd(commands)
 }
 
 func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
@@ -142,6 +240,7 @@ func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return fmt.Errorf("comprar item: %w", err)
 	}
+	b.advance(chat, acc, shopGoal, cost)
 	purchase := "🛒 @%s comprou %s por %s"
 	if it.pet {
 		purchase = "🐾 @%s levou %s do petshop pra casa por %s"

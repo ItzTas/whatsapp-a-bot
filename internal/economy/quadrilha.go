@@ -3,7 +3,6 @@ package economy
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -43,10 +42,11 @@ type gangState struct {
 }
 
 type gangster struct {
-	acc  core.Account
-	job  Profession
-	paid int64
-	took int64
+	acc    core.Account
+	job    Profession
+	paid   int64
+	took   int64
+	injury injury
 }
 
 type gangRobbery struct {
@@ -55,7 +55,9 @@ type gangRobbery struct {
 	chance    float64
 	poor      bool
 	alarmed   bool
+	silent    bool
 	success   bool
+	bruise    injury
 }
 
 func (b *bot) quadrilha(ctx context.Context, evt *events.Message) error {
@@ -239,11 +241,17 @@ func (b *bot) runGang(ctx context.Context, chat types.JID, victim core.Account, 
 		return err
 	}
 	chance := clampChance(robSuccessChance + gangBonus(gangsters) - victimJob.guard)
-	r, err := b.Wallets.gangRob(ctx, chat, victim, gangsters, chance, time.Now())
+	r, err := b.Wallets.gangRob(ctx, chat, victim, gangsters, chance, gangRisk.on(victimJob), time.Now())
 	if err != nil {
 		return fmt.Errorf("quadrilha: %w", err)
 	}
-	return b.sendMentionsText(ctx, chat, r.text(), append(members, victim)...)
+	hurtText, freed := r.injuries()
+	people := append(accountJIDs(append(members, victim)), freed...)
+	if _, err := b.SendMentions(ctx, chat, r.text()+hurtText, people); err != nil || r.poor {
+		return err
+	}
+	b.stirCrewEvent(ctx, chat, r.survivors(), eventSpot{place: "!quadrilha", won: r.success, victim: victim.JID})
+	return nil
 }
 
 func gangBonus(gangsters []gangster) float64 {
@@ -256,7 +264,7 @@ func gangBonus(gangsters []gangster) float64 {
 	return bonus - curfew
 }
 
-func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.Account, gangsters []gangster, chance float64, now time.Time) (r gangRobbery, err error) {
+func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.Account, gangsters []gangster, chance float64, risk crimeRisk, now time.Time) (r gangRobbery, err error) {
 	r = gangRobbery{victim: victim, gangsters: slices.Clone(gangsters), chance: chance}
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		if err := openWallet(ctx, tx, chat, victim); err != nil {
@@ -274,21 +282,64 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.A
 		if err := stampGang(ctx, tx, chat, r.gangsters, now); err != nil {
 			return err
 		}
-		err = takeItems(ctx, tx, chat, victim, alarmItemID, 1)
-		if err == nil {
-			r.alarmed = true
-			return nil
-		}
-		if !errors.Is(err, errNoItems) {
+		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, gangAlarmChance(len(r.gangsters))); err != nil {
 			return err
 		}
-		if r.success = rand.Float64() < chance; r.success {
-			share := victimBalance * (gangLootMin + rand.Int64N(gangLootMax-gangLootMin+1)) / 100 / int64(len(r.gangsters))
-			return payGang(ctx, tx, chat, victim, r.gangsters, share)
+		if err := r.settle(ctx, tx, chat, victimBalance, chance); err != nil {
+			return err
 		}
-		return indemnify(ctx, tx, chat, victim, r.gangsters)
+		return r.brawl(ctx, tx, chat, risk, now)
 	})
 	return r, err
+}
+
+func (r *gangRobbery) settle(ctx context.Context, tx *ledgerTx, chat types.JID, victimBalance int64, chance float64) error {
+	if r.alarmed {
+		return nil
+	}
+	if r.success = rand.Float64() < chance; r.success {
+		share := exposed(victimBalance, gangLootMin+rand.Int64N(gangLootMax-gangLootMin+1)) / int64(len(r.gangsters))
+		return payGang(ctx, tx, chat, r.victim, r.gangsters, share)
+	}
+	return indemnify(ctx, tx, chat, r.victim, r.gangsters)
+}
+
+func (r *gangRobbery) brawl(ctx context.Context, tx *ledgerTx, chat types.JID, risk crimeRisk, now time.Time) (err error) {
+	for i := range r.gangsters {
+		g := &r.gangsters[i]
+		if g.injury, err = hurt(ctx, tx, chat, g.acc, risk.by(g.job).wound(r.success), now); err != nil {
+			return err
+		}
+	}
+	if !r.success {
+		return nil
+	}
+	r.bruise, err = bruise(ctx, tx, chat, r.victim, risk.victim.roll(0), now)
+	return err
+}
+
+func (r gangRobbery) injuries() (text string, freed []types.JID) {
+	for _, g := range r.gangsters {
+		hurtText, escaped := g.injury.text(g.acc.JID)
+		text += hurtText
+		freed = append(freed, escaped...)
+	}
+	bruised, _ := r.bruise.text(r.victim.JID)
+	return text + bruised, freed
+}
+
+func (r gangRobbery) survivors() []core.Account {
+	var alive []core.Account
+	for _, g := range r.gangsters {
+		if !g.injury.died {
+			alive = append(alive, g.acc)
+		}
+	}
+	return alive
+}
+
+func gangAlarmChance(crew int) float64 {
+	return max(0, alarmChance-alarmGangCut*float64(crew-1))
 }
 
 func stampGang(ctx context.Context, tx *ledgerTx, chat types.JID, gangsters []gangster, now time.Time) error {
@@ -341,6 +392,9 @@ func (r gangRobbery) text() string {
 	lines := []string{"🦹 *Quadrilha!*", "👥 " + r.crewText(), fmt.Sprintf("🎯 Chance de dar certo: %d%%", percent(r.chance)), ""}
 	if r.alarmed {
 		return strings.Join(append(lines, fmt.Sprintf("🚨 A quadrilha cercou @%s, mas o alarme disparou! Saíram correndo de mãos vazias e o alarme queimou", r.victim.JID.User)), "\n")
+	}
+	if r.silent {
+		lines = append(lines, fmt.Sprintf("🔕 O alarme de @%s até tentou, mas a quadrilha era gente demais e ele não disparou", r.victim.JID.User))
 	}
 	if r.success {
 		lines = append(lines, r.lootLines()...)

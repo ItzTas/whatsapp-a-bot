@@ -173,6 +173,7 @@ type Profession struct {
 	robBonus   float64
 	robHaul    int64
 	guard      float64
+	cordon     float64
 	theftEvery time.Duration
 	theftBonus float64
 
@@ -182,6 +183,11 @@ type Profession struct {
 	breakoutBonus float64
 
 	heistBonus float64
+
+	reach    int64
+	stage    string
+	fans     audience
+	charming bool
 
 	jailTime      time.Duration
 	arrestEvery   time.Duration
@@ -196,12 +202,14 @@ type Profession struct {
 
 	killChance   float64
 	reaper       bool
+	posse        bool
 	reviveChance float64
 	soulPact     bool
 
 	president   bool
 	divine      bool
 	estate      int
+	warded      bool
 	escort      bool
 	bribed      bool
 	cursed      bool
@@ -209,10 +217,14 @@ type Profession struct {
 	drug        string
 	charms      []string
 	luxuries    []string
+	implants    []string
+	unpowered   []string
+	sealedBody  bool
 	titleID     string
 	church      string
 	doctrineID  string
 	templeLevel int
+	churchTithe int64
 
 	craft        craft
 	gatherFaster int64
@@ -227,6 +239,7 @@ type Profession struct {
 	boxLuck      int
 	faith        faith
 	mirror       bool
+	oracle       bool
 
 	salePercent   int64
 	discount      int64
@@ -240,6 +253,7 @@ type Profession struct {
 	jinxProof     bool
 	casinoLuck    int64
 	rescueOdds    float64
+	animalLuck    int64
 	legalDiscount int64
 	trialDiscount int64
 	trialBonus    int64
@@ -434,7 +448,7 @@ func (p Profession) perks() []string {
 		on   bool
 		text string
 	}{
-		{p.president, fmt.Sprintf("🏛️ É presidente da conversa: mais proteção, não pode ser preso, pode !prender, !libertar e !reviver, abusa do poder %d vezes no mandato no !prender, !trabalhar, !roubar e !sequestrar e baixa !decreto (veja !presidente)", presidentAbuses)},
+		{p.president, fmt.Sprintf("🏛️ É presidente da conversa: segurança contra !sequestrar e !matar, imunidade que segura %d%% das prisões, pode !prender, !libertar e !reviver, abusa do poder %d vezes no mandato no !prender, !trabalhar, !roubar e !sequestrar e baixa !decreto (veja !presidente)", percent(presidentImmunity), presidentAbuses)},
 		{p.bust > 0 && p.bustFine == 0, fmt.Sprintf("😬 Em %d%% das vezes dá ruim e não ganha nada", percent(p.bust))},
 		{p.bust > 0 && p.bustFine > 0, fmt.Sprintf("💥 Em %d%% das vezes dá ruim e ainda perde até %s", percent(p.bust), Coins(p.bustFine))},
 		{p.hazard.harm > 0, hazardPerk(p.hazard, p.safety)},
@@ -455,10 +469,13 @@ func (p Profession) perks() []string {
 		{p.breakoutBonus < 0, fmt.Sprintf("😴 %d%% menos chance no !fugir do cativeiro quando é sequestrado", percent(-p.breakoutBonus))},
 		{p.killChance > 0, fmt.Sprintf("🔪 Pode !matar, com %d%% de chance (menos a proteção da vítima)", percent(p.killChance))},
 		{p.guard > 0, fmt.Sprintf("🛡️ Quem tenta !roubar, !furtar, !sequestrar ou !matar você tem %d%% menos chance", percent(p.guard))},
+		{p.cordon > 0, fmt.Sprintf("🕴️ Segurança presidencial: quem tenta !sequestrar ou !matar você tem mais %d%% de chance de errar", percent(p.cordon))},
+		{p.warded, fmt.Sprintf("🗿 A Carranca espanta mau espírito: a Casa assombrada não faz nada com o seu imóvel, nem o IPTU dobra, e a proteção e os bônus do imóvel valem %d%% a mais", carrancaBoost)},
 		{p.jailTime > 0, fmt.Sprintf("🚔 Pode !prender quem tentou !roubar, !furtar, !sequestrar, !matar, entrou num !assalto, negociou no !mercadonegro ou desviou o cofre da igreja nas últimas %s, por %s, a cada %s: quem tá preso não aposta, não rouba, não furta, não sequestra e não assalta. Quem tenta te !sequestrar tem bem mais chance de ir preso na hora", core.FormatWait(crimeWindow), core.FormatWait(p.jailTime), core.FormatWait(p.arrestEvery))},
 		{len(p.abuses) > 0, p.abusesText()},
 		{p.releaseChance > 0, fmt.Sprintf("🔓 Pode !libertar alguém da cadeia ou do cativeiro, com %d%% de chance. Se der errado, pode levar multa", percent(p.releaseChance))},
 		{p.reaper, fmt.Sprintf("💀 No !matar, passa direto pelo colete, a vítima fica %dx mais tempo morta e o enterro (de %d%% a %d%% do saldo dela) vai pro seu bolso", reaperHoldFactor, reapLossMinPercent, reapLossMaxPercent)},
+		{p.posse, fmt.Sprintf("🤠 Caça o procurado do dia: pode !matar ele mesmo sem ser do crime, com pelo menos %d%% de chance (menos a proteção dele), sem contar como crime, e leva a recompensa do bot em dobro. Contra quem tem o Chapéu de Lampião, +%d%% no !matar", percent(posseKillChance), percent(posseLampiaoBonus))},
 		{p.reviveChance > 0, fmt.Sprintf("🧟 Pode !reviver quem foi morto no !matar, com %d%% de chance", percent(p.reviveChance))},
 		{p.soulPact, fmt.Sprintf("📕 Quem você revive fica %s passando %d%% de tudo que ganha pra você", core.FormatWait(soulPactHold), soulPactPercent)},
 		{p.heistBonus > 0, fmt.Sprintf("🏦 Soma +%d%% de chance pra equipe no !assalto", percent(p.heistBonus))},
@@ -470,12 +487,13 @@ func (p Profession) perks() []string {
 		{p.escapeBonus < 0, fmt.Sprintf("👀 %d%% menos chance no !fugir e de escapar quando o !assalto dá errado: todo mundo fica de olho", percent(-p.escapeBonus))},
 		{p.reportBonus > 0, fmt.Sprintf("🕵️ No !denunciar, a polícia acredita em %d%% das vezes (o normal é %d%%)", percent(p.reportOdds()), percent(reportChance))},
 		{p.reportBonus < 0, fmt.Sprintf("🙄 No !denunciar, a polícia só acredita em %d%% das vezes (o normal é %d%%)", percent(p.reportOdds()), percent(reportChance))},
-		{p.noSnitch, fmt.Sprintf("🐀 Não pode !denunciar: bandido que vira X-9 é entregue pela quadrilha e pega %s de cadeia", core.FormatWait(p.snitchSentence()))},
+		{p.noSnitch, fmt.Sprintf("🐀 Não pode !denunciar: bandido que vira X-9 é pego pela quadrilha, que sorteia o castigo: %s de cadeia, queima de arquivo (morte) ou %s em cativeiro com quem ele dedurou", core.FormatWait(p.snitchSentence()), core.FormatWait(hostageHold))},
 		{p.craft.activity != "", p.craft.describe()},
 		{p.gatherFaster > 0, fmt.Sprintf("⏱️ Espera %d%% menos no %s", p.gatherFaster, extractionCommands())},
 		{p.haste < 0, fmt.Sprintf("⏩ Espera %d%% menos no %s", -p.haste, hasteCommands)},
 		{p.haste > 0, fmt.Sprintf("🐌 Espera %d%% mais no %s", p.haste, hasteCommands)},
 		{p.boxLuck > 0, fmt.Sprintf("📦 Abre caixa e baú no !usar com %dx mais sorte: fica com o item mais raro de %d sorteios", p.boxLuck+1, p.boxLuck+1)},
+		{p.oracle, fmt.Sprintf("🐚 Os búzios leem o destino: os eventos aparecem %dx mais (%d%% das vezes em vez de %d%%) e a enquete mostra a chance de cada opção dar bom e dar ruim", oracleEventFactor, percent(eventChance*oracleEventFactor), percent(eventChance))},
 		{p.compassLure > 0, fmt.Sprintf("🧭 Acha a Bússola do relicário %dx mais fácil no %s", p.compassLure, extractionCommands())},
 		{p.rotten, fmt.Sprintf("🪰 Tudo que acha no %s vem com qualidade %s (%d%% do valor)", extractionCommands(), worstQuality().tier().name, worstQuality().tier().percent)},
 		{p.barrenHauls > 0, fmt.Sprintf("🫙 Volta de mão vazia %d%% mais vezes no %s", p.barrenHauls, extractionCommands())},
@@ -497,6 +515,7 @@ func (p Profession) perks() []string {
 		{p.jinxProof, "🍀 A maldição Azar não estraga suas vitórias no !apostar e no !cassino"},
 		{p.casinoLuck > 0, fmt.Sprintf("🃏 Leva %d%% a mais de lucro quando ganha no %s", p.casinoLuck, casinoGames)},
 		{p.rescueOdds > 0, fmt.Sprintf("🃏 %d%% de chance de pegar a aposta inteira de volta quando perde no %s", percent(p.rescueOdds), casinoGames)},
+		{p.animalLuck > 0, fmt.Sprintf("🦁 Leva %d%% a mais de lucro quando acerta no !bicho", p.animalLuck)},
 		{p.legalDiscount > 0, fmt.Sprintf("⚖️ Paga %d%% menos de pensão e de indenização por traição", p.legalDiscount)},
 		{p.trialDiscount > 0, fmt.Sprintf("💼 Paga %d%% menos quando perde um !processar", p.trialDiscount)},
 		{p.trialBonus > 0, fmt.Sprintf("📜 Leva %d%% a mais quando ganha um !processar", p.trialBonus)},
@@ -519,9 +538,11 @@ func (p Profession) perks() []string {
 		}
 	}
 	lines = append(lines, tradePerks(p)...)
+	lines = append(lines, famePerks(p)...)
 	lines = append(lines, faithPerks(p)...)
 	lines = append(lines, contrabandPerks(p)...)
 	lines = append(lines, luxuryPerks(p)...)
+	lines = append(lines, implantPerks(p)...)
 	lines = append(lines, titlePerks(p)...)
 	lines = append(lines, churchPerks(p)...)
 	return append(lines, charmPerks(p)...)
@@ -563,13 +584,17 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 		weapon  item
 		held    []heldCharm
 		passive []item
+		body    []installed
+		fans    audience
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { held, err = b.Wallets.charmsOn(gctx, chat, acc, time.Now()); return err })
+	g.Go(func() (err error) { body, err = b.Wallets.body(gctx, chat, acc); return err })
 	g.Go(func() (err error) { st, err = b.Wallets.standing(gctx, chat, acc); return err })
 	g.Go(func() (err error) { decreed, err = b.Wallets.decrees(gctx, chat, time.Now()); return err })
 	g.Go(func() (err error) { weapon, err = b.Wallets.bestWeapon(gctx, chat, acc); return err })
 	g.Go(func() (err error) { passive, err = b.Wallets.passives(gctx, chat, acc); return err })
+	g.Go(func() (err error) { fans, err = b.Wallets.audience(gctx, chat, acc, time.Now()); return err })
 	if err := g.Wait(); err != nil {
 		return Profession{}, fmt.Errorf("ler profissão: %w", err)
 	}
@@ -578,7 +603,7 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 		job = job.presidential()
 	}
 	job.decrees = decreed
-	return job.housed(st.estate).escorted(st.guarded).paidOff(st.bribed).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple).charmed(held), nil
+	return job.housed(st.estate).escorted(st.guarded).paidOff(st.bribed).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target core.Account) (attackerJob, targetJob Profession, err error) {
@@ -612,7 +637,10 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return fmt.Errorf("trabalhar: %w", err)
 	}
-	text := s.text(job, person.User, w.paid) + incomeTaxText(w.tax, levy) + w.tithe.text() + w.garnish.text() + w.abuse.note("Abusou do poder e trabalhou sem descansar")
+	if w.wait == 0 {
+		b.advance(chat, acc, workGoal, 1)
+	}
+	text := s.text(job, person.User, w.paid) + incomeTaxText(w.tax, levy) + w.tithe.text() + gravityText(w.pulled) + w.garnish.text() + w.abuse.note("Abusou do poder e trabalhou sem descansar")
 	if w.wait > 0 {
 		text = fmt.Sprintf("😮‍💨 @%s ainda tá cansado do último trampo. Volta em %s", person.User, core.FormatWait(w.wait))
 	}
@@ -626,7 +654,11 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 		people = append(people, levy.payee()...)
 	}
 	_, err = b.SendMentions(ctx, chat, text+hurtText, people)
-	return err
+	if err != nil || w.wait > 0 || w.injury.died {
+		return err
+	}
+	b.stirEvent(ctx, evt, eventSpot{place: "!trabalhar", won: !s.busted})
+	return nil
 }
 
 func (b *bot) profissao(ctx context.Context, evt *events.Message) error {
@@ -658,6 +690,9 @@ func (b *bot) profissao(ctx context.Context, evt *events.Message) error {
 	}
 	if chosen.name == current.name {
 		return b.SendText(ctx, chat, fmt.Sprintf("Você já %s %s", chosen.title, chosen.emoji))
+	}
+	if b.holdIfJailed(ctx, evt) || b.holdIfHostage(ctx, evt) {
+		return nil
 	}
 	every := professionChangeEvery
 	if chosen.divine || current.divine {

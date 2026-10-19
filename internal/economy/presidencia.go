@@ -19,16 +19,18 @@ import (
 )
 
 const (
-	termLength            = 72 * time.Hour
+	termLength            = 48 * time.Hour
 	electionWindow        = 10 * time.Minute
+	runoffWindow          = 5 * time.Minute
 	electionQuorum        = 3
 	presidentAbuses       = 3
 	presidentGuard        = 0.25
+	presidentImmunity     = 0.75
 	presidentRelease      = 0.7
 	presidentRevive       = 0.5
 	presidentArrestEvery  = 30 * time.Minute
-	presidentPayFactor    = 3
-	presidentDailyBonus   = 200
+	presidentPayBonus     = 50
+	presidentDailyBonus   = 50
 	presidentFineDiscount = 0.95
 	electionKind          = "presidencia"
 )
@@ -47,6 +49,7 @@ type presidency struct {
 type election struct {
 	mu      sync.Mutex
 	opened  time.Time
+	runoff  []core.Account
 	ballots map[string]core.Account
 	weights map[string]int
 	closed  bool
@@ -57,6 +60,7 @@ type electionState struct {
 	Opened  time.Time                     `json:"opened"`
 	Ballots map[string]core.StoredAccount `json:"ballots"`
 	Weights map[string]int                `json:"weights,omitempty"`
+	Runoff  []core.StoredAccount          `json:"runoff,omitempty"`
 }
 
 type candidate struct {
@@ -67,6 +71,7 @@ type candidate struct {
 type ballot struct {
 	changed bool
 	refused bool
+	outside bool
 	weight  int
 }
 
@@ -93,6 +98,10 @@ func (b *bot) votar(ctx context.Context, evt *events.Message) error {
 	if cast.refused {
 		return b.SendText(ctx, chat, "🗳️ A apuração já começou. Espera o resultado")
 	}
+	if cast.outside {
+		_, err := b.SendMentions(ctx, chat, e.outsideText(), e.runoffJIDs())
+		return err
+	}
 	_, err := b.SendMentions(ctx, chat, e.ballotText(voterAcc, candidateAcc, cast, opened), []types.JID{voterAcc.JID, candidateAcc.JID})
 	return err
 }
@@ -110,7 +119,7 @@ func (b *bot) openElection(ctx context.Context, chat types.JID) (e *election, op
 		_, err = b.SendMentions(ctx, chat, text, []types.JID{p.president.JID})
 		return nil, false, true, err
 	}
-	value, running := b.elections.LoadOrStore(chat.String(), &election{opened: time.Now(), ballots: map[string]core.Account{}, weights: map[string]int{}})
+	value, running := b.elections.LoadOrStore(chat.String(), newElection(time.Now(), nil))
 	e = value.(*election)
 	if !running {
 		go b.closeElection(ctx, chat, e)
@@ -123,6 +132,9 @@ func (b *bot) castBallot(ctx context.Context, chat types.JID, e *election, voter
 	defer e.mu.Unlock()
 	if e.closed {
 		return ballot{refused: true}
+	}
+	if !e.admits(choice) {
+		return ballot{outside: true}
 	}
 	_, changed := e.ballots[voter.Key]
 	e.ballots[voter.Key] = choice
@@ -144,7 +156,11 @@ func (b *bot) keepElection(ctx context.Context, chat types.JID, e *election) {
 	for voter, choice := range e.ballots {
 		ballots[voter] = core.StoreAccount(choice)
 	}
-	b.KeepGame(ctx, electionKind, chat.String(), electionState{Chat: chat, Opened: e.opened, Ballots: ballots, Weights: e.weights}, e.opened.Add(electionWindow))
+	runoff := make([]core.StoredAccount, len(e.runoff))
+	for i, acc := range e.runoff {
+		runoff[i] = core.StoreAccount(acc)
+	}
+	b.KeepGame(ctx, electionKind, chat.String(), electionState{Chat: chat, Opened: e.opened, Ballots: ballots, Weights: e.weights, Runoff: runoff}, e.closes())
 }
 
 func (b *bot) restoreElection(ctx context.Context, saved core.SavedGame) error {
@@ -160,12 +176,47 @@ func (b *bot) restoreElection(ctx context.Context, saved core.SavedGame) error {
 	if weights == nil {
 		weights = map[string]int{}
 	}
-	e := &election{opened: state.Opened, ballots: ballots, weights: weights}
+	runoff := make([]core.Account, len(state.Runoff))
+	for i, acc := range state.Runoff {
+		runoff[i] = acc.Account()
+	}
+	e := &election{opened: state.Opened, runoff: runoff, ballots: ballots, weights: weights}
 	if _, running := b.elections.LoadOrStore(state.Chat.String(), e); running {
 		return fmt.Errorf("já tem outra eleição rolando em %s", state.Chat)
 	}
 	go b.closeElection(ctx, state.Chat, e)
 	return nil
+}
+
+func newElection(opened time.Time, runoff []core.Account) *election {
+	return &election{opened: opened, runoff: runoff, ballots: map[string]core.Account{}, weights: map[string]int{}}
+}
+
+func (e *election) closes() time.Time {
+	if len(e.runoff) > 0 {
+		return e.opened.Add(runoffWindow)
+	}
+	return e.opened.Add(electionWindow)
+}
+
+func (e *election) admits(choice core.Account) bool {
+	return len(e.runoff) == 0 || slices.ContainsFunc(e.runoff, func(acc core.Account) bool { return acc.Key == choice.Key })
+}
+
+func (e *election) runoffJIDs() []types.JID {
+	jids := make([]types.JID, len(e.runoff))
+	for i, acc := range e.runoff {
+		jids[i] = acc.JID
+	}
+	return jids
+}
+
+func (e *election) outsideText() string {
+	tags := make([]string, len(e.runoff))
+	for i, acc := range e.runoff {
+		tags[i] = "@" + acc.JID.User
+	}
+	return fmt.Sprintf("🗳️ É segundo turno: só vale voto em %s", core.JoinWithOr(tags))
 }
 
 func (e *election) tally() []candidate {
@@ -176,6 +227,9 @@ func (e *election) tally() []candidate {
 
 func (e *election) count() []candidate {
 	byKey := map[string]*candidate{}
+	for _, acc := range e.runoff {
+		byKey[acc.Key] = &candidate{acc: acc}
+	}
 	for voter, choice := range e.ballots {
 		weight := max(e.weights[voter], 1)
 		if c, ok := byKey[choice.Key]; ok {
@@ -193,7 +247,7 @@ func (e *election) count() []candidate {
 }
 
 func (e *election) ballotText(voter, choice core.Account, cast ballot, opened bool) string {
-	left := core.FormatWait(electionWindow - time.Since(e.opened))
+	left := core.FormatWait(time.Until(e.closes()))
 	vote := fmt.Sprintf("@%s votou em @%s", voter.JID.User, choice.JID.User)
 	if voter.Key == choice.Key {
 		vote = fmt.Sprintf("@%s votou em si mesmo 🤡", voter.JID.User)
@@ -215,11 +269,15 @@ func (b *bot) closeElection(ctx context.Context, chat types.JID, e *election) {
 	select {
 	case <-ctx.Done():
 		return
-	case <-time.After(time.Until(e.opened.Add(electionWindow))):
+	case <-time.After(time.Until(e.closes())):
 	}
 	candidates := b.closeBallots(ctx, chat, e)
+	if runoff, tied := e.runoffBetween(candidates); tied {
+		b.openRunoff(ctx, chat, e, candidates, runoff)
+		return
+	}
 	b.elections.CompareAndDelete(chat.String(), e)
-	text, err := b.electionResult(ctx, chat, candidates)
+	text, err := b.electionResult(ctx, chat, e, candidates)
 	if err != nil {
 		b.Client.Log.Errorf("apurar eleição: %v", err)
 		return
@@ -229,26 +287,76 @@ func (b *bot) closeElection(ctx context.Context, chat types.JID, e *election) {
 	}
 }
 
-func (b *bot) electionResult(ctx context.Context, chat types.JID, candidates []candidate) (string, error) {
+func (e *election) runoffBetween(candidates []candidate) ([]core.Account, bool) {
+	if len(e.runoff) > 0 || totalVotes(candidates) < electionQuorum {
+		return nil, false
+	}
+	tied := leaders(candidates)
+	if len(tied) < 2 {
+		return nil, false
+	}
+	runoff := make([]core.Account, len(tied))
+	for i, c := range tied {
+		runoff[i] = c.acc
+	}
+	return runoff, true
+}
+
+func (b *bot) openRunoff(ctx context.Context, chat types.JID, first *election, candidates []candidate, runoff []core.Account) {
+	e := newElection(time.Now(), runoff)
+	b.keepElection(ctx, chat, e)
+	if !b.elections.CompareAndSwap(chat.String(), first, e) {
+		b.DropGame(ctx, electionKind, chat.String())
+		return
+	}
+	go b.closeElection(ctx, chat, e)
+	lines := []string{"🗳️ *Deu empate na eleição!*"}
+	lines = append(lines, votesLines(candidates)...)
+	lines = append(lines, "", fmt.Sprintf("⚔️ Vai ter segundo turno entre %s. Os votos zeraram: manda !votar @pessoa em até %s, e só vale voto em quem empatou. Se empatar de novo, a sorte decide",
+		core.JoinMentions(e.runoffJIDs()), core.FormatWait(runoffWindow)))
+	if _, err := b.SendMentions(ctx, chat, strings.Join(lines, "\n"), candidateJIDs(candidates)); err != nil {
+		b.Client.Log.Errorf("anunciar segundo turno: %v", err)
+	}
+}
+
+func totalVotes(candidates []candidate) int {
 	total := 0
 	for _, c := range candidates {
 		total += c.votes
 	}
-	if total < electionQuorum {
+	return total
+}
+
+func leaders(candidates []candidate) []candidate {
+	return slices.DeleteFunc(slices.Clone(candidates), func(c candidate) bool { return c.votes < candidates[0].votes })
+}
+
+func votesLines(candidates []candidate) []string {
+	lines := make([]string, len(candidates))
+	for i, c := range candidates {
+		lines[i] = fmt.Sprintf("@%s: %s", c.acc.JID.User, core.CountLabel(c.votes, "voto", "votos"))
+	}
+	return lines
+}
+
+func (b *bot) electionResult(ctx context.Context, chat types.JID, e *election, candidates []candidate) (string, error) {
+	runoff := len(e.runoff) > 0
+	if total := totalVotes(candidates); !runoff && total < electionQuorum {
 		return fmt.Sprintf("🗳️ Eleição anulada: só %s, e precisava de %d. Manda !votar @pessoa pra tentar de novo", core.CountLabel(total, "voto", "votos"), electionQuorum), nil
 	}
-	tied := slices.DeleteFunc(slices.Clone(candidates), func(c candidate) bool { return c.votes < candidates[0].votes })
+	tied := leaders(candidates)
 	winner := core.PickOne(tied)
 	now := time.Now()
 	if err := b.Wallets.inaugurate(ctx, chat, winner.acc, winner.votes, now); err != nil {
 		return "", err
 	}
-	lines := []string{"🗳️ *Resultado da eleição*"}
-	for _, c := range candidates {
-		lines = append(lines, fmt.Sprintf("@%s: %s", c.acc.JID.User, core.CountLabel(c.votes, "voto", "votos")))
+	title := "🗳️ *Resultado da eleição*"
+	if runoff {
+		title = "🗳️ *Resultado do segundo turno*"
 	}
+	lines := append([]string{title}, votesLines(candidates)...)
 	if len(tied) > 1 {
-		lines = append(lines, "", "🪙 Deu empate e o desempate foi na sorte")
+		lines = append(lines, "", "🪙 Empatou de novo no segundo turno e o desempate foi na sorte")
 	}
 	lines = append(lines, "", fmt.Sprintf("🏛️ @%s é o novo presidente! O mandato vai até daqui a %s, e a próxima eleição só depois disso", winner.acc.JID.User, core.FormatWait(termLength)))
 	return strings.Join(append(lines, presidentialPowers()...), "\n"), nil
@@ -265,13 +373,13 @@ func candidateJIDs(candidates []candidate) []types.JID {
 func presidentialPowers() []string {
 	return []string{
 		fmt.Sprintf("😈 Abusa do poder %d vezes no mandato em cada um destes: !prender, !trabalhar, !roubar e !sequestrar na hora, mesmo com a espera pendente", presidentAbuses),
-		fmt.Sprintf("💼 Salário de presidente: o !trabalhar paga %d vezes mais e o !daily rende +%d%%", presidentPayFactor, presidentDailyBonus),
+		fmt.Sprintf("💼 Salário de presidente: o !trabalhar paga +%d%% e o !daily rende +%d%%", presidentPayBonus, presidentDailyBonus),
 		fmt.Sprintf("🚔 Pode !prender mesmo sem ser da polícia (%s de cadeia, a cada %s)", core.FormatWait(baseJail), core.FormatWait(presidentArrestEvery)),
 		fmt.Sprintf("🔓 Pode !libertar com pelo menos %d%% de chance, e se der errado a multa sai %d%% mais barata", percent(presidentRelease), percent(presidentFineDiscount)),
 		fmt.Sprintf("🧟 Pode !reviver quem foi morto com pelo menos %d%% de chance", percent(presidentRevive)),
-		fmt.Sprintf("🛡️ Segurança presidencial: quem tenta !roubar, !furtar, !sequestrar ou !matar o presidente tem mais %d%% de chance de errar", percent(presidentGuard)),
-		"⚖️ Imunidade: ninguém prende o presidente enquanto durar o mandato, nem com !prender, nem com !denunciar, nem pego no flagra. Quem tava preso sai da cadeia ao tomar posse",
-		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, cobra imposto de renda, mexe na poupança, nos preços, no pix, na cadeia e na !fianca, fecha o cassino, mexe nos prêmios do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Manda !decreto pra ver a lista",
+		fmt.Sprintf("🛡️ Segurança presidencial: quem tenta !sequestrar, !matar ou dar !golpe no presidente tem mais %d%% de chance de errar. Contra !roubar e !furtar não adianta", percent(presidentGuard)),
+		fmt.Sprintf("⚖️ Imunidade: quando tentam prender o presidente (!prender, !denunciar ou pego no flagra), tem %d%% de chance de ele mostrar a imunidade e sair andando. Quem tava preso sai da cadeia ao tomar posse", percent(presidentImmunity)),
+		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, cobra imposto de renda, mexe na poupança, nos preços, no pix, na cadeia e na !fianca, mexe nos prêmios e na taxa do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Manda !decreto pra ver a lista",
 	}
 }
 
@@ -303,10 +411,11 @@ func (b *bot) presidente(ctx context.Context, evt *events.Message) error {
 }
 
 func (e *election) partialText(candidates []candidate) string {
-	lines := []string{fmt.Sprintf("🗳️ *Eleição rolando!* A urna fecha em %s", core.FormatWait(electionWindow-time.Since(e.opened)))}
-	for _, c := range candidates {
-		lines = append(lines, fmt.Sprintf("@%s: %s", c.acc.JID.User, core.CountLabel(c.votes, "voto", "votos")))
+	title := "🗳️ *Eleição rolando!*"
+	if len(e.runoff) > 0 {
+		title = "🗳️ *Segundo turno rolando!* Só vale voto em " + core.JoinMentions(e.runoffJIDs()) + "."
 	}
+	lines := append([]string{fmt.Sprintf("%s A urna fecha em %s", title, core.FormatWait(time.Until(e.closes())))}, votesLines(candidates)...)
 	return strings.Join(append(lines, "", "_Manda !votar @pessoa pra votar_"), "\n")
 }
 
@@ -340,10 +449,10 @@ func (p presidency) abusesLeftText() string {
 
 func (p Profession) presidential() Profession {
 	p.president = true
-	p.min *= presidentPayFactor
-	p.max *= presidentPayFactor
+	p.min += p.min * presidentPayBonus / 100
+	p.max += p.max * presidentPayBonus / 100
 	p.dailyBonus += presidentDailyBonus
-	p.guard += presidentGuard
+	p.cordon += presidentGuard
 	p.releaseChance = max(p.releaseChance, presidentRelease)
 	p.reviveChance = max(p.reviveChance, presidentRevive)
 	if p.jailTime == 0 {
@@ -352,8 +461,8 @@ func (p Profession) presidential() Profession {
 	return p
 }
 
-func immunityText(president types.JID) string {
-	return fmt.Sprintf("⚖️ @%s é presidente e tem imunidade: ninguém prende enquanto durar o mandato", president.User)
+func immunityText(accuser, president types.JID) string {
+	return fmt.Sprintf("⚖️ @%s mandou a viatura atrás de @%s, mas é o presidente: mostrou a imunidade e saiu pela porta da frente. O crime continua na ficha, então dá pra tentar de novo (a imunidade segura %d%% das vezes)", accuser.User, president.User, percent(presidentImmunity))
 }
 
 func (p Profession) badge() string {

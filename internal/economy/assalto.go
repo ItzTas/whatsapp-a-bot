@@ -46,8 +46,10 @@ type robber struct {
 	acc      core.Account
 	job      Profession
 	caught   bool
+	shielded bool
 	sentence time.Duration
 	fine     int64
+	injury   injury
 }
 
 type heist struct {
@@ -198,8 +200,12 @@ func (b *bot) runHeist(ctx context.Context, chat types.JID, members []core.Accou
 	if err != nil {
 		return fmt.Errorf("assalto: %w", err)
 	}
-	_, err = b.SendMentions(ctx, chat, h.text(), accountJIDs(members))
-	return err
+	hurtText, freed := h.injuries()
+	if _, err := b.SendMentions(ctx, chat, h.text()+hurtText, append(accountJIDs(members), freed...)); err != nil {
+		return err
+	}
+	b.stirCrewEvent(ctx, chat, uncaught(h.robbers), eventSpot{place: "!assalto", won: h.success})
+	return nil
 }
 
 func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robber, now time.Time) (h heist, err error) {
@@ -223,7 +229,11 @@ func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robbe
 		}
 		h.gear = gear
 		h.chance = clampChance(heistChance + crewBonus(robbers) + gearBonus(gear))
-		if h.success = rand.Float64() < h.chance; h.success {
+		h.success = rand.Float64() < h.chance
+		if err := woundCrew(ctx, tx, chat, h.robbers, h.success, now); err != nil {
+			return err
+		}
+		if h.success {
 			h.share = (heistLootMin + rand.Int64N(heistLootMax-heistLootMin+1)) / int64(len(robbers))
 			return payCrew(ctx, tx, chat, robbers, h.share)
 		}
@@ -270,10 +280,26 @@ func payCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robber
 	return nil
 }
 
+func woundCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robber, success bool, now time.Time) (err error) {
+	for i := range robbers {
+		r := &robbers[i]
+		if r.injury, err = hurt(ctx, tx, chat, r.acc, heistRisk.by(r.job).wound(success), now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func jailCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robber, now time.Time) error {
 	for i := range robbers {
 		r := &robbers[i]
-		if r.job.slipsAway() || rand.Float64() < r.job.escapeOdds() {
+		if r.injury.died {
+			continue
+		}
+		if r.shielded = rand.Float64() >= r.job.flagrantOdds(1); r.shielded {
+			continue
+		}
+		if rand.Float64() < r.job.escapeOdds() {
 			continue
 		}
 		r.caught = true
@@ -323,9 +349,20 @@ func (h heist) text() string {
 	}
 	lines = append(lines, "🚨 O alarme disparou e a polícia cercou o banco!")
 	for _, r := range h.robbers {
-		lines = append(lines, r.fate())
+		if !r.injury.died {
+			lines = append(lines, r.fate())
+		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func (h heist) injuries() (text string, freed []types.JID) {
+	for _, r := range h.robbers {
+		hurtText, escaped := r.injury.text(r.acc.JID)
+		text += hurtText
+		freed = append(freed, escaped...)
+	}
+	return text, freed
 }
 
 func (h heist) crewText() string {
@@ -351,10 +388,10 @@ func (r robber) fate() string {
 	if r.caught {
 		return fmt.Sprintf("🚔 @%s foi preso e fica %s na cadeia", r.acc.JID.User, core.FormatWait(r.sentence))
 	}
-	if r.job.president {
+	if r.shielded && r.job.president {
 		return fmt.Sprintf("⚖️ @%s foi pego, mas é presidente: mostrou a imunidade e saiu pela porta da frente", r.acc.JID.User)
 	}
-	if r.job.bribed {
+	if r.shielded && r.job.bribed {
 		return fmt.Sprintf("💰 @%s foi pego, mas o delegado tava no bolso: saiu pela porta da frente", r.acc.JID.User)
 	}
 	return fmt.Sprintf("🏃 @%s escapou pela janela do banheiro, mas a polícia ainda pode !prender nas próximas %s", r.acc.JID.User, core.FormatWait(crimeWindow))

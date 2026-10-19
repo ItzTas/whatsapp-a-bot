@@ -26,11 +26,13 @@ type haul struct {
 
 type gathering struct {
 	haul
+	pulled []haul
 	noTool bool
 	wait   time.Duration
 	broken item
 	worn   []item
 	spent  []item
+	toll   int64
 	injury injury
 }
 
@@ -42,6 +44,7 @@ type theft struct {
 	grade   quality
 	success bool
 	fine    int64
+	scuffle scuffle
 }
 
 func (s *walletStore) inventory(ctx context.Context, chat types.JID, acc core.Account) ([]stack, error) {
@@ -159,11 +162,30 @@ func (s *walletStore) tradeItem(ctx context.Context, o *itemOffer) (grades []gra
 }
 
 func moveItems(ctx context.Context, tx *ledgerTx, chat types.JID, from, to core.Account, id string, quantity int64) ([]grade, error) {
+	wear, err := wearIn(ctx, tx, backpackTable, chat, from, id)
+	if err != nil {
+		return nil, err
+	}
 	grades, err := takeGrades(ctx, tx, chat, from, id, quantity)
 	if err != nil {
 		return nil, err
 	}
-	return grades, addGrades(ctx, tx, chat, to, id, grades)
+	if err := addGrades(ctx, tx, chat, to, id, grades); err != nil {
+		return nil, err
+	}
+	return grades, keepWear(ctx, tx, backpackTable, chat, to, id, wear)
+}
+
+func wearIn(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string) (wear int64, err error) {
+	err = tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(usos), 0) FROM "+table+" WHERE chat = ? AND pessoa = ? AND item = ?",
+		chat.String(), acc.Key, id).Scan(&wear)
+	return wear, err
+}
+
+func keepWear(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string, wear int64) error {
+	_, err := tx.ExecContext(ctx, "UPDATE "+table+" SET usos = MAX(usos, ?) WHERE chat = ? AND pessoa = ? AND item = ?",
+		wear, chat.String(), acc.Key, id)
+	return err
 }
 
 func (s *walletStore) consumeItem(ctx context.Context, chat types.JID, acc core.Account, it item, e itemEffect, now time.Time) (wait time.Duration, err error) {
@@ -205,7 +227,7 @@ func (s *walletStore) consumeItem(ctx context.Context, chat types.JID, acc core.
 	return wait, err
 }
 
-func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Account, a activity, now time.Time) (g gathering, err error) {
+func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Account, a activity, pit crater, now time.Time) (g gathering, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		bag, err := loadInventory(ctx, tx, chat, acc)
 		if err != nil {
@@ -225,6 +247,9 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Accou
 			return nil
 		}
 		g.haul, g.worn, g.spent = k.roll(), k.worn, k.spent
+		for range k.pull {
+			g.pulled = append(g.pulled, k.find())
+		}
 		if g.injury, err = hurt(ctx, tx, chat, acc, k.hazard.roll(k.safety), now); err != nil {
 			return err
 		}
@@ -240,8 +265,17 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Accou
 				return err
 			}
 		}
-		if g.found.id != "" {
-			if err := addGrades(ctx, tx, chat, acc, g.found.id, []grade{{g.grade, 1}}); err != nil {
+		finds := append([]haul{g.haul}, g.pulled...)
+		for _, h := range finds {
+			if h.found.id == "" {
+				continue
+			}
+			if err := addGrades(ctx, tx, chat, acc, h.found.id, []grade{{h.grade, 1}}); err != nil {
+				return err
+			}
+		}
+		if pit.charges(acc) {
+			if g.toll, err = payToll(ctx, tx, chat, acc, pit.owner, finds); err != nil {
 				return err
 			}
 		}
@@ -267,7 +301,7 @@ func wearTool(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Accoun
 	return uses, err
 }
 
-func (s *walletStore) stealItem(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, now time.Time,
+func (s *walletStore) stealItem(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, risk crimeRisk, now time.Time,
 	choose func(loot []stack) (target item, success bool)) (t theft, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		loot, err := loadInventory(ctx, tx, chat, victim)
@@ -290,21 +324,29 @@ func (s *walletStore) stealItem(ctx context.Context, chat types.JID, thief, vict
 		if err := markCrime(ctx, tx, chat, thief, now); err != nil {
 			return err
 		}
-		if quantityOf(loot, lockItemID) > 0 {
-			t.locked = true
-			return takeItems(ctx, tx, chat, victim, lockItemID, 1)
+		if err := t.settle(ctx, tx, chat, thief, victim, loot); err != nil {
+			return err
 		}
-		if t.success {
-			grades, err := moveItems(ctx, tx, chat, victim, thief, t.item.id, 1)
-			if err != nil {
-				return err
-			}
-			t.grade = grades[0].quality
-			return nil
-		}
-		return payTheftFine(ctx, tx, chat, thief, victim, &t)
+		t.scuffle, err = risk.clash(ctx, tx, chat, thief, victim, t.success && !t.locked, false, now)
+		return err
 	})
 	return t, err
+}
+
+func (t *theft) settle(ctx context.Context, tx *ledgerTx, chat types.JID, thief, victim core.Account, loot []stack) error {
+	if quantityOf(loot, lockItemID) > 0 {
+		t.locked = true
+		return takeItems(ctx, tx, chat, victim, lockItemID, 1)
+	}
+	if !t.success {
+		return payTheftFine(ctx, tx, chat, thief, victim, t)
+	}
+	grades, err := moveItems(ctx, tx, chat, victim, thief, t.item.id, 1)
+	if err != nil {
+		return err
+	}
+	t.grade = grades[0].quality
+	return nil
 }
 
 func payTheftFine(ctx context.Context, tx *ledgerTx, chat types.JID, thief, victim core.Account, t *theft) error {
@@ -358,7 +400,10 @@ func addGradesTo(ctx context.Context, tx *ledgerTx, table string, chat types.JID
 			return err
 		}
 	}
-	return nil
+	if table != backpackTable {
+		return nil
+	}
+	return assembleShards(ctx, tx, chat, acc, id)
 }
 
 func takeItems(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, id string, quantity int64) error {

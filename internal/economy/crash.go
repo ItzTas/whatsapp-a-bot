@@ -90,6 +90,17 @@ func (b *bot) answerCrash(ctx context.Context, evt *events.Message) error {
 	return err
 }
 
+func (b *bot) answerCrashCommand(ctx context.Context, evt *events.Message, name string) bool {
+	if core.FoldLetters(name) != "sacar" {
+		return false
+	}
+	playing, err := b.cashOutCrash(ctx, evt)
+	if err != nil {
+		b.Client.Log.Errorf("sacar do !crash com !sacar: %v", err)
+	}
+	return playing
+}
+
 func (b *bot) betCrash(ctx context.Context, evt *events.Message, args []string) error {
 	chat := evt.Info.Chat.ToNonAD()
 	target, ok := crashTarget(args)

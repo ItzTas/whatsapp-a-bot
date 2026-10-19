@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"time"
@@ -32,8 +33,21 @@ type employee struct {
 	stock     int64
 	luck      int
 	gradeLuck int
+	quarry    string
+	misses    int
+	trade     string
+	payouts   []payout
+	taxCut    int64
+	care      int64
 	aliases   []string
 }
+
+type payout struct {
+	times  int64
+	weight int64
+}
+
+const staffKinds = "COALESCE((SELECT GROUP_CONCAT(w.tipo) FROM empregados w WHERE w.chat = c.chat AND w.pessoa = c.pessoa), '')"
 
 var staff = []employee{
 	{id: "pescador-aprendiz", name: "Pescador aprendiz", emoji: "🎣", activity: "!pescar", price: 3_300, wage: 10, every: 30 * time.Minute, stock: 24, gradeLuck: -1},
@@ -44,6 +58,15 @@ var staff = []employee{
 	{id: "catador-veterano", name: "Catador veterano", emoji: "🗑️", activity: "!vasculhar", price: 4_200, wage: 9, every: 20 * time.Minute, stock: 36, luck: 1, aliases: []string{"lixeiro veterano"}},
 	{id: "cacador-de-insetos-aprendiz", name: "Caçador de insetos aprendiz", emoji: "🦋", activity: "!catar", price: 1_500, wage: 5, every: 30 * time.Minute, stock: 24, gradeLuck: -1, aliases: []string{"inseteiro aprendiz"}},
 	{id: "cacador-de-insetos-veterano", name: "Caçador de insetos veterano", emoji: "🦋", activity: "!catar", price: 5_200, wage: 10, every: 20 * time.Minute, stock: 36, luck: 1, aliases: []string{"inseteiro veterano"}},
+	{id: "cacador-de-bussola", name: "Caçador de bússola", emoji: "🧭", price: 600, wage: 2, every: 30 * time.Minute, stock: 24, quarry: "bussola-do-relicario", misses: 249, aliases: []string{"bussoleiro"}},
+	{id: "apostador-aprendiz", name: "Apostador aprendiz", emoji: "🎰", trade: "aposta no cassino por você", price: 2_700, wage: 10, every: 30 * time.Minute, stock: 24, payouts: []payout{{0, 60}, {2, 20}, {5, 12}, {15, 6}, {50, 2}}},
+	{id: "apostador-veterano", name: "Apostador veterano", emoji: "🎰", trade: "aposta no cassino por você", price: 15_600, wage: 25, every: 20 * time.Minute, stock: 36, payouts: []payout{{0, 50}, {2, 25}, {5, 14}, {15, 8}, {50, 3}}},
+	{id: "corretor-aprendiz", name: "Corretor aprendiz", emoji: "📈", trade: "mexe na bolsa por você", price: 3_300, wage: 30, every: time.Hour, stock: 12, payouts: []payout{{1, 20}, {2, 35}, {3, 30}, {5, 15}}},
+	{id: "corretor-veterano", name: "Corretor veterano", emoji: "📈", trade: "mexe na bolsa por você", price: 12_000, wage: 60, every: 40 * time.Minute, stock: 18, payouts: []payout{{1, 10}, {2, 35}, {3, 35}, {5, 20}}},
+	{id: "contador-aprendiz", name: "Contador aprendiz", emoji: "🧮", price: 6_000, taxCut: 20},
+	{id: "contador-veterano", name: "Contador veterano", emoji: "🧮", price: 24_000, taxCut: 40},
+	{id: "enfermeiro-aprendiz", name: "Enfermeiro aprendiz", emoji: "🩺", price: 2_500, care: 50, aliases: []string{"enfermeira aprendiz"}},
+	{id: "enfermeiro-veterano", name: "Enfermeiro veterano", emoji: "🩺", price: 8_000, care: 100, aliases: []string{"enfermeira veterana"}},
 }
 
 func employeeByID(id string) (employee, bool) {
@@ -83,11 +106,92 @@ func (e employee) label() string {
 	return e.emoji + " *" + e.name + "*"
 }
 
+func (e employee) passive() bool {
+	return e.activity == "" && e.quarry == "" && len(e.payouts) == 0
+}
+
 func (e employee) pace(decreed decrees) time.Duration {
+	if len(e.payouts) > 0 {
+		return e.every
+	}
 	return e.every * time.Duration(100+decreed.level(gatherDecree)) / 100
 }
 
+func (e employee) labor(decreed decrees, rounds int64, h *harvest) {
+	if len(e.payouts) > 0 {
+		for range rounds {
+			h.cash(e.wage * e.bet())
+		}
+		return
+	}
+	a := e.shift(decreed)
+	for range rounds {
+		h.keep(a.roll())
+	}
+}
+
+func (e employee) bet() int64 {
+	var total int64
+	for _, p := range e.payouts {
+		total += p.weight
+	}
+	roll := rand.Int64N(total)
+	for _, p := range e.payouts {
+		if roll < p.weight {
+			return p.times
+		}
+		roll -= p.weight
+	}
+	return 0
+}
+
+func (e employee) odds() (average, jackpot, bust int64) {
+	var total int64
+	for _, p := range e.payouts {
+		total += p.weight
+		average += p.times * p.weight
+		jackpot = max(jackpot, p.times)
+		if p.times == 0 {
+			bust += p.weight
+		}
+	}
+	return e.wage * average / total, e.wage * jackpot, bust * 100 / total
+}
+
+func strongest(kinds []employee, perk func(employee) int64) int64 {
+	var best int64
+	for _, e := range kinds {
+		best = max(best, perk(e))
+	}
+	return best
+}
+
+func kindsOf(tipos string) []employee {
+	var kinds []employee
+	for id := range strings.SplitSeq(tipos, ",") {
+		if e, ok := employeeByID(id); ok {
+			kinds = append(kinds, e)
+		}
+	}
+	return kinds
+}
+
+func crewKinds(crew []hire) []employee {
+	kinds := make([]employee, len(crew))
+	for i, h := range crew {
+		kinds[i] = h.kind
+	}
+	return kinds
+}
+
+func taxCutOf(e employee) int64 { return e.taxCut }
+
+func careOf(e employee) int64 { return e.care }
+
 func (e employee) shift(decreed decrees) activity {
+	if e.quarry != "" {
+		return activity{loot: []drop{{"", e.misses}, {e.quarry, 1}}, cooldown: cooldown{every: e.pace(decreed)}}
+	}
 	a := activityNamed(e.activity)
 	a.loot = slices.DeleteFunc(slices.Clone(a.loot), func(d drop) bool {
 		it, _ := itemByID(d.item)
@@ -100,6 +204,24 @@ func (e employee) shift(decreed decrees) activity {
 }
 
 func (e employee) perks() string {
+	if e.taxCut > 0 {
+		return fmt.Sprintf("corta %d%% do imposto sobre fortuna e do IPTU todo dia, sem cobrar salário. Com mais de um contador, só vale o melhor", e.taxCut)
+	}
+	if e.care > 0 {
+		return fmt.Sprintf("faz sua saúde voltar %d%% mais rápido (de zero a cheia em %s, e não %s), sem cobrar salário. Com mais de um enfermeiro, só vale o melhor", e.care, core.FormatWait(MaxHealth*regenEvery([]employee{e})), core.FormatWait(MaxHealth*healthRegenEvery))
+	}
+	if len(e.payouts) > 0 {
+		average, jackpot, bust := e.odds()
+		risk := "nunca volta com menos do que cobrou"
+		if bust > 0 {
+			risk = fmt.Sprintf("perde tudo em %d%% das vezes", bust)
+		}
+		return fmt.Sprintf("%s a cada %s: cobra %s por vez e volta com até %s, %s na média (%s). Guarda até %d rodadas", e.trade, core.FormatWait(e.every), Coins(e.wage), Coins(jackpot), Coins(average), risk, e.stock)
+	}
+	if e.quarry != "" {
+		it, _ := itemByID(e.quarry)
+		return fmt.Sprintf("caça a %s a cada %s, cobra %s por vez e guarda até %d tentativas. Quase sempre volta de mão vazia: só 1 em %d tentativas acha alguma coisa", it.label(), core.FormatWait(e.every), Coins(e.wage), e.stock, e.misses+1)
+	}
 	skill := "traz o que acha com qualidade puxada pra baixo"
 	if e.luck > 0 {
 		skill = fmt.Sprintf("tem olho bom: escolhe o melhor de %d achados", e.luck+1)
@@ -133,6 +255,7 @@ type harvest struct {
 	empty   int64
 	strikes int64
 	wages   int64
+	coins   int64
 	balance int64
 	found   map[string][]grade
 }
@@ -179,7 +302,7 @@ func (b *bot) staffStatus(ctx context.Context, evt *events.Message) error {
 	for _, e := range staff {
 		lines = append(lines, fmt.Sprintf("%s: %s\n    _%s_", e.label(), Coins(e.price), e.perks()))
 	}
-	lines = append(lines, "", "_Eles nunca acham relíquia, mítico, lendário, Relicário perdido nem Bússola do relicário. O que trazem vai pra mochila no !empregados coletar, e o salário sai do seu saldo na hora. Sem saldo pro salário, eles fazem greve e o achado se perde_")
+	lines = append(lines, "", "_Eles nunca acham relíquia, mítico, lendário, Relicário perdido nem Bússola do relicário, que só o caçador de bússola acha, e bem de vez em quando. O que trazem vai pra mochila (as moedas do apostador e do corretor vão pro saldo) no !empregados coletar, e o salário sai do seu saldo na hora. Sem saldo pro salário, eles fazem greve e a rodada se perde. O contador e o enfermeiro trabalham sozinhos: não têm nada pra coletar e não cobram salário_")
 	text := strings.Join(lines, "\n") + decreed.note(gatherDecree)
 	_, err := b.SendMentions(ctx, chat, text, []types.JID{person})
 	return err
@@ -209,7 +332,15 @@ func crewLines(crew []hire, decreed decrees, now time.Time) []string {
 		if !ok {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("%dx %s: %d %s pra coletar", t.count, e.label(), t.ready, pluralWord(t.ready, "achado", "achados")))
+		if e.passive() {
+			lines = append(lines, fmt.Sprintf("%dx %s: trabalhando", t.count, e.label()))
+			continue
+		}
+		one, many := "achado", "achados"
+		if len(e.payouts) > 0 {
+			one, many = "rodada", "rodadas"
+		}
+		lines = append(lines, fmt.Sprintf("%dx %s: %d %s pra coletar", t.count, e.label(), t.ready, pluralWord(t.ready, one, many)))
 	}
 	return append(lines, "")
 }
@@ -223,11 +354,19 @@ func roomLine(person types.JID, used, level int) string {
 	return fmt.Sprintf("%s @%s mora %s e tem %d de %d %s ocupadas", e.emoji, person.User, e.place, used, room, pluralWord(int64(room), "vaga", "vagas"))
 }
 
+func (b *bot) contratar(ctx context.Context, evt *events.Message) error {
+	return b.hire(ctx, evt, 1)
+}
+
 func (b *bot) hireEmployee(ctx context.Context, evt *events.Message) error {
+	return b.hire(ctx, evt, 2)
+}
+
+func (b *bot) hire(ctx context.Context, evt *events.Message, skip int) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
-	query := strings.Join(strings.Fields(core.MessageText(evt.Message))[2:], " ")
+	query := strings.Join(strings.Fields(core.MessageText(evt.Message))[skip:], " ")
 	kind, ok := findEmployee(query)
 	if !ok {
 		return b.SendText(ctx, chat, "Fala quem você quer contratar, tipo !empregados contratar pescador aprendiz. Manda !empregados pra ver a lista")
@@ -245,7 +384,11 @@ func (b *bot) hireEmployee(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return fmt.Errorf("contratar empregado: %w", err)
 	}
-	text := fmt.Sprintf("🤝 @%s contratou %s por %s!\n✨ Ele %s\n_Manda !empregados coletar pra pegar o que ele achar_", person.User, kind.label(), Coins(kind.price), kind.perks())
+	hint := "_Manda !empregados coletar pra pegar o que ele trouxer_"
+	if kind.passive() {
+		hint = "_Ele já começou a trabalhar, não precisa coletar nada_"
+	}
+	text := fmt.Sprintf("🤝 @%s contratou %s por %s!\n✨ Ele %s\n%s", person.User, kind.label(), Coins(kind.price), kind.perks(), hint)
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
 	return err
 }
@@ -282,7 +425,7 @@ func (b *bot) collectStaff(ctx context.Context, evt *events.Message) error {
 	}
 	h, err := b.Wallets.collectStaff(ctx, chat, acc, decreed, now)
 	if errors.Is(err, errNoStaff) {
-		return b.SendText(ctx, chat, "Você não tem empregado nenhum. Manda !empregados pra ver quem dá pra contratar")
+		return b.SendText(ctx, chat, "Você não tem empregado que traga coisa pra coletar (o contador e o enfermeiro trabalham sozinhos). Manda !empregados pra ver quem dá pra contratar")
 	}
 	if err != nil {
 		return fmt.Errorf("coletar empregados: %w", err)
@@ -311,17 +454,21 @@ func (h harvest) text(person types.JID) string {
 	if len(items) > 0 {
 		lines = append(lines, "", strings.Join(items, "\n"))
 	}
-	if len(items) == 0 && h.rounds > 0 {
+	if h.coins > 0 {
+		lines = append(lines, "", fmt.Sprintf("🎲 Trouxeram %s em moedas", Coins(h.coins)))
+	}
+	brought := len(items) > 0 || h.coins > 0
+	if !brought && h.rounds > 0 {
 		lines = append(lines, "", "🫙 Voltaram todos de mão vazia")
 	}
-	if h.empty > 0 && len(items) > 0 {
+	if h.empty > 0 && brought {
 		lines = append(lines, fmt.Sprintf("🫙 %d %s de mão vazia", h.empty, pluralWord(h.empty, "vez", "vezes")))
 	}
 	if h.wages > 0 {
 		lines = append(lines, "", fmt.Sprintf("💸 Salário: %s · 💰 Saldo: %s", Coins(h.wages), Coins(h.balance)))
 	}
 	if h.strikes > 0 {
-		lines = append(lines, fmt.Sprintf("🪧 Faltou saldo pro salário e eles fizeram greve: %d %s perdidos", h.strikes, pluralWord(h.strikes, "achado", "achados")))
+		lines = append(lines, fmt.Sprintf("🪧 Faltou saldo pro salário e eles fizeram greve: %d %s perdidas", h.strikes, pluralWord(h.strikes, "rodada", "rodadas")))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -414,6 +561,7 @@ func (s *walletStore) collectStaff(ctx context.Context, chat types.JID, acc core
 		if err != nil {
 			return err
 		}
+		crew = slices.DeleteFunc(crew, func(h hire) bool { return h.kind.passive() })
 		if len(crew) == 0 {
 			return errNoStaff
 		}
@@ -431,6 +579,12 @@ func (s *walletStore) collectStaff(ctx context.Context, chat types.JID, acc core
 			}
 			h.balance -= h.wages
 		}
+		if h.coins > 0 {
+			if _, err := tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", h.coins, chat.String(), acc.Key); err != nil {
+				return err
+			}
+			h.balance += h.coins
+		}
 		for id, grades := range h.found {
 			if err := addGrades(ctx, tx, chat, acc, id, grades); err != nil {
 				return err
@@ -442,8 +596,8 @@ func (s *walletStore) collectStaff(ctx context.Context, chat types.JID, acc core
 }
 
 func (h *harvest) work(ctx context.Context, tx *ledgerTx, hired hire, decreed decrees, now time.Time) error {
-	a := hired.kind.shift(decreed)
-	ready := hired.ready(a.cooldown.every, now)
+	every := hired.kind.pace(decreed)
+	ready := hired.ready(every, now)
 	if ready == 0 {
 		return nil
 	}
@@ -451,15 +605,21 @@ func (h *harvest) work(ctx context.Context, tx *ledgerTx, hired hire, decreed de
 	h.rounds += paid
 	h.strikes += ready - paid
 	h.wages += paid * hired.kind.wage
-	for range paid {
-		h.keep(a.roll())
-	}
-	next := hired.since.Add(time.Duration(ready) * a.cooldown.every)
+	hired.kind.labor(decreed, paid, h)
+	next := hired.since.Add(time.Duration(ready) * every)
 	if ready == hired.kind.stock {
 		next = now
 	}
 	_, err := tx.ExecContext(ctx, "UPDATE empregados SET coletado_em = ? WHERE id = ?", next.Unix(), hired.id)
 	return err
+}
+
+func (h *harvest) cash(won int64) {
+	if won == 0 {
+		h.empty++
+		return
+	}
+	h.coins += won
 }
 
 func (h *harvest) keep(found haul) {

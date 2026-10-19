@@ -57,9 +57,8 @@ func wealthTax(balance int64) int64 {
 	return tax
 }
 
-func dueTax(balance int64, level int) int64 {
-	e, _ := estateAt(level)
-	return min(max(balance, 0), wealthTax(balance)+e.tax)
+func dueTax(balance int64, level int, haunted bool, cut int64) int64 {
+	return min(max(balance, 0), (wealthTax(balance)+iptu(level, haunted))*(100-cut)/100)
 }
 
 func nextTaxDay(now time.Time) time.Time {
@@ -78,12 +77,19 @@ func (b *bot) imposto(ctx context.Context, evt *events.Message) error {
 	var (
 		balance int64
 		job     Profession
+		crew    []hire
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, _, err = b.Wallets.Balance(gctx, chat, acc); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
+	g.Go(func() (err error) { crew, err = b.Wallets.crew(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler imposto: %w", err)
+	}
+	cut := strongest(crewKinds(crew), taxCutOf)
+	discount := ""
+	if cut > 0 {
+		discount = fmt.Sprintf(" (já com %d%% a menos do contador)", cut)
 	}
 	lines := []string{"🦁 *Imposto sobre fortuna*", fmt.Sprintf("_Todo dia às %dh o Leão passa e cobra de quem tem muito. As moedas somem_", taxHour), ""}
 	lines = append(lines, fmt.Sprintf("• Até %s: isento", Coins(taxBrackets[0].above)))
@@ -91,9 +97,10 @@ func (b *bot) imposto(ctx context.Context, evt *events.Message) error {
 		lines = append(lines, fmt.Sprintf("• O que passar de %s: %d%% ao dia", Coins(br.above), br.percent))
 	}
 	lines = append(lines,
-		"🏠 Quem tem imóvel paga o IPTU dele junto (veja no !imovel)",
+		fmt.Sprintf("🏠 Quem tem imóvel paga o IPTU dele junto (veja no !imovel), e casa assombrada paga %dx", hauntTaxFactor),
+		"🧮 Um contador no !empregados corta parte do imposto e do IPTU",
 		"",
-		fmt.Sprintf("@%s tem %s e paga %s na próxima passada do Leão, daqui a %s", person.User, Coins(balance), Coins(dueTax(balance, job.estate)), core.FormatWait(time.Until(nextTaxDay(time.Now())))),
+		fmt.Sprintf("@%s tem %s e paga %s%s na próxima passada do Leão, daqui a %s", person.User, Coins(balance), Coins(dueTax(balance, job.estate, job.hauntedHome(), cut)), discount, core.FormatWait(time.Until(nextTaxDay(time.Now())))),
 	)
 	_, err := b.SendMentions(ctx, chat, strings.Join(lines, "\n"), []types.JID{person})
 	return err
@@ -212,7 +219,14 @@ func (s *walletStore) levyTaxes(ctx context.Context, chat types.JID, day string)
 }
 
 func taxPayers(ctx context.Context, tx *ledgerTx, chat types.JID) (payers []taxPayer, err error) {
-	rows, err := tx.QueryContext(ctx, "SELECT pessoa, jid, saldo, imovel FROM carteiras WHERE chat = ? AND saldo > 0", chat.String())
+	rows, err := tx.QueryContext(ctx,
+		`SELECT pessoa, jid, saldo, imovel,
+		        EXISTS (SELECT 1 FROM encantos e WHERE e.chat = carteiras.chat AND e.alvo = carteiras.pessoa AND e.tipo = ? AND e.ate > ?)
+		        AND NOT EXISTS (SELECT 1 FROM inventarios i WHERE i.chat = carteiras.chat AND i.pessoa = carteiras.pessoa AND i.item = ?),
+		        COALESCE((SELECT GROUP_CONCAT(w.tipo) FROM empregados w WHERE w.chat = carteiras.chat AND w.pessoa = carteiras.pessoa), '')
+		 FROM carteiras WHERE chat = ? AND saldo > 0`,
+		hauntID, time.Now().Unix(), carrancaItem, chat.String(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -224,11 +238,13 @@ func taxPayers(ctx context.Context, tx *ledgerTx, chat types.JID) (payers []taxP
 			jid     string
 			balance int64
 			level   int
+			haunted bool
+			tipos   string
 		)
-		if err := rows.Scan(&p.acc.Key, &jid, &balance, &level); err != nil {
+		if err := rows.Scan(&p.acc.Key, &jid, &balance, &level, &haunted, &tipos); err != nil {
 			return nil, err
 		}
-		if p.paid = dueTax(balance, level); p.paid == 0 {
+		if p.paid = dueTax(balance, level, haunted, strongest(kindsOf(tipos), taxCutOf)); p.paid == 0 {
 			continue
 		}
 		if p.acc.JID, err = types.ParseJID(jid); err != nil {

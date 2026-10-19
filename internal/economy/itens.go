@@ -23,6 +23,7 @@ const (
 	legendary
 	mythic
 	relic
+	primordial
 )
 
 const (
@@ -59,13 +60,14 @@ type rarity struct {
 }
 
 var rarities = [...]rarity{
-	common:    {"comum", "Comuns", "⚪", 0.6},
-	uncommon:  {"incomum", "Incomuns", "🟢", 0.5},
-	rare:      {"raro", "Raros", "🔵", 0.4},
-	epic:      {"épico", "Épicos", "🟣", 0.3},
-	legendary: {"lendário", "Lendários", "🟡", 0.2},
-	mythic:    {"mítico", "Míticos", "🟠", 0.15},
-	relic:     {"relíquia", "Relíquias", "🔴", 0.1},
+	common:     {"comum", "Comuns", "⚪", 0.6},
+	uncommon:   {"incomum", "Incomuns", "🟢", 0.5},
+	rare:       {"raro", "Raros", "🔵", 0.4},
+	epic:       {"épico", "Épicos", "🟣", 0.3},
+	legendary:  {"lendário", "Lendários", "🟡", 0.2},
+	mythic:     {"mítico", "Míticos", "🟠", 0.15},
+	relic:      {"relíquia", "Relíquias", "🔴", 0.1},
+	primordial: {"primordial", "Primordiais", "⚫", 0.05},
 }
 
 func (r rarity) heading() string {
@@ -104,10 +106,18 @@ type item struct {
 	arms      *armament
 	high      *high
 	heal      int64
+	doses     int64
 	gear      *gear
 	trade     *trade
 	metal     bool
 	relicOdds float64
+	shard     string
+	shardOdds float64
+	forms     string
+	shards    int64
+	upgrades  string
+	graft     *implant
+	networks  []string
 }
 
 type stack struct {
@@ -136,7 +146,7 @@ var cooldownCommands = map[string]string{
 	"inseto_em":    "!catar",
 }
 
-var catalog = []item{
+var catalog = append([]item{
 	{id: "vara-de-pesca", name: "Vara de pesca", emoji: "🎣", rarity: uncommon, value: 300, shop: true, aliases: []string{"vara"}},
 	{id: "picareta", name: "Picareta", emoji: "⛏️", rarity: uncommon, value: 400, shop: true},
 	{id: "rede-de-insetos", name: "Rede de insetos", emoji: "🥅", rarity: uncommon, value: 150, shop: true, aliases: []string{"rede", "puca", "vara de insetos"}},
@@ -180,7 +190,7 @@ var catalog = []item{
 			p.jailFactor -= 50
 			return p
 		}}},
-	{id: "chapeu-de-lampiao", name: "Chapéu de Lampião", emoji: "🌵", rarity: relic, value: 30_000, aliases: []string{"lampiao"},
+	{id: lampiaoItem, name: "Chapéu de Lampião", emoji: "🌵", rarity: relic, value: 30_000, aliases: []string{"lampiao"},
 		flex: &flex{effect: "+20% de chance no !roubar, no !furtar e pra equipe no !assalto, e leva 50% a mais do que rouba no !roubar e na !quadrilha", apply: func(p Profession) Profession {
 			p.robBonus += 0.20
 			p.robHaul += 50
@@ -529,7 +539,7 @@ var catalog = []item{
 		use: "🐟 @%s assou o pacu na brasa e chamou a família toda"},
 	{id: "estrela-do-mar", name: "Estrela-do-mar", emoji: "⭐", rarity: common, value: 25, keep: true, aliases: []string{"estrela"},
 		use: "⭐ @%s colou a estrela-do-mar na testa e virou o Patrick"},
-	{id: "celular-afogado", name: "Celular afogado", emoji: "📵", rarity: common, value: 15, aliases: []string{"celular"},
+	{id: "celular-afogado", name: "Celular afogado", emoji: "📵", rarity: common, value: 15,
 		use: "📵 @%s botou o celular afogado no arroz e rezou. Não voltou"},
 	{id: "piranha", name: "Piranha", emoji: "🐟", rarity: uncommon, value: 60,
 		use: "🐟 @%s tentou fazer carinho na piranha e agora digita com 9 dedos"},
@@ -917,7 +927,7 @@ var catalog = []item{
 	{id: "pito-da-caipora", name: "Pito da Caipora", emoji: "🚬", rarity: mythic, value: 12_000, aliases: []string{"caipora"}},
 
 	{id: "grampo", name: "Grampo de cabelo", emoji: "🪝", rarity: common, value: 120, shop: true, aliases: []string{"grampo", "gancho"},
-		flex: &flex{effect: "+10% de chance de fugir do cativeiro no !fugir", apply: func(p Profession) Profession { p.breakoutBonus += 0.10; return p }}},
+		flex: &flex{effect: "+10% de chance de fugir do cativeiro no !fugir", brief: "+10% pra fugir do cativeiro", apply: func(p Profession) Profession { p.breakoutBonus += 0.10; return p }}},
 	{id: "cartao-fidelidade", name: "Cartão fidelidade", emoji: "💳", rarity: uncommon, value: 800, shop: true, aliases: []string{"fidelidade"},
 		flex: &flex{effect: "5% de desconto na !loja", apply: func(p Profession) Profession { p.discount += 5; return p }}},
 	{id: "mapa-geologico", name: "Mapa geológico", emoji: "🗺️", rarity: rare, value: 1_500, shop: true, aliases: []string{"geologico"},
@@ -926,37 +936,37 @@ var catalog = []item{
 	{id: "lupa", name: "Lupa de joalheiro", emoji: "🔍", rarity: epic, value: 8_000, shop: true, rotating: true, aliases: []string{"lupa", "joalheiro"},
 		gear: &gear{activities: []string{"!pescar", "!minerar", "!vasculhar", "!catar"}, grade: 1}},
 	{id: "estilete", name: "Estilete de unboxing", emoji: "🔪", rarity: epic, value: 6_000, shop: true, rotating: true, aliases: []string{"estilete", "unboxing"},
-		flex: &flex{effect: "abre caixa e baú no !usar com um sorteio a mais, e fica com o item mais raro", apply: func(p Profession) Profession { p.boxLuck++; return p }}},
+		flex: &flex{effect: "abre caixa e baú no !usar com um sorteio a mais, e fica com o item mais raro", brief: "caixa e baú abrem com mais sorte", apply: func(p Profession) Profession { p.boxLuck++; return p }}},
 	{id: "cofre-de-parede", name: "Cofre de parede", emoji: "🐷", rarity: rare, value: 3_500, shop: true, rotating: true, aliases: []string{"cofre de parede"},
 		flex: &flex{effect: "guarda 5.000 a mais por vez na poupança", apply: func(p Profession) Profession { p.savingsRoom += 5_000; return p }}},
 	{id: "desfibrilador", name: "Desfibrilador", emoji: "🩺", rarity: epic, value: 5_000, shop: true, rotating: true, aliases: []string{"choque"},
-		flex: &flex{effect: "+20% de chance no !reviver, e libera o !reviver pra qualquer profissão", apply: func(p Profession) Profession { p.reviveChance += 0.20; return p }}},
+		flex: &flex{effect: "+20% de chance no !reviver, e libera o !reviver pra qualquer profissão", brief: "+20% no !reviver, pra qualquer profissão", apply: func(p Profession) Profession { p.reviveChance += 0.20; return p }}},
 	{id: "vade-mecum", name: "Vade Mecum", emoji: "📕", rarity: rare, value: 2_500, shop: true, rotating: true, aliases: []string{"vade", "codigo penal"},
-		flex: &flex{effect: "leva 20% a mais quando ganha um !processar e paga 20% menos quando perde", apply: func(p Profession) Profession {
+		flex: &flex{effect: "leva 20% a mais quando ganha um !processar e paga 20% menos quando perde", brief: "ganha mais e perde menos no !processar", apply: func(p Profession) Profession {
 			p.trialBonus += 20
 			p.trialDiscount = min(p.trialDiscount+20, 90)
 			return p
 		}}},
 	{id: "biblia-de-cela", name: "Bíblia de cela", emoji: "📖", rarity: rare, value: 2_000, shop: true, rotating: true, aliases: []string{"biblia"},
-		flex: &flex{effect: "toda ida pra cadeia fica 20% mais curta, por bom comportamento", apply: func(p Profession) Profession { p.jailFactor -= 20; return p }}},
+		flex: &flex{effect: "toda ida pra cadeia fica 20% mais curta, por bom comportamento", brief: "cadeia 20% mais curta", apply: func(p Profession) Profession { p.jailFactor -= 20; return p }}},
 	{id: "acordo-pre-nupcial", name: "Acordo pré-nupcial", emoji: "📝", rarity: uncommon, value: 900, shop: true, rotating: true, aliases: []string{"pre nupcial", "acordo"},
-		flex: &flex{effect: "paga 30% menos de pensão e de indenização por traição", apply: func(p Profession) Profession { p.legalDiscount = min(p.legalDiscount+30, 90); return p }}},
+		flex: &flex{effect: "paga 30% menos de pensão e de indenização por traição", brief: "30% menos de pensão e indenização", apply: func(p Profession) Profession { p.legalDiscount = min(p.legalDiscount+30, 90); return p }}},
 	{id: "camera-escondida", name: "Câmera escondida", emoji: "📹", rarity: rare, value: 1_500, shop: true, rotating: true, aliases: []string{"camera"},
-		flex: &flex{effect: "+10% de chance da polícia acreditar no !denunciar", apply: func(p Profession) Profession { p.reportBonus += 0.10; return p }}},
+		flex: &flex{effect: "+10% de chance da polícia acreditar no !denunciar", brief: "+10% no !denunciar", apply: func(p Profession) Profession { p.reportBonus += 0.10; return p }}},
 	{id: "luvas-de-couro", name: "Luvas de couro", emoji: "🧤", rarity: rare, value: 1_800, shop: true, rotating: true, aliases: []string{"luvas de couro"},
 		flex: &flex{effect: "o !furtar recarrega 25% mais rápido", apply: func(p Profession) Profession {
 			p.theftEvery = cmp.Or(p.theftEvery, theftCooldown.every) * 3 / 4
 			return p
 		}}},
 	{id: "relogio-de-ponto", name: "Relógio de ponto", emoji: "⏱️", rarity: rare, value: 2_500, shop: true, rotating: true, aliases: []string{"ponto"},
-		flex: &flex{effect: "o !trabalhar paga 25% a mais das 5h às 9h, se a sua profissão não tiver horário de pico próprio", apply: func(p Profession) Profession {
+		flex: &flex{effect: "o !trabalhar paga 25% a mais das 5h às 9h, se a sua profissão não tiver horário de pico próprio", brief: "+25% no !trabalhar das 5h às 9h", apply: func(p Profession) Profession {
 			if p.peak.bonus == 0 {
 				p.peak = peak{from: 5, to: 9, bonus: 25}
 			}
 			return p
 		}}},
 	{id: "terminal-de-corretora", name: "Terminal de corretora", emoji: "📈", rarity: epic, value: 5_000, shop: true, rotating: true, aliases: []string{"terminal", "corretora"},
-		flex: &flex{effect: fmt.Sprintf("não paga a corretagem de %d%% no !acoes", stockFeePercent), apply: func(p Profession) Profession { p.freeBrokerage = true; return p }}},
+		flex: &flex{effect: fmt.Sprintf("não paga a corretagem de %d%% no !acoes", stockFeePercent), brief: "sem corretagem no !acoes", apply: func(p Profession) Profession { p.freeBrokerage = true; return p }}},
 	{id: "kit-disfarce", name: "Kit disfarce", emoji: "🥸", rarity: rare, value: 600, shop: true, rotating: true, aliases: []string{"disfarce", "bigode falso", "peruca"},
 		resets: []string{"roubo_em", "furto_em", "sequestro_em"}, limit: &disguise,
 		use: "🥸 @%s colou um bigode falso, botou uma peruca e um óculos escuro. Ninguém reconhece mais essa pessoa"},
@@ -975,6 +985,21 @@ var catalog = []item{
 	{id: "rebite", name: "Rebite", emoji: "🚚", rarity: uncommon, value: 250, illegal: true, aliases: []string{"anfetamina", "arrebite"},
 		high: &high{lasts: 2 * time.Hour, overdose: 0.03, pay: 15},
 		use:  "🚚 @%s tomou um rebite igual caminhoneiro na Régis e agora não dorme até sexta"},
+	{id: "ayahuasca", name: "Ayahuasca", emoji: "🍵", rarity: epic, value: 2_000, illegal: true, aliases: []string{"daime", "cha do daime"},
+		high: &high{lasts: 2 * time.Hour, overdose: 0.02, revive: 0.50, luck: 2},
+		use:  "🍵 @%s tomou ayahuasca na roda do pajé, vomitou a alma e voltou enxergando onde tá escondido cada tesouro do mundo"},
+	{id: "anabolizante", name: "Anabolizante", emoji: "💉", rarity: epic, value: 2_200, illegal: true, aliases: []string{"bomba", "durateston", "bombado"},
+		high: &high{lasts: 2 * time.Hour, overdose: 0.06, crime: 0.15, escape: 0.20, heist: 0.25, kidnap: 0.20, guard: 0.30},
+		use:  "💉 @%s aplicou uma bomba na bunda, ganhou dez quilos de músculo e perdeu dez de paciência"},
+	{id: "pedra-azul", name: "Pedra azul", emoji: "🔹", rarity: epic, value: 2_500, illegal: true, aliases: []string{"meta", "metanfetamina", "azulzinha"},
+		high: &high{lasts: time.Hour, overdose: 0.08, pay: 50, rush: 30},
+		use:  "🔹 @%s fumou a pedra azul que veio de um trailer no deserto e agora trabalha igual máquina e fala igual professor de química"},
+	{id: "po-de-anjo", name: "Pó de anjo", emoji: "😇", rarity: legendary, value: 7_000, illegal: true, aliases: []string{"anjo", "pcp"},
+		high: &high{lasts: time.Hour, overdose: 0.12, crime: 0.30, escape: 0.30, kidnap: 0.30, kill: 0.40, guard: 0.25},
+		use:  "😇 @%s cheirou pó de anjo, arrancou a camisa e agora não sente dor, medo nem remorso"},
+	{id: "nzt", name: "Pílula NZT", emoji: "🧠", rarity: legendary, value: 8_000, illegal: true, aliases: []string{"nzt", "nzt-48", "limitless", "pilula"},
+		high: &high{lasts: time.Hour, overdose: 0.10, pay: 100, cashback: 50, rush: 25, luck: 1},
+		use:  "🧠 @%s tomou a pílula NZT e agora usa 100%% do cérebro. Já entendeu o mercado, o cassino e o sentido da vida"},
 
 	{id: "boia", name: "Boia salva-vidas", emoji: "🛟", rarity: uncommon, value: 500, shop: true, aliases: []string{"boia salva vidas", "salva vidas"},
 		gear: &gear{activities: []string{"!pescar"}, safety: 60}},
@@ -986,6 +1011,14 @@ var catalog = []item{
 		use: "🩹 @%s colou um curativo no machucado e assoprou pra sarar"},
 	{id: "kit-de-primeiros-socorros", name: "Kit de primeiros socorros", emoji: "🚑", rarity: uncommon, value: 250, shop: true, aliases: []string{"primeiros socorros", "kit medico"}, heal: 60,
 		use: "🚑 @%s abriu o kit de primeiros socorros, passou merthiolate (do que arde) e enfaixou tudo"},
+	{id: "garrafada", name: "Garrafada da benzedeira", emoji: "🍶", rarity: rare, value: 600, shop: true, aliases: []string{"benzedeira", "garrafada de raiz"}, heal: 35, doses: 4,
+		use: "🍶 @%s tomou um gole da garrafada da benzedeira, fez careta com o amargo e sentiu o corpo fechando"},
+	{id: "maleta-de-medico", name: "Maleta de médico", emoji: "⚕️", rarity: epic, value: 1_500, shop: true, rotating: true, aliases: []string{"maleta", "maleta medica"}, heal: 60, doses: 5,
+		use: "⚕️ @%s abriu a maleta de médico, deu ponto no corte, tomou um antibiótico e ainda se receitou repouso"},
+	{id: "ampola-de-adrenalina", name: "Ampola de adrenalina", emoji: "💉", rarity: epic, value: 1_200, aliases: []string{"adrenalina", "ampola"}, heal: 100, doses: 2,
+		use: "💉 @%s cravou a ampola de adrenalina no peito igual Pulp Fiction e levantou novinho(a) em folha"},
+	{id: "agua-benta", name: "Água benta de Aparecida", emoji: "🕊️", rarity: legendary, value: 6_000, aliases: []string{"agua benta", "aparecida"}, heal: 100, doses: 6,
+		use: "🕊️ @%s passou água benta de Aparecida nos machucados e rezou uma ave-maria. Sarou tudo, é milagre"},
 	{id: "caixa-misteriosa-prateada", name: "Caixa misteriosa prateada", emoji: "🥈", rarity: rare, value: 850, shop: true, aliases: []string{"caixa prateada", "caixa de prata", "prateada"},
 		loot: []int{28, 27, 26, 15, 4}, use: "🥈 @%s sacudiu a caixa misteriosa prateada do lado do ouvido antes de abrir, pra ver se tinha coisa boa"},
 	{id: "foice-da-comadre-morte", name: "Foice da Comadre Morte", emoji: "💀", rarity: relic, value: 30_000, aliases: []string{"foice", "comadre morte", "ceifador"},
@@ -1002,7 +1035,54 @@ var catalog = []item{
 				p.soulPact = true
 				return p
 			}}},
-}
+	{id: "chapeu-do-boto", name: "Chapéu do Boto", emoji: "🐬", rarity: relic, value: 30_000, aliases: []string{"chapeu branco"},
+		flex: &flex{effect: fmt.Sprintf("o seu alcance no !postar ganha mais %s (quem não é de Arte e mídia vai de %s pra %s), nenhum post é cancelado e a galera nunca acha a !publi forçada", multiplier(botoReach), multiplier(baseReach), multiplier(baseReach+botoReach)),
+			apply: func(p Profession) Profession {
+				p.reach = p.reachPercent() + botoReach
+				p.charming = true
+				return p
+			}}},
+	{id: corpoSecoItem, name: "Coração do Corpo-Seco", emoji: "🫀", rarity: relic, value: 30_000, aliases: []string{"corpo seco", "coracao seco"},
+		flex: &flex{effect: "o seu corpo aceita qualquer coisa: o implante nunca é rejeitado na instalação, e ninguém arranca os que tão instalados, nem quem te mata no !matar, nem a polícia no !prender e no !denunciar. A manutenção continua igual",
+			apply: func(p Profession) Profession { p.sealedBody = true; return p }}},
+	{id: "quepe-da-volante", name: "Quepe da Volante", emoji: "🪖", rarity: relic, value: 30_000, aliases: []string{"volante", "quepe"},
+		flex: &flex{effect: fmt.Sprintf("o quepe da tropa que caçou o Lampião: deixa você caçar o procurado do dia, que pode levar !matar seu mesmo que você não seja do crime, com pelo menos %d%% de chance (menos a proteção dele), sem contar como crime e sem risco de ir preso, e a recompensa que o bot botou na cabeça dele vem em dobro pra você. Contra quem tem o Chapéu de Lampião, +%d%% de chance no !matar", percent(posseKillChance), percent(posseLampiaoBonus)),
+			apply: func(p Profession) Profession { p.posse = true; return p }}},
+	{id: carrancaItem, name: "Carranca do Velho Chico", emoji: "🗿", rarity: relic, value: 30_000, aliases: []string{"carranca", "velho chico"},
+		flex: &flex{effect: fmt.Sprintf("a cabeça de bicho da proa dos barcos do São Francisco, que espanta mau espírito: enquanto ela tiver na mochila, a Casa assombrada não faz nada com o seu imóvel (nem o IPTU dobra), e a proteção e os bônus do imóvel no !daily e no !trabalhar valem %d%% a mais", carrancaBoost),
+			apply: warded}},
+	{id: buziosItem, name: "Búzios encantados", emoji: "🐚", rarity: relic, value: 30_000, aliases: []string{"buzios", "jogo de buzios"},
+		flex: &flex{effect: fmt.Sprintf("o jogo de búzios lê o seu destino: os eventos do !trabalhar, das extrações e dos crimes aparecem %dx mais pra você (%d%% das vezes em vez de %d%%), e a enquete do evento mostra a chance de cada opção dar bom e dar ruim", oracleEventFactor, percent(eventChance*oracleEventFactor), percent(eventChance)),
+			apply: func(p Profession) Profession { p.oracle = true; return p }}},
+	{id: "vara-de-carbono-aprimorada", name: "Vara de carbono aprimorada", emoji: "🎣", rarity: rare, value: 2_250, upgrades: "vara-de-carbono",
+		gear: &gear{activities: []string{"!pescar"}, tool: true, sturdy: 60, luck: 1, fewerJunk: 74, moreRare: 2, grade: 1}},
+	{id: "picareta-de-diamante-aprimorada", name: "Picareta de diamante aprimorada", emoji: "💎", rarity: rare, value: 2_700, upgrades: "picareta-de-diamante",
+		gear: &gear{activities: []string{"!minerar"}, tool: true, sturdy: 60, grace: 10, fewerJunk: 89, moreRare: 6, grade: 1}},
+	{id: "rede-de-seda-aprimorada", name: "Rede de seda aprimorada", emoji: "🥅", rarity: rare, value: 1_800, upgrades: "rede-de-seda",
+		gear: &gear{activities: []string{"!catar"}, tool: true, sturdy: 60, luck: 1, fewerJunk: 79, moreRare: 4, grade: 1}},
+	{id: "vara-de-titanio-aprimorada", name: "Vara de titânio aprimorada", emoji: "🎣", rarity: epic, value: 9_000, upgrades: "vara-de-titanio",
+		gear: &gear{activities: []string{"!pescar"}, tool: true, sturdy: 85, grace: 20, luck: 3, faster: 40, fewerJunk: 81, moreRare: 24, grade: 2}},
+	{id: "picareta-de-niobio-aprimorada", name: "Picareta de nióbio aprimorada", emoji: "⛏️", rarity: epic, value: 10_500, upgrades: "picareta-de-niobio",
+		gear: &gear{activities: []string{"!minerar"}, tool: true, sturdy: 85, grace: 20, luck: 2, faster: 40, fewerJunk: 86, moreRare: 2, grade: 2}},
+	{id: "rede-de-nailon-aprimorada", name: "Rede de náilon aprimorada", emoji: "🥅", rarity: epic, value: 7_500, upgrades: "rede-de-nailon",
+		gear: &gear{activities: []string{"!catar"}, tool: true, sturdy: 85, grace: 20, luck: 3, faster: 40, fewerJunk: 85, moreRare: 15, grade: 2}},
+	{id: "vara-de-grafeno-aprimorada", name: "Vara de grafeno aprimorada", emoji: "🎣", rarity: legendary, value: 21_000, upgrades: "vara-de-grafeno",
+		gear: &gear{activities: []string{"!pescar"}, tool: true, sturdy: 97, grace: 100, luck: 6, faster: 50, fewerJunk: 94, moreRare: 10, grade: 3}},
+	{id: "picareta-de-tungstenio-aprimorada", name: "Picareta de tungstênio aprimorada", emoji: "⛏️", rarity: legendary, value: 22_500, upgrades: "picareta-de-tungstenio",
+		gear: &gear{activities: []string{"!minerar"}, tool: true, sturdy: 97, grace: 100, luck: 5, faster: 50, fewerJunk: 85, grade: 3}},
+	{id: "rede-entomologica-aprimorada", name: "Rede entomológica aprimorada", emoji: "🥅", rarity: legendary, value: 18_000, upgrades: "rede-entomologica",
+		gear: &gear{activities: []string{"!catar"}, tool: true, sturdy: 97, grace: 100, luck: 6, faster: 50, fewerJunk: 88, moreRare: 18, grade: 3}},
+	{id: "celular", name: "Celular", emoji: "📱", rarity: uncommon, value: 900, shop: true, aliases: []string{"smartphone", "telefone"},
+		networks: []string{"tiktok", "instagram"}},
+	{id: "computador", name: "Computador", emoji: "💻", rarity: rare, value: 2_500, shop: true, aliases: []string{"pc", "desktop"},
+		networks: []string{"youtube", "twitch"}},
+	{id: skyRockID, name: "Rocha celeste", emoji: "🌠", rarity: primordial, value: 20_000, aliases: []string{"rocha", "pedra do ceu", "pedra celeste"},
+		loot: []int{0, 0, 0, 0, 70, 30}, shard: bendegoShardID, shardOdds: 0.5, use: "🌠 @%s rachou a rocha celeste com uma marreta, e ela ainda tava quente por dentro"},
+	{id: bendegoShardID, name: "Fragmento do Bendegó", emoji: "🪨", rarity: primordial, value: 30_000, aliases: []string{"fragmento", "fragmento do meteorito", "pedaco do bendego"},
+		forms: bendegoID, shards: 4},
+	{id: bendegoID, name: "Meteorito do Bendegó", emoji: "☄️", rarity: primordial, value: 150_000, aliases: []string{"bendego"},
+		gear: &gear{activities: []string{"!pescar", "!minerar", "!vasculhar", "!catar"}, pull: 1, alwaysFinds: true}},
+}, implantGoods()...)
 
 func itemByID(id string) (item, bool) {
 	i := slices.IndexFunc(catalog, func(it item) bool { return it.id == id })
@@ -1100,10 +1180,13 @@ func isTool(it item) bool {
 }
 
 var itemCategories = []itemCategory{
+	{"⚫", "Primordiais", []string{"primordial"}, func(it item) bool { return it.rarity == primordial }},
 	{"🏛️", "Relíquias", []string{"reliquia"}, func(it item) bool { return it.rarity == relic || it.relicOdds > 0 }},
 	{"🧰", "Ferramentas e proteção", []string{"ferramentas", "ferramenta", "protecao", "equipamentos"}, isTool},
 	{"🩹", "Saúde", []string{"cura", "curas", "curativos", "remedio", "remedios"}, func(it item) bool { return it.heal > 0 }},
 	{"🛠️", "Instrumentos de trabalho", []string{"instrumentos", "instrumento", "oficio", "oficios", "trabalho"}, func(it item) bool { return it.trade != nil }},
+	{"📲", "Aparelhos", []string{"aparelho", "eletronicos", "eletronico"}, func(it item) bool { return it.networks != nil }},
+	{"🦾", "Implantes", []string{"implante", "ciborgue", "cirurgia"}, func(it item) bool { return it.graft != nil }},
 	{"🔫", "Armas", []string{"arma"}, func(it item) bool { return it.arms != nil }},
 	{"💊", "Drogas", []string{"droga"}, func(it item) bool { return it.high != nil }},
 	{"🕶️", "Contrabando", []string{"contrabandos", "ilegal", "ilegais", "muamba"}, func(it item) bool { return it.illegal }},
@@ -1315,11 +1398,35 @@ func weightedIndex(n int, weight func(i int) int) int {
 }
 
 func (it item) unboxable() bool {
-	return it.luxury || it.illegal || it.rarity == relic || it.rarity == mythic || it.relicOdds > 0
+	return it.luxury || it.illegal || it.rarity >= mythic || it.relicOdds > 0 || it.upgrades != "" || it.graft != nil
+}
+
+func upgradeOf(base item) (item, bool) {
+	i := slices.IndexFunc(catalog, func(it item) bool { return it.upgrades == base.id })
+	if i < 0 {
+		return item{}, false
+	}
+	return catalog[i], true
+}
+
+func (it item) upgradeCost() int64 {
+	base, _ := itemByID(it.upgrades)
+	return it.value - base.value
 }
 
 func randomItemOf(r int) item {
-	return core.PickOne(slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return it.rarity != r || it.unboxable() }))
+	pool := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return it.rarity != r })
+	if r == mythic {
+		return core.PickOne(pool)
+	}
+	return core.PickOne(slices.DeleteFunc(pool, item.unboxable))
+}
+
+func (it item) lootWeight(r int) int {
+	if r >= len(it.loot) {
+		return 0
+	}
+	return it.loot[r]
 }
 
 func relics() []item {
@@ -1346,6 +1453,9 @@ func (it item) roll(luck int) itemEffect {
 	if rand.Float64() < it.relicOdds {
 		e.prize = core.PickOne(relics())
 	}
+	if rand.Float64() < it.shardOdds {
+		e.prize, _ = itemByID(it.shard)
+	}
 	if it.prizes != nil {
 		e.coins = it.prizes[weightedIndex(len(it.prizes), func(i int) int { return it.prizes[i].weight })].amount
 	}
@@ -1360,12 +1470,16 @@ func (it item) lootRarity(luck int) int {
 	return best
 }
 
-func resetCommands(columns []string) string {
+func resetList(columns []string) []string {
 	commands := make([]string, len(columns))
 	for i, column := range columns {
 		commands[i] = cooldownCommands[column]
 	}
-	return core.JoinWithAnd(commands)
+	return commands
+}
+
+func resetCommands(columns []string) string {
+	return core.JoinWithAnd(resetList(columns))
 }
 
 func perk(it item) string {
@@ -1373,6 +1487,15 @@ func perk(it item) string {
 }
 
 func effectPerk(it item) string {
+	if it.graft != nil {
+		return it.graft.perk()
+	}
+	if power, ok := primalPowers[it.id]; ok {
+		return power.perk(it)
+	}
+	if whole, ok := itemByID(it.forms); ok {
+		return fmt.Sprintf("junta %d na mochila e eles viram %s sozinhos", it.shards, whole.label())
+	}
 	if it.gear != nil {
 		return gearPerk(it.gear)
 	}
@@ -1381,7 +1504,7 @@ func effectPerk(it item) string {
 	}
 	protections := map[string]string{
 		lockItemID:      "protege a mochila de um !furtar, e quebra segurando o ladrão",
-		alarmItemID:     "protege o saldo de um !roubar, e queima disparando no ladrão",
+		alarmItemID:     fmt.Sprintf("tem %d%% de chance de disparar num !roubar e salvar o saldo, e queima quando dispara. Contra !quadrilha a chance cai %d%% por pessoa a mais", percent(alarmChance), percent(alarmGangCut)),
 		vestItemID:      "salva você de um !matar que ia dar certo, e fica destruído segurando a bala (contra deus não adianta). A polícia apreende se você for preso",
 		forgedReleaseID: fmt.Sprintf("!usar tira você da cadeia na hora (ou !usar alvará @pessoa tira outra pessoa), mas em %d%% das vezes o carcereiro percebe e a pena aumenta %s. Conta como crime, e a polícia apreende se você for preso", percent(forgeryCaught), core.FormatWait(escapePenalty)),
 	}
@@ -1409,6 +1532,9 @@ func effectPerk(it item) string {
 	if it.trade != nil {
 		return tradePerk(it.trade)
 	}
+	if it.networks != nil {
+		return "vale só de ter na mochila: libera o !postar " + networkNames(it.networks)
+	}
 	if c, ok := charmByID(it.bless); ok {
 		return "!usar dá " + c.summary()
 	}
@@ -1425,6 +1551,9 @@ func effectPerk(it item) string {
 	if it.resets != nil {
 		return fmt.Sprintf("!usar zera a espera do %s, mas "+it.limit.rule, resetCommands(it.resets), core.FormatWait(it.limit.cooldown.every))
 	}
+	if it.pet {
+		return petPerk(it)
+	}
 	return ""
 }
 
@@ -1439,12 +1568,18 @@ func usePerk(it item) string {
 }
 
 func sources(it item) []string {
+	if it.rarity == primordial {
+		return append(primordialSources(it), "o !criar ou o !milagre de deus")
+	}
 	if it.rarity == relic {
 		var found []string
 		for _, box := range relicBoxes() {
 			found = append(found, fmt.Sprintf("%s %s (%d%% de chance)", box.emoji, box.name, percent(box.relicOdds)))
 		}
 		return append(found, "o !leilao (bem de vez em quando, com lance mínimo salgado)", "o !criar ou o !milagre de deus")
+	}
+	if base, ok := itemByID(it.upgrades); ok {
+		return []string{fmt.Sprintf("!aprimorar %s, por %s", strings.ToLower(base.name), Coins(it.upgradeCost()))}
 	}
 	var found []string
 	if it.shop {
@@ -1455,6 +1590,9 @@ func sources(it item) []string {
 	}
 	if auctionGoods(it) {
 		found = append(found, "!leilao (no dia em que ele vai pro martelo)")
+	}
+	if it.graft != nil {
+		return append(found, fmt.Sprintf("!mercadonegro (chega um implante por dia, sorteado entre os %d)", len(implants)))
 	}
 	if it.illegal {
 		return append(found, "!mercadonegro (quando tá no estoque do dia)")
@@ -1473,12 +1611,30 @@ func sources(it item) []string {
 	if work := workSource(it); work != "" {
 		found = append(found, work)
 	}
-	if it.unboxable() {
+	if it.unboxable() && it.rarity != mythic {
 		return found
 	}
 	for _, box := range catalog {
-		if box.loot != nil && box.loot[it.rarity] > 0 {
+		if box.lootWeight(it.rarity) > 0 {
 			found = append(found, box.emoji+" "+box.name)
+		}
+	}
+	return found
+}
+
+func primordialSources(it item) []string {
+	var found []string
+	if it.id == skyRockID {
+		found = append(found, starfallSource())
+	}
+	for _, box := range catalog {
+		if box.shard == it.id {
+			found = append(found, fmt.Sprintf("%s %s (%d%% de chance)", box.emoji, box.name, percent(box.shardOdds)))
+		}
+	}
+	for _, piece := range catalog {
+		if piece.forms == it.id {
+			found = append(found, fmt.Sprintf("juntando %d %s (eles se montam sozinhos)", piece.shards, piece.label()))
 		}
 	}
 	return found
@@ -1535,6 +1691,12 @@ func (it item) details() string {
 	if p := perk(it); p != "" {
 		lines = append(lines, "✨ Pra que serve: "+p)
 	}
+	if up, ok := upgradeOf(it); ok {
+		lines = append(lines, fmt.Sprintf("🔧 Dá pra !aprimorar uma vez por %s, e ela vira %s, que se paga mais rápido", Coins(up.upgradeCost()), up.label()))
+	}
+	if it.upgrades != "" {
+		lines = append(lines, "🔧 Já é aprimorada, então não dá pra aprimorar de novo. Se quebrar, o aprimoramento vai junto")
+	}
 	if it.metal {
 		lines = append(lines, "🧲 É de metal: o Ímã puxa ele no !vasculhar e no !minerar")
 	}
@@ -1543,6 +1705,9 @@ func (it item) details() string {
 	}
 	if it.relicOdds > 0 {
 		lines = append(lines, fmt.Sprintf("🏛️ Em %d%% das vezes, no lugar disso, sai uma relíquia: %s", percent(it.relicOdds), relicNames()))
+	}
+	if shard, ok := itemByID(it.shard); ok {
+		lines = append(lines, fmt.Sprintf("⚫ Em %d%% das vezes, no lugar disso, sai %s", percent(it.shardOdds), shard.label()))
 	}
 	if it.prizes != nil {
 		lines = append(lines, "🎲 Prêmios: "+prizeOdds(it.prizes))

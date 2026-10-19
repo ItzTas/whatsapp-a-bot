@@ -92,6 +92,9 @@ func (e EconomyProfile) Lines() []string {
 	if home := homeText(e.job.estate); home != "" {
 		lines = append(lines, home)
 	}
+	if fame := fameLine(e.job); fame != "" {
+		lines = append(lines, fame)
+	}
 	lines = append(lines, e.assetLines()...)
 	lines = append(lines, e.debtLines()...)
 	lines = append(lines, e.statusLines()...)
@@ -107,6 +110,9 @@ func (e EconomyProfile) walletLine() string {
 
 func (e EconomyProfile) assetLines() []string {
 	var lines []string
+	if exposure := exposureText(e.balance); exposure != "" {
+		lines = append(lines, exposure)
+	}
 	if e.hasSavings {
 		lines = append(lines, fmt.Sprintf("🔒 Poupança: %s, que voltam com %s de juros", Coins(e.saved.Amount), Coins(e.saved.Interest)))
 	}

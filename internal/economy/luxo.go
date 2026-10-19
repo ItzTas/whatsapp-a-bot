@@ -24,6 +24,7 @@ const (
 
 type flex struct {
 	effect string
+	brief  string
 	apply  func(Profession) Profession
 }
 
@@ -143,15 +144,19 @@ func luxuryPerks(p Profession) []string {
 	return []string{"💎 Ostenta " + core.JoinWithAnd(labels) + " (já conta nas vantagens acima)"}
 }
 
-func (s *walletStore) passives(ctx context.Context, chat types.JID, acc core.Account) (owned []item, err error) {
+func (s *walletStore) passives(ctx context.Context, chat types.JID, acc core.Account) ([]item, error) {
+	return s.holding(ctx, chat, acc, func(it item) bool { return it.flex != nil || it.trade != nil })
+}
+
+func (s *walletStore) holding(ctx context.Context, chat types.JID, acc core.Account, kind func(item) bool) (owned []item, err error) {
 	var ids []any
 	for _, it := range catalog {
-		if it.flex != nil || it.trade != nil {
+		if kind(it) {
 			ids = append(ids, it.id)
 		}
 	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT item FROM inventarios WHERE chat = ? AND pessoa = ? AND item IN ("+core.SQLPlaceholders(len(ids))+")",
+		"SELECT DISTINCT item FROM inventarios WHERE chat = ? AND pessoa = ? AND item IN ("+core.SQLPlaceholders(len(ids))+")",
 		append([]any{chat.String(), acc.Key}, ids...)...,
 	)
 	if err != nil {
