@@ -106,8 +106,20 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
     `craterLuck` no `plainLuck`, e o `payToll` cobra `craterToll` (20%) do valor de mercado de cada
     achado, até onde o saldo der, e passa pro dono (o próprio dono não paga). A cratera não dá a
     chance da Rocha celeste a quem não tem relíquia.
+- Uma extração pode fazer várias tentativas de uma vez: quem ficou mais tempo parado ganha uma
+  tentativa por espera que passou, até `backlogSpan` (turnos acumulados, skill `economia-base`). Cada
+  tentativa gasta a ferramenta e os consumíveis como se fosse um comando separado (quebra, `grace`,
+  isca, bússola...), então a calibração abaixo continua valendo por tentativa.
+- O `!extracao` (`extracao.go`) roda as quatro `activities` em sequência, cada uma pelo mesmo
+  `b.extract` do handler `gather` (espera, ferramenta, missão, carreira e ferimento de cada uma), e
+  junta os relatórios numa resposta só, com o aviso do decreto uma vez no fim. É em sequência porque
+  as quatro mexem na mesma mochila (Vela, bússola, iscas). Se a pessoa morre num ferimento, as
+  extrações seguintes não rodam e nenhum evento sai; senão, cada extração que rodou tenta o
+  `stirEvent` dela, e o primeiro que abrir segura os outros (só cabe um evento pendente por pessoa).
+  Extração nova entra sozinha, porque ele percorre o `activities`.
 - As ferramentas de extração que não são relíquia (rara, épica e lendária de `!pescar`,
-  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje **135 minutos**, contando o que a
+  `!minerar` e `!catar`) têm um tempo padrão de se pagar, hoje uns **110 minutos** (de 105 na
+  rara a 130 na lendária, numa simulação com todos os sorteios), contando o que a
   pessoa recebe vendendo no `!vender`, não o valor cheio dos itens. O tempo é o `value` da
   ferramenta dividido pelo líquido por hora: o valor médio do melhor item entre `luck + 1`
   sorteios do `loot` montado pelo `equip` (item `gradable()` vezes a qualidade média da melhor de
@@ -119,7 +131,7 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   na lendária (5) e 80 na relíquia (2). O `grade` também é fixo por raridade: 1 na rara, 2 na
   épica, 3 na lendária e 4 na relíquia. Ferramenta nova ou mudança no `loot` de uma
   atividade precisa recalibrar as ferramentas dela pra esse tempo. As ferramentas base (Vara de
-  pesca, Picareta e Rede de insetos) ficam de fora e se pagam em uns 60 minutos. Como o `loot`
+  pesca, Picareta e Rede de insetos) ficam de fora e se pagam em uns 50 minutos. Como o `loot`
   da mina vale mais, as picaretas têm um `luck` a menos que a vara e a rede da mesma raridade.
   As relíquias de extração que fazem o papel da ferramenta (Vara de Iemanjá, Picareta de Serra
   Pelada, Rede do Curupira e o Saco do Homem do Saco, que é acessório porque o `!vasculhar` não
@@ -127,6 +139,19 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   delas como preço; como nunca quebram, não têm custo de quebra. Os míticos entram nessa conta
   (só elas acham), então mexer em mítico também pede recalibrar as relíquias de extração. A Vela
   do Negrinho do Pastoreio fica de fora, porque só soma em cima da ferramenta que a pessoa já tem.
+- O `value` dos achados de extração que só servem pra vender (sem efeito no `effectPerk`, sem
+  `gift`, sem `loot`, sem `gear`, sem `seed` e abaixo de mítico) segue uma escala que favorece quem
+  tá começando: comparado com o resto do `catalog`, o comum vale uns 50% a mais, o incomum 40%, o
+  raro 30%, o épico 20% e o lendário 10%. Achado novo entra na mesma escala, senão a
+  calibração das ferramentas acima sai do lugar.
+- Os acessórios de extração da `!loja` cobrem os buracos de cada atividade: sorte fixa (Mapa
+  geológico, Luva de borracha, Molinete, Guia de campo de insetos), sorte gasta a cada tentativa
+  (Isca de minhoca, Garrafa de melado, Pólvora de garimpo), espera menor (Capacete com lanterna,
+  Armadilha luminosa, Barco a remo, Carrinho de mão), menos lixo (Peneira de entulho e a Mochila de
+  trilha, que vale nas quatro), mais raro (Detector de metais, oferta do dia, no `!minerar` e no
+  `!vasculhar`) e qualidade (Lupa de joalheiro). Os novos ficam no `gatherGoods` (`apetrechos.go`),
+  o último bloco do `catalog`. Acessório não entra na calibração das ferramentas: ele soma por
+  cima e se paga em algumas horas de extração com a ferramenta base, e mais rápido com as melhores.
 - O tipo de cada item (`itemCategories` em `itens.go`) não é um campo: é a primeira regra da lista
   que bate com os campos do item (`pet`, `arms`, `heist`, `gift`, `networks`, o loot das `activities`...), e o
   que não bate em nada vira `Raridades`. O `Contrabando` pega o ilegal que não é arma nem droga, e
@@ -171,7 +196,9 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
   todos com `#`, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
   (`sellNumbered` → `sellBatch` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
-  todos os que vêm depois dele.
+  todos os que vêm depois dele, então item novo vai sempre no fim do último bloco do `slices.Concat`
+  do `catalog` (hoje o `gatherGoods`, em `apetrechos.go`), seja ele semente, acessório ou qualquer
+  outra coisa.
 - A qualidade (`qualidade.go`) é a coluna `qualidade` do `inventarios`, que faz parte da chave, então
   cada qualidade de um item é uma linha própria. Os níveis ficam em `qualities` (de `-3` horrível a `3`
   lendária, com o `0` normal), cada um com a porcentagem do `value` que vale (`price`), o selo
@@ -297,9 +324,9 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
 - A horta (`horta.go`, `plantar.go`, `colher.go`, tabela `plantacoes` com uma linha por canteiro
   ocupado, guardando a `semente` e o `pronta_em`) planta item com `seed` (`crop`: o `yields` é o id
   do que nasce, o `grows` é o tempo, o `least`/`most` é quantas unidades sai por canteiro e o `wild`
-  é o peso no achado de quebra). As sementes e o que nasce delas ficam no `gardenGoods`, no fim do
-  `catalog` (depois dos implantes), pra não empurrar o número de ninguém, e semente nova entra no fim
-  dele. O que nasce pode ser item que já existia: a Rosa e o Girassol saem da Muda de roseira e da
+  é o peso no achado de quebra). As sementes e o que nasce delas ficam no `gardenGoods`, depois dos
+  implantes, e semente nova entra no fim do último bloco do `catalog` (veja o número dos itens),
+  porque o `gardenGoods` já não é mais o último. O que nasce pode ser item que já existia: a Rosa e o Girassol saem da Muda de roseira e da
   Semente de girassol e continuam no tipo 💝 Presentes. O resto cai no tipo 🌱 Horta (`fromGarden`,
   logo depois de Comes e bebes), junto das sementes.
   - Todo mundo começa com `gardenBeds` canteiros, o `farmBeds` da profissão soma mais

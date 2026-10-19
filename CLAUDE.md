@@ -212,8 +212,8 @@ conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderaç
   toda consulta (skill `economia-base`).
 - Estado efêmero de jogos (rodadas de `!bmc`, `!quiz`, `!forca`...) fica em campos `sync.Map` do
   `bot` do módulo e se perde ao reiniciar. Jogos que seguram moedas no meio da rodada (`!blackjack`,
-  `!crash`, `!corrida`, `!jokenpo @pessoa`) descontam a aposta na hora em que ela é feita e pagam no
-  fim. No `!jokenpo`, a aposta do desafiado é descontada quando ele manda a jogada no privado.
+  `!crash`, `!corrida`) descontam a aposta na hora em que ela é feita e pagam no fim. O `!jokenpo`
+  não vale moeda nenhuma, nem contra o bot nem no desafio.
 - O `mensagens.db` guarda no máximo 2 anos ou 1 milhão de mensagens (`mensagens.go`), com poda
   periódica.
 - O `!retrospectiva`, o `!horario` e o `!primeiramsg` leem só o `mensagens.db` e o `risadas`, sem
@@ -243,6 +243,8 @@ O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar cont
 - `economia-dinheiro`: leilão, bolão, agiota, empréstimo, ações, imposto, imóveis, empregados,
   títulos, implantes, obras.
 - `economia-igrejas`: igrejas dos jogadores, doutrinas, dízimo e cofre.
+- `economia-empresas`: empresas de NPC, hoje as de segurança do `!empresa`: contratos, escolta
+  contra o alvo fácil, cobertura nos eventos da bolada, reforço e recuperação pelo `!aceitar`.
 - `economia-eventos`: eventos com escolha do `!trabalhar`, das extrações e dos crimes, e o `!eventos`.
 - `economia-aovivo`: submodo `aovivo`, eventos ao vivo pro grupo todo (corrida do `!pegar`, chefão
   do `!atacar` e enquete coletiva) e o `!aovivo` do deus.

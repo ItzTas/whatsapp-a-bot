@@ -163,7 +163,9 @@ Cadeia, flagrante, morte, saúde e tribunal.
   Antes disso, quem morre com prêmio fresco de aposta (alvo fácil, veja abaixo) perde ainda de
   `jackpotDeathMinPercent` a `jackpotDeathMaxPercent` por cento do prêmio (`spillJackpot`), somado
   no `death.lost`, então o `funeralText` e o `heir` já contam essa parte. Hoje chamam ele o `kill` do `!matar`, a overdose do
-  `takeDrug` e o `hurt` da saúde zerada. Caminho novo de morte usa o `die` e mostra o `funeralText`.
+  `takeDrug`, o `hurt` da saúde zerada e o `!suicidio` (`suicidio.go`, sem espera, chance nem
+  vantagem: é só zoeira, e a resposta fecha com o CVV 188, como o `!matar` em si mesmo, que
+  continua recusado). Caminho novo de morte usa o `die` e mostra o `funeralText`.
 - A saúde (`saude.go`) fica nas colunas `saude`/`saude_em` da `carteiras`: vale o número guardado
   mais 1 ponto a cada `healthRegenEvery` desde o `saude_em`, até `MaxHealth`, calculado na leitura
   (`readHealth`), sem nada rodando em segundo plano. Um enfermeiro do `!empregados` encurta esse
@@ -199,6 +201,16 @@ Cadeia, flagrante, morte, saúde e tribunal.
   virar um `!matar` sem recompensa nem cadeia. O `clash` aplica os dois na transação do crime, e o
   `by`/`on` zeram o lado de quem é deus. Crime novo ganha um `crimeRisk`, entra no `crimeRisks` e
   chama o `clash` (ou o `hurt` por pessoa, nos crimes em equipe) depois de decidir o resultado.
+- O `!tacar @pessoa [pedra|tomate]` (`tacar.go`, aliases `!tacarpedra` e `!tacartomate`) não é
+  crime: não marca `crime_em` nem `ficha_em` e não tem flagrante. Cada `projectile` (`projectiles`,
+  hoje a Pedra e o Tomate) é um item do `catalog` que a pessoa precisa ter na mochila, com o dano
+  (`harm`) e os textos dele; o `aimedProjectile` escolhe pelo id que aparece no texto (sem nenhum,
+  pedra). O `walletStore.throw` carimba a espera `throwCooldown` (coluna `arremesso_em`, passada
+  pelo `pace`) e gasta uma unidade do item na mesma transação; sem o item, o `errNoItems` desfaz a
+  espera. Acerta com `throwHitChance` menos o `guard` da vítima, pelo `sober` de quem taca, e
+  depois, acertando ou não, a vítima revida com `throwRetortChance` com o mesmo dano. Os dois lados
+  passam pelo `bruise`, então ninguém morre de pedrada, e o deus não sofre dano nem revide.
+  Projétil novo é só um item no `catalog` e uma entrada no `projectiles`.
 - O `!assalto` (`assalto.go`) junta uma equipe de `heistSize` pessoas em `heistCrews` (uma por
   conversa, efêmera): quem manda primeiro abre, e se a equipe não fechar em `heistWindow` o
   assalto é cancelado. A espera é só checada ao entrar (`cooldownLeft`) e carimbada pra todo mundo
@@ -248,10 +260,14 @@ Cadeia, flagrante, morte, saúde e tribunal.
   multiplica depois das faixas. O `exposureText` mostra o máximo de um `!roubar` no `!saldo` e no
   `!tu`. Roubo novo que tire porcentagem do saldo de alguém passa pelo `exposed`.
 - Quem acabou de ganhar muito em aposta vira alvo fácil (`alvofacil.go`, colunas `premio_aposta` e
-  `premio_aposta_em` da `carteiras`). O `NoteBet` chama o `noteJackpot`, que guarda o lucro de
-  toda aposta de pelo menos `jackpotMin`, somando com o prêmio anterior se ele ainda tá dentro da
-  `jackpotWindow`. No `!roubar` (`rob`) e na `!quadrilha` (`gangRob`), o `markOf` lê a marca (`easyMark`) dentro da transação, com o
-  prêmio pelo `freshJackpot` (limitado ao saldo, zero se já venceu): a espera do roubo de quem
+  `premio_aposta_em` da `carteiras`), mas só se tiver no lucro. O `NoteBet` chama o `noteWinnings`,
+  que numa transação só soma o lucro líquido da aposta na tabela `apostas_lucro` (`tallyWinnings`,
+  veja a marca do `lucky` abaixo) e guarda o lucro de toda aposta de pelo menos `jackpotMin`
+  (`stashJackpot`), somando com o prêmio anterior se ele ainda tá dentro da `jackpotWindow`. No `!roubar` (`rob`) e na `!quadrilha` (`gangRob`), o `markOf` lê a marca (`easyMark`) dentro da transação, com o
+  prêmio pelo `freshJackpot`, que fica com o menor entre o prêmio, o saldo e o lucro de aposta dos
+  últimos `luckyDays` dias, e dá zero se o prêmio venceu ou se esse lucro tá abaixo de `jackpotMin`.
+  Então quem tá no prejuízo não vira alvo fácil mesmo ganhando uma aposta grande, e quem perde o
+  lucro dentro da janela perde a marca: a espera do roubo de quem
   ataca cai `jackpotWaitCut` (`jackpotPace`, lido antes do `stampOrAbuse` no `rob` e no
   `robWait` da entrada da `!quadrilha`, que acha a vítima pelo `gangVictim`), a chance ganha
   `jackpotRobBonus` (`easyMark.odds`), o alarme dela perde `jackpotAlarmCut` de chance de disparar
@@ -260,22 +276,40 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `jackpotLootBonus` (na `!quadrilha`, antes de dividir), então o prêmio não sai com a porcentagem
   cheia. O roubo que dá certo não apaga o prêmio:
   a marca fica até a `jackpotWindow` acabar, e o escudo que a vítima ganha é o `jackpotShield`,
-  `robShield` com um corte que cresce com o prêmio (`jackpotShieldCut`): `jackpotShieldMinCut` no
+  `robShield` (sempre bem menor que a `jackpotWindow`, senão a marca venceria antes do escudo
+  acabar) com um corte que cresce com o prêmio (`jackpotShieldCut`): `jackpotShieldMinCut` no
   `jackpotMin`, subindo em escala logarítmica até `jackpotShieldMaxCut` no `jackpotShieldTop` ou
-  mais, arredondado pro segundo. O `easyMark.text` avisa na resposta. Morrer com o
+  mais, arredondado pro segundo. O `easyMark.text` avisa na resposta. Quando a marca começa (o
+  `noteWinnings` não achou prêmio fresco antes de gravar e acha depois, inclusive quando a aposta
+  tira a pessoa do prejuízo), o `NoteBet` manda no grupo o `markedText` com o prêmio que vale,
+  marcando a pessoa; somar mais prêmio na mesma janela não avisa de novo. Por isso
+  o `NoteBet` roda depois da resposta da aposta (no `!roleta`, depois do resultado do suspense). Morrer com o
   prêmio fresco, de qualquer jeito, também custa uma parte dele (`spillJackpot` no `bury`, acima).
   O prêmio fresco também ajuda: o `!prender` nessa pessoa falha `jackpotArrestSlip` das vezes
   (`slipsArrest`, o advogado pago com o prêmio), e a marca mais fraca do `lucky` não conta.
-  Depois que o prêmio vence, sobra uma marca mais fraca de `luckyDays` dias: o `NoteBet` também
-  chama o `noteWinnings`, que soma o lucro líquido de toda aposta (perda desconta) por dia (BRT) na
-  tabela `apostas_lucro` e apaga os dias velhos da pessoa. Sem prêmio fresco, o `markOf` soma os
+  Depois que o prêmio vence, sobra uma marca mais fraca de `luckyDays` dias: o `tallyWinnings` soma
+  o lucro líquido de toda aposta (perda desconta) por dia (BRT) na tabela `apostas_lucro` e apaga
+  os dias velhos da pessoa. Sem prêmio fresco, o `markOf` soma os
   últimos `luckyDays` dias (`luckySince`) e, com `luckyMin` ou mais, liga o `lucky` do `easyMark`,
   que só soma `luckyRobBonus` na chance (espera, alarme, escudo e valor levado ficam normais) e
   troca o aviso da resposta. Com prêmio fresco vale só a marca do alvo fácil, sem somar as duas. Não confundir com o evento
   `bolada` (`bolada.go`), que olha o saldo em memória e não mexe em roubo. Enquanto a marca durar
   e o ganho dela (`easyMark.haul`) for do tamanho de uma bolada, a pessoa também pode cair nos
   eventos pesados da bolada (sequestro relâmpago, quadrilha...) pelo `stirStalker`, com chance
-  menor que a da bolada (skill `economia-eventos`).
+  menor que a da bolada (skill `economia-eventos`). Quem tem contrato com uma empresa de segurança
+  pode ter a marca anulada em cada roubo: o `escortMark`, logo depois do `markOf` no `rob` e no
+  `gangRob`, sorteia e, se der, zera o `easyMark` antes de tudo que depende dele (skill
+  `economia-empresas`).
+  A marca com prêmio fresco tem nível (`nivelalvo.go`, colunas `alvo_nivel` e `alvo_apostado` da
+  `carteiras`). Ela começa no 1 (o `noteWinnings` chama o `resetMarkLevel` quando a marca começa) e
+  o `NoteBet`, antes de tudo, passa o valor apostado pelo `noteMarkLevel`: com a marca ligada, o
+  `markLevel.after` soma no `alvo_apostado` e, a cada vez que a soma chega no prêmio fresco, sobe um
+  nível (vários de uma vez se a aposta for grande), até `markLevelMax`, e avisa no grupo. O `markOf`
+  lê o nível no `easyMark.level` e o `steps()` (nível menos 1) mexe em três lugares: o
+  `easyMark.odds` soma `levelRobStep` por passo no `jackpotRobBonus`, o `contract.odds` da empresa
+  perde `levelEscortCut` por passo, e o `stirStalker` (skill `economia-eventos`) multiplica a chance
+  e divide a espera pelo nível. A marca fraca do `lucky` não tem nível. O `!bicho` e o `!bolao` não
+  passam pelo `NoteBet` e não sobem nível.
 - O abuso de poder (`abuseKinds` em `prender.go`) deixa usar um comando mesmo com a espera dele
   pendente. Hoje tem quatro tipos: prisão (`!prender`), trabalho (`!trabalhar`), roubo (`!roubar`) e
   sequestro (`!sequestrar`). Cada `abuseKind` tem a coluna de espera dele na `carteiras` (`abuso_em`,

@@ -122,8 +122,14 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   mostra (o `!cofre` é um atalho dele, com o mesmo `showVault`). As duas pontas passam pelo `shiftVault`, um `UPDATE` só condicionado ao saldo e ao
   tamanho do cofre. É o mesmo princípio dos guardados: moeda no cofre não tá no `saldo`, então nada
   que lê o `saldo` enxerga ela (`!roubar`, `!quadrilha`, multa da cadeia, enterro, `!castigo`,
-  imposto, penhora do `!emprestimo`, `!ricos`). Por isso os tamanhos são pequenos de propósito (uma
-  fração pequena do preço do imóvel): o cofre protege uma reserva, não a fortuna toda.
+  imposto, penhora do `!emprestimo`, `!ricos`). Por isso o tamanho é uma fração do preço do imóvel
+  que cai com o nível: nos níveis baixos cabe boa parte do que falta pro próximo imóvel (a barraca
+  guarda o preço dela inteiro, a casa com piscina uns 10% da cobertura), pra quem junta dinheiro
+  não perder tudo no caminho, e nos altos cabe pouco perto da fortuna (a base em Marte guarda menos
+  de 5% do preço dela), então o cofre protege uma reserva, não a fortuna toda. O `storage` cresce
+  junto com o nível (da barraca à base em Marte), e a poupança (`savingsCap` em `poupar.go`) é o
+  outro lugar pra juntar dinheiro protegido, com um teto por depósito do tamanho de alguns dias de
+  trampo.
 - Os empregados (`empregados.go`) são fictícios e vivem em código (`staff`), e só o `id` vai pra
   coluna `tipo` da tabela `empregados`, uma linha por empregado contratado (cada um com o próprio
   `coletado_em`, então contratar outro do mesmo tipo não herda as horas dos antigos). Cada tipo
@@ -139,20 +145,20 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   tudo zera a tensão. O atrasado vem antes de rodada nova, então o fiado não dá rodada de graça. O `shift` tira do `loot` tudo que é lendário ou acima, `unboxable()` e
   Bússola do relicário (`relicLure`), e o empregado não usa ferramenta, equipamento nem
   profissão (sem quebra, sem machucado). O aprendiz puxa a qualidade pra baixo (`gradeLuck`
-  -1) e o veterano escolhe o melhor de dois achados (`luck` 1). O `price` é calibrado pra se
-  pagar em **72 horas** produzindo sem parar (o líquido por rodada, com o `wage` em 30% do que
-  a rodada rende em média na venda), então mexer no `loot` de uma atividade pede recalibrar os
-  empregados dela. O caçador de bússola é a exceção: não tem `activity`, e o `quarry` faz o
+  -1) e o veterano escolhe o melhor de dois achados (`luck` 1). O `price` dos que extraem se
+  paga em uns **52 horas** produzindo sem parar (o líquido por rodada, com o `wage` em uns 24% do
+  que a rodada rende em média na venda, numa simulação da rodada), então mexer no `loot` ou no
+  `value` dos achados de uma atividade pede conferir os empregados dela. O caçador de bússola é a exceção: não tem `activity`, e o `quarry` faz o
   `shift` montar um `loot` só com a Bússola do relicário (peso 1) e a mão vazia (peso `misses`,
   hoje 1 em 250), bem pior que o caçador de bússola jogador (1 em ~95 a ~133 a cada 5 minutos,
-  nas quatro extrações). O preço dele não segue as 72 horas pelo valor de venda, que daria
+  nas quatro extrações). O preço dele não segue essa conta pelo valor de venda, que daria
   quase nada: o custo de verdade é a vaga do imóvel que ele ocupa.
   O apostador e o corretor não têm `activity`: o `payouts` sorteia (`bet`) quantas vezes o
   `wage` voltam em moedas a cada rodada, e o `harvest` soma em `coins`, creditado no saldo depois
   de descontar o salário (o ganho da coleta não paga o salário dela). O decreto `extracao` não
   muda o ritmo deles. O apostador tem muita variação (perde tudo na maioria das rodadas, com
   prêmio de até 50x) e o corretor pouca (nunca volta com menos do que cobrou); o `price` dos dois
-  segue as mesmas 72 horas, pelo líquido médio da tabela (`odds`). O contador (`taxCut`), o
+  se paga em **72 horas**, pelo líquido médio da tabela (`odds`), que não depende do `value` de item. O contador (`taxCut`), o
   enfermeiro (`care`) e o segurança particular (`watch`) são passivos (`passive()`): não têm `every`, ficam fora do
   `!empregados coletar` e valem só de estar contratados, sempre o melhor de cada tipo
   (`strongest`). O contador corta a porcentagem do imposto e do IPTU no `dueTax`, o enfermeiro

@@ -31,16 +31,16 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   e, com a mesma conta do `eventLuck` usando `tiltChance`, abre o evento com o `place` da aposta e
   `won` falso. O livro dessas apostas é o `gamblingEvents` (`eventosaposta.go`, "Fundo do poço"), que
   só aparece por esse caminho.
-- **Apostar tudo** (`tudo.go`). Toda aposta que passa pelo `stakeAfterLevy` (`PlaceBet` e `PlaceStake`:
-  `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roleta`, `!bicho`, `!bolao` e o
-  `!jokenpo @pessoa`) e pede o saldo inteiro (`stake` igual ao `budget`, seja `tudo`, `100%` ou o número
-  exato) cai no `allIn`. Na primeira vez a aposta não sai: o bot avisa e guarda o pedido no `allInBoard`
+- **Apostar tudo** (`tudo.go`). Toda aposta que passa pelo `placeStake` (direto ou pelo `PlaceBet`:
+  `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roleta`, `!bicho` e o
+  `!bolao`) e aposta pelo menos o que o `tudo` aposta (`stake` a partir do `whole` do `betRule`,
+  seja o `tudo` ou um número, veja o limite por aposta na skill `economia-base`) cai no `allIn`. Na primeira vez a aposta não sai: o bot avisa e guarda o pedido no `allInBoard`
   (em memória, chave `eventKey` mais o comando). Mandar o mesmo comando de novo em até `allInWindow`
   confirma. Na confirmação, quem aposta `allInFloor` ou mais tem `allInChance` (com a mesma conta do
   `eventLuck`) de cair num evento do `allInEvents` (`eventostudo.go`, place `allInPlace`) antes da aposta;
   se o evento abrir, a aposta é cancelada e a pessoa precisa confirmar de novo depois. O `!bicho` chama o
   `affordable` e só passa pelo `allIn` depois de conferir o limite do tipo de aposta. O `!lance` do leilão
-  também usa o `affordable`, mas não passa pelo `allIn`.
+  também usa o `affordable`, mas com o `bidRule` (sem limite) e sem passar pelo `allIn`.
 - **Bolada** (`bolada.go`). O `stirWindfall`, registrado no `AddAfterCommand`, lê o saldo de quem mandou
   qualquer comando da economia num grupo e guarda no `windfallBoard`, em memória, a base de onde a pessoa
   partiu (`purse`): o ganho desde a base conta inteiro por `windfallWindow` e depois vai sumindo aos
@@ -50,12 +50,18 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   precisar de uma bolada do tamanho do saldo), a base vira o saldo de agora e, com a mesma conta
   do `eventLuck` usando o `windfallOdds` (vale `windfallChance` até `windfallRiseFrom` de bolada e sobe
   em linha reta até `windfallChanceMax` em `windfallRiseTo`, então bolada maior chama mais evento), abre um evento com o `place` `windfallPlace` (`bolada`) e `won`
-  verdadeiro. Por ser lido depois do comando, pega ganho de qualquer lugar (trampo, aposta, roubo,
-  milagre, Pix). O quanto subiu desde a base vai no `haul` do `eventSpot` (salvo no `eventSave` e
+  verdadeiro. Bolada é só ganho de sorte ou de crime (aposta, roubo, caixa, milagre, Pix): o `purse`
+  guarda também o último saldo visto (`seen`), e quando o comando é de trabalho (a lista `labor` do
+  `stirWindfall`: `!trabalhar`, `!daily`, extrações, `!coletar`, `!colher`, `!vender`, `!publi`,
+  `!poupar`, `!cofre`, `!imovel` e `!acoes`) o `struck` recebe `earned` e sobe a base junto com o que
+  o saldo subiu desde o `seen`, então quem enriquece trabalhando ou vendendo a mochila nunca cai na
+  bolada. Como o saldo só é lido depois de comando, o que entra entre um comando e outro (prêmio de
+  rotina, missão, Pix) fica com o comando seguinte. O quanto subiu desde a base vai no `haul` do `eventSpot` (salvo no `eventSave` e
   passado pro `eventRun`), que é o que o efeito `skim` morde. O livro é o `windfallEvents`
-  (`eventosbolada.go`, "Dinheiro chama ladrão"): gente tentando roubar quem ficou rico, o
-  `bolada-casa` só cabe pra quem tem imóvel (`homeOwner`) e o `bolada-leao` cobra a parte da bolada
-  com `skim`, em vez de tirar do saldo inteiro com `lose`. Quanto maior a bolada, mais o livro morde: o
+  (`eventosbolada.go`, "Dinheiro chama ladrão"): gente tentando roubar quem ficou rico, e o
+  `bolada-casa` só cabe pra quem tem imóvel (`homeOwner`). Todo prejuízo em moeda do livro sai da
+  bolada com `skim`, nunca do saldo inteiro com `lose`, então juntar dinheiro pra uma meta grande não
+  fica mais caro por causa dela. Quanto maior a bolada, mais o livro morde: o
   `windfallBite` (lido pelo `bite()` do `eventSpot`, que só vale no `windfallPlace` e no `stalkPlace`) multiplica o
   `lose`, o `skim` e o `price` das opções, de 1x até `windfallRiseFrom` subindo em linha reta até
   `windfallBiteMax` em `windfallBiteTo`. O `skim` multiplicado continua limitado à bolada e ao saldo,
@@ -65,24 +71,17 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   pode cair num evento a cada comando da economia, enquanto o ganho da marca (`easyMark.haul`, o prêmio ou o
   lucro dos dias, limitado ao saldo) for do tamanho que soltaria a bolada (`windfallBar` do saldo de antes do
   ganho). A chance é o `windfallOdds` desse ganho vezes `stalkShare`, na conta do `eventLuck`, então sai bem
-  menos que a bolada, e no máximo um a cada `stalkEvery` por pessoa (`windfallBoard.stalk`, em memória). O
+  menos que a bolada, e no máximo um a cada `stalkEvery` por pessoa (`windfallBoard.stalk`, em memória).
+  O nível da marca (skill `economia-crime`) multiplica essa chance e divide a espera: no nível N a
+  chance é N vezes maior e a espera é `stalkEvery` dividido por N (o pré-sorteio usa o teto
+  `markLevelMax`). O
   sorteio vem antes de ler o banco. O `place` é o `stalkPlace` (`alvofacil`), com `won` verdadeiro e o ganho
   no `haul`, e só cabem nele os eventos pesados do `windfallEvents` que citam o lugar no `places` (sequestro
   relâmpago, quadrilha, conta invadida e golpe da central).
-- **Cassino furioso** (`cassinofurioso.go`). O `stirCasinoWrath`, também no `AddAfterCommand`, roda
-  depois de `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida` e `!roleta` e só faz alguma coisa
-  com o decreto `cassino` positivo (o prêmio a mais; a taxa negativa não conta). A chance cresce com o
-  nível do decreto (`level / casinoDecreeMaxRaise`, na conta do `eventLuck`): `casinoWrathChance` de abrir
-  um evento pro presidente (`casinoWrathPlace`, no máximo um a cada `casinoWrathEvery` por conversa, no
-  `wrathBoard`) e `casinoWatchChance` de abrir um pra quem apostou (`casinoWatchPlace`), menos quando quem
-  aposta é o presidente. Os dois lugares ficam no livro `casinoWrathEvents` (`eventoscassino.go`), cada
-  evento com o `places` dele. O efeito `repealCasino` zera o `cassino_pct` da `presidencias` se quem
-  joga o evento for o presidente com o decreto ainda positivo, então só faz sentido nos eventos do
-  presidente.
 - **Escolha do evento.** O `pickScenario` dá prioridade a um evento marcado com `plant` que já venceu
   (`eventos_marcados`), senão sorteia pelo `weight` entre os que cabem (`fits`: `places`, `areas`, `jobs`,
-  `when` e pelo menos 2 opções liberadas). Os lugares dos livros especiais (apostas, `tudo`, `bolada`, `alvofacil` e
-  os do cassino furioso, juntos no `sealedPlaces`) são fechados: lá só sai evento que cita o lugar no
+  `when` e pelo menos 2 opções liberadas). Os lugares dos livros especiais (apostas, `tudo`, `bolada` e `alvofacil`,
+  juntos no `sealedPlaces`) são fechados: lá só sai evento que cita o lugar no
   `places` (`covers`), então os Gerais, os Raros universais e os de área ou profissão nunca aparecem
   neles. Livro especial novo com gatilho próprio entra no `sealedPlaces`. O peso é o da raridade (`commonEvent`, `rareEvent`,
   `legendaryEvent`) ajustado pelo quanto o evento é específico: evento de profissão (`jobs`) pesa
@@ -110,8 +109,9 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   hora, com outra enquete.
 - **Efeitos** (`eventoefeitos.go`), todos pelas funções de sempre: `earn` (porcentagem do `shiftValue`, o
   ganho médio de um trampo da profissão), `lose` (`burnBalance`, some), `skim` (porcentagem do
-  `haul`, o quanto a bolada rendeu, limitada ao saldo; some, e só faz algo no `windfallPlace`, até
-  100%), `gain`/`forfeit` (itens),
+  `haul`, o quanto a bolada rendeu, limitada ao saldo; some, e só faz algo no `windfallPlace` e no `stalkPlace`, que levam o `haul`, até
+  100%; nesses dois lugares, o `lose` e o `skim` de quem tem contrato com empresa de segurança
+  perdem menos pelo `cushion`, skill `economia-empresas`), `gain`/`forfeit` (itens),
   `findLoot` (o loot da extração, ou os achados da profissão em qualquer outro lugar), `injure` (`hurt`),
   `heal`, `buzz` (fica sob efeito da droga pelo `getHigh` do `mercadonegro.go`, o mesmo do `!usar`, com
   overdose), `nabbed` (cadeia de flagrante pelo `baseJail` com `sentence` e `lockUp`, com a chance de
@@ -122,7 +122,7 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   assombrada só pega em quem tem imóvel e, sem casa, o espírito vai embora), `refresh`/`delay` (espera do comando pelo
   `placeCooldown`; onde o comando não tem espera, como o `!mercadonegro`, vale a do `!trabalhar`, e o texto
   diz qual), `breakTool` (ferramenta da extração ou o instrumento de trabalho da área, nunca
-  relíquia), `plant` (marca um evento pra depois) `refund` (passa parte do saldo pra vítima) `repealCasino` (revoga o decreto `cassino` positivo do presidente, veja o Cassino furioso) e `fans`/`unfollow` (soma ou corta uma porcentagem dos seguidores
+  relíquia), `plant` (marca um evento pra depois) `refund` (passa parte do saldo pra vítima) e `fans`/`unfollow` (soma ou corta uma porcentagem dos seguidores
   de todas as redes na tabela `fama`, como o backlash do `!publi`; quem não tem seguidor não ganha nem perde nada). O `grudge` e o `refund` só
   entram em evento cujos lugares todos têm vítima, e o `enchant` não aceita Dízimo, Pacto nem Casa
   assombrada, que precisam de outra pessoa de autora (`offCharms` no teste). Os encantos mais punitivos ficam

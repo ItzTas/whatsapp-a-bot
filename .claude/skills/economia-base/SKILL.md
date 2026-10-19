@@ -41,6 +41,42 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   no `barrenHauls` das extrações. Nos crimes em grupo (`!assalto`, `!golpe`, `!quadrilha`), o
   `crewHangover` fica com a ressaca do pior membro. Chance nova que deva sofrer com a ressaca
   passa pelo `sober`. Escondida como a série.
+- Turnos acumulados (`turnos.go`): o `!trabalhar` e as extrações pagam a espera que ficou parada.
+  O `backlog` divide o tempo desde a última vez (o `stampedAt` lê a coluna de espera, `trabalho_em`
+  ou a da atividade) pela espera e limita a `backlogSpan` (1h), arredondando pra cima, então quem
+  manda de vez em quando ganha o mesmo por hora que quem manda sem parar, e quem manda sem parar não
+  ganha nada a mais. No `!trabalhar`, o `presidency.toil` sorteia um `work` por turno (cada um passa
+  pelo `payFor`) e junta tudo num `shift` só com o `merge` (ganhos e multas somados, `turns`, `busts`,
+  `doubles` e os achados em `finds`); o ferimento, o evento e a cobrança de imposto, dízimo e gravidade
+  saem uma vez só, sobre o total. Nas extrações, o `walletStore.gather` roda um `dig` por tentativa
+  com a mochila em memória: cada tentativa sorteia quebra (e desgaste do `grace`) e gasta os
+  consumíveis do `spent`, e o `equip` é refeito depois de cada uma (`withdrawn` tira da mochila o que
+  acabou), então a ferramenta quebrada e o consumível que acabou deixam de valer nas tentativas
+  seguintes, e sem ferramenta as tentativas param. A primeira tentativa vira o `haul` da resposta e
+  as outras ficam no `backlog` (resumidas no `backlogReport`); o ferimento é um só por comando e o
+  pedágio da cratera cobra sobre tudo (`gathering.finds`). As missões `trabalho` e `extracao` andam
+  pelo número de turnos. Comando de renda novo com espera pode usar o mesmo `backlog`.
+- Carreira (`carreira.go`, tabela `carreiras` com `chat`, `pessoa`, `profissao` e `minutos`): cada
+  profissão guarda o tempo de trampo da pessoa nela, contado em tempo de espera (turnos vezes a espera
+  do `!trabalhar`), então profissão de espera curta e de espera longa sobem no mesmo ritmo por hora. O
+  `ProfessionOf` lê todas as carreiras da pessoa em paralelo (`walletStore.careers`) e aplica o
+  `seasoned` antes de tudo: o nível (`career.level`, o nível N precisa de `careerFirst` vezes N², até
+  `careerTop`) soma `careerStep`% no `min` e no `max`, então o `shiftValue` dos eventos cresce junto.
+  Trocar de profissão começa outra carreira do zero e a antiga fica guardada. O `!trabalhar` soma o
+  tempo no fim (`promote` → `walletStore.build`, um `UPSERT` fora da transação do pagamento) e avisa
+  quando sobe de nível; o `perks()` mostra o nível e quanto falta (`career.perk`), e o menu do
+  `!profissao` mostra o nível atual (`career.tag`). Deus (`divine`) não tem carreira.
+  O que é da profissão também treina, bem pouco: `careerDrill` (1 minuto) por ação, contra os 8 a
+  40 minutos de um turno do `!trabalhar`. A regra olha sempre a profissão pura (`professionNamed`,
+  sem item, implante, droga nem presidência), pra arma ou implante não virar carreira. O `practice`
+  soma quando o `fits` bate: as extrações chamam ele por tentativa com o `crafts` (o `craft` da
+  profissão é daquela atividade, ou ela tem `gatherFaster`) e o `!colher` uma vez com o `farms`. O
+  resto passa pelo `drillCareer` (`AddAfterCommand`), com um mapa de comando pra coluna de espera e
+  pra regra da profissão (`!roubar` e `!quadrilha` pra quem tem bônus de roubo, `!prender` pra quem
+  tem `jailTime`, `!reviver` pra quem tem `reviveChance`, `!abencoar`/`!amaldicoar` pra quem tem
+  `faith`, `!postar`/`!publi` pra quem tem `reach` ou é da arte...): a ação conta quando a coluna de
+  espera foi carimbada depois da mensagem (`walletStore.drilled`, com `drillSlack` de folga), então
+  comando recusado pela espera não treina. Comando novo de profissão com espera entra nesse mapa.
 - Toda profissão pode achar item no `!trabalhar` (`oficio.go`): o `loot()` usa o `finds`/`findChance`
   da profissão e, se ela não tiver `finds`, cai nos `finds` da área (`areas` em `profissao.go`) com
   `areaFindChance`. Cada área tem um instrumento de trabalho no `catalog` (campo `trade`, um por
@@ -145,14 +181,42 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   dinheiro". Depois de mostrar, as duas tabelas da economia são zeradas e o ranking novo é gravado.
   Prejuízo de outro tipo que deva aparecer no `!ricos` precisa de um `lossCause`, do texto no
   `richFall.text` e do `noteLoss` no caminho que tira o dinheiro.
+- Toda aposta segue o `betRule` (`stakeRule` em `limiteaposta.go`): o `most` é o limite de uma aposta
+  só, `stakeSharePercent` do saldo e nunca mais do que falta pra pessoa chegar em `betWindowCap`
+  apostados nas últimas `betWindow` (2h); o `whole` é o que o `tudo`/`all` aposta, `allInSharePercent`
+  do saldo (também até o `most`). O volume vem da tabela `apostas_volume` (migração `00121`): o
+  `noteWager` grava cada valor apostado, com a hora, na mesma transação que tira a aposta do saldo
+  (`SettleBet`, que o `holdStake` também usa, `betOnPool` do `!bolao` e `placeAnimalBet` do
+  `!bicho`), e apaga as linhas da pessoa que já saíram da janela. O `betRuleOf` soma a janela
+  (`wagered`, que também diz em quanto tempo a aposta mais velha sai, o `freed`) e monta a regra. O
+  `most` também passa pelo stop-loss: o `betRuleOf` lê em paralelo os resultados das últimas
+  `stopLossWindow` (4h, a mesma janela da `apostas_recentes` do `NoteBet`) com o `betOutcomes`, e o
+  `room` deixa apostar só o que falta pro prejuízo líquido da janela (`lost`, que fica negativo com
+  lucro) chegar em `stopLossPercent` (70%) do que a pessoa tinha (saldo + `lost`). Bateu, o `most` vira
+  zero e o `reopens` diz quando a perda que segura sai da janela, supondo o saldo de agora. Saldo novo
+  (trabalho, daily) aumenta o que tinha e libera de novo. O stop-loss é visível, ao contrário do
+  `stakeRisk`: o `tooMuch` diz quanto a pessoa perdeu e quanto ainda dá. O `!bicho` respeita o
+  stop-loss, mas não passa pelo `NoteBet`, então a perda dele não conta. O `affordable` recebe a regra: as apostas (`placeStake`, que o `PlaceBet` usa, e `!bicho`) passam o
+  `betRuleOf`, e o `!lance` do leilão passa o `bidRule`, em que os dois são o saldo inteiro e não tem
+  janela. Com o limite da janela batido (`most` zero), a aposta nem é lida; valor acima do `most` mas
+  dentro do saldo é recusado. Os dois textos saem do `tooMuch`, que diz qual limite pegou. O `affordable`
+  devolve o `whole`, e o `allIn` pede confirmação de toda aposta a partir dele (skill
+  `economia-eventos`). `metade` e porcentagem continuam calculados sobre o saldo todo. Jogo de aposta novo passa pelo `PlaceBet`/`placeStake` e grava
+  pelo `noteWager` onde tira o dinheiro.
 - Os jogos de cassino (`casinoGames`) sempre deixam uma vantagem pequena pra casa: o `!apostar`
   ganha só `coinWinChance` das vezes, e o `!cassino` transforma `slotHouseCut` das vitórias em
   derrota (gira de novo até sair sem par), sem mudar a tabela de prêmios do `Help`. Nos dois, quanto
   maior a aposta de uma vez, maior a chance de perder: o `stakeRisk` (`risco.go`) soma
   `stakeRiskStep` a cada 10x acima de `stakeRiskFloor`, até `stakeRiskMax`. Os jogos que passam
   pelo `PlaceBet` leem essa chance pelo `PrizeBoost.Risk`, que soma a ela o calor da série (veja
-  abaixo, limitado a `streakHeatMax`) e `decreeRiskStep` por ponto do decreto `cassino` positivo (skill
-  `economia-presidencia`). No `!apostar` e no `!cassino` ela entra na chance de `jinxed` do `gamble` (a mesma do
+  abaixo, limitado a `streakHeatMax`). Não existe decreto de cassino: a presidência não mexe em
+  aposta nenhuma, nem com prêmio a mais nem com taxa. O `PlaceBet` devolve um `wager` com o
+  `Boost` da hora da aposta (`PrizeBoost`), guardado na aposta e no save das rodadas (`Luck`, `Heat`,
+  `Solace`, `Rescued`): o `luck` é o `casinoLuck` da profissão (Baralho do Zé Pelintra e afins), que
+  o `Pay` soma no lucro e o `Tag` mostra (🃏), e o `rescued` é sorteado ali com o `rescueOdds`, e na
+  derrota o `Rescue` devolve a aposta inteira (no `!crash` e na `!corrida`, pelo `payRescues` no fim
+  da rodada). Os jogos que seguram a aposta durante a rodada descontam pelo `holdStake` e pagam pelo
+  `payPrize`. No `!apostar` e no `!cassino` ela entra na chance de `jinxed` do `gamble` (a mesma do
   Azar, mas sem passar pelo `jinxProof`). No `!blackjack` a
   mesma chance (com a aposta já dobrada, se dobrou) entra no `dealerDraw`: quando a carta do topo
   ia fazer a banca estourar, ela é trocada por uma do baralho que não estoura. Nos jogos de
@@ -171,12 +235,21 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   o lucro a zero ou menos, os dois voltam pra zero. O `PlaceBet` lê a série (`betHeat`,
   `streakHeatStep` por aposta, até `streakHeatMax`) e põe no `heat` do `PrizeBoost`, que vira pontos
   percentuais a mais de chance de perder no `Risk`. O prêmio não é cortado: o `Pay` paga o lucro
-  cheio com os bônus de decreto e sorte. Isso é escondido de propósito:
+  cheio com o bônus de sorte da profissão. Isso é escondido de propósito:
   nada no `Help`, nas dicas ou no `Tag` do resultado fala da série. Jogo de aposta novo passa pelo
   `PlaceBet` e pelo `NoteBet` pra entrar nela.
-- O consolo (`serie.go`, coluna `aposta_perda` da `carteiras`) é o contrário da série, e bem
-  pequeno: o `NoteBet` soma cada perda líquida no `aposta_perda` e desconta cada lucro (nunca fica
+- A maré de azar (`solace` em `serie.go`, coluna `aposta_perda` da `carteiras`) é o contrário da
+  série: o `NoteBet` soma cada perda líquida no `aposta_perda` e desconta cada lucro (nunca fica
   abaixo de zero), e o `PlaceBet` lê junto com a série (`betRecord`) e põe no `solace` do
-  `PrizeBoost` o `betSolace`: `solaceStep` pontos percentuais a cada 10x acima de `solaceFloor`,
-  até `solaceMax`. Ele não mexe na chance, só soma no lucro pelo `Pay`, junto do decreto e da
-  sorte, e aparece no `Tag` (🩹 consolo). O `!bicho` não passa pelo `PlaceBet` e fica de fora.
+  `PrizeBoost` o `betSolace`: `solaceStep` pontos percentuais com `solaceFloor` de perda, mais
+  `solaceStep` a cada 10x, até `solaceMax`. Ele não mexe no prêmio, só na chance: o
+  `PrizeBoost.edge` soma `stakeRisk` e calor e desconta o `solace`. Positivo, vira o
+  `Risk` de cima; negativo, vira o `Favor`, e a casa vicia a favor de quem tá perdendo, espelhando
+  o `Risk` em cada jogo: o `gamble` joga de novo, sem `jinxed`, uma rodada perdida; o `dealerDraw`
+  troca pelo `stackDeck` a carta da banca por uma que estoura; o `rig` do `!crash` fica com o maior
+  de dois `drawCrashPoint` (só quando a aposta de maior `edge` da rodada tá a favor); o `rig` da
+  `!corrida` (`swaysRace`) sorteia outro vencedor quando o cavalo de quem tá a favor perdeu; e o
+  `pull` da `!roleta` muda a bala de câmara quando ela ia disparar. O `stakeRiskStep` é maior que o
+  `solaceStep` de propósito: apostar de uma vez o que perdeu sempre fica com `Risk`, então a maré
+  só ajuda quem volta com aposta menor que a perda. É escondido como a série, e o `!bicho` não
+  passa pelo `PlaceBet` e fica de fora.
