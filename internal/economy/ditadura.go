@@ -18,7 +18,6 @@ const (
 	tyrantShopTaxMax    = 60
 	tyrantPixMax        = 40
 	tyrantBailTaxMax    = 100
-	tyrantBetTaxMax     = 40
 	tyrantCoupMin       = 2
 	tyrantCoupEvery     = 15 * time.Minute
 	revoltPerPoint      = 0.0005
@@ -60,7 +59,7 @@ func (d decrees) limits(pd percentDecree) (lo, hi int64) {
 	if !d.on(tyrannyDecree) {
 		return pd.lo, pd.hi
 	}
-	return min(pd.lo, pd.tyrantLo), max(pd.hi, pd.tyrantHi)
+	return pd.lo, max(pd.hi, pd.tyrantHi)
 }
 
 func (pd percentDecree) abuse(level int64) int64 {

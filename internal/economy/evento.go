@@ -131,12 +131,12 @@ type listedScenario struct {
 
 var eventBooks = []eventBook{
 	generalEvents, fishingEvents, miningEvents, scavengingEvents, buggingEvents,
-	workEvents, craftEvents, professionEvents, crimeEvents, fameEvents, gamblingEvents, allInEvents, windfallEvents, casinoWrathEvents, rareEvents,
+	workEvents, craftEvents, professionEvents, crimeEvents, fameEvents, gamblingEvents, allInEvents, windfallEvents, rareEvents,
 }
 
 var eventCatalog = listScenarios(eventBooks)
 
-var sealedPlaces = placesOf(gamblingEvents, allInEvents, windfallEvents, casinoWrathEvents)
+var sealedPlaces = placesOf(gamblingEvents, allInEvents, windfallEvents)
 
 func placesOf(books ...eventBook) []string {
 	var places []string
