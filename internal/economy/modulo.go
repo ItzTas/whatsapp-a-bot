@@ -51,6 +51,7 @@ func (b *bot) Register() {
 	b.AddObserver("responder enquete ao vivo", b.answerLiveVote)
 	b.AddGuard(b.economyGuard)
 	b.AddAfterCommand(b.stirLive)
+	b.AddDeparture(b.unseatDeserter)
 	b.OnModeOff(core.ModeEconomy, b.haltEvents)
 	b.OnModeOff(core.ModeEconomy, b.haltLive)
 	b.OnModeOff(core.ModeLive, b.haltLive)

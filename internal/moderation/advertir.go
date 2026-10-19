@@ -127,6 +127,7 @@ func (b *bot) banWarned(ctx context.Context, m moderation, warned []warnedMember
 	if err != nil {
 		return nil, nil, fmt.Errorf("banir quem chegou no limite de advertências: %w", err)
 	}
+	b.Departed(ctx, m.chat, removedMembers(results))
 	lines := []string{""}
 	banned := make([]types.JID, 0, len(results))
 	for _, r := range results {

@@ -134,7 +134,7 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
 
 As tarefas em segundo plano (`runLottery`, `runAnimalGame`, `runReminders`, `runBirthdays`, `runTaxes`,
 `runAuctions`, `runLoanSeizures`, `runWanted`, `runGravity`, `runSuccession` e `runPins`) entram pelo `AddJob` e começam no `StartJobs`, depois de
-conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderação). O
+conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderação). Quem sai do grupo vai pros `AddDeparture` (o `unseatDeserter` da economia, que tira o presidente que saiu), chamados pelo `b.Departed`: o `HandleGroupInfo` chama com o `Leave` do evento, e a moderação chama depois do `!ban` e do ban das advertências, porque o WhatsApp não manda `GroupInfo` pra quem removeu, e o bot não ficaria sabendo. O
 `announceUpdate` do `core` também é um job, mas roda uma vez só (veja "Versões e novidades").
 
 ### Versões e novidades

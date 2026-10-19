@@ -39,6 +39,7 @@ type hooks struct {
 	restorers      map[string]GameRestorer
 	jobs           []func(ctx context.Context)
 	groupInfo      []func(ctx context.Context, evt *events.GroupInfo)
+	departures     []func(ctx context.Context, chat types.JID, left []types.JID)
 	modeStops      []modeStop
 }
 
@@ -107,6 +108,19 @@ func (b *Bot) AddJob(job func(ctx context.Context)) {
 
 func (b *Bot) AddGroupInfo(handle func(ctx context.Context, evt *events.GroupInfo)) {
 	b.hooks.groupInfo = append(b.hooks.groupInfo, handle)
+}
+
+func (b *Bot) AddDeparture(handle func(ctx context.Context, chat types.JID, left []types.JID)) {
+	b.hooks.departures = append(b.hooks.departures, handle)
+}
+
+func (b *Bot) Departed(ctx context.Context, chat types.JID, left []types.JID) {
+	if len(left) == 0 {
+		return
+	}
+	for _, handle := range b.hooks.departures {
+		handle(ctx, chat.ToNonAD(), left)
+	}
 }
 
 func (b *Bot) OnModeOff(mode string, stop func(ctx context.Context, chat types.JID)) {
@@ -219,6 +233,7 @@ func (b *Bot) StartJobs(ctx context.Context) {
 }
 
 func (b *Bot) HandleGroupInfo(ctx context.Context, evt *events.GroupInfo) {
+	b.Departed(ctx, evt.JID, evt.Leave)
 	for _, handle := range b.hooks.groupInfo {
 		handle(ctx, evt)
 	}

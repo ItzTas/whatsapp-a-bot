@@ -102,11 +102,18 @@ Presidente, decretos, impeachment, renúncia e golpe.
   presidente da abertura, que fica aberta `impeachmentWindow`. Cada um vota `sim` ou `nao` (sem
   nada é sim) e pode mudar o voto até fechar, com o peso do `ballotWeight` (o voto de deus vale 3).
   Passa com pelo menos `impeachmentQuorum` votos a favor e mais a favor do que contra, e aí o
-  `impeach` joga o `mandato_ate` pra agora e abre a vaga, então os poderes e os decretos caem
+  `oust` joga o `mandato_ate` pra agora e abre a vaga, então os poderes e os decretos caem
   sozinhos e o `!votar` volta a abrir eleição. A abertura carimba a coluna `impeachment_em` da `presidencias`
   (zerada no `inaugurate`), e o próximo pedido contra o mesmo mandato só sai depois de
   `impeachmentEvery`. Se o presidente da abertura já saiu do cargo quando a votação fecha
   (renúncia ou fim do mandato), o `impeachmentResult` só avisa e não conta nada.
+- Presidente que sai do grupo (ou é removido) perde o cargo (`abandono.go`). O `unseatDeserter`,
+  registrado no `AddDeparture` do `core`, recebe quem saiu (o `Leave` do `*events.GroupInfo`, ou
+  quem o próprio bot removeu no `!ban` e no ban das advertências, pelo `b.Departed`) e, se o presidente da
+  economia daquele grupo tá entre quem saiu e não continua em nenhum outro grupo da economia
+  (`memberElsewhere`, pelo `MemberOwners` de cada grupo do `economyGroups`), tira ele pelo mesmo
+  `oust` do impeachment: `mandato_ate` vira agora, a vaga abre e os poderes e decretos caem. O
+  aviso sai pelo `announce`, com o `vacancyNote`.
 - O `!renunciar` (`renunciar.go`) é o presidente largando o cargo: o `resign` joga o `mandato_ate`
   pra agora, marca `renunciou = 1` na `presidencias` e abre a vaga, então os poderes caem na hora e
   o `!votar` volta a abrir eleição, mas os decretos continuam valendo até o próximo `inaugurate`, que zera o

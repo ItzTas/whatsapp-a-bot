@@ -220,7 +220,7 @@ func (b *bot) impeachmentResult(ctx context.Context, chat types.JID, president c
 			tally, president.JID.User, impeachmentQuorum, core.FormatWait(impeachmentEvery-impeachmentWindow)), nil
 	}
 	now := time.Now()
-	removed, err := b.Wallets.impeach(ctx, chat, president, now)
+	removed, err := b.Wallets.oust(ctx, chat, president, now)
 	if err != nil {
 		return "", fmt.Errorf("tirar presidente: %w", err)
 	}
@@ -238,7 +238,7 @@ func (s *walletStore) stampImpeachment(ctx context.Context, chat types.JID, pres
 	return err
 }
 
-func (s *walletStore) impeach(ctx context.Context, chat types.JID, president core.Account, now time.Time) (bool, error) {
+func (s *walletStore) oust(ctx context.Context, chat types.JID, president core.Account, now time.Time) (bool, error) {
 	return s.vacate(ctx, chat, now,
 		"UPDATE presidencias SET mandato_ate = ? WHERE chat = ? AND pessoa = ? AND mandato_ate > ?",
 		now.Unix(), chat.String(), president.Key, now.Unix(),

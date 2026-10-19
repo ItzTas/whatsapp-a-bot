@@ -245,6 +245,9 @@ func (b *bot) changeParticipants(ctx context.Context, evt *events.Message, actio
 		if err != nil {
 			return err
 		}
+		if action.change == whatsmeow.ParticipantChangeRemove {
+			b.Departed(ctx, m.chat, removedMembers(results))
+		}
 		for _, r := range results {
 			lines = append(lines, action.resultLine(r))
 			mentions = append(mentions, r.JID)
@@ -252,6 +255,16 @@ func (b *bot) changeParticipants(ctx context.Context, evt *events.Message, actio
 	}
 	_, err = b.SendMentions(ctx, m.chat, strings.Join(lines, "\n"), mentions)
 	return err
+}
+
+func removedMembers(results []types.GroupParticipant) []types.JID {
+	removed := make([]types.JID, 0, len(results))
+	for _, r := range results {
+		if r.Error == 0 {
+			removed = append(removed, r.JID)
+		}
+	}
+	return removed
 }
 
 func (a participantAction) resultLine(r types.GroupParticipant) string {
