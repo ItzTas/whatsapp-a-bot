@@ -365,6 +365,7 @@ const casinoGames = "!apostar, !cassino, !blackjack, !crash, !corrida e !roleta"
 type PrizeBoost struct {
 	decree  int64
 	luck    int64
+	heat    int64
 	rescued bool
 }
 
@@ -406,7 +407,8 @@ func (pb PrizeBoost) Pay(stake, payout int64) int64 {
 	if payout <= stake {
 		return payout
 	}
-	return stake + (payout-stake)*(100+pb.decree+pb.luck)/100
+	profit := (payout - stake) * (100 + pb.decree + pb.luck) / 100
+	return stake + profit*(100-pb.heat)/100
 }
 
 func (pb PrizeBoost) Tag(stake, payout int64) string {

@@ -58,6 +58,7 @@ type blackjackSave struct {
 	Stake      int64               `json:"stake"`
 	Boost      int64               `json:"boost"`
 	Luck       int64               `json:"luck"`
+	Heat       int64               `json:"heat"`
 	Rescued    bool                `json:"rescued"`
 	Levy       heldLevySave        `json:"levy"`
 	Deck       []blackjackSaveCard `json:"deck"`
@@ -184,7 +185,7 @@ func (b *bot) restoreBlackjack(ctx context.Context, saved core.SavedGame) error 
 	hand := b.trackBlackjack(ctx, chat, key, &blackjackHand{
 		acc:        state.Account.Account(),
 		stake:      state.Stake,
-		boost:      PrizeBoost{decree: state.Boost, luck: state.Luck, rescued: state.Rescued},
+		boost:      PrizeBoost{decree: state.Boost, luck: state.Luck, heat: state.Heat, rescued: state.Rescued},
 		levy:       state.Levy.held(),
 		deck:       loadBlackjackCards(state.Deck),
 		player:     loadBlackjackCards(state.Player),
@@ -335,6 +336,7 @@ func (h *blackjackHand) saved(chat types.JID) blackjackSave {
 		Stake:      h.stake,
 		Boost:      h.boost.decree,
 		Luck:       h.boost.luck,
+		Heat:       h.boost.heat,
 		Rescued:    h.boost.rescued,
 		Levy:       h.levy.saved(),
 		Deck:       saveBlackjackCards(h.deck),

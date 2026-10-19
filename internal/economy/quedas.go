@@ -41,9 +41,12 @@ func noteLoss(ctx context.Context, db execer, chat types.JID, acc core.Account, 
 	return err
 }
 
-func (b *bot) NoteBetLoss(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64) {
+func (b *bot) NoteBet(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64) {
 	if err := noteLoss(ctx, b.Wallets.db, chat, acc, lossBet, stake-payout); err != nil {
 		b.Client.Log.Warnf("anotar prejuízo de aposta de %s: %v", acc.JID, err)
+	}
+	if err := b.Wallets.noteStreak(ctx, chat, acc, payout-stake); err != nil {
+		b.Client.Log.Warnf("anotar série de apostas de %s: %v", acc.JID, err)
 	}
 }
 

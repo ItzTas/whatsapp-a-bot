@@ -59,7 +59,7 @@ func (t *tiltBoard) tally(key string, before, net int64, now time.Time) bool {
 }
 
 func (b *bot) tallyBet(ctx context.Context, chat types.JID, acc core.Account, place string, stake, payout, balance int64) {
-	b.NoteBetLoss(ctx, chat, acc, stake, payout)
+	b.NoteBet(ctx, chat, acc, stake, payout)
 	if !b.tilts.tally(eventKey(chat, acc), balance+stake-payout, stake-payout, time.Now()) {
 		return
 	}

@@ -79,6 +79,7 @@ type raceSaveBet struct {
 	Stake   int64              `json:"stake"`
 	Boost   int64              `json:"boost"`
 	Luck    int64              `json:"luck"`
+	Heat    int64              `json:"heat"`
 	Rescued bool               `json:"rescued"`
 	Levy    heldLevySave       `json:"levy"`
 	Horse   int                `json:"horse"`
@@ -135,7 +136,7 @@ func (b *bot) restoreRace(ctx context.Context, saved core.SavedGame) error {
 	}
 	bets := make([]*raceBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Boost, luck: bet.Luck, rescued: bet.Rescued}, levy: bet.Levy.held(), horse: bet.Horse}
+		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Boost, luck: bet.Luck, heat: bet.Heat, rescued: bet.Rescued}, levy: bet.Levy.held(), horse: bet.Horse}
 	}
 	round := b.trackRace(ctx, state.Chat, &raceRound{
 		opened:  state.Opened,
@@ -354,7 +355,7 @@ func (r *raceRound) saved(chat types.JID) raceSave {
 	}
 	bets := make([]raceSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Boost: bet.boost.decree, Luck: bet.boost.luck, Rescued: bet.boost.rescued, Levy: bet.levy.saved(), Horse: bet.horse}
+		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Boost: bet.boost.decree, Luck: bet.boost.luck, Heat: bet.boost.heat, Rescued: bet.boost.rescued, Levy: bet.levy.saved(), Horse: bet.horse}
 	}
 	return raceSave{Chat: chat, Opened: r.opened, Started: r.started, Horses: horses, Winner: r.winner, Frames: r.frames, Bets: bets}
 }

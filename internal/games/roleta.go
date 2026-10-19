@@ -150,7 +150,7 @@ func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, f
 		b.Client.Log.Errorf("pagar aposta do !roleta: %v", err)
 		return ""
 	}
-	b.economy.NoteBetLoss(ctx, chat, bet.acc, bet.stake, payout+saved)
+	b.economy.NoteBet(ctx, chat, bet.acc, bet.stake, payout+saved)
 	result := fmt.Sprintf("🤑 @%s ganhou %s%s", bet.shooter.User, economy.Coins(payout-bet.stake), bet.boost.Tag(bet.stake, payout))
 	if fired {
 		result = fmt.Sprintf("💸 @%s perdeu %s", bet.shooter.User, economy.Coins(bet.stake)) + economy.SavedBetText(saved)

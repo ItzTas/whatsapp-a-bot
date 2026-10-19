@@ -26,6 +26,8 @@ const (
 	robLootMin       = 10
 	robLootMax       = 30
 	brokeThief       = 50
+	coinWinChance    = 0.475
+	slotHouseCut     = 0.045
 	RichestCount     = 10
 
 	QuizReward          = 50
@@ -135,7 +137,7 @@ func (b *bot) daily(ctx context.Context, evt *events.Message) error {
 
 func (b *bot) apostar(ctx context.Context, evt *events.Message) error {
 	return b.gamble(ctx, evt, "!apostar", func(stake int64, jinxed bool) (int64, string) {
-		if jinxed || rand.IntN(2) == 0 {
+		if jinxed || rand.Float64() >= coinWinChance {
 			return 0, "🪙 Deu coroa! @%s perdeu %s"
 		}
 		return 2 * stake, "🪙 Deu cara! @%s ganhou %s"
@@ -145,7 +147,8 @@ func (b *bot) apostar(ctx context.Context, evt *events.Message) error {
 func (b *bot) cassino(ctx context.Context, evt *events.Message) error {
 	return b.gamble(ctx, evt, "!cassino", func(stake int64, jinxed bool) (int64, string) {
 		reels := spinReels()
-		for jinxed && distinctReels(reels) < len(reels) {
+		rigged := jinxed || rand.Float64() < slotHouseCut
+		for rigged && distinctReels(reels) < len(reels) {
 			reels = spinReels()
 		}
 		machine := "🎰 [ " + strings.Join(reels, " | ") + " ]\n\n"
@@ -223,18 +226,20 @@ type wager struct {
 
 func (b *bot) PlaceBet(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (wager, string, error) {
 	var (
-		p   presidency
-		job Profession
+		p    presidency
+		job  Profession
+		heat int64
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { p, _, err = b.Wallets.presidency(gctx, chat, time.Now()); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
+	g.Go(func() (err error) { heat, err = b.Wallets.betHeat(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return wager{}, "", err
 	}
 	levy := p.casinoLevy(acc)
 	stake, refusal, err := b.stakeAfterLevy(ctx, chat, acc, arg, syntax, levy.percent)
-	return wager{Stake: stake, Boost: PrizeBoost{decree: max(p.decrees.level(casinoDecree), 0), luck: job.casinoLuck, rescued: rand.Float64() < job.rescueOdds}, Levy: levy, job: job}, refusal, err
+	return wager{Stake: stake, Boost: PrizeBoost{decree: max(p.decrees.level(casinoDecree), 0), luck: job.casinoLuck, heat: heat, rescued: rand.Float64() < job.rescueOdds}, Levy: levy, job: job}, refusal, err
 }
 
 func (b *bot) PlaceStake(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (int64, string, error) {

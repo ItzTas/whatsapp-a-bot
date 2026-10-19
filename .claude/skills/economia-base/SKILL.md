@@ -121,8 +121,19 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
 - O `!ricos` (`economia.go`) mostra, embaixo do ranking, quem caiu desde o último `!ricos` e
   ficou mais pobre (`quedas.go`). O ranking de cada `!ricos` fica salvo na `ricos_ranking`, e os
   prejuízos vão somando na `prejuizos` por pessoa e motivo (`noteLoss`): aposta (o `tallyBet`, o
-  `!roleta` pelo `NoteBetLoss` e o `!bicho` na extração), roubo (`!roubar` e `!quadrilha`) e
+  `!roleta` pelo `NoteBet` e o `!bicho` na extração), roubo (`!roubar` e `!quadrilha`) e
   imposto (`runTaxes`). O motivo que aparece é o de maior valor; sem nenhum anotado, vira "torrando
   dinheiro". Depois de mostrar, as duas tabelas da economia são zeradas e o ranking novo é gravado.
   Prejuízo de outro tipo que deva aparecer no `!ricos` precisa de um `lossCause`, do texto no
   `richFall.text` e do `noteLoss` no caminho que tira o dinheiro.
+- Os jogos de cassino (`casinoGames`) sempre deixam uma vantagem pequena pra casa: o `!apostar`
+  ganha só `coinWinChance` das vezes, e o `!cassino` transforma `slotHouseCut` das vitórias em
+  derrota (gira de novo até sair sem par), sem mudar a tabela de prêmios do `Help`. Por cima disso
+  vem a série de apostas (`serie.go`, colunas `aposta_serie` e `aposta_lucro` da `carteiras`): o
+  `NoteBet`, chamado no fim de toda aposta (pelo `tallyBet` e pelo `!roleta`), soma o resultado no
+  `aposta_lucro` e conta mais uma aposta enquanto a pessoa segue no lucro. Quando uma perda leva
+  o lucro a zero ou menos, os dois voltam pra zero. O `PlaceBet` lê a série (`betHeat`,
+  `streakHeatStep` por aposta, até `streakHeatMax`) e põe no `heat` do `PrizeBoost`, que corta essa
+  porcentagem do lucro no `Pay`, depois dos bônus de decreto e sorte. Isso é escondido de propósito:
+  nada no `Help`, nas dicas ou no `Tag` do resultado fala da série. Jogo de aposta novo passa pelo
+  `PlaceBet` e pelo `NoteBet` pra entrar nela.
