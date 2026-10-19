@@ -20,7 +20,9 @@ user-invocable: false
   o `ProfessionOf` e recusa com o `deviceNames()` da rede quando nenhum aparelho dela tá na
   mochila (`postableFrom`). Vale só de ter, não gasta, e a quantidade não importa. O `!fama` avisa
   em cada rede sem aparelho e o `postUsage` mostra o aparelho de cada rede. Rede nova precisa
-  entrar no `networks` de algum aparelho, senão ninguém consegue postar nela.
+  entrar no `networks` de algum aparelho, senão ninguém consegue postar nela. O `!postar` sem
+  rede sorteia uma entre as que algum aparelho da mochila libera (`randomPostable`); sem
+  aparelho nenhum, recusa e mostra o `postUsage`.
 - Cada post (`platform.roll`) sorteia, nesta ordem: cancelamento (`cancel`, perde de `loss[0]` a
   `loss[1]` por cento dos seguidores daquela rede, só com seguidor), flop (`flop`, não ganha
   nada) ou post normal, que ganha `base` mais uma fatia dos seguidores atuais (`growth`) e pode

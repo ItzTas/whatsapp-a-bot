@@ -244,6 +244,14 @@ func (pl platform) postableFrom(held []item) bool {
 	return slices.ContainsFunc(held, func(it item) bool { return slices.Contains(it.networks, pl.key) })
 }
 
+func randomPostable(held []item) (platform, bool) {
+	postable := slices.DeleteFunc(slices.Clone(platforms), func(pl platform) bool { return !pl.postableFrom(held) })
+	if len(postable) == 0 {
+		return platform{}, false
+	}
+	return core.PickOne(postable), true
+}
+
 func networkNames(keys []string) string {
 	names := make([]string, len(keys))
 	for i, key := range keys {
@@ -435,7 +443,7 @@ func fameTierList() string {
 }
 
 func postUsage() string {
-	lines := []string{fmt.Sprintf("📲 Use assim: !postar <rede>. Dá pra postar a cada %s, numa rede por vez, e cada rede pede um aparelho na mochila (tem na !loja):", core.FormatWait(postCooldown.every))}
+	lines := []string{fmt.Sprintf("📲 Use assim: !postar <rede>, ou só !postar pra cair numa rede aleatória entre as que você tem aparelho. Dá pra postar a cada %s, numa rede por vez, e cada rede pede um aparelho na mochila (tem na !loja):", core.FormatWait(postCooldown.every))}
 	for _, pl := range platforms {
 		lines = append(lines, fmt.Sprintf("%s *%s* (!postar %s, com %s): %s", pl.emoji, pl.name, pl.key, pl.deviceNames(), pl.style))
 	}
@@ -466,10 +474,10 @@ func (b *bot) postar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
 	args := core.PlainArgs(core.MessageText(evt.Message))
-	if len(args) == 0 {
-		return b.SendText(ctx, chat, postUsage())
+	pl, ok := platform{}, true
+	if len(args) > 0 {
+		pl, ok = platformNamed(args[0])
 	}
-	pl, ok := platformNamed(args[0])
 	if !ok {
 		return b.SendText(ctx, chat, "Não conheço essa rede 🤔\n\n"+postUsage())
 	}
@@ -483,6 +491,14 @@ func (b *bot) postar(ctx context.Context, evt *events.Message) error {
 	g.Go(func() (err error) { held, err = b.Wallets.devices(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("postar: %w", err)
+	}
+	if len(args) == 0 {
+		pl, ok = randomPostable(held)
+	}
+	if !ok {
+		text := fmt.Sprintf("📵 @%s não tem como postar: precisa de um aparelho na mochila (tem na !loja)\n\n%s", person.User, postUsage())
+		_, err := b.SendMentions(ctx, chat, text, []types.JID{person})
+		return err
 	}
 	if !pl.postableFrom(held) {
 		text := fmt.Sprintf("📵 @%s não tem como postar no %s: precisa de %s na mochila (tem na !loja)", person.User, pl.name, pl.deviceNames())

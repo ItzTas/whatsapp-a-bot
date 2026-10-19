@@ -100,7 +100,7 @@ func (b *bot) economyCommands() []core.Command {
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
 				{"!postar <rede>", fmt.Sprintf("posta no %s e ganha (ou perde) seguidores 📲 Dá pra postar a cada %s, numa rede por vez, e precisa de um aparelho na mochila (o 📱 Celular posta no TikTok e no Instagram, o 💻 Computador no YouTube e na Twitch, os dois na !loja). Cada rede tem o seu jeito: o TikTok viraliza e cancela mais, o YouTube cresce devagar e firme, o Instagram fica no meio e a Twitch perde seguidor rápido quando você some. Quanto rende depende da profissão: quem é de Arte e mídia alcança mais gente, e youtuber, streamer, influencer e mais alguns têm a rede deles (veja !profissao). Ficar famoso é muito difícil, e rede parada perde seguidor", platformNames(), core.FormatWait(postCooldown.every))},
-				{"!postar", "mostra as redes e o jeito de cada uma"},
+				{"!postar", "posta numa rede aleatória, entre as que você tem aparelho na mochila"},
 			},
 			Run: b.postar,
 		},

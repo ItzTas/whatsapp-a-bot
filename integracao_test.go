@@ -209,3 +209,19 @@ func TestExtractionRunsEveryActivity(t *testing.T) {
 	}
 	wantReply(t, b.say(chat, ana, "!extrair"), "acabou de revirar o lixão")
 }
+
+func TestPostWithoutNetworkPicksOneTheDeviceReaches(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.setup(chat, "economia")
+
+	wantReply(t, b.say(chat, ana, "!postar"), "precisa de um aparelho na mochila")
+
+	b.say(chat, b.owner, "!profissao deus")
+	b.say(chat, b.owner, "!milagre celular 1 "+mentionTag(ana), ana)
+	reply := wantReply(t, b.say(chat, ana, "!postar"), "Agora são")
+	if !strings.Contains(reply, "no TikTok") && !strings.Contains(reply, "no Instagram") {
+		t.Fatalf("com só o Celular o !postar devia cair no TikTok ou no Instagram, respondeu %q", reply)
+	}
+}
