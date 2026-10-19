@@ -46,6 +46,17 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.eventos,
 		},
 		{
+			Name:      "dica",
+			Aliases:   []string{"dicas"},
+			Category:  core.EconomyCategory,
+			WhileDead: true,
+			Help: []core.Usage{
+				{"!dica", "manda uma dica da economia na hora 💡 Pode ser um jeito de achar relíquia mais fácil, de escapar da cadeia, de proteger o dinheiro, ou um comando que pouca gente conhece. Com o submodo dicas ligado (!modo ativar dicas), o bot solta uma sozinho de tempos em tempos"},
+				{"!dica <assunto>", "manda uma dica sobre o assunto, tipo !dica relíquia, !dica cadeia ou !dica pescar"},
+			},
+			Run: b.dica,
+		},
+		{
 			Name:     "trabalhar",
 			Aliases:  []string{"trabalho", "work"},
 			Category: core.EconomyCategory,
@@ -230,7 +241,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"voto", "eleger"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!votar @pessoa", fmt.Sprintf("vota na pessoa marcada (ou em você mesmo, com !votar eu) pra presidente da conversa 🗳️ Se ninguém é presidente, o primeiro voto abre a eleição, e a urna fica aberta %s: cada um vota uma vez e pode mudar o voto até fechar. Precisa de pelo menos %d votos pra valer. Se der empate, tem segundo turno só entre quem empatou: os votos zeram e a urna abre de novo por %s, e se empatar de novo a sorte decide. Quem ganha fica %s no cargo, e só depois disso tem eleição de novo. Veja os poderes no !presidente", core.FormatWait(electionWindow), electionQuorum, core.FormatWait(runoffWindow), core.FormatWait(termLength))},
+				{"!votar @pessoa", fmt.Sprintf("vota na pessoa marcada (ou em você mesmo, com !votar eu) pra presidente da conversa 🗳️ Se ninguém é presidente, o primeiro voto abre a eleição, e a urna fica aberta %s: cada um vota uma vez e pode mudar o voto até fechar. Precisa de pelo menos %d votos pra valer. Se der empate, tem segundo turno só entre quem empatou: os votos zeram e a urna abre de novo por %s, e se empatar de novo a sorte decide. Quem ganha fica %s no cargo, e só depois disso tem eleição de novo. Quando o cargo vaga, a conversa tem %s pra eleger alguém; se ninguém for eleito nesse prazo, o bot sorteia o presidente entre quem mandou mensagem nas últimas %s, todo mundo com a mesma chance. Veja os poderes no !presidente", core.FormatWait(electionWindow), electionQuorum, core.FormatWait(runoffWindow), core.FormatWait(termLength), core.FormatWait(vacancyWindow), core.FormatWait(drawActivity))},
 			},
 			Run: b.votar,
 		},
@@ -267,7 +278,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"golpedeestado", "conspirar"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!golpe", fmt.Sprintf("trama derrubar o presidente na marra 🪖 O primeiro abre a conspiração e quem quiser entra mandando !golpe em até %s. Precisa de pelo menos %d golpistas: começa com %d%% de chance, cada golpista a mais soma %d%%, arma na mochila ajuda e a proteção do presidente atrapalha. Se der certo, quem abriu vira presidente por %s e os decretos caem; se der errado, quem não escapar vai preso. Dá pra tentar um golpe a cada %s por mandato. Com deus no golpe, não tem como dar errado", core.FormatWait(coupWindow), coupMin, percent(coupChance), percent(coupHelp), core.FormatWait(coupTerm), core.FormatWait(coupEvery))},
+				{"!golpe", fmt.Sprintf("trama derrubar o presidente na marra 🪖 O primeiro abre a conspiração e quem quiser entra mandando !golpe em até %s. Precisa de pelo menos %d golpistas: começa com %d%% de chance, cada golpista a mais soma %d%%, arma na mochila ajuda e a proteção do presidente atrapalha. Se der certo, quem abriu vira presidente por %s e os decretos caem; se der errado, quem não escapar vai preso. Dá pra tentar um golpe a cada %s por mandato. Com deus no golpe, não tem como dar errado", core.FormatWait(coupWindow), coupMin, percent(coupChance), percent(coupHelp), core.FormatWait(termLength), core.FormatWait(coupEvery))},
 				{"!golpe defender", fmt.Sprintf("entra do lado do governo (o presidente também pode): cada defensor tira %d%% da chance do golpe, e arma na mochila tira mais. Com deus defendendo, o golpe não passa", percent(coupHelp))},
 			},
 			Run:          b.golpe,
@@ -278,7 +289,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"renuncia"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!renunciar", "larga a presidência na hora 🏳️ Só o presidente usa. Os poderes do cargo acabam junto, mas os decretos continuam valendo até alguém ganhar a próxima eleição (!votar), e os impostos deles passam a sumir em vez de ir pra alguém"},
+				{"!renunciar", "larga a presidência na hora 🏳️ Só o presidente usa. Os poderes do cargo acabam junto, mas os decretos continuam valendo até o próximo presidente tomar posse (eleito no !votar ou sorteado), e os impostos deles passam a sumir em vez de ir pra alguém"},
 			},
 			Run: b.renunciar,
 		},
@@ -541,26 +552,6 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.resgate,
 		},
 		{
-			Name:     "seguranca",
-			Aliases:  []string{"guardacostas"},
-			Category: core.EconomyCategory,
-			Help: []core.Usage{
-				{"!seguranca", "mostra se você tem segurança particular e quanto custa 🕶️"},
-				{"!seguranca contratar", fmt.Sprintf("contrata um guarda-costas por %s: +%d%% de proteção contra !roubar, !sequestrar e !matar. Custa %d%% do saldo (mínimo de %s), e contratar de novo soma o tempo", core.FormatWait(bodyguardHold), percent(bodyguardGuard), bodyguardPercent, Coins(bodyguardFloor))},
-			},
-			Run: b.seguranca,
-		},
-		{
-			Name:     "subornar",
-			Aliases:  []string{"suborno", "propina"},
-			Category: core.EconomyCategory,
-			Help: []core.Usage{
-				{"!subornar", "mostra se você tem as autoridades no bolso e quanto custa o envelope 💰"},
-				{"!subornar pagar", fmt.Sprintf("molha a mão das autoridades por %s: ninguém te prende (!prender, !denunciar, flagrante no !sequestrar, !matar, !assalto e batida no !mercadonegro) e o juiz decide a teu favor no !processar, a não ser que o outro lado também tenha pago. Custa %d%% do saldo (mínimo de %s), o dinheiro some e pagar de novo soma o tempo", core.FormatWait(bribeHold), bribePercent, Coins(bribeFloor))},
-			},
-			Run: b.subornar,
-		},
-		{
 			Name:     "imovel",
 			Aliases:  []string{"imoveis", "casa", "mansao"},
 			Category: core.EconomyCategory,
@@ -583,9 +574,9 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"empregado", "funcionarios", "funcionario"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!empregados", "mostra seus empregados, o que eles já acharam e quem dá pra contratar 👷 Eles fazem o " + extractionCommands() + " sozinhos, mas nunca acham relíquia, mítico nem lendário. O caçador de bússola só procura a Bússola do relicário e quase nunca acha. O apostador e o corretor trazem moedas, o contador corta o imposto e o enfermeiro faz a saúde voltar mais rápido"},
+				{"!empregados", "mostra seus empregados, o que eles já acharam e quem dá pra contratar 👷 Eles fazem o " + extractionCommands() + " sozinhos, mas nunca acham relíquia, mítico nem lendário. O caçador de bússola só procura a Bússola do relicário e quase nunca acha. O apostador e o corretor trazem moedas, o contador corta o imposto, o enfermeiro faz a saúde voltar mais rápido e o segurança particular dificulta te !roubar, !furtar, !sequestrar e !matar"},
 				{"!empregados contratar <nome>", "contrata um empregado. Precisa de imóvel, e quanto melhor o imóvel, mais vagas"},
-				{"!empregados coletar", "pega o que os empregados trouxeram e paga o salário deles. Sem saldo pro salário, eles fazem greve. O contador e o enfermeiro não têm nada pra coletar"},
+				{"!empregados coletar", "pega o que os empregados trouxeram e paga o salário deles. Sem saldo pro salário, eles fazem greve. O contador, o enfermeiro e o segurança não têm nada pra coletar"},
 				{"!empregados demitir <nome>", "manda um empregado embora, e o que ele achou e você não coletou vai junto"},
 			},
 			Run: b.empregados,

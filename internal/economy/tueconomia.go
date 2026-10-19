@@ -13,24 +13,22 @@ import (
 )
 
 type EconomyProfile struct {
-	balance       int64
-	rank          int
-	titleID       string
-	job           Profession
-	saved         Savings
-	hasSavings    bool
-	joint         int64
-	stocks        int64
-	held          []stack
-	owes          []debt
-	lent          []debt
-	bounty        int64
-	jailLeft      time.Duration
-	deathLeft     time.Duration
-	health        int64
-	captive       captivity
-	bodyguardLeft time.Duration
-	bribeLeft     time.Duration
+	balance    int64
+	rank       int
+	titleID    string
+	job        Profession
+	saved      Savings
+	hasSavings bool
+	joint      int64
+	stocks     int64
+	held       []stack
+	owes       []debt
+	lent       []debt
+	bounty     int64
+	jailLeft   time.Duration
+	deathLeft  time.Duration
+	health     int64
+	captive    captivity
 }
 
 func (b *bot) EconomyProfile(ctx context.Context, chat types.JID, person types.JID) (e EconomyProfile, err error) {
@@ -56,14 +54,6 @@ func (b *bot) EconomyProfile(ctx context.Context, chat types.JID, person types.J
 	g.Go(func() (err error) { e.deathLeft, err = b.Wallets.DeathLeft(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.health, err = b.Wallets.Health(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.captive, err = b.Wallets.captivity(gctx, chat, acc, now); return err })
-	g.Go(func() (err error) {
-		e.bodyguardLeft, err = b.Wallets.leftUntil(gctx, chat, acc, "seguranca_ate", now)
-		return err
-	})
-	g.Go(func() (err error) {
-		e.bribeLeft, err = b.Wallets.leftUntil(gctx, chat, acc, "propina_ate", now)
-		return err
-	})
 	if err := g.Wait(); err != nil {
 		return EconomyProfile{}, fmt.Errorf("ler economia: %w", err)
 	}
@@ -181,12 +171,6 @@ func (e EconomyProfile) statusLines() []string {
 	}
 	if e.captive.left > 0 {
 		lines = append(lines, "🔗 Tá em cativeiro por mais "+core.FormatWait(e.captive.left))
-	}
-	if e.bodyguardLeft > 0 {
-		lines = append(lines, "🕶️ Com segurança particular por mais "+core.FormatWait(e.bodyguardLeft))
-	}
-	if e.bribeLeft > 0 {
-		lines = append(lines, "💵 Com a polícia subornada por mais "+core.FormatWait(e.bribeLeft))
 	}
 	if drug, ok := itemByID(e.job.drug); ok {
 		lines = append(lines, "😵 Sob efeito de "+drug.label())

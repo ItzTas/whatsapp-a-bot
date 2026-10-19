@@ -34,7 +34,7 @@ func (b *bot) renunciar(ctx context.Context, evt *events.Message) error {
 	if !resigned {
 		return b.SendText(ctx, chat, "🏛️ O mandato acabou bem agora, então nem deu tempo de renunciar")
 	}
-	text := fmt.Sprintf("🏳️ *Renúncia!* @%s largou a presidência e perdeu os poderes do cargo na hora. Manda !votar @pessoa pra abrir uma eleição nova", person.User)
+	text := fmt.Sprintf("🏳️ *Renúncia!* @%s largou a presidência e perdeu os poderes do cargo na hora. Manda !votar @pessoa pra abrir uma eleição nova\n\n🎲 %s", person.User, vacancyNote(now.Add(vacancyWindow), now))
 	if len(p.decrees.inForce()) > 0 {
 		text += "\n\n📜 Os decretos dele continuam valendo até alguém tomar posse, mas os impostos agora somem em vez de ir pra alguém. Manda !presidente pra ver quais são"
 	}
@@ -43,13 +43,8 @@ func (b *bot) renunciar(ctx context.Context, evt *events.Message) error {
 }
 
 func (s *walletStore) resign(ctx context.Context, chat types.JID, president core.Account, now time.Time) (bool, error) {
-	res, err := s.db.ExecContext(ctx,
+	return s.vacate(ctx, chat, now,
 		"UPDATE presidencias SET mandato_ate = ?, renunciou = 1 WHERE chat = ? AND pessoa = ? AND mandato_ate > ?",
 		now.Unix(), chat.String(), president.Key, now.Unix(),
 	)
-	if err != nil {
-		return false, err
-	}
-	resigned, err := res.RowsAffected()
-	return resigned > 0, err
 }

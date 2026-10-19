@@ -88,10 +88,6 @@ func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 	if copJob.jailTime == 0 && owed == nil {
 		return b.SendText(ctx, chat, "🚫 Só quem é da polícia ou o presidente pode prender: "+arrestingProfessions()+". Ou quem emprestou moedas com o !agiota pra alguém que passou do prazo")
 	}
-	if shield := arrestShield(suspect, suspectJob); shield != "" {
-		_, err = b.SendMentions(ctx, chat, shield, []types.JID{suspect})
-		return err
-	}
 	sentence, every := copJob.sentence(suspectJob), copJob.arrestEvery
 	if copJob.jailTime == 0 {
 		sentence, every = Profession{jailTime: baseJail}.sentence(suspectJob), copJob.collectionEvery()
@@ -355,4 +351,22 @@ func (s *walletStore) leftUntil(ctx context.Context, chat types.JID, acc core.Ac
 		return 0, err
 	}
 	return max(time.Unix(until, 0).Sub(now), 0), nil
+}
+
+func (p Profession) violenceGuard() float64 {
+	return p.guard + p.cordon
+}
+
+func (p Profession) immunity() float64 {
+	if p.president {
+		return presidentImmunity
+	}
+	return 0
+}
+
+func (p Profession) flagrantOdds(odds float64) float64 {
+	if p.elusive {
+		return 0
+	}
+	return odds * (1 - p.immunity())
 }

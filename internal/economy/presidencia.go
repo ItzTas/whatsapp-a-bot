@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	termLength            = 48 * time.Hour
+	termLength            = 2 * time.Hour
 	electionWindow        = 10 * time.Minute
 	runoffWindow          = 5 * time.Minute
 	electionQuorum        = 3
-	presidentAbuses       = 3
+	presidentAbuses       = 1
 	presidentGuard        = 0.25
 	presidentImmunity     = 0.75
 	presidentRelease      = 0.7
@@ -43,6 +43,7 @@ type presidency struct {
 	lastImpeachment time.Time
 	lastCoup        time.Time
 	coup            bool
+	drawn           bool
 	decrees         decrees
 }
 
@@ -341,12 +342,16 @@ func votesLines(candidates []candidate) []string {
 
 func (b *bot) electionResult(ctx context.Context, chat types.JID, e *election, candidates []candidate) (string, error) {
 	runoff := len(e.runoff) > 0
+	now := time.Now()
 	if total := totalVotes(candidates); !runoff && total < electionQuorum {
-		return fmt.Sprintf("🗳️ Eleição anulada: só %s, e precisava de %d. Manda !votar @pessoa pra tentar de novo", core.CountLabel(total, "voto", "votos"), electionQuorum), nil
+		vacant, err := b.Wallets.seat(ctx, chat, now)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("🗳️ Eleição anulada: só %s, e precisava de %d. Manda !votar @pessoa pra tentar de novo\n\n🎲 %s", core.CountLabel(total, "voto", "votos"), electionQuorum, vacancyNote(vacant.drawAt, now)), nil
 	}
 	tied := leaders(candidates)
 	winner := core.PickOne(tied)
-	now := time.Now()
 	if err := b.Wallets.inaugurate(ctx, chat, winner.acc, winner.votes, now); err != nil {
 		return "", err
 	}
@@ -372,7 +377,7 @@ func candidateJIDs(candidates []candidate) []types.JID {
 
 func presidentialPowers() []string {
 	return []string{
-		fmt.Sprintf("😈 Abusa do poder %d vezes no mandato em cada um destes: !prender, !trabalhar, !roubar e !sequestrar na hora, mesmo com a espera pendente", presidentAbuses),
+		fmt.Sprintf("😈 Abusa do poder %s no mandato em cada um destes: !prender, !trabalhar, !roubar e !sequestrar na hora, mesmo com a espera pendente", core.CountLabel(presidentAbuses, "vez", "vezes")),
 		fmt.Sprintf("💼 Salário de presidente: o !trabalhar paga +%d%% e o !daily rende +%d%%", presidentPayBonus, presidentDailyBonus),
 		fmt.Sprintf("🚔 Pode !prender mesmo sem ser da polícia (%s de cadeia, a cada %s)", core.FormatWait(baseJail), core.FormatWait(presidentArrestEvery)),
 		fmt.Sprintf("🔓 Pode !libertar com pelo menos %d%% de chance, e se der errado a multa sai %d%% mais barata", percent(presidentRelease), percent(presidentFineDiscount)),
@@ -391,12 +396,20 @@ func (b *bot) presidente(ctx context.Context, evt *events.Message) error {
 		_, err := b.SendMentions(ctx, chat, e.partialText(candidates), candidateJIDs(candidates))
 		return err
 	}
-	p, found, err := b.Wallets.presidency(ctx, chat, time.Now())
-	if err != nil {
+	now := time.Now()
+	var (
+		p      presidency
+		found  bool
+		vacant seat
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { p, found, err = b.Wallets.presidency(gctx, chat, now); return err })
+	g.Go(func() (err error) { vacant, err = b.Wallets.seat(gctx, chat, now); return err })
+	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler presidência: %w", err)
 	}
 	if !found {
-		text := fmt.Sprintf("🏛️ Ninguém é presidente agora. Manda !votar @pessoa pra abrir a eleição: a urna fica aberta %s e quem ganhar fica %s no cargo", core.FormatWait(electionWindow), core.FormatWait(termLength))
+		text := fmt.Sprintf("🏛️ Ninguém é presidente agora. Manda !votar @pessoa pra abrir a eleição: a urna fica aberta %s e quem ganhar fica %s no cargo\n\n🎲 %s", core.FormatWait(electionWindow), core.FormatWait(termLength), vacancyNote(vacant.drawAt, now))
 		return b.SendText(ctx, chat, text+p.decrees.leftoverText())
 	}
 	text := p.text()
@@ -406,7 +419,7 @@ func (b *bot) presidente(ctx context.Context, evt *events.Message) error {
 	if value, running := b.coups.Load(chat.String()); running {
 		text += "\n\n" + value.(*coup).partialText()
 	}
-	_, err = b.SendMentions(ctx, chat, text, []types.JID{p.president.JID})
+	_, err := b.SendMentions(ctx, chat, text, []types.JID{p.president.JID})
 	return err
 }
 
@@ -435,6 +448,9 @@ func (p presidency) text() string {
 func (p presidency) headline() string {
 	if p.coup {
 		return fmt.Sprintf("🏛️ *Presidente:* @%s, que tomou o poder num golpe 🪖", p.president.JID.User)
+	}
+	if p.drawn {
+		return fmt.Sprintf("🏛️ *Presidente:* @%s, que saiu no sorteio 🎲", p.president.JID.User)
 	}
 	return fmt.Sprintf("🏛️ *Presidente:* @%s, eleito com %s", p.president.JID.User, core.CountLabel(p.votes, "voto", "votos"))
 }
@@ -503,7 +519,7 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 	used := make([]int, len(charges))
 	columns := decreeColumns()
 	levels := make([]int64, len(columns))
-	dest := []any{&p.president.Key, &jid, &p.votes, &until, &impeachedAt, &coupAt, &p.coup}
+	dest := []any{&p.president.Key, &jid, &p.votes, &until, &impeachedAt, &coupAt, &p.coup, &p.drawn}
 	for i := range used {
 		dest = append(dest, &used[i])
 	}
@@ -511,7 +527,7 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 		dest = append(dest, &levels[i])
 	}
 	err = s.db.QueryRowContext(ctx,
-		"SELECT pessoa, jid, votos, mandato_ate, impeachment_em, golpe_em, golpista, "+strings.Join(append(charges, columns...), ", ")+" FROM presidencias WHERE chat = ? AND (mandato_ate > ? OR renunciou = 1)",
+		"SELECT pessoa, jid, votos, mandato_ate, impeachment_em, golpe_em, golpista, sorteado, "+strings.Join(append(charges, columns...), ", ")+" FROM presidencias WHERE chat = ? AND (mandato_ate > ? OR renunciou = 1)",
 		chat.String(), now.Unix(),
 	).Scan(dest...)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -536,22 +552,26 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 }
 
 func (s *walletStore) inaugurate(ctx context.Context, chat types.JID, acc core.Account, votes int, now time.Time) error {
-	return s.inTx(ctx, func(tx *ledgerTx) error {
-		if err := openWallet(ctx, tx, chat, acc); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx,
-			`INSERT INTO presidencias (chat, pessoa, jid, votos, eleito_em, mandato_ate) VALUES (?, ?, ?, ?, ?, ?)
-			 ON CONFLICT (chat) DO UPDATE SET pessoa = excluded.pessoa, jid = excluded.jid, votos = excluded.votos,
-			 eleito_em = excluded.eleito_em, mandato_ate = excluded.mandato_ate, impeachment_em = 0, golpe_em = 0, golpista = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0`,
-			chat.String(), acc.Key, acc.JID.String(), votes, now.Unix(), now.Add(termLength).Unix(),
-		)
-		if err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0 WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key)
+	return s.inTx(ctx, func(tx *ledgerTx) error { return swearIn(ctx, tx, chat, acc, votes, false, now) })
+}
+
+func swearIn(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, votes int, drawn bool, now time.Time) error {
+	if err := openWallet(ctx, tx, chat, acc); err != nil {
 		return err
-	})
+	}
+	_, err := tx.ExecContext(ctx,
+		`INSERT INTO presidencias (chat, pessoa, jid, votos, eleito_em, mandato_ate, sorteado) VALUES (?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (chat) DO UPDATE SET pessoa = excluded.pessoa, jid = excluded.jid, votos = excluded.votos,
+		 eleito_em = excluded.eleito_em, mandato_ate = excluded.mandato_ate, sorteado = excluded.sorteado, impeachment_em = 0, golpe_em = 0, golpista = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0`,
+		chat.String(), acc.Key, acc.JID.String(), votes, now.Unix(), now.Add(termLength).Unix(), drawn,
+	)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE carteiras SET preso_ate = 0 WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key); err != nil {
+		return err
+	}
+	return closeVacancy(ctx, tx, chat)
 }
 
 func (b *bot) workTerms(ctx context.Context, chat types.JID, acc core.Account, now time.Time) (job Profession, p presidency, err error) {

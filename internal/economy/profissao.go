@@ -210,8 +210,6 @@ type Profession struct {
 	divine      bool
 	estate      int
 	warded      bool
-	escort      bool
-	bribed      bool
 	cursed      bool
 	weapon      string
 	drug        string
@@ -448,7 +446,7 @@ func (p Profession) perks() []string {
 		on   bool
 		text string
 	}{
-		{p.president, fmt.Sprintf("🏛️ É presidente da conversa: segurança contra !sequestrar e !matar, imunidade que segura %d%% das prisões, pode !prender, !libertar e !reviver, abusa do poder %d vezes no mandato no !prender, !trabalhar, !roubar e !sequestrar e baixa !decreto (veja !presidente)", percent(presidentImmunity), presidentAbuses)},
+		{p.president, fmt.Sprintf("🏛️ É presidente da conversa: segurança contra !sequestrar e !matar, imunidade que segura %d%% das prisões, pode !prender, !libertar e !reviver, abusa do poder %s no mandato no !prender, !trabalhar, !roubar e !sequestrar e baixa !decreto (veja !presidente)", percent(presidentImmunity), core.CountLabel(presidentAbuses, "vez", "vezes"))},
 		{p.bust > 0 && p.bustFine == 0, fmt.Sprintf("😬 Em %d%% das vezes dá ruim e não ganha nada", percent(p.bust))},
 		{p.bust > 0 && p.bustFine > 0, fmt.Sprintf("💥 Em %d%% das vezes dá ruim e ainda perde até %s", percent(p.bust), Coins(p.bustFine))},
 		{p.hazard.harm > 0, hazardPerk(p.hazard, p.safety)},
@@ -603,7 +601,7 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 		job = job.presidential()
 	}
 	job.decrees = decreed
-	return job.housed(st.estate).escorted(st.guarded).paidOff(st.bribed).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held), nil
+	return job.housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target core.Account) (attackerJob, targetJob Profession, err error) {

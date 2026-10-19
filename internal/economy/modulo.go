@@ -27,6 +27,7 @@ type bot struct {
 	craters        sync.Map
 	missionSteps   missionLog
 	scenes         sceneBoard
+	tips           tipBoard
 	Wallets        *walletStore
 }
 
@@ -38,6 +39,7 @@ func (b *bot) Register() {
 	b.AddAfterMessage(b.settleMissions)
 	b.AddAfterMessage(b.announceAssemblies)
 	b.AddAfterMessage(b.announcePayouts)
+	b.AddAfterMessage(b.offerTip)
 	b.AddReactor(b.reactToAilments)
 	b.AddObserver("responder o tribunal", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.trialPolls) })
 	b.AddObserver("responder !blackjack", b.answerBlackjack)
@@ -53,6 +55,7 @@ func (b *bot) Register() {
 	b.AddJob(b.runLoanSeizures)
 	b.AddJob(b.runWanted)
 	b.AddJob(b.runGravity)
+	b.AddJob(b.runSuccession)
 	b.AddRestorers(map[string]core.GameRestorer{
 		blackjackKind:   b.restoreBlackjack,
 		crashKind:       b.restoreCrash,

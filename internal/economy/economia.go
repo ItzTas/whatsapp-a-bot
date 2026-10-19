@@ -42,15 +42,14 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	person := core.FirstMentionOrSender(evt).ToNonAD()
 	acc := b.Account(ctx, person)
 	var (
-		balance       int64
-		rank          int
-		saved         Savings
-		hasSavings    bool
-		titleID       string
-		job           Profession
-		bodyguardLeft time.Duration
-		health        int64
-		vault         homeVault
+		balance    int64
+		rank       int
+		saved      Savings
+		hasSavings bool
+		titleID    string
+		job        Profession
+		health     int64
+		vault      homeVault
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = b.Wallets.Balance(gctx, chat, acc); return err })
@@ -59,10 +58,6 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { health, err = b.Wallets.Health(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { vault, err = b.Wallets.vault(gctx, chat, acc); return err })
-	g.Go(func() (err error) {
-		bodyguardLeft, err = b.Wallets.leftUntil(gctx, chat, acc, "seguranca_ate", time.Now())
-		return err
-	})
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler saldo: %w", err)
 	}
@@ -82,9 +77,6 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	}
 	if vault.stored > 0 {
 		lines = append(lines, fmt.Sprintf("🔐 No cofre de casa: %s, longe dos ladrões", Coins(vault.stored)))
-	}
-	if bodyguardLeft > 0 {
-		lines = append(lines, fmt.Sprintf("🕶️ Com segurança particular por mais %s", core.FormatWait(bodyguardLeft)))
 	}
 	if health < MaxHealth {
 		lines = append(lines, "🩺 Saúde: "+healthText(health)+" (veja !saude)")

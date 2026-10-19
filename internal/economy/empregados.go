@@ -39,6 +39,7 @@ type employee struct {
 	payouts   []payout
 	taxCut    int64
 	care      int64
+	watch     int64
 	aliases   []string
 }
 
@@ -67,6 +68,7 @@ var staff = []employee{
 	{id: "contador-veterano", name: "Contador veterano", emoji: "🧮", price: 24_000, taxCut: 40},
 	{id: "enfermeiro-aprendiz", name: "Enfermeiro aprendiz", emoji: "🩺", price: 2_500, care: 50, aliases: []string{"enfermeira aprendiz"}},
 	{id: "enfermeiro-veterano", name: "Enfermeiro veterano", emoji: "🩺", price: 8_000, care: 100, aliases: []string{"enfermeira veterana"}},
+	{id: "seguranca", name: "Segurança particular", emoji: "🕶️", price: 20_000, watch: 5, aliases: []string{"guarda-costas"}},
 }
 
 func employeeByID(id string) (employee, bool) {
@@ -188,6 +190,13 @@ func taxCutOf(e employee) int64 { return e.taxCut }
 
 func careOf(e employee) int64 { return e.care }
 
+func watchOf(e employee) int64 { return e.watch }
+
+func (p Profession) escorted(watch int64) Profession {
+	p.guard += float64(watch) / 100
+	return p
+}
+
 func (e employee) shift(decreed decrees) activity {
 	if e.quarry != "" {
 		return activity{loot: []drop{{"", e.misses}, {e.quarry, 1}}, cooldown: cooldown{every: e.pace(decreed)}}
@@ -209,6 +218,9 @@ func (e employee) perks() string {
 	}
 	if e.care > 0 {
 		return fmt.Sprintf("faz sua saúde voltar %d%% mais rápido (de zero a cheia em %s, e não %s), sem cobrar salário. Com mais de um enfermeiro, só vale o melhor", e.care, core.FormatWait(MaxHealth*regenEvery([]employee{e})), core.FormatWait(MaxHealth*healthRegenEvery))
+	}
+	if e.watch > 0 {
+		return fmt.Sprintf("fica na sua cola: quem tenta !roubar, !furtar, !sequestrar ou !matar você tem %d%% menos chance, sem cobrar salário. Com mais de um segurança, só vale o melhor", e.watch)
 	}
 	if len(e.payouts) > 0 {
 		average, jackpot, bust := e.odds()
@@ -302,7 +314,7 @@ func (b *bot) staffStatus(ctx context.Context, evt *events.Message) error {
 	for _, e := range staff {
 		lines = append(lines, fmt.Sprintf("%s: %s\n    _%s_", e.label(), Coins(e.price), e.perks()))
 	}
-	lines = append(lines, "", "_Eles nunca acham relíquia, mítico, lendário, Relicário perdido nem Bússola do relicário, que só o caçador de bússola acha, e bem de vez em quando. O que trazem vai pra mochila (as moedas do apostador e do corretor vão pro saldo) no !empregados coletar, e o salário sai do seu saldo na hora. Sem saldo pro salário, eles fazem greve e a rodada se perde. O contador e o enfermeiro trabalham sozinhos: não têm nada pra coletar e não cobram salário_")
+	lines = append(lines, "", "_Eles nunca acham relíquia, mítico, lendário, Relicário perdido nem Bússola do relicário, que só o caçador de bússola acha, e bem de vez em quando. O que trazem vai pra mochila (as moedas do apostador e do corretor vão pro saldo) no !empregados coletar, e o salário sai do seu saldo na hora. Sem saldo pro salário, eles fazem greve e a rodada se perde. O contador, o enfermeiro e o segurança trabalham sozinhos: não têm nada pra coletar e não cobram salário_")
 	text := strings.Join(lines, "\n") + decreed.note(gatherDecree)
 	_, err := b.SendMentions(ctx, chat, text, []types.JID{person})
 	return err
@@ -425,7 +437,7 @@ func (b *bot) collectStaff(ctx context.Context, evt *events.Message) error {
 	}
 	h, err := b.Wallets.collectStaff(ctx, chat, acc, decreed, now)
 	if errors.Is(err, errNoStaff) {
-		return b.SendText(ctx, chat, "Você não tem empregado que traga coisa pra coletar (o contador e o enfermeiro trabalham sozinhos). Manda !empregados pra ver quem dá pra contratar")
+		return b.SendText(ctx, chat, "Você não tem empregado que traga coisa pra coletar (o contador, o enfermeiro e o segurança trabalham sozinhos). Manda !empregados pra ver quem dá pra contratar")
 	}
 	if err != nil {
 		return fmt.Errorf("coletar empregados: %w", err)

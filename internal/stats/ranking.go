@@ -2,7 +2,6 @@ package stats
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -38,7 +37,7 @@ func (b *bot) ranking(ctx context.Context, evt *events.Message) error {
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { group, err = b.Client.GetGroupInfo(gctx, chat); return err })
-	g.Go(func() (err error) { counts, err = b.messages.countsBySender(gctx, chat, since); return err })
+	g.Go(func() (err error) { counts, err = b.messages.CountsBySender(gctx, chat, since); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("montar ranking: %w", err)
 	}
@@ -118,26 +117,4 @@ func rankingLines(top []rankedMember, singular, plural string) []string {
 		lines[i] = fmt.Sprintf("%s @%s: %s", position, m.jid.User, core.CountLabel(m.messages, singular, plural))
 	}
 	return lines
-}
-
-func (s *messageStore) countsBySender(ctx context.Context, chat types.JID, since int64) (counts []core.SenderCount, err error) {
-	rows, err := s.DB.QueryContext(ctx,
-		`SELECT remetente, remetente_alt, COUNT(*) FROM mensagens
-		 WHERE chat = ? AND enviada_em >= ?
-		 GROUP BY remetente, remetente_alt`,
-		chat.String(), since,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { err = errors.Join(err, rows.Close()) }()
-
-	for rows.Next() {
-		var c core.SenderCount
-		if err := rows.Scan(&c.Sender, &c.SenderAlt, &c.Messages); err != nil {
-			return nil, err
-		}
-		counts = append(counts, c)
-	}
-	return counts, rows.Err()
 }

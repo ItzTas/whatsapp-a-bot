@@ -82,7 +82,7 @@ func (b *bot) tu(ctx context.Context, evt *events.Message) error {
 	g.Go(func() (err error) { adoptions, err = b.Adoptions.InChat(gctx, chat); return err })
 	if inGroup {
 		g.Go(func() (err error) { group, err = b.Client.GetGroupInfo(gctx, chat); return err })
-		g.Go(func() (err error) { counts, err = b.messages.countsBySender(gctx, chat, since); return err })
+		g.Go(func() (err error) { counts, err = b.messages.CountsBySender(gctx, chat, since); return err })
 		g.Go(func() (err error) { laughs, err = b.messages.LaughsByTarget(gctx, chat, since); return err })
 	}
 	if err := g.Wait(); err != nil {

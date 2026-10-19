@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	postCooldown    = cooldown{column: "postagem_em", every: 40 * time.Minute}
+	postCooldown    = cooldown{column: "postagem_em", every: 30 * time.Minute}
 	sponsorCooldown = cooldown{column: "publi_em", every: 6 * time.Hour}
 )
 
@@ -489,7 +489,7 @@ func (b *bot) postar(ctx context.Context, evt *events.Message) error {
 		_, err := b.SendMentions(ctx, chat, text, []types.JID{person})
 		return err
 	}
-	cd := cooldown{column: postCooldown.column, every: job.hasted(postCooldown.every)}
+	cd := cooldown{column: postCooldown.column, every: postEvery(job)}
 	c, err := b.Wallets.post(ctx, chat, acc, cd, pl, job, time.Now())
 	if err != nil {
 		return fmt.Errorf("postar: %w", err)
@@ -497,10 +497,14 @@ func (b *bot) postar(ctx context.Context, evt *events.Message) error {
 	text := fmt.Sprintf("🎬 @%s ainda tá editando o último post. Dá pra postar de novo em %s", person.User, core.FormatWait(c.wait))
 	if c.wait == 0 {
 		total := job.followers() - c.before + c.after
-		text = c.text(pl, person.User) + fmt.Sprintf("\n%s Agora são %s no %s (%s no total)", pl.emoji, core.Thousands(c.after), pl.name, core.Thousands(total)) + tierShiftText(job.followers(), total, person.User)
+		text = c.text(pl, person.User) + fmt.Sprintf("\n%s Agora são %s no %s (%s no total)", pl.emoji, core.Thousands(c.after), pl.name, core.Thousands(total)) + tierShiftText(job.followers(), total, person.User) + job.decrees.note(fameDecree)
 	}
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
 	return err
+}
+
+func postEvery(job Profession) time.Duration {
+	return job.hasted(postCooldown.every * time.Duration(100+job.decrees.level(fameDecree)) / 100)
 }
 
 func (b *bot) fama(ctx context.Context, evt *events.Message) error {
@@ -519,7 +523,7 @@ func (b *bot) fama(ctx context.Context, evt *events.Message) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { held, err = b.Wallets.devices(gctx, chat, acc); return err })
 	g.Go(func() (err error) {
-		postWait, err = b.Wallets.cooldownLeft(gctx, chat, acc, cooldown{column: postCooldown.column, every: job.hasted(postCooldown.every)}, now)
+		postWait, err = b.Wallets.cooldownLeft(gctx, chat, acc, cooldown{column: postCooldown.column, every: postEvery(job)}, now)
 		return err
 	})
 	g.Go(func() (err error) {

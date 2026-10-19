@@ -572,10 +572,14 @@ func (ev *pendingEvent) owns(info types.MessageInfo) bool {
 }
 
 func (ev *pendingEvent) picked(selected [][]byte) int {
+	return pickedLabel(ev.labels, selected)
+}
+
+func pickedLabel(labels []string, selected [][]byte) int {
 	if len(selected) == 0 {
 		return -1
 	}
-	return slices.IndexFunc(ev.labels, func(label string) bool {
+	return slices.IndexFunc(labels, func(label string) bool {
 		hash := sha256.Sum256([]byte(label))
 		return bytes.Equal(hash[:], selected[0])
 	})

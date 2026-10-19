@@ -391,9 +391,6 @@ func (r robber) fate() string {
 	if r.shielded && r.job.president {
 		return fmt.Sprintf("⚖️ @%s foi pego, mas é presidente: mostrou a imunidade e saiu pela porta da frente", r.acc.JID.User)
 	}
-	if r.shielded && r.job.bribed {
-		return fmt.Sprintf("💰 @%s foi pego, mas o delegado tava no bolso: saiu pela porta da frente", r.acc.JID.User)
-	}
 	return fmt.Sprintf("🏃 @%s escapou pela janela do banheiro, mas a polícia ainda pode !prender nas próximas %s", r.acc.JID.User, core.FormatWait(crimeWindow))
 }
 

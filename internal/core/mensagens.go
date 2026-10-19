@@ -197,3 +197,25 @@ type SenderCount struct {
 	SenderAlt string
 	Messages  int
 }
+
+func (s *MessageStore) CountsBySender(ctx context.Context, chat types.JID, since int64) (counts []SenderCount, err error) {
+	rows, err := s.DB.QueryContext(ctx,
+		`SELECT remetente, remetente_alt, COUNT(*) FROM mensagens
+		 WHERE chat = ? AND enviada_em >= ?
+		 GROUP BY remetente, remetente_alt`,
+		chat.String(), since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { err = errors.Join(err, rows.Close()) }()
+
+	for rows.Next() {
+		var c SenderCount
+		if err := rows.Scan(&c.Sender, &c.SenderAlt, &c.Messages); err != nil {
+			return nil, err
+		}
+		counts = append(counts, c)
+	}
+	return counts, rows.Err()
+}

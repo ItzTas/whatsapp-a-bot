@@ -50,10 +50,6 @@ func (b *bot) denunciar(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
-	if shield := arrestShield(suspect, suspectJob); shield != "" {
-		_, err = b.SendMentions(ctx, chat, shield, []types.JID{suspect})
-		return err
-	}
 	if reporterJob.noSnitch && !reporterJob.president {
 		return b.punishSnitch(ctx, chat, reporterAcc, suspectAcc, reporterJob, reporter, suspect)
 	}

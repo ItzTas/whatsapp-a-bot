@@ -34,7 +34,7 @@ const (
 	incomeTaxDecreeMax    = 30
 	stockDecreeSwing      = 30
 	curfewPenalty         = 0.15
-	termOverText          = "🏛️ O mandato acabou bem agora, então o decreto não valeu. Só quem ganhar a próxima eleição (!votar) baixa decreto de novo"
+	termOverText          = "🏛️ O mandato acabou bem agora, então o decreto não valeu. Só o próximo presidente (eleito no !votar ou sorteado) baixa decreto de novo"
 )
 
 var errDecreeIdle = errors.New("decreto sem efeito")
@@ -163,6 +163,12 @@ var (
 		revoked: "o !pescar, o !minerar, o !vasculhar, o !catar e os !empregados voltam à espera normal",
 		syntax:  "!decreto extracao -30", about: "muda a espera do !pescar, do !minerar, do !vasculhar, do !catar e dos !empregados",
 	}
+	fameDecree = percentDecree{
+		names: []string{"fama", "postar", "postagem", "postagens", "post", "posts"}, column: "fama_pct", lo: -decreeSwing, hi: decreeSwing,
+		raised: "o !postar espera %d%% mais", lowered: "o !postar espera %d%% menos",
+		revoked: "o !postar volta à espera normal",
+		syntax:  "!decreto fama -30", about: "muda a espera do !postar de todo mundo",
+	}
 	casinoDecree = percentDecree{
 		names: []string{"cassino", "premio", "premios", "apostas", "aposta"}, column: "cassino_pct", lo: -betTaxDecreeMax, hi: casinoDecreeMaxRaise, popular: true,
 		raised:  "o cassino paga %d%% mais nos prêmios",
@@ -170,7 +176,7 @@ var (
 		revoked: "o cassino volta ao normal, sem prêmio a mais nem taxa",
 		syntax:  "!decreto cassino 20", about: "mexe no " + casinoGames + ": positivo aumenta o lucro de quem ganha e negativo cobra uma taxa que vai pro bolso do presidente, em que quem perde paga em cima da aposta e quem ganha paga em cima de tudo que levou. Vale o decreto da hora da aposta (dá pra mandar !decreto imposto aposta 5 também)",
 	}
-	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, casinoDecree}
+	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, fameDecree, casinoDecree}
 
 	curfewDecree = toggleDecree{
 		names: []string{"recolher", "toque", "toquederecolher"}, column: "toque_recolher", emoji: "🌃",

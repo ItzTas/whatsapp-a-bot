@@ -22,8 +22,7 @@ const (
 	coupMin    = 3
 	coupChance = 0.5
 	coupHelp   = 0.1
-	coupTerm   = 24 * time.Hour
-	coupEvery  = 6 * time.Hour
+	coupEvery  = time.Hour
 	coupKind   = "golpe"
 )
 
@@ -146,7 +145,7 @@ func (c *coup) joinText(acc core.Account, loyal, opened bool) string {
 	left := core.FormatWait(coupWindow - time.Since(c.opened))
 	if opened {
 		return fmt.Sprintf("🪖 *Golpe de estado!*\n@%s tá tramando derrubar @%s da presidência. Manda !golpe em até %s pra entrar no golpe, ou !golpe defender pra proteger o governo\n_Precisa de pelo menos %d golpistas. Cada golpista a mais soma %d%% de chance e cada defensor tira %d%%, arma na mochila ajuda os dois lados e a proteção do presidente atrapalha o golpe. Se der certo, @%s vira presidente por %s e os decretos caem. Se der errado, quem não escapar vai preso_",
-			acc.JID.User, c.president.JID.User, left, coupMin, percent(coupHelp), percent(coupHelp), acc.JID.User, core.FormatWait(coupTerm))
+			acc.JID.User, c.president.JID.User, left, coupMin, percent(coupHelp), percent(coupHelp), acc.JID.User, core.FormatWait(termLength))
 	}
 	count := fmt.Sprintf("Golpistas: %d. Defensores: %d. O golpe sai em %s", len(c.plotters), len(c.loyalists), left)
 	if loyal {
@@ -302,10 +301,10 @@ func (s *walletStore) coup(ctx context.Context, chat types.JID, a *coupAttempt, 
 
 func seize(ctx context.Context, tx *ledgerTx, chat types.JID, president, leader core.Account, now time.Time) error {
 	res, err := tx.ExecContext(ctx,
-		`UPDATE presidencias SET pessoa = ?, jid = ?, votos = 0, eleito_em = ?, mandato_ate = ?, golpe_em = ?, golpista = 1,
+		`UPDATE presidencias SET pessoa = ?, jid = ?, votos = 0, eleito_em = ?, mandato_ate = ?, golpe_em = ?, golpista = 1, sorteado = 0,
 		 impeachment_em = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0
 		 WHERE chat = ? AND pessoa = ? AND mandato_ate > ?`,
-		leader.Key, leader.JID.String(), now.Unix(), now.Add(coupTerm).Unix(), now.Unix(),
+		leader.Key, leader.JID.String(), now.Unix(), now.Add(termLength).Unix(), now.Unix(),
 		chat.String(), president.Key, now.Unix(),
 	)
 	if err != nil {
@@ -345,7 +344,7 @@ func (a coupAttempt) text() string {
 	if a.success {
 		leader := a.plotters[0].acc
 		return strings.Join(append(lines,
-			fmt.Sprintf("🏛️ Os tanques tomaram o palácio! @%s derrubou @%s e é o novo presidente por %s. Os decretos do governo anterior caíram, e o !votar só volta quando o mandato acabar", leader.JID.User, a.president.JID.User, core.FormatWait(coupTerm)),
+			fmt.Sprintf("🏛️ Os tanques tomaram o palácio! @%s derrubou @%s e é o novo presidente por %s. Os decretos do governo anterior caíram, e o !votar só volta quando o mandato acabar", leader.JID.User, a.president.JID.User, core.FormatWait(termLength)),
 			fmt.Sprintf("🚓 Mas golpe é crime: dá pra !prender quem participou (menos o novo presidente) nas próximas %s", core.FormatWait(crimeWindow)),
 		), "\n")
 	}

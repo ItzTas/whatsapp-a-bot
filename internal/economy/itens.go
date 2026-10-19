@@ -1017,7 +1017,7 @@ var catalog = append([]item{
 		use: "⚕️ @%s abriu a maleta de médico, deu ponto no corte, tomou um antibiótico e ainda se receitou repouso"},
 	{id: "ampola-de-adrenalina", name: "Ampola de adrenalina", emoji: "💉", rarity: epic, value: 1_200, aliases: []string{"adrenalina", "ampola"}, heal: 100, doses: 2,
 		use: "💉 @%s cravou a ampola de adrenalina no peito igual Pulp Fiction e levantou novinho(a) em folha"},
-	{id: "agua-benta", name: "Água benta de Aparecida", emoji: "🕊️", rarity: legendary, value: 6_000, aliases: []string{"agua benta", "aparecida"}, heal: 100, doses: 6,
+	{id: "agua-benta-de-aparecida", name: "Água benta de Aparecida", emoji: "🕊️", rarity: legendary, value: 6_000, aliases: []string{"aparecida"}, heal: 100, doses: 6,
 		use: "🕊️ @%s passou água benta de Aparecida nos machucados e rezou uma ave-maria. Sarou tudo, é milagre"},
 	{id: "caixa-misteriosa-prateada", name: "Caixa misteriosa prateada", emoji: "🥈", rarity: rare, value: 850, shop: true, aliases: []string{"caixa prateada", "caixa de prata", "prateada"},
 		loot: []int{28, 27, 26, 15, 4}, use: "🥈 @%s sacudiu a caixa misteriosa prateada do lado do ouvido antes de abrir, pra ver se tinha coisa boa"},

@@ -252,7 +252,7 @@ func blackMarketPayout(chat types.JID, it item, quantity int64, now time.Time) i
 }
 
 func (p Profession) raidOdds() float64 {
-	if p.bribed || p.divine {
+	if p.divine {
 		return 0
 	}
 	return raidChance * (1 - p.immunity())

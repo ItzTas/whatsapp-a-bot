@@ -17,7 +17,7 @@ import (
 const (
 	impeachmentWindow = 10 * time.Minute
 	impeachmentQuorum = 3
-	impeachmentEvery  = 6 * time.Hour
+	impeachmentEvery  = time.Hour
 	impeachmentKind   = "impeachment"
 )
 
@@ -211,14 +211,15 @@ func (b *bot) impeachmentResult(ctx context.Context, chat types.JID, president c
 		return fmt.Sprintf("⚖️ *Impeachment rejeitado!*\n%s\n\n🏛️ @%s continua no cargo. Pra passar, precisava de pelo menos %d votos a favor e mais votos a favor do que contra. Outro pedido só daqui a %s",
 			tally, president.JID.User, impeachmentQuorum, core.FormatWait(impeachmentEvery-impeachmentWindow)), nil
 	}
-	removed, err := b.Wallets.impeach(ctx, chat, president, time.Now())
+	now := time.Now()
+	removed, err := b.Wallets.impeach(ctx, chat, president, now)
 	if err != nil {
 		return "", fmt.Errorf("tirar presidente: %w", err)
 	}
 	if !removed {
 		return fmt.Sprintf("⚖️ O impeachment passou, mas o mandato de @%s já tinha acabado", president.JID.User), nil
 	}
-	return fmt.Sprintf("⚖️ *Impeachment aprovado!*\n%s\n\n🏛️ @%s perdeu o cargo, e os poderes e decretos da presidência caíram junto. Manda !votar @pessoa pra abrir uma eleição nova", tally, president.JID.User), nil
+	return fmt.Sprintf("⚖️ *Impeachment aprovado!*\n%s\n\n🏛️ @%s perdeu o cargo, e os poderes e decretos da presidência caíram junto. Manda !votar @pessoa pra abrir uma eleição nova\n\n🎲 %s", tally, president.JID.User, vacancyNote(now.Add(vacancyWindow), now)), nil
 }
 
 func (s *walletStore) stampImpeachment(ctx context.Context, chat types.JID, president core.Account, now time.Time) error {
@@ -230,13 +231,8 @@ func (s *walletStore) stampImpeachment(ctx context.Context, chat types.JID, pres
 }
 
 func (s *walletStore) impeach(ctx context.Context, chat types.JID, president core.Account, now time.Time) (bool, error) {
-	res, err := s.db.ExecContext(ctx,
+	return s.vacate(ctx, chat, now,
 		"UPDATE presidencias SET mandato_ate = ? WHERE chat = ? AND pessoa = ? AND mandato_ate > ?",
 		now.Unix(), chat.String(), president.Key, now.Unix(),
 	)
-	if err != nil {
-		return false, err
-	}
-	removed, err := res.RowsAffected()
-	return removed > 0, err
 }

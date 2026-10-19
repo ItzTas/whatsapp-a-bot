@@ -34,6 +34,7 @@ const (
 	ModeConsent       = "consentimento"
 	ModeCity          = "cidadedorme"
 	ModeAnnouncements = "anuncios"
+	ModeTips          = "dicas"
 	modeAll           = "tudo"
 )
 
@@ -69,7 +70,13 @@ func (m chatMode) summary() string {
 	if !m.exclusive {
 		return m.description
 	}
-	return fmt.Sprintf("%s. É exclusivo: só convive com %s, e os outros modos ficam pausados enquanto ele tá ligado e voltam quando ele desligar", m.description, JoinWithAnd(m.coexists))
+	var rivals []string
+	for _, other := range chatModes() {
+		if len(other.includes) == 0 && m.clashes(other) {
+			rivals = append(rivals, other.name)
+		}
+	}
+	return fmt.Sprintf("%s. É exclusivo: pausa %s enquanto tá ligado e religa quando ele desligar", m.description, JoinWithAnd(rivals))
 }
 
 func modeExclusive(name string) bool {
@@ -84,12 +91,13 @@ func chatModes() []chatMode {
 		}},
 		{name: modeFamily, description: "libera o !adotar, o !engravidar e o !familia"},
 		{name: modeGames, description: "libera os jogos, tipo !bmc, !vdd, !forca, !termo, !velha, !roleta, !quiz, !completa, !batata, !stop, !impostor, !espiao, !jokenpo, !2verdades1mentira e !bandeira"},
-		{name: ModeCity, description: "transforma a conversa numa partida de Cidade Dorme: o !cidadedorme abre a sala, à noite o assassino usa o !matar, o médico o !salvar e o detetive o !investigar no privado do bot, e de dia a cidade decide no !votar quem eliminar. O !matar e o !votar daqui tomam o lugar dos da economia", exclusive: true, coexists: []string{ModeModeration, ModeUtilities}},
+		{name: ModeCity, description: "transforma a conversa numa partida de Cidade Dorme: o !cidadedorme abre a sala, à noite o assassino usa o !matar, o médico o !salvar e o detetive o !investigar no privado do bot, e de dia a cidade decide no !votar quem eliminar. O !matar e o !votar daqui tomam o lugar dos da economia", exclusive: true, coexists: []string{modeRomance, modeFamily, modeGames, modeMeters, modeStats, ModeJokes, modeAI, ModeModeration, ModeWords, ModeLaughs, ModeUtilities}},
 		{name: modeMeters, description: "libera os medidores, tipo !medidor, !gado, !gay, !rankinggay e !euanime"},
 		{name: modeStats, description: "libera as estatísticas, tipo !ranking, !palavra, !tu, !palhaço, !retrospectiva, !primeiramsg e !horário"},
 		{name: ModeJokes, description: "libera a zoeira, tipo !kkk, !chute, !apelido e !frase"},
-		{name: ModeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !missoes, !eventos, !trabalhar,!profissao, !postar, !fama, !publi, !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !assalto, !quadrilha, !sequestrar, !venderrefem, !matar, !reviver, !prender, !fugir, !denunciar, !processar, !votar, !presidente, !decreto, !impeachment, !golpe, !transferir, !poupar, !conjunta, !agiota, !emprestimo, !acoes, !loteria, !bolao, !bicho, !ricos, !imposto, !fianca, !hospital, !saude, !resgate, !seguranca, !imovel, !empregados, !titulo, !implante, !igreja, !doar, !zoar, !abencoar e !amaldicoar, e os itens: !mochila, !item, !loja, !petshop, !luxo, !mercadonegro, !comprar, !vender, !aceitar, !recusar, !leilao, !lance, !dar, !usar, !aprimorar, !pescar, !minerar, !vasculhar, !catar e !furtar. De vez em quando o !trabalhar, as extrações e os crimes soltam um evento com enquete, em que só quem tá nele escolhe o que fazer, e a escolha pode dar moeda, item, droga, ferimento, cadeia ou até morte. Com ele, quem acerta o !quiz, o !quemfalou, a !forca, o !termo, o !completa, o !emoji, a !bandeira ou a mentira do !2verdades1mentira ou vence o !stop, o !impostor ou o !espiao ganha moedas (se pelo menos 2 pessoas jogarem), o !roleta e o !jokenpo @pessoa aceitam aposta, o !tu mostra o saldo, quem casou pelo pedido do consentimento e pede divórcio paga pensão, quem é pego no !trair ou no !traircom paga indenização e quem é preso no !prender ou num !assalto que deu errado fica sem apostar, roubar, furtar, sequestrar e assaltar até sair da cadeia, quem é sequestrado fica igual até sair do cativeiro ou conseguir !fugir, quem morre no !matar, de overdose ou com a saúde zerada (dá pra se machucar no !trabalhar das profissões perigosas e nas extrações) fica sem nenhum comando de economia até ressuscitar ou alguém !reviver e o enterro leva um pedaço do saldo, e quem pega moedas com o !agiota e passa do prazo pode ser morto, preso, sequestrado ou processado por quem emprestou, e quem pega o !emprestimo do banco e passa do prazo tem o saldo penhorado até quitar", submodes: []chatMode{
+		{name: ModeEconomy, description: "libera as moedas do grupo: !saldo, !daily, !missoes, !eventos, !dica, !trabalhar,!profissao, !postar, !fama, !publi, !apostar, !cassino, !blackjack, !crash, !corrida, !roubar, !assalto, !quadrilha, !sequestrar, !venderrefem, !matar, !reviver, !prender, !fugir, !denunciar, !processar, !votar, !presidente, !decreto, !impeachment, !golpe, !transferir, !poupar, !conjunta, !agiota, !emprestimo, !acoes, !loteria, !bolao, !bicho, !ricos, !imposto, !fianca, !hospital, !saude, !resgate, !imovel, !empregados, !titulo, !implante, !igreja, !doar, !zoar, !abencoar e !amaldicoar, e os itens: !mochila, !item, !loja, !petshop, !luxo, !mercadonegro, !comprar, !vender, !aceitar, !recusar, !leilao, !lance, !dar, !usar, !aprimorar, !pescar, !minerar, !vasculhar, !catar e !furtar. De vez em quando o !trabalhar, as extrações e os crimes soltam um evento com enquete, em que só quem tá nele escolhe o que fazer, e a escolha pode dar moeda, item, droga, ferimento, cadeia ou até morte. Com ele, quem acerta o !quiz, o !quemfalou, a !forca, o !termo, o !completa, o !emoji, a !bandeira ou a mentira do !2verdades1mentira ou vence o !stop, o !impostor ou o !espiao ganha moedas (se pelo menos 2 pessoas jogarem), o !roleta e o !jokenpo @pessoa aceitam aposta, o !tu mostra o saldo, quem casou pelo pedido do consentimento e pede divórcio paga pensão, quem é pego no !trair ou no !traircom paga indenização e quem é preso no !prender ou num !assalto que deu errado fica sem apostar, roubar, furtar, sequestrar e assaltar até sair da cadeia, quem é sequestrado fica igual até sair do cativeiro ou conseguir !fugir, quem morre no !matar, de overdose ou com a saúde zerada (dá pra se machucar no !trabalhar das profissões perigosas e nas extrações) fica sem nenhum comando de economia até ressuscitar ou alguém !reviver e o enterro leva um pedaço do saldo, e quem pega moedas com o !agiota e passa do prazo pode ser morto, preso, sequestrado ou processado por quem emprestou, e quem pega o !emprestimo do banco e passa do prazo tem o saldo penhorado até quitar", submodes: []chatMode{
 			{name: ModeAnnouncements, description: "o bot avisa nesta conversa o que a economia faz sozinha: o resultado da !loteria e do !bicho, a passada do Leão do !imposto, o fim do !leilao, a penhora do !emprestimo e o procurado do dia da !recompensa. Grupos com a economia vinculada ligam cada um o seu"},
+			{name: ModeTips, description: "de tempos em tempos, quando a conversa tá movimentada, o bot solta uma dica da economia: um jeito de achar relíquia mais fácil, de se proteger de roubo, ou um comando que pouca gente conhece. O !dica manda uma na hora"},
 		}},
 		{name: modeAI, description: "libera o !ia, o !resumo, o !roast, o !signo, o !quemsou, o !quizia, o !emoji, o !processaria, o !cancelar, o !fofoca e o !ficia", submodes: []chatMode{
 			{name: modeAIUnlimited, description: "a IA para de contar quantas perguntas cada um fez na hora e responde sem pausa entre uma pergunta e outra"},

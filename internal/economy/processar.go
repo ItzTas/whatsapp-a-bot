@@ -322,10 +322,6 @@ func (b *bot) closeTrial(ctx context.Context, chat types.JID, pollID types.Messa
 }
 
 func (b *bot) trialVerdict(ctx context.Context, chat types.JID, round *TrialCase) string {
-	accuserPaid, defendantPaid := b.trialBribes(ctx, chat, round)
-	if accuserPaid != defendantPaid {
-		return b.riggedVerdict(ctx, chat, round, accuserPaid)
-	}
 	jury := round.Ballots()
 	if len(jury) == 0 {
 		return fmt.Sprintf("🦗 Ninguém do júri apareceu. O processo de @%s contra @%s foi arquivado por falta de quórum", round.Accuser.User, round.Defendant.User)
@@ -335,9 +331,6 @@ func (b *bot) trialVerdict(ctx context.Context, chat types.JID, round *TrialCase
 	extraGuilty, extraInnocent := round.sides.extraVotes(round.debt)
 	guilty, innocent := votedGuilty+extraGuilty, votedInnocent+extraInnocent
 	header := fmt.Sprintf("🧑‍⚖️ *Sentença*\nJúri: %d culpado, %d inocente\n", votedGuilty, votedInnocent)
-	if accuserPaid {
-		header += "💰 Os dois lados molharam a mão do juiz, ele embolsou tudo e deixou o júri decidir\n"
-	}
 	if len(weighted) > 0 {
 		header += strings.Join(weighted, "\n") + "\n"
 	}
