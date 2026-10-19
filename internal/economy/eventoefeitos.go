@@ -189,7 +189,12 @@ func (e loseEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (str
 	if err != nil || lost == 0 {
 		return "", err
 	}
-	return "💸 Perdeu " + Coins(lost), nil
+	covered, note, err := run.cushion(ctx, tx, lost)
+	if err != nil || covered == 0 {
+		return "💸 Perdeu " + Coins(lost), err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", covered, run.chat.String(), run.acc.Key)
+	return "💸 Perdeu " + Coins(lost-covered) + note, err
 }
 
 type skimEffect struct{ lo, hi int64 }
@@ -210,8 +215,13 @@ func (e skimEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (str
 	if lost <= 0 {
 		return "", nil
 	}
+	covered, note, err := run.cushion(ctx, tx, lost)
+	if err != nil {
+		return "", err
+	}
+	lost -= covered
 	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo - ? WHERE chat = ? AND pessoa = ?", lost, run.chat.String(), run.acc.Key)
-	return fmt.Sprintf("💸 Perdeu %s, %d%% da bolada", Coins(lost), lost*100/run.haul), err
+	return fmt.Sprintf("💸 Perdeu %s, %d%% da bolada", Coins(lost), lost*100/run.haul) + note, err
 }
 
 type gainEffect struct {

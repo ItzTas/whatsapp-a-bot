@@ -61,6 +61,7 @@ type gangRobbery struct {
 	alarmed   bool
 	silent    bool
 	mark      easyMark
+	escort    firm
 	success   bool
 	bruise    injury
 }
@@ -282,7 +283,7 @@ func (b *bot) runGang(ctx context.Context, chat types.JID, victim core.Account, 
 	}
 	hurtText, freed := r.injuries()
 	people := append(accountJIDs(append(members, victim)), freed...)
-	if _, err := b.SendMentions(ctx, chat, r.mark.text(victim.JID)+r.text()+hurtText, people); err != nil || r.poor || r.shield > 0 {
+	if _, err := b.SendMentions(ctx, chat, r.escort.escortText(victim.JID)+r.mark.text(victim.JID)+r.text()+hurtText, people); err != nil || r.poor || r.shield > 0 {
 		return err
 	}
 	b.stirCrewEvent(ctx, chat, r.survivors(), eventSpot{place: "!quadrilha", won: r.success, victim: victim.JID})
@@ -321,6 +322,9 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.A
 			return err
 		}
 		if r.mark, err = markOf(ctx, tx, chat, victim, now); err != nil {
+			return err
+		}
+		if r.mark, r.escort, err = escortMark(ctx, tx, chat, victim, r.mark, true, now); err != nil {
 			return err
 		}
 		r.chance = r.mark.odds(chance)
