@@ -160,7 +160,7 @@ func (b *bot) betAnimal(ctx context.Context, evt *events.Message, args []string)
 	if bet.stake > bet.kind.limit {
 		return b.SendText(ctx, chat, fmt.Sprintf("A aposta máxima %s %s é %s 🎫 Os limites de cada tipo ficam no !bicho tabela", bet.kind.in, bet.kind.id, Coins(bet.kind.limit)))
 	}
-	if refusal := b.allIn(ctx, chat, acc, "!bicho", bet.stake, whole); refusal != "" {
+	if refusal := b.allIn(ctx, chat, acc, bet.stake, whole); refusal != "" {
 		return b.SendText(ctx, chat, refusal)
 	}
 

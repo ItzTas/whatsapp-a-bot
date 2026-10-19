@@ -96,9 +96,12 @@ func TestBetCeiling(t *testing.T) {
 	most, whole := start*70/100, start*60/100
 
 	wantReply(t, b.say(chat, ana, "!apostar 80%"), "dá pra apostar no máximo "+economy.Coins(most)+" de uma vez")
-	wantReply(t, b.say(chat, ana, "!apostar tudo"), "Isso é apostar tudo: "+economy.Coins(whole)+" de uma vez")
 	if got := b.balance(ana); got != start {
-		t.Fatalf("aposta recusada ou sem confirmar mexeu no saldo: %d virou %d", start, got)
+		t.Fatalf("a aposta recusada mexeu no saldo: %d virou %d", start, got)
+	}
+	wantReply(t, b.say(chat, ana, "!apostar tudo"), economy.Coins(whole))
+	if got := b.balance(ana); got != start-whole && got != start+whole {
+		t.Fatalf("o !apostar tudo devia apostar %d de uma vez, mas o saldo foi de %d pra %d", whole, start, got)
 	}
 }
 

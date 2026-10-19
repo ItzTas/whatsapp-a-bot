@@ -200,7 +200,7 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `betRuleOf`, e o `!lance` do leilão passa o `bidRule`, em que os dois são o saldo inteiro e não tem
   janela. Com o limite da janela batido (`most` zero), a aposta nem é lida; valor acima do `most` mas
   dentro do saldo é recusado. Os dois textos saem do `tooMuch`, que diz qual limite pegou. O `affordable`
-  devolve o `whole`, e o `allIn` pede confirmação de toda aposta a partir dele (skill
+  devolve o `whole`, e toda aposta a partir dele passa pelo `allIn` (skill
   `economia-eventos`). `metade` e porcentagem continuam calculados sobre o saldo todo. Jogo de aposta novo passa pelo `PlaceBet`/`placeStake` e grava
   pelo `noteWager` onde tira o dinheiro.
 - Os jogos de cassino (`casinoGames`) sempre deixam uma vantagem pequena pra casa: o `!apostar`

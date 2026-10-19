@@ -54,7 +54,7 @@ user-invocable: false
 - **Aviso de nível**: o `PlaceBet`, depois do `placeStake`, chama o `markWarning`. Pra quem tem
   contrato e tá com a marca, a aposta que subiria o nível (`markLevel.after`) não sai de primeira:
   a empresa avisa e a pessoa confirma mandando o mesmo comando em até `allInWindow`
-  (`markWarnings`, um `allInBoard` com chave `eventKey` mais a sintaxe, igual ao `!apostar tudo`).
+  (`markWarnings`, um `allInBoard` com chave `eventKey` mais a sintaxe).
   Quem não tem contrato sobe de nível sem aviso. O `!bolao` usa o `placeStake` direto e fica de
   fora, porque não passa pelo `NoteBet`, onde o nível sobe.
 - O `!saldo` e o `!tu` mostram o contrato ativo (`contractText`), e o `!empresa` sem nada lista as

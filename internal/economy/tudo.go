@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"math/rand/v2"
 	"sync"
@@ -39,12 +38,9 @@ func (a *allInBoard) confirmed(key string, now time.Time) bool {
 	return false
 }
 
-func (b *bot) allIn(ctx context.Context, chat types.JID, acc core.Account, syntax string, stake, whole int64) string {
+func (b *bot) allIn(ctx context.Context, chat types.JID, acc core.Account, stake, whole int64) string {
 	if stake < whole {
 		return ""
-	}
-	if !b.allIns.confirmed(eventKey(chat, acc)+"|"+syntax, time.Now()) {
-		return fmt.Sprintf("⚠️ Tem certeza? Isso é apostar tudo: %s de uma vez. Se for isso mesmo, manda o mesmo comando de novo em até %s", Coins(stake), core.FormatDuration(allInWindow))
 	}
 	if stake < allInFloor || !b.interruptAllIn(ctx, chat, acc) {
 		return ""
@@ -58,6 +54,14 @@ func (b *bot) interruptAllIn(ctx context.Context, chat types.JID, acc core.Accou
 	}
 	key := eventKey(chat, acc)
 	if _, busy := b.scenes.pending.Load(key); busy {
+		return false
+	}
+	mark, err := markOf(ctx, b.Wallets.db, chat, acc, time.Now())
+	if err != nil {
+		b.Client.Log.Warnf("ler o alvo fácil de %s antes de apostar tudo: %v", acc.JID, err)
+		return false
+	}
+	if mark.haul() == 0 {
 		return false
 	}
 	b.stirEventFor(ctx, chat, acc, b.Identities(ctx, acc.JID), eventSpot{place: allInPlace})

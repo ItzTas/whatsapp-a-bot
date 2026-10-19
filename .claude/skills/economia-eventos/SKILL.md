@@ -34,11 +34,11 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
 - **Apostar tudo** (`tudo.go`). Toda aposta que passa pelo `placeStake` (direto ou pelo `PlaceBet`:
   `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roleta`, `!bicho` e o
   `!bolao`) e aposta pelo menos o que o `tudo` aposta (`stake` a partir do `whole` do `betRule`,
-  seja o `tudo` ou um número, veja o limite por aposta na skill `economia-base`) cai no `allIn`. Na primeira vez a aposta não sai: o bot avisa e guarda o pedido no `allInBoard`
-  (em memória, chave `eventKey` mais o comando). Mandar o mesmo comando de novo em até `allInWindow`
-  confirma. Na confirmação, quem aposta `allInFloor` ou mais tem `allInChance` (com a mesma conta do
-  `eventLuck`) de cair num evento do `allInEvents` (`eventostudo.go`, place `allInPlace`) antes da aposta;
-  se o evento abrir, a aposta é cancelada e a pessoa precisa confirmar de novo depois. O `!bicho` chama o
+  seja o `tudo` ou um número, veja o limite por aposta na skill `economia-base`) cai no `allIn`, que não
+  pede confirmação. Quem aposta `allInFloor` ou mais e tá com a marca de alvo fácil (`markOf` com
+  `haul()` acima de zero: prêmio fresco de aposta ou o `lucky` dos últimos dias, skill `economia-crime`)
+  tem `allInChance` (com a mesma conta do `eventLuck`, sorteada antes de ler a marca) de cair num evento do `allInEvents` (`eventostudo.go`, place `allInPlace`) antes da aposta;
+  se o evento abrir, a aposta é cancelada e a pessoa precisa mandar o comando de novo depois. O `!bicho` chama o
   `affordable` e só passa pelo `allIn` depois de conferir o limite do tipo de aposta. O `!lance` do leilão
   também usa o `affordable`, mas com o `bidRule` (sem limite) e sem passar pelo `allIn`.
 - **Bolada** (`bolada.go`). O `stirWindfall`, registrado no `AddAfterCommand`, lê o saldo de quem mandou

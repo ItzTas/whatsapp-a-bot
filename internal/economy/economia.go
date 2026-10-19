@@ -266,7 +266,7 @@ func (b *bot) placeStake(ctx context.Context, chat types.JID, acc core.Account, 
 	if err != nil || refusal != "" {
 		return stake, refusal, err
 	}
-	if refusal := b.allIn(ctx, chat, acc, syntax, stake, whole); refusal != "" {
+	if refusal := b.allIn(ctx, chat, acc, stake, whole); refusal != "" {
 		return 0, refusal, nil
 	}
 	return stake, "", nil

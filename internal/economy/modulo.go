@@ -30,7 +30,6 @@ type bot struct {
 	missionSteps   missionLog
 	scenes         sceneBoard
 	tilts          tiltBoard
-	allIns         allInBoard
 	markWarnings   allInBoard
 	windfalls      windfallBoard
 	live           liveBoard
