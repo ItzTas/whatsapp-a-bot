@@ -104,7 +104,9 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   onde quem aparece no aviso passa no `AllowedIn` (o `announce` aceita mais de uma pessoa em destaque, como os ganhadores do `!bicho`: todas são marcadas e passam juntas pelo `AllowedIn`). O submodo é por grupo, como todo modo: grupos
   vinculados dividem as carteiras, mas cada um liga o `anuncios` dele, e sem ele a rotina roda do
   mesmo jeito (cobra, sorteia, paga), só não avisa. Aviso automático novo da economia passa pelo
-  `announce`, nunca pelo `SendText` direto.
+  `announce`, nunca pelo `SendText` direto. A exceção é o aviso de atualização do bot, que também
+  sai pros grupos com o `anuncios` ligado, mas fica no `core` (`versao.go`, seção "Versões e
+  novidades" do CLAUDE.md) e não passa pelo `announce`.
 - As dicas (`dicas.go`) saem pelo `offerTip`, registrado no `AddAfterMessage` depois do
   `announcePayouts`: numa mensagem qualquer, se já passou `tipEvery` desde a última dica daquela
   conversa, o `tipBoard` tira a próxima do baralho dela (embaralhado, sem repetir até acabar) e o

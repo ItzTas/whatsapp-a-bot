@@ -28,6 +28,8 @@ docker build -t whatsapp-a-bot .
 ```
 
 - Não há testes no repositório.
+- Pra testar a versão localmente, gere o arquivo que o CI gera:
+  `git log --reverse --no-merges --format='%H%x1f%s%x1f%b%x1e' > internal/core/versoes/commits.txt`.
 - O `air` lê o `.env` (configurado em `.air.toml`) e roda o binário a partir de `./tmp/main`.
 - O CI (`.github/workflows/build.yml`) roda `go vet` e publica a imagem multi-arch
   (amd64/arm64) em `ghcr.io` a cada push na `main`.
@@ -132,7 +134,28 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
 
 As tarefas em segundo plano (`runLottery`, `runAnimalGame`, `runReminders`, `runBirthdays`, `runTaxes`,
 `runAuctions`, `runLoanSeizures`, `runWanted`, `runGravity`, `runSuccession` e `runPins`) entram pelo `AddJob` e começam no `StartJobs`, depois de
-conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderação).
+conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderação). O
+`announceUpdate` do `core` também é um job, mas roda uma vez só (veja "Versões e novidades").
+
+### Versões e novidades
+
+- A versão sai sozinha dos commits (`internal/core/versao.go`), começando em `v0.0.0` e subindo
+  commit a commit pelo tipo do Conventional Commits: `!` ou `BREAKING CHANGE:` no corpo sobem o
+  major, `feat` o minor, `docs`, `ci`, `build`, `test`, `style` e `refactor` não mudam nada, e o
+  resto (`chore`, `fix`, `perf`...) sobe o patch.
+- O CI grava o `git log` cru em `internal/core/versoes/commits.txt` antes do build (por isso o
+  checkout usa `fetch-depth: 0`), e o binário embute esse arquivo. Ele fica no `.gitignore`, então
+  build local não tem versão e não avisa nada.
+- **As novidades vêm do trailer `Novidade:` no corpo do commit**, uma linha por novidade (dá pra
+  repetir o trailer), em português e no tom informal das respostas do bot, falando do que muda pra
+  quem usa: `Novidade: chegou o !golpe, pra derrubar o presidente na marra`. Commit sem trailer
+  muda a versão mas não aparece no aviso, e commit com trailer sobe pelo menos o patch. Todo commit
+  que muda algo que a galera vê no WhatsApp leva o trailer; refatoração, docs e ajuste interno não.
+- O `PrepareUpdate`, chamado no `main.go` antes de conectar, compara a revisão embutida com a
+  última gravada na tabela `versoes` e já separa os grupos com o submodo `anuncios` ligado (e que
+  passam no `AllowedIn`). Por isso só recebe o aviso quem ligou o `anuncios` antes da atualização.
+  Depois de conectar, o `announceUpdate` manda a lista de versões com novidade (da mais nova pra
+  mais velha) e grava a revisão. Na primeira vez, sem nada gravado, mostra só a versão atual.
 
 ### Comandos, categorias e modos
 
