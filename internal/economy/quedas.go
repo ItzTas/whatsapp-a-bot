@@ -52,6 +52,12 @@ func (b *bot) NoteBet(ctx context.Context, chat types.JID, acc core.Account, sta
 	if err := b.Wallets.noteJackpot(ctx, chat, acc, payout-stake, time.Now()); err != nil {
 		b.Client.Log.Warnf("anotar prêmio de aposta de %s: %v", acc.JID, err)
 	}
+	if err := b.Wallets.noteWinnings(ctx, chat, acc, payout-stake, time.Now()); err != nil {
+		b.Client.Log.Warnf("anotar lucro do dia na aposta de %s: %v", acc.JID, err)
+	}
+	if err := b.Wallets.noteRecentWinnings(ctx, chat, acc, payout-stake, time.Now()); err != nil {
+		b.Client.Log.Warnf("anotar lucro recente na aposta de %s: %v", acc.JID, err)
+	}
 }
 
 func (s *walletStore) falls(ctx context.Context, chat types.JID, ranking []wallet) (falls []richFall, err error) {

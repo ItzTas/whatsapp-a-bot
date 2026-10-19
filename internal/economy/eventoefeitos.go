@@ -33,6 +33,10 @@ type eventRun struct {
 	freed  []types.JID
 }
 
+func (run *eventRun) spot() eventSpot {
+	return eventSpot{place: run.place, haul: run.haul}
+}
+
 type eventResult struct {
 	lines   []string
 	freed   []types.JID
@@ -181,7 +185,7 @@ type loseEffect struct{ lo, hi int64 }
 func lose(lo, hi int64) effect { return loseEffect{lo, hi} }
 
 func (e loseEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string, error) {
-	lost, err := burnBalance(ctx, tx, run.chat, run.acc, e.lo, e.hi, 1)
+	lost, err := burnBalance(ctx, tx, run.chat, run.acc, e.lo, e.hi, run.spot().bite())
 	if err != nil || lost == 0 {
 		return "", err
 	}
@@ -201,7 +205,8 @@ func (e skimEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (str
 	if err != nil {
 		return "", err
 	}
-	lost := min(run.haul*between(e.lo, e.hi)/100, max(balance, 0))
+	bitten := int64(float64(run.haul*between(e.lo, e.hi)/100) * run.spot().bite())
+	lost := min(bitten, run.haul, max(balance, 0))
 	if lost <= 0 {
 		return "", nil
 	}

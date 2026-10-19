@@ -45,7 +45,7 @@ func (b *bot) libertar(ctx context.Context, evt *events.Message) error {
 	if job.releaseChance == 0 {
 		return b.SendText(ctx, chat, "🚫 Só quem tem poder pra isso consegue libertar alguém: "+releasingProfessions()+", ou o presidente")
 	}
-	r, err := b.Wallets.release(ctx, chat, liberatorAcc, prisonerAcc, job.releaseChance, job.releaseFineShare(), job.pace(releaseCooldown), time.Now())
+	r, err := b.Wallets.release(ctx, chat, liberatorAcc, prisonerAcc, job.sober(job.releaseChance), job.releaseFineShare(), job.pace(releaseCooldown), time.Now())
 	if err != nil {
 		return fmt.Errorf("libertar: %w", err)
 	}

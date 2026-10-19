@@ -451,7 +451,7 @@ func (b *bot) castCharm(ctx context.Context, evt *events.Message, curse bool) er
 	}
 	odds := 1.0
 	if curse {
-		odds = job.hexOdds()
+		odds = job.sober(job.hexOdds())
 	}
 	order := charmOrder{chat: chat, caster: casterAcc, target: targetAcc, charm: c, odds: odds, pierce: job.divine, cd: job.pace(charmCooldown), now: time.Now()}
 	s, err := b.Wallets.cast(ctx, order)

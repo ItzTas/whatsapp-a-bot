@@ -371,8 +371,8 @@ func (p Profession) forage(a activity) activity {
 	if p.compassLure > 0 {
 		a.loot = lureCompasses(a.loot, p.compassLure)
 	}
-	if p.barrenHauls != 0 {
-		a.loot = barrenLoot(a.loot, p.barrenHauls)
+	if barren := p.barrenHauls + int64(p.hangover*hangoverBarren); barren != 0 {
+		a.loot = barrenLoot(a.loot, barren)
 	}
 	if p.gatherRare > 0 {
 		a.loot = boostRare(a.loot, p.gatherRare)

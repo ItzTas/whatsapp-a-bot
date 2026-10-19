@@ -20,7 +20,7 @@ const (
 	blackMarketBuyback    = 60
 	blackMarketMinPercent = 60
 	blackMarketMaxPercent = 180
-	raidChance            = 0.12
+	raidChance            = 0.09
 	hotGearChance         = 0.25
 	hotToolChance         = 0.5
 	drugMixOverdose       = 0.15

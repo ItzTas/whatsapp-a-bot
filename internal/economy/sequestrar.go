@@ -85,7 +85,7 @@ func (b *bot) sequestrar(ctx context.Context, evt *events.Message) error {
 	}
 	odds := kidnapOdds{
 		lawful:  owed != nil,
-		success: kidnapperJob.kidnapOdds(victimJob, owed),
+		success: kidnapperJob.sober(kidnapperJob.kidnapOdds(victimJob, owed)),
 		caught:  kidnapperJob.flagrantOdds(victimJob.caughtOdds()),
 		jail:    Profession{jailTime: baseJail}.sentence(kidnapperJob),
 		risk:    kidnapRisk.by(kidnapperJob).on(victimJob),

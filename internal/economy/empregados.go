@@ -73,7 +73,7 @@ var staff = []employee{
 	{id: "contador-veterano", name: "Contador veterano", emoji: "🧮", price: 24_000, taxCut: 40},
 	{id: "enfermeiro-aprendiz", name: "Enfermeiro aprendiz", emoji: "🩺", price: 2_500, care: 50, aliases: []string{"enfermeira aprendiz"}},
 	{id: "enfermeiro-veterano", name: "Enfermeiro veterano", emoji: "🩺", price: 8_000, care: 100, aliases: []string{"enfermeira veterana"}},
-	{id: "seguranca", name: "Segurança particular", emoji: "🕶️", price: 20_000, wage: 1_000, watch: 15, aliases: []string{"guarda-costas"}},
+	{id: "seguranca", name: "Segurança particular", emoji: "🕶️", price: 20_000, wage: 1_000, watch: 10, aliases: []string{"guarda-costas"}},
 }
 
 func employeeByID(id string) (employee, bool) {

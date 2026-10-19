@@ -230,7 +230,7 @@ func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robbe
 		}
 		h.gear = gear
 		h.chance = clampChance(heistChance + crewBonus(robbers) + gearBonus(gear))
-		h.success = rand.Float64() < h.chance
+		h.success = rand.Float64() < crewHangover(robbers, func(r robber) Profession { return r.job }).sober(h.chance)
 		if err := woundCrew(ctx, tx, chat, h.robbers, h.success, now); err != nil {
 			return err
 		}
@@ -300,7 +300,7 @@ func jailCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robbe
 		if r.shielded = rand.Float64() >= r.job.flagrantOdds(1); r.shielded {
 			continue
 		}
-		if rand.Float64() < r.job.escapeOdds() {
+		if rand.Float64() < r.job.sober(r.job.escapeOdds()) {
 			continue
 		}
 		r.caught = true

@@ -148,7 +148,12 @@ func bury(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, f
 	if d.deposed, err = deposeTyrant(ctx, tx, chat, acc, now); err != nil {
 		return d, err
 	}
-	if d.lost, err = burnBalance(ctx, tx, chat, acc, f.minPercent, f.maxPercent, 1); err != nil || d.lost == 0 || f.heir.Key == "" {
+	spilled, err := spillJackpot(ctx, tx, chat, acc, now)
+	if err != nil {
+		return d, err
+	}
+	burned, err := burnBalance(ctx, tx, chat, acc, f.minPercent, f.maxPercent, 1)
+	if d.lost = spilled + burned; err != nil || d.lost == 0 || f.heir.Key == "" {
 		return d, err
 	}
 	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", d.lost, chat.String(), f.heir.Key)

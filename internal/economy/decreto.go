@@ -366,6 +366,7 @@ type PrizeBoost struct {
 	decree  int64
 	luck    int64
 	heat    int64
+	solace  int64
 	rescued bool
 }
 
@@ -407,7 +408,7 @@ func (pb PrizeBoost) Pay(stake, payout int64) int64 {
 	if payout <= stake {
 		return payout
 	}
-	return stake + (payout-stake)*(100+pb.decree+pb.luck)/100
+	return stake + (payout-stake)*(100+pb.decree+pb.luck+pb.solace)/100
 }
 
 func (pb PrizeBoost) Tag(stake, payout int64) string {
@@ -420,6 +421,9 @@ func (pb PrizeBoost) Tag(stake, payout int64) string {
 	}
 	if pb.luck != 0 {
 		parts = append(parts, fmt.Sprintf("🃏 %+d%% de sorte", pb.luck))
+	}
+	if pb.solace != 0 {
+		parts = append(parts, fmt.Sprintf("🩹 %+d%% de consolo", pb.solace))
 	}
 	if len(parts) == 0 {
 		return ""

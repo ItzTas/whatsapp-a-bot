@@ -13,7 +13,9 @@ import (
 
 const (
 	windfallPlace     = "bolada"
-	windfallWindow    = 2 * time.Hour
+	windfallWindow    = 24 * time.Hour
+	windfallFade      = 72 * time.Hour
+	windfallFadeStep  = 12 * time.Hour
 	windfallFloor     = 5_000
 	windfallShare     = 30
 	windfallCeiling   = 50_000
@@ -21,6 +23,11 @@ const (
 	windfallChanceMax = 0.6
 	windfallRiseFrom  = 50_000
 	windfallRiseTo    = 100_000
+	windfallBiteMax   = 3.0
+	windfallBiteTo    = 400_000
+	stalkPlace        = "alvofacil"
+	stalkShare        = 0.25
+	stalkEvery        = 4 * time.Hour
 )
 
 type purse struct {
@@ -31,6 +38,7 @@ type purse struct {
 type windfallBoard struct {
 	mu     sync.Mutex
 	purses map[string]purse
+	stalks map[string]time.Time
 }
 
 func (w *windfallBoard) struck(key string, balance int64, now time.Time) (int64, bool) {
@@ -40,7 +48,8 @@ func (w *windfallBoard) struck(key string, balance int64, now time.Time) (int64,
 		w.purses = map[string]purse{}
 	}
 	p, ok := w.purses[key]
-	if !ok || now.Sub(p.since) > windfallWindow {
+	kept := windfallKept(now.Sub(p.since))
+	if !ok || kept == 0 {
 		w.purses[key] = purse{base: balance, since: now}
 		return 0, false
 	}
@@ -48,17 +57,58 @@ func (w *windfallBoard) struck(key string, balance int64, now time.Time) (int64,
 		w.purses[key] = purse{base: balance, since: p.since}
 		return 0, false
 	}
-	haul := balance - p.base
-	if haul < min(max(windfallFloor, p.base*windfallShare/100), windfallCeiling) {
+	haul := int64(float64(balance-p.base) * kept)
+	if haul < windfallBar(p.base) {
 		return 0, false
 	}
 	w.purses[key] = purse{base: balance, since: now}
 	return haul, true
 }
 
+func windfallBar(base int64) int64 {
+	return min(max(windfallFloor, base*windfallShare/100), windfallCeiling)
+}
+
+func (w *windfallBoard) stalk(key string, now time.Time) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if last, ok := w.stalks[key]; ok && now.Sub(last) < stalkEvery {
+		return false
+	}
+	if w.stalks == nil {
+		w.stalks = map[string]time.Time{}
+	}
+	w.stalks[key] = now
+	return true
+}
+
+func windfallKept(age time.Duration) float64 {
+	if age <= windfallWindow {
+		return 1
+	}
+	left := windfallWindow + windfallFade - age
+	if left <= 0 {
+		return 0
+	}
+	steps := (left + windfallFadeStep - 1) / windfallFadeStep
+	return float64(steps) / float64(windfallFade/windfallFadeStep)
+}
+
 func windfallOdds(haul int64) float64 {
 	rise := float64(haul-windfallRiseFrom) / float64(windfallRiseTo-windfallRiseFrom)
 	return windfallChance + (windfallChanceMax-windfallChance)*min(max(rise, 0), 1)
+}
+
+func windfallBite(haul int64) float64 {
+	rise := float64(haul-windfallRiseFrom) / float64(windfallBiteTo-windfallRiseFrom)
+	return 1 + (windfallBiteMax-1)*min(max(rise, 0), 1)
+}
+
+func (s eventSpot) bite() float64 {
+	if s.place != windfallPlace && s.place != stalkPlace {
+		return 1
+	}
+	return windfallBite(s.haul)
 }
 
 func (b *bot) stirWindfall(ctx context.Context, evt *events.Message, cmd core.Command) {
@@ -72,12 +122,34 @@ func (b *bot) stirWindfall(ctx context.Context, evt *events.Message, cmd core.Co
 		b.Client.Log.Errorf("ler saldo de %s depois do !%s: %v", acc.JID, cmd.Name, err)
 		return
 	}
-	haul, struck := b.windfalls.struck(eventKey(chat, acc), balance, time.Now())
+	now := time.Now()
+	haul, struck := b.windfalls.struck(eventKey(chat, acc), balance, now)
 	if !struck {
+		b.stirStalker(ctx, evt, chat, acc, balance, now)
 		return
 	}
 	if rand.Float64() >= windfallOdds(haul)*oracleEventFactor {
 		return
 	}
 	b.stirEventFor(ctx, chat, acc, b.SenderIdentities(ctx, evt), eventSpot{place: windfallPlace, won: true, haul: haul})
+}
+
+func (b *bot) stirStalker(ctx context.Context, evt *events.Message, chat types.JID, acc core.Account, balance int64, now time.Time) {
+	roll := rand.Float64()
+	if roll >= windfallChanceMax*stalkShare*oracleEventFactor {
+		return
+	}
+	mark, err := markOf(ctx, b.Wallets.db, chat, acc, now)
+	if err != nil {
+		b.Client.Log.Errorf("ler a marca de alvo fácil de %s: %v", acc.JID, err)
+		return
+	}
+	haul := min(mark.haul(), balance)
+	if haul <= 0 || haul < windfallBar(balance-haul) || roll >= windfallOdds(haul)*stalkShare*oracleEventFactor {
+		return
+	}
+	if !b.windfalls.stalk(eventKey(chat, acc), now) {
+		return
+	}
+	b.stirEventFor(ctx, chat, acc, b.SenderIdentities(ctx, evt), eventSpot{place: stalkPlace, won: true, haul: haul})
 }

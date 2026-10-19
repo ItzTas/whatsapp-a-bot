@@ -50,7 +50,7 @@ type robbery struct {
 	poor     bool
 	alarmed  bool
 	silent   bool
-	jackpot  int64
+	mark     easyMark
 	success  bool
 	amount   int64
 	jail     time.Duration
@@ -320,7 +320,7 @@ func (s *walletStore) payShare(ctx context.Context, chat types.JID, payer core.A
 }
 
 func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim core.Account, cd cooldown, abuse abuser, risk crimeRisk, caught flagrant, now time.Time, minVictim int64,
-	outcome func(thiefBalance, victimBalance, jackpot int64) (success bool, amount int64)) (r robbery, err error) {
+	outcome func(thiefBalance, victimBalance int64, mark easyMark) (success bool, amount int64)) (r robbery, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		for _, acc := range []core.Account{thief, victim} {
 			if err := openWallet(ctx, tx, chat, acc); err != nil {
@@ -339,14 +339,14 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if r.shield, err = shieldOn(ctx, tx, chat, victim, now); err != nil || r.shield > 0 {
 			return err
 		}
-		jackpot, err := freshJackpot(ctx, tx, chat, victim, now)
+		mark, err := markOf(ctx, tx, chat, victim, now)
 		if err != nil {
 			return err
 		}
-		if r.wait, r.abuse, err = stampOrAbuse(ctx, tx, chat, thief, jackpotPace(cd, jackpot), abuse, now); err != nil || r.wait > 0 {
+		if r.wait, r.abuse, err = stampOrAbuse(ctx, tx, chat, thief, jackpotPace(cd, mark.jackpot), abuse, now); err != nil || r.wait > 0 {
 			return err
 		}
-		r.jackpot = jackpot
+		r.mark = mark
 		if err := markCrime(ctx, tx, chat, thief, now); err != nil {
 			return err
 		}
@@ -354,7 +354,7 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if err != nil {
 			return err
 		}
-		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, jackpotAlarm(alarmChance, r.jackpot)); err != nil {
+		if r.alarmed, r.silent, err = soundAlarm(ctx, tx, chat, victim, jackpotAlarm(alarmChance, r.mark.jackpot)); err != nil {
 			return err
 		}
 		if err := r.settle(ctx, tx, chat, thief, victim, thiefBalance, victimBalance, outcome); err != nil {
@@ -364,7 +364,7 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 			return err
 		}
 		if r.success {
-			return raiseShield(ctx, tx, chat, victim, now.Add(jackpotShield(r.jackpot)))
+			return raiseShield(ctx, tx, chat, victim, now.Add(jackpotShield(r.mark.jackpot)))
 		}
 		if r.alarmed || r.scuffle.criminal.died || thiefBalance >= brokeThief || rand.Float64() >= caught.odds {
 			return nil
@@ -388,11 +388,11 @@ func jailRobber(ctx context.Context, tx *ledgerTx, chat types.JID, thief core.Ac
 }
 
 func (r *robbery) settle(ctx context.Context, tx *ledgerTx, chat types.JID, thief, victim core.Account, thiefBalance, victimBalance int64,
-	outcome func(thiefBalance, victimBalance, jackpot int64) (success bool, amount int64)) error {
+	outcome func(thiefBalance, victimBalance int64, mark easyMark) (success bool, amount int64)) error {
 	if r.alarmed {
 		return nil
 	}
-	if r.success, r.amount = outcome(thiefBalance, victimBalance, r.jackpot); r.success {
+	if r.success, r.amount = outcome(thiefBalance, victimBalance, r.mark); r.success {
 		if err := moveCoins(ctx, tx, chat, victim, thief, r.amount); err != nil {
 			return err
 		}

@@ -86,7 +86,7 @@ func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 		return b.SendText(ctx, chat, "🚫 Só quem é do crime pesado pode matar: "+killingProfessions()+". Ou quem anda armado (tem "+lethalWeapons()+" no !mercadonegro), quem tá sob efeito de "+lethalDrugs()+", quem tem a Foice da Comadre Morte, quem tem "+lethalImplants()+" implantado, quem emprestou moedas com o !agiota pra alguém que passou do prazo, ou quem tem o Quepe da Volante, contra o procurado do dia")
 	}
 	odds := killOdds{
-		success: killerJob.killOdds(victimJob),
+		success: killerJob.sober(killerJob.killOdds(victimJob)),
 		caught:  killerJob.flagrantOdds(victimJob.killCaughtOdds()),
 		jail:    Profession{jailTime: baseJail}.sentence(killerJob),
 		pierce:  killerJob.divine || killerJob.reaper,
@@ -94,11 +94,11 @@ func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 		risk:    killRisk.by(killerJob).on(victimJob),
 	}
 	if owed != nil {
-		odds.success = max(odds.success, clampChance(debtKillChance+killerJob.collectionEdge(owed)-victimJob.violenceGuard()))
+		odds.success = max(odds.success, killerJob.sober(clampChance(debtKillChance+killerJob.collectionEdge(owed)-victimJob.violenceGuard())))
 		odds.caught, odds.lawful = 0, true
 	}
 	if manhunt {
-		odds.success = max(odds.success, clampChance(posseKillChance+killerJob.hunts(victimJob)-victimJob.violenceGuard()))
+		odds.success = max(odds.success, killerJob.sober(clampChance(posseKillChance+killerJob.hunts(victimJob)-victimJob.violenceGuard())))
 		odds.caught, odds.lawful, odds.posse = 0, true, true
 	}
 	k, err := b.Wallets.kill(ctx, chat, killerAcc, victimAcc, odds, killerJob.pace(killCooldown), time.Now())

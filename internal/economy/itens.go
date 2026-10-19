@@ -123,6 +123,7 @@ type item struct {
 	hot       bool
 	seed      *crop
 	carry     int64
+	storeOnly bool
 }
 
 type stack struct {
@@ -269,7 +270,7 @@ var catalog = slices.Concat([]item{
 	{id: "ima", name: "Ímã", emoji: "🧲", rarity: common, value: 15, shop: true, aliases: []string{"ima"},
 		gear: &gear{activities: []string{"!vasculhar", "!minerar"}, spent: true, metal: true}},
 	{id: lockItemID, name: "Cadeado", emoji: "🔒", rarity: uncommon, value: 250, shop: true},
-	{id: alarmItemID, name: "Alarme", emoji: "🚨", rarity: uncommon, value: 300, shop: true, carry: alarmCarry},
+	{id: alarmItemID, name: "Alarme", emoji: "🚨", rarity: rare, value: 2_000, shop: true, rotating: true, storeOnly: true, carry: alarmCarry},
 	{id: "caixa-misteriosa", name: "Caixa misteriosa", emoji: "📦", rarity: rare, value: 400, shop: true, aliases: []string{"caixa"},
 		loot: []int{45, 30, 17, 7, 1}, use: "📦 @%s rasgou a fita da caixa misteriosa sem nem ler o que tava escrito"},
 	{id: "caixa-misteriosa-dourada", name: "Caixa misteriosa dourada", emoji: "✨", rarity: epic, value: 1_700, shop: true, rotating: true, aliases: []string{"caixa dourada", "caixa de ouro", "caixa premium"},
@@ -1406,7 +1407,7 @@ func weightedIndex(n int, weight func(i int) int) int {
 }
 
 func (it item) unboxable() bool {
-	return it.luxury || it.illegal || it.hot || it.rarity >= mythic || it.relicOdds > 0 || it.upgrades != "" || it.graft != nil
+	return it.luxury || it.illegal || it.hot || it.storeOnly || it.rarity >= mythic || it.relicOdds > 0 || it.upgrades != "" || it.graft != nil
 }
 
 func upgradeOf(base item) (item, bool) {
@@ -1458,24 +1459,41 @@ func (it item) roll(luck int) itemEffect {
 	if it.loot != nil {
 		e.prize = randomItemOf(it.lootRarity(luck))
 	}
-	if rand.Float64() < it.relicOdds {
+	if jinxedHit(it.relicOdds, luck) {
 		e.prize = core.PickOne(relics())
 	}
 	if rand.Float64() < it.shardOdds {
 		e.prize, _ = itemByID(it.shard)
 	}
 	if it.prizes != nil {
-		e.coins = it.prizes[weightedIndex(len(it.prizes), func(i int) int { return it.prizes[i].weight })].amount
+		e.coins = drawn(min(luck, 0), func() int64 {
+			return it.prizes[weightedIndex(len(it.prizes), func(i int) int { return it.prizes[i].weight })].amount
+		})
 	}
 	return e
 }
 
 func (it item) lootRarity(luck int) int {
-	best := 0
-	for range luck + 1 {
-		best = max(best, weightedIndex(len(it.loot), func(i int) int { return it.loot[i] }))
+	return drawn(luck, func() int { return weightedIndex(len(it.loot), func(i int) int { return it.loot[i] }) })
+}
+
+func drawn[T cmp.Ordered](luck int, draw func() T) T {
+	picked := draw()
+	for range luck {
+		picked = max(picked, draw())
 	}
-	return best
+	for range -luck {
+		picked = min(picked, draw())
+	}
+	return picked
+}
+
+func jinxedHit(chance float64, luck int) bool {
+	hit := rand.Float64() < chance
+	for range -luck {
+		hit = hit && rand.Float64() < chance
+	}
+	return hit
 }
 
 func resetList(columns []string) []string {

@@ -60,7 +60,7 @@ var areas = [...]area{
 	areaComercio: {"comercio", "Comércio", "🛍️",
 		[]string{"maquininha", "mercadoria-encalhada", "cupom-vencido", "rolex-do-paraguai", "perfume", "nota-de-tres", "cd-pirata"}},
 	areaSeguranca: {"lei", "Lei e segurança", "🚔",
-		[]string{"radio-comunicador", "algema", lockItemID, alarmItemID, "carteira-perdida", "celular-afogado", "cafe"}},
+		[]string{"radio-comunicador", "algema", lockItemID, "carteira-perdida", "celular-afogado", "cafe"}},
 	areaCrime: {"crime", "Crime", "🦹",
 		[]string{"touca-ninja", "documento-falso", "mascara", "pe-de-cabra", "planta-do-cofre", "carteira-perdida", "rolex-do-paraguai"}},
 	areaServicos: {"servicos", "Serviços", "🧹",
@@ -272,7 +272,8 @@ type Profession struct {
 	collectVotes int
 	garnish      int64
 
-	decrees decrees
+	decrees  decrees
+	hangover float64
 }
 
 type shift struct {
@@ -331,7 +332,7 @@ func findArea(query string) (int, bool) {
 }
 
 func (p Profession) work(now time.Time) shift {
-	if rand.Float64() < p.bust {
+	if rand.Float64() < p.shaky(p.bust) {
 		s := shift{task: core.PickOne(p.busts), busted: true}
 		if p.bustFine > 0 {
 			s.amount = -(p.bustFine/2 + rand.Int64N(p.bustFine/2+1))
@@ -343,11 +344,11 @@ func (p Profession) work(now time.Time) shift {
 		s.amount += s.amount * p.peak.bonus / 100
 		s.peaked = true
 	}
-	if rand.Float64() < p.doubling() {
+	if rand.Float64() < p.sober(p.doubling()) {
 		s.amount *= 2
 		s.doubled = true
 	}
-	if finds, chance := p.loot(); rand.Float64() < chance {
+	if finds, chance := p.loot(); rand.Float64() < p.sober(chance) {
 		s.found, _ = itemByID(core.PickOne(finds))
 	}
 	return s
@@ -593,9 +594,11 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 		passive []item
 		body    []installed
 		fans    audience
+		won     int64
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { held, err = b.Wallets.charmsOn(gctx, chat, acc, time.Now()); return err })
+	g.Go(func() (err error) { won, err = b.Wallets.recentWinnings(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { body, err = b.Wallets.body(gctx, chat, acc); return err })
 	g.Go(func() (err error) { st, err = b.Wallets.standing(gctx, chat, acc); return err })
 	g.Go(func() (err error) { decreed, err = b.Wallets.decrees(gctx, chat, time.Now()); return err })
@@ -610,7 +613,7 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 	if st.president {
 		job = job.presidential().tyrannical(time.Now())
 	}
-	return job.housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).cleared(st.record, time.Now()).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held), nil
+	return job.housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).cleared(st.record, time.Now()).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held).hungover(won), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target core.Account) (attackerJob, targetJob Profession, err error) {

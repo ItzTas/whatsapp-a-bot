@@ -43,8 +43,10 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   também usa o `affordable`, mas não passa pelo `allIn`.
 - **Bolada** (`bolada.go`). O `stirWindfall`, registrado no `AddAfterCommand`, lê o saldo de quem mandou
   qualquer comando da economia num grupo e guarda no `windfallBoard`, em memória, a base de onde a pessoa
-  partiu (`purse`): a base vale por `windfallWindow`, desce junto quando o saldo cai e, se o saldo subir
-  `windfallShare`% da base (no mínimo `windfallFloor` e no máximo `windfallCeiling`, pra rico não
+  partiu (`purse`): o ganho desde a base conta inteiro por `windfallWindow` e depois vai sumindo aos
+  poucos (`windfallKept`): a cada `windfallFadeStep` conta uma fatia a menos, até zerar em mais
+  `windfallFade`, quando a base recomeça. A base desce junto quando o saldo cai (sem mexer no relógio)
+  e, se o ganho que ainda conta chegar a `windfallShare`% da base (no mínimo `windfallFloor` e no máximo `windfallCeiling`, pra rico não
   precisar de uma bolada do tamanho do saldo), a base vira o saldo de agora e, com a mesma conta
   do `eventLuck` usando o `windfallOdds` (vale `windfallChance` até `windfallRiseFrom` de bolada e sobe
   em linha reta até `windfallChanceMax` em `windfallRiseTo`, então bolada maior chama mais evento), abre um evento com o `place` `windfallPlace` (`bolada`) e `won`
@@ -53,7 +55,20 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   passado pro `eventRun`), que é o que o efeito `skim` morde. O livro é o `windfallEvents`
   (`eventosbolada.go`, "Dinheiro chama ladrão"): gente tentando roubar quem ficou rico, o
   `bolada-casa` só cabe pra quem tem imóvel (`homeOwner`) e o `bolada-leao` cobra a parte da bolada
-  com `skim`, em vez de tirar do saldo inteiro com `lose`.
+  com `skim`, em vez de tirar do saldo inteiro com `lose`. Quanto maior a bolada, mais o livro morde: o
+  `windfallBite` (lido pelo `bite()` do `eventSpot`, que só vale no `windfallPlace` e no `stalkPlace`) multiplica o
+  `lose`, o `skim` e o `price` das opções, de 1x até `windfallRiseFrom` subindo em linha reta até
+  `windfallBiteMax` em `windfallBiteTo`. O `skim` multiplicado continua limitado à bolada e ao saldo,
+  e o preço mostrado na enquete já sai multiplicado (`eventCase.priceOf`).
+- **Alvo fácil** (`stirStalker` em `bolada.go`). Quando o `stirWindfall` não dispara, quem tá marcado como
+  alvo fácil (`markOf`, skill `economia-crime`: prêmio fresco de aposta ou o `lucky` dos últimos dias) ainda
+  pode cair num evento a cada comando da economia, enquanto o ganho da marca (`easyMark.haul`, o prêmio ou o
+  lucro dos dias, limitado ao saldo) for do tamanho que soltaria a bolada (`windfallBar` do saldo de antes do
+  ganho). A chance é o `windfallOdds` desse ganho vezes `stalkShare`, na conta do `eventLuck`, então sai bem
+  menos que a bolada, e no máximo um a cada `stalkEvery` por pessoa (`windfallBoard.stalk`, em memória). O
+  sorteio vem antes de ler o banco. O `place` é o `stalkPlace` (`alvofacil`), com `won` verdadeiro e o ganho
+  no `haul`, e só cabem nele os eventos pesados do `windfallEvents` que citam o lugar no `places` (sequestro
+  relâmpago, quadrilha, conta invadida e golpe da central).
 - **Cassino furioso** (`cassinofurioso.go`). O `stirCasinoWrath`, também no `AddAfterCommand`, roda
   depois de `!apostar`, `!cassino`, `!blackjack`, `!crash`, `!corrida` e `!roleta` e só faz alguma coisa
   com o decreto `cassino` positivo (o prêmio a mais; a taxa negativa não conta). A chance cresce com o
@@ -66,7 +81,7 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   presidente.
 - **Escolha do evento.** O `pickScenario` dá prioridade a um evento marcado com `plant` que já venceu
   (`eventos_marcados`), senão sorteia pelo `weight` entre os que cabem (`fits`: `places`, `areas`, `jobs`,
-  `when` e pelo menos 2 opções liberadas). Os lugares dos livros especiais (apostas, `tudo`, `bolada` e
+  `when` e pelo menos 2 opções liberadas). Os lugares dos livros especiais (apostas, `tudo`, `bolada`, `alvofacil` e
   os do cassino furioso, juntos no `sealedPlaces`) são fechados: lá só sai evento que cita o lugar no
   `places` (`covers`), então os Gerais, os Raros universais e os de área ou profissão nunca aparecem
   neles. Livro especial novo com gatilho próprio entra no `sealedPlaces`. O peso é o da raridade (`commonEvent`, `rareEvent`,
@@ -79,7 +94,12 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   `stage` nunca é sorteado: só abre pelo `next` de um desfecho ou por um `plant`.
 - **Pendente.** Um por pessoa e conversa (`sceneBoard.pending`, chave `eventKey`), achado também pelo id da
   mensagem e da enquete (`sceneBoard.messages`). Guardado com `KeepGame` (tipo `evento`) e retomado pelo
-  `restoreEvent`; o timer de `eventIdle` resolve com o `idle` do evento (ou o texto padrão). O
+  `restoreEvent`; o timer de `eventIdle` resolve pelo `ignored`. Evento `dreadful` (algum desfecho tem efeito
+  com `fortune` até `dreadFortune`, ou seja cadeia, ferramenta quebrada ou morte, e alguma opção livre tem
+  desfecho ruim) castiga quem fica parado: o `fates` junta os desfechos ruins (`grim`: `omen` negativo e
+  sem `next`) das opções livres, com o peso do `roll`, e sorteia um, e a resposta diz qual opção a
+  situação escolheu (`eventPlay.fate`). A abertura desses eventos avisa com ⚠️. Os outros resolvem com o
+  `idle` do evento (ou o texto padrão), que nos `dreadful` só sobra de reserva. O
   `OnModeOff` da economia (`haltEvents`) descarta os pendentes da conversa.
 - **Resposta.** O observador `answerEvent` aceita o voto na enquete (só de quem é dono, comparando pelo
   `User` dos ids guardados) ou uma resposta citando a mensagem ou a enquete com o número da opção. O

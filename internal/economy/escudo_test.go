@@ -46,8 +46,8 @@ func TestRobberyGuards(t *testing.T) {
 	}
 	cd := cooldown{column: "roubo_em", every: robEvery}
 	jail := flagrant{odds: 1, jail: baseJail}
-	succeed := func(int64, int64, int64) (bool, int64) { return true, 1_000 }
-	fail := func(thief, _, _ int64) (bool, int64) { return false, thief / 10 }
+	succeed := func(int64, int64, easyMark) (bool, int64) { return true, 1_000 }
+	fail := func(thief, _ int64, _ easyMark) (bool, int64) { return false, thief / 10 }
 	setBalance(t, victim, 80_000)
 	setBalance(t, rich, 5_000)
 	setBalance(t, broke, brokeThief-1)

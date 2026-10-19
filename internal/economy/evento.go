@@ -27,6 +27,7 @@ const (
 	eventChatMemory   = 3
 	eventQuestion     = "🤔 E agora, o que você faz?"
 	eventRestoreGrace = 30 * time.Second
+	dreadFortune      = -2
 
 	universalEventWeight = 15
 	jobEventWeight       = 200
@@ -198,10 +199,69 @@ func (sc scenario) timeout() ending {
 	return ending{texts: []string{"{@} ficou parado pensando na vida, e a chance passou"}}
 }
 
+type fate struct {
+	label  string
+	weight int
+	ending ending
+}
+
+func (sc scenario) ignored(job Profession) eventPlay {
+	fates := sc.fates(job)
+	if len(fates) == 0 {
+		return eventPlay{ending: sc.timeout()}
+	}
+	f := fates[weightedIndex(len(fates), func(i int) int { return fates[i].weight })]
+	return eventPlay{fate: f.label, ending: f.ending}
+}
+
+func (sc scenario) fates(job Profession) []fate {
+	if !sc.dreadful() {
+		return nil
+	}
+	var fates []fate
+	for _, ch := range sc.choices {
+		if !ch.free() {
+			continue
+		}
+		weights := ch.weights(job)
+		for i, e := range ch.endings {
+			if e.grim() && weights[i] > 0 {
+				fates = append(fates, fate{label: ch.label, weight: weights[i], ending: e})
+			}
+		}
+	}
+	return fates
+}
+
+func (sc scenario) dreadful() bool {
+	severe := slices.ContainsFunc(sc.choices, func(ch choice) bool {
+		return slices.ContainsFunc(ch.endings, ending.severe)
+	})
+	return severe && slices.ContainsFunc(sc.choices, func(ch choice) bool {
+		return ch.free() && slices.ContainsFunc(ch.endings, func(e ending) bool { return e.grim() && e.weight > 0 })
+	})
+}
+
+func (e ending) severe() bool {
+	return slices.ContainsFunc(e.effects, func(ef effect) bool { return ef.fortune() <= dreadFortune })
+}
+
+func (e ending) grim() bool {
+	return e.next == "" && e.omen() < 0
+}
+
+func (ch choice) free() bool {
+	return ch.needs == nil && ch.uses == "" && ch.price == cost{}
+}
+
 func (ch choice) available(c eventCase) bool {
 	return (ch.needs == nil || ch.needs(c)) &&
 		(ch.uses == "" || c.has(ch.uses)) &&
-		(ch.price == cost{} || c.balance >= ch.price.of(c.balance))
+		(ch.price == cost{} || c.balance >= c.priceOf(ch))
+}
+
+func (c eventCase) priceOf(ch choice) int64 {
+	return int64(float64(ch.price.of(max(c.balance, 0))) * c.bite())
 }
 
 func (ch choice) option(price int64) string {
@@ -372,6 +432,7 @@ type eventPlay struct {
 	choice *choice
 	price  int64
 	label  string
+	fate   string
 	ending ending
 }
 
@@ -502,7 +563,7 @@ func newPendingEvent(chat types.JID, acc core.Account, ids []types.JID, sc liste
 		stake: c.job.shiftValue(), expires: c.now.Add(eventIdle), foreseen: c.job.oracle,
 	}
 	for _, i := range sc.open(c) {
-		price := sc.choices[i].price.of(max(c.balance, 0))
+		price := c.priceOf(sc.choices[i])
 		ev.options = append(ev.options, i)
 		ev.prices = append(ev.prices, price)
 		ev.labels = append(ev.labels, sc.choices[i].option(price)+sc.choices[i].reading(c.job))
@@ -551,6 +612,9 @@ func (ev *pendingEvent) opening(sc listedScenario) string {
 		sc.title, sc.rarity.badge(), ev.render(core.PickOne(sc.intros)), core.FormatWait(eventIdle), ev.acc.JID.User)
 	if ev.foreseen {
 		text += fmt.Sprintf("\n🐚 Os búzios de @%s já leram o destino: cada opção mostra a chance de dar bom e de dar ruim", ev.acc.JID.User)
+	}
+	if sc.dreadful() {
+		text += "\n⚠️ Ficar parado nesse aqui sai caro: sem voto, a situação escolhe por você e dá ruim"
 	}
 	return text
 }
@@ -605,7 +669,10 @@ func pickedLabel(labels []string, selected [][]byte) int {
 }
 
 func (ev *pendingEvent) play(sc listedScenario, pick int, job Profession) eventPlay {
-	if pick < 0 || pick >= len(ev.options) || ev.options[pick] >= len(sc.choices) {
+	if pick < 0 {
+		return sc.ignored(job)
+	}
+	if pick >= len(ev.options) || ev.options[pick] >= len(sc.choices) {
 		return eventPlay{ending: sc.timeout()}
 	}
 	ch := sc.choices[ev.options[pick]]
@@ -771,6 +838,9 @@ func (b *bot) haltEvents(ctx context.Context, chat types.JID) {
 
 func (ev *pendingEvent) outcome(sc listedScenario, play eventPlay, res eventResult) string {
 	head := fmt.Sprintf("⌛ *%s*: @%s não escolheu a tempo", sc.title, ev.acc.JID.User)
+	if play.fate != "" {
+		head = fmt.Sprintf("⌛ *%s*: @%s não escolheu a tempo, e a situação escolheu %s no lugar", sc.title, ev.acc.JID.User, play.fate)
+	}
 	if play.choice != nil {
 		head = fmt.Sprintf("🎲 *%s*: @%s escolheu %s", sc.title, ev.acc.JID.User, play.label)
 	}

@@ -66,7 +66,7 @@ func (b *bot) fugir(ctx context.Context, evt *events.Message) error {
 			return b.helpEscape(ctx, chat, job, person, friend, acc, friendAcc)
 		}
 	}
-	odds := getawayOdds{jail: job.escapeOdds(), captivity: job.breakoutOdds()}
+	odds := getawayOdds{jail: job.sober(job.escapeOdds()), captivity: job.sober(job.breakoutOdds())}
 	e, err := b.Wallets.escape(ctx, chat, acc, odds, time.Now())
 	if err != nil {
 		return fmt.Errorf("fugir: %w", err)
@@ -77,7 +77,7 @@ func (b *bot) fugir(ctx context.Context, evt *events.Message) error {
 
 func (b *bot) helpEscape(ctx context.Context, chat types.JID, job Profession, helper, friend types.JID, helperAcc, friendAcc core.Account) error {
 	odds := rescueOdds{
-		getaway: getawayOdds{jail: job.escapeOdds(), captivity: job.breakoutOdds()},
+		getaway: getawayOdds{jail: job.sober(job.escapeOdds()), captivity: job.sober(job.breakoutOdds())},
 		caught:  job.flagrantOdds(rescueCaught),
 		jail:    Profession{jailTime: baseJail}.sentence(job),
 	}

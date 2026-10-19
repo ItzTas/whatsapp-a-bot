@@ -44,7 +44,7 @@ func (b *bot) reviver(ctx context.Context, evt *events.Message) error {
 	if job.reviveChance == 0 {
 		return b.SendText(ctx, chat, "🚫 Só quem mexe com o além consegue reviver alguém: "+revivingProfessions()+", o presidente, ou quem tem o Livro de São Cipriano")
 	}
-	r, err := b.Wallets.revive(ctx, chat, healerAcc, deadAcc, job.reviveChance, job.soulPact, job.pace(reviveCooldown), time.Now())
+	r, err := b.Wallets.revive(ctx, chat, healerAcc, deadAcc, job.sober(job.reviveChance), job.soulPact, job.pace(reviveCooldown), time.Now())
 	if err != nil {
 		return fmt.Errorf("reviver: %w", err)
 	}

@@ -22,6 +22,25 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
 - O `boxLuck` da profissão (hoje só o youtuber de unboxing) dá sorteios extras no `loot` das caixas
   e baús abertos no `!usar`: o `item.roll` sorteia `boxLuck + 1` vezes e fica com a raridade mais
   alta (`lootRarity`). A chance de relíquia (`relicOdds`) e os prêmios em moeda não mudam.
+- O azar da caixa (`caixaazarada.go`, tabela `apostas_recentes`) é o contrário do `boxLuck`: o
+  `NoteBet` grava cada resultado de aposta com a hora, e quem tem lucro líquido de pelo menos
+  `boxJinxMin` nas últimas `boxJinxWindow` (4h) leva `boxJinxDraws` a menos de sorte em toda caixa
+  e baú do `!usar` (`boxJinx`, lido em paralelo com a profissão no `boxLuck`, e o saldo dos dois
+  pode ficar negativo). Com sorte negativa, o `drawn` fica com o pior dos sorteios: a raridade do
+  `loot`, o prêmio em moeda (`prizes`) e a chance de relíquia (`jinxedHit`, que exige acertar todos).
+  A sorte positiva continua sem mexer em moeda nem relíquia. O `!bicho` não passa pelo `NoteBet` e
+  fica de fora. É escondido como a série: nada no `Help`, nas dicas, nos `perks()` nem no
+  trailer `Novidade:` fala disso.
+- A ressaca (`ressaca.go`) lê o mesmo lucro das últimas `boxJinxWindow` (`recentWinnings`, em
+  paralelo no `ProfessionOf`) e põe no `hangover` da profissão (`hungover`, o último passo da
+  cadeia, que pula o deus) o `hangoverOf`: `hangoverStep` a partir de `hangoverFloor`, mais
+  `hangoverStep` a cada 10x, até `hangoverMax`. É uma fração da chance, não pontos percentuais: o
+  `sober` multiplica a chance de sucesso por `1 - hangover` (crimes, `!fugir`, `!libertar`,
+  `!reviver`, `!denunciar`, maldição, achado e dobro do `!trabalhar`), o `shaky` multiplica o
+  `bust` do `!trabalhar` por `1 + hangover` (até 95%) e o `forage` soma `hangover * hangoverBarren`
+  no `barrenHauls` das extrações. Nos crimes em grupo (`!assalto`, `!golpe`, `!quadrilha`), o
+  `crewHangover` fica com a ressaca do pior membro. Chance nova que deva sofrer com a ressaca
+  passa pelo `sober`. Escondida como a série.
 - Toda profissão pode achar item no `!trabalhar` (`oficio.go`): o `loot()` usa o `finds`/`findChance`
   da profissão e, se ela não tiver `finds`, cai nos `finds` da área (`areas` em `profissao.go`) com
   `areaFindChance`. Cada área tem um instrumento de trabalho no `catalog` (campo `trade`, um por
@@ -155,3 +174,9 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   cheio com os bônus de decreto e sorte. Isso é escondido de propósito:
   nada no `Help`, nas dicas ou no `Tag` do resultado fala da série. Jogo de aposta novo passa pelo
   `PlaceBet` e pelo `NoteBet` pra entrar nela.
+- O consolo (`serie.go`, coluna `aposta_perda` da `carteiras`) é o contrário da série, e bem
+  pequeno: o `NoteBet` soma cada perda líquida no `aposta_perda` e desconta cada lucro (nunca fica
+  abaixo de zero), e o `PlaceBet` lê junto com a série (`betRecord`) e põe no `solace` do
+  `PrizeBoost` o `betSolace`: `solaceStep` pontos percentuais a cada 10x acima de `solaceFloor`,
+  até `solaceMax`. Ele não mexe na chance, só soma no lucro pelo `Pay`, junto do decreto e da
+  sorte, e aparece no `Tag` (🩹 consolo). O `!bicho` não passa pelo `PlaceBet` e fica de fora.

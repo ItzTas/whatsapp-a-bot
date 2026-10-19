@@ -226,20 +226,21 @@ type wager struct {
 
 func (b *bot) PlaceBet(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (wager, string, error) {
 	var (
-		p    presidency
-		job  Profession
-		heat int64
+		p      presidency
+		job    Profession
+		heat   int64
+		solace int64
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { p, _, err = b.Wallets.presidency(gctx, chat, time.Now()); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
-	g.Go(func() (err error) { heat, err = b.Wallets.betHeat(gctx, chat, acc); return err })
+	g.Go(func() (err error) { heat, solace, err = b.Wallets.betRecord(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return wager{}, "", err
 	}
 	levy := p.casinoLevy(acc)
 	stake, refusal, err := b.stakeAfterLevy(ctx, chat, acc, arg, syntax, levy.percent)
-	return wager{Stake: stake, Boost: PrizeBoost{decree: max(p.decrees.level(casinoDecree), 0), luck: job.casinoLuck, heat: heat, rescued: rand.Float64() < job.rescueOdds}, Levy: levy, job: job}, refusal, err
+	return wager{Stake: stake, Boost: PrizeBoost{decree: max(p.decrees.level(casinoDecree), 0), luck: job.casinoLuck, heat: heat, solace: solace, rescued: rand.Float64() < job.rescueOdds}, Levy: levy, job: job}, refusal, err
 }
 
 func (b *bot) PlaceStake(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (int64, string, error) {
@@ -295,7 +296,7 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
-	chance := clampChance(robSuccessChance + thiefJob.robBonus - victimJob.guard - thiefJob.curfew())
+	chance := thiefJob.sober(clampChance(robSuccessChance + thiefJob.robBonus - victimJob.guard - thiefJob.curfew()))
 	risk := robRisk.by(thiefJob).on(victimJob)
 	caught := flagrant{odds: thiefJob.flagrantOdds(1), jail: Profession{jailTime: baseJail}.sentence(thiefJob)}
 	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), risk, caught, time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
@@ -306,7 +307,7 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 		b.advance(chat, thiefAcc, crimeGoal, 1)
 	}
 	hurtText, freed := r.scuffle.text(thief, victim)
-	text := jackpotText(victim, r.jackpot) + robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
+	text := r.mark.text(victim) + robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
 	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{thief, victim}, freed...))
 	if err != nil || r.wait > 0 || r.shield > 0 || r.poor || r.jail > 0 || r.scuffle.criminal.died {
 		return err
@@ -315,10 +316,10 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 	return nil
 }
 
-func robOutcome(chance float64, haul int64) func(thiefBalance, victimBalance, jackpot int64) (bool, int64) {
-	return func(thiefBalance, victimBalance, jackpot int64) (bool, int64) {
-		if rand.Float64() < jackpotOdds(chance, jackpot) {
-			return true, min(victimBalance, looted(victimBalance, jackpot, robLootMin+rand.Int64N(robLootMax-robLootMin+1))*(100+haul)/100)
+func robOutcome(chance float64, haul int64) func(thiefBalance, victimBalance int64, mark easyMark) (bool, int64) {
+	return func(thiefBalance, victimBalance int64, mark easyMark) (bool, int64) {
+		if rand.Float64() < mark.odds(chance) {
+			return true, min(victimBalance, looted(victimBalance, mark.jackpot, robLootMin+rand.Int64N(robLootMax-robLootMin+1))*(100+haul)/100)
 		}
 		return false, thiefBalance * (10 + rand.Int64N(11)) / 100
 	}

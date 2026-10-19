@@ -303,7 +303,7 @@ func (s *walletStore) coup(ctx context.Context, chat types.JID, a *coupAttempt, 
 				return err
 			}
 		}
-		if a.success = rand.Float64() < a.chance; !a.success {
+		if a.success = rand.Float64() < crewHangover(a.plotters, func(r robber) Profession { return r.job }).sober(a.chance); !a.success {
 			return jailCrew(ctx, tx, chat, a.plotters, now)
 		}
 		return seize(ctx, tx, chat, a.president, a.plotters[0].acc, now)

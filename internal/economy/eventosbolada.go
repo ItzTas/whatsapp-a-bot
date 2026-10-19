@@ -39,8 +39,9 @@ var windfallEvents = eventBook{
 			idle: ending{texts: []string{"{@} ficou paralisado de medo, e os caras, achando que era doido, foram procurar outro"}},
 		},
 		{
-			id:    "bolada-central",
-			title: "Ligação da central",
+			id:     "bolada-central",
+			title:  "Ligação da central",
+			places: []string{windfallPlace, stalkPlace},
 			intros: []string{
 				"Nem deu tempo de comemorar: o celular de {@} tocou. 'Aqui é da central de segurança do banco, detectamos uma movimentação alta na sua conta'",
 				"Chegou um SMS no celular de {@}: 'Sua conta foi bloqueada por movimentação suspeita. Clique no link pra liberar'. Logo depois da bolada, que coincidência",
@@ -145,6 +146,7 @@ var windfallEvents = eventBook{
 		{
 			id:     "bolada-hacker",
 			title:  "Conta invadida",
+			places: []string{windfallPlace, stalkPlace},
 			rarity: rareEvent,
 			intros: []string{
 				"Pouco depois da bolada, chegou um e-mail pra {@}: 'invadimos sua conta. Pague um resgate ou a gente esvazia tudo'. Tinha até uma caveira em ASCII",
@@ -170,6 +172,7 @@ var windfallEvents = eventBook{
 		{
 			id:     "bolada-relampago",
 			title:  "Sequestro relâmpago",
+			places: []string{windfallPlace, stalkPlace},
 			rarity: rareEvent,
 			intros: []string{
 				"Uma van preta parou do lado de {@}, a porta abriu e três mãos puxaram pra dentro. 'Vamo dar uma voltinha até o caixa eletrônico, ricaço'",
@@ -181,9 +184,9 @@ var windfallEvents = eventBook{
 					{weight: 30, texts: []string{"O caixa tava sem dinheiro. Os sequestradores ficaram tão frustrados que soltaram {@} na hora"}},
 				}},
 				{label: "🚪 Pular do carro andando", risk: highRisk, endings: []ending{
-					{weight: 50, texts: []string{"{@} pulou num sinal fechado, rolou na calçada e sumiu num beco. Dolorido, mas com o dinheiro"}, effects: []effect{injure(20, 35)}},
-					{weight: 40, texts: []string{"O carro não tava tão devagar assim"}, effects: []effect{injure(35, 50)}},
-					{weight: 10, texts: []string{"{@} pulou bem na frente de um ônibus"}, effects: []effect{perish()}},
+					{weight: 40, texts: []string{"{@} pulou num sinal fechado, rolou na calçada e sumiu num beco. Dolorido, mas com o dinheiro"}, effects: []effect{injure(15, 30)}},
+					{weight: 35, texts: []string{"O carro não tava tão devagar assim. {@} rolou no asfalto, e a pochete com a bolada ficou no banco de trás"}, effects: []effect{injure(35, 50), lose(15, 25)}},
+					{weight: 25, texts: []string{"{@} pulou bem na frente de um ônibus"}, effects: []effect{perish()}},
 				}},
 				{label: "🗣️ Convencer que é pobre", risk: midRisk, endings: []ending{
 					{weight: 40, texts: []string{"{@} mostrou o extrato de um mês atrás e chorou. Os sequestradores ficaram com pena e deixaram dez conto pro ônibus"}, effects: []effect{earn(10, 30)}},
@@ -199,6 +202,7 @@ var windfallEvents = eventBook{
 		{
 			id:     "bolada-quadrilha",
 			title:  "O plano da quadrilha",
+			places: []string{windfallPlace, stalkPlace},
 			rarity: legendaryEvent,
 			intros: []string{
 				"{@} ouviu sem querer, na mesa do lado, uma quadrilha conhecida combinando o assalto da semana. O alvo, pelo jeito, era {@}",

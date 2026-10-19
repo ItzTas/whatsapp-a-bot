@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro", "!postar", "!publi", "!apostar", "!cassino", "!blackjack", "!crash", "!corrida", windfallPlace, casinoWrathPlace, casinoWatchPlace, allInPlace}
+	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro", "!postar", "!publi", "!apostar", "!cassino", "!blackjack", "!crash", "!corrida", windfallPlace, stalkPlace, casinoWrathPlace, casinoWatchPlace, allInPlace}
 	victimPlaces = []string{"!roubar", "!furtar", "!sequestrar", "!matar", "!quadrilha"}
 	placeholder  = regexp.MustCompile(`\{[^}]*\}`)
 	offCharms    = []string{"dizimo", "pacto", "assombracao"}
@@ -70,7 +70,7 @@ func checkScenario(t *testing.T, sc listedScenario, ids map[string]int, referenc
 		t.Errorf("%s: precisa de 2 a 5 opções, tem %d", sc.id, len(sc.choices))
 	}
 	for _, ch := range sc.choices {
-		if ch.needs == nil && ch.uses == "" && ch.price == (cost{}) {
+		if ch.free() {
 			free++
 		}
 		if ch.label == "" || labels[ch.label] || utf8.RuneCountInString(ch.label) > 45 {
@@ -348,5 +348,42 @@ func TestEventSealedPlaces(t *testing.T) {
 	}
 	if !generalEvents.scenarios[0].covers("!trabalhar") {
 		t.Error("evento geral não sai no !trabalhar")
+	}
+}
+
+func TestEventIgnored(t *testing.T) {
+	dreadful := 0
+	for _, sc := range eventCatalog {
+		if !sc.dreadful() {
+			checkCalmIgnore(t, sc)
+			continue
+		}
+		dreadful++
+		for range 20 {
+			checkDreadIgnore(t, sc, sc.ignored(Profession{}))
+		}
+	}
+	if dreadful == 0 {
+		t.Error("nenhum evento castiga quem fica parado")
+	}
+}
+
+func checkCalmIgnore(t *testing.T, sc listedScenario) {
+	t.Helper()
+	play := sc.ignored(Profession{})
+	if play.fate != "" || play.choice != nil || len(play.ending.effects) != len(sc.timeout().effects) {
+		t.Errorf("%s: evento sem desfecho grave não usa o idle pra quem fica parado", sc.id)
+	}
+}
+
+func checkDreadIgnore(t *testing.T, sc listedScenario, play eventPlay) {
+	t.Helper()
+	i := slices.IndexFunc(sc.choices, func(ch choice) bool { return ch.label == play.fate })
+	if play.choice != nil || i < 0 || !sc.choices[i].free() {
+		t.Errorf("%s: quem fica parado cai na opção %q, que não é uma opção livre do evento", sc.id, play.fate)
+		return
+	}
+	if play.ending.omen() >= 0 || play.ending.next != "" {
+		t.Errorf("%s/%s: quem fica parado cai num desfecho que não é ruim ou abre etapa", sc.id, play.fate)
 	}
 }

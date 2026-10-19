@@ -36,7 +36,11 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `prisao_em`). O `tipoff` de quem vai preso (hoje só o Scanner da polícia, muamba do
   `!mercadonegro`) tira chance do `arrestOdds` do `!prender` (inclusive o do calote do `!agiota`):
   quando ele acerta, o `arrest` volta com `dismissed`, a espera de quem prendeu já foi gasta e o
-  `crime_em` continua, então dá pra tentar de novo. O `!denunciar` não olha o `tipoff`. A saída da cadeia fica em `preso_ate` na `carteiras`. Toda ida pra cadeia
+  `crime_em` continua, então dá pra tentar de novo. Do mesmo jeito, o `slip` do `arrestOdds` (o
+  `!prender` passa `jackpotArrestSlip`) dá pra quem é alvo fácil com prêmio fresco
+  (`slipsArrest`, veja abaixo) uma chance de o advogado soltar na hora: o `arrest` volta com
+  `lawyered`, com a espera gasta e o `crime_em` intacto. O `!denunciar` não olha o `tipoff` nem o
+  `slip`. A saída da cadeia fica em `preso_ate` na `carteiras`. Toda ida pra cadeia
   (`!prender`, `!denunciar`, X-9, pego no `!matar`, no `!sequestrar`, no `!assalto` e no desvio da
   `!igreja`) cobra uma
   multa de `fineMinPercent` a `fineMaxPercent` por cento do saldo e corta `arrestEaseCut` por cento
@@ -155,7 +159,10 @@ Cadeia, flagrante, morte, saúde e tribunal.
   devolvido em `death.hold` pros textos), volta a saúde pra
   `MaxHealth`, solta o refém que a pessoa tiver (`freeHostage`) e o enterro queima de
   `deathLossMinPercent` a `deathLossMaxPercent` por cento do saldo (`burnBalance`, sem piso, pra
-  não zerar quem tem pouco), e as moedas somem, a não ser que o `funeral` tenha `heir` (a Foice). Hoje chamam ele o `kill` do `!matar`, a overdose do
+  não zerar quem tem pouco), e as moedas somem, a não ser que o `funeral` tenha `heir` (a Foice).
+  Antes disso, quem morre com prêmio fresco de aposta (alvo fácil, veja abaixo) perde ainda de
+  `jackpotDeathMinPercent` a `jackpotDeathMaxPercent` por cento do prêmio (`spillJackpot`), somado
+  no `death.lost`, então o `funeralText` e o `heir` já contam essa parte. Hoje chamam ele o `kill` do `!matar`, a overdose do
   `takeDrug` e o `hurt` da saúde zerada. Caminho novo de morte usa o `die` e mostra o `funeralText`.
 - A saúde (`saude.go`) fica nas colunas `saude`/`saude_em` da `carteiras`: vale o número guardado
   mais 1 ponto a cada `healthRegenEvery` desde o `saude_em`, até `MaxHealth`, calculado na leitura
@@ -243,16 +250,32 @@ Cadeia, flagrante, morte, saúde e tribunal.
 - Quem acabou de ganhar muito em aposta vira alvo fácil (`alvofacil.go`, colunas `premio_aposta` e
   `premio_aposta_em` da `carteiras`). O `NoteBet` chama o `noteJackpot`, que guarda o lucro de
   toda aposta de pelo menos `jackpotMin`, somando com o prêmio anterior se ele ainda tá dentro da
-  `jackpotWindow`. No `!roubar` (`rob`) e na `!quadrilha` (`gangRob`), o `freshJackpot` lê o
-  prêmio dentro da transação (limitado ao saldo, zero se já venceu): a espera do roubo de quem
+  `jackpotWindow`. No `!roubar` (`rob`) e na `!quadrilha` (`gangRob`), o `markOf` lê a marca (`easyMark`) dentro da transação, com o
+  prêmio pelo `freshJackpot` (limitado ao saldo, zero se já venceu): a espera do roubo de quem
   ataca cai `jackpotWaitCut` (`jackpotPace`, lido antes do `stampOrAbuse` no `rob` e no
   `robWait` da entrada da `!quadrilha`, que acha a vítima pelo `gangVictim`), a chance ganha
-  `jackpotRobBonus` (`jackpotOdds`), o alarme dela perde `jackpotAlarmCut` de chance de disparar
-  (`jackpotAlarm`, por cima do `alarmChance` ou do `gangAlarmChance`) e o `looted` tira a porcentagem do prêmio cheia, sem as
-  faixas do `exposed`, e o resto do saldo pelas faixas. O roubo que dá certo não apaga o prêmio:
+  `jackpotRobBonus` (`easyMark.odds`), o alarme dela perde `jackpotAlarmCut` de chance de disparar
+  (`jackpotAlarm`, por cima do `alarmChance` ou do `gangAlarmChance`) e o `looted` passa o saldo
+  todo pelas faixas do `exposed`, como num roubo normal, e só por cima do total soma
+  `jackpotLootBonus` (na `!quadrilha`, antes de dividir), então o prêmio não sai com a porcentagem
+  cheia. O roubo que dá certo não apaga o prêmio:
   a marca fica até a `jackpotWindow` acabar, e o escudo que a vítima ganha é o `jackpotShield`,
-  `robShield` com `jackpotShieldCut` a menos. O `jackpotText` avisa na resposta. Não confundir com o evento
-  `bolada` (`bolada.go`), que olha o saldo em memória e não mexe em roubo.
+  `robShield` com um corte que cresce com o prêmio (`jackpotShieldCut`): `jackpotShieldMinCut` no
+  `jackpotMin`, subindo em escala logarítmica até `jackpotShieldMaxCut` no `jackpotShieldTop` ou
+  mais, arredondado pro segundo. O `easyMark.text` avisa na resposta. Morrer com o
+  prêmio fresco, de qualquer jeito, também custa uma parte dele (`spillJackpot` no `bury`, acima).
+  O prêmio fresco também ajuda: o `!prender` nessa pessoa falha `jackpotArrestSlip` das vezes
+  (`slipsArrest`, o advogado pago com o prêmio), e a marca mais fraca do `lucky` não conta.
+  Depois que o prêmio vence, sobra uma marca mais fraca de `luckyDays` dias: o `NoteBet` também
+  chama o `noteWinnings`, que soma o lucro líquido de toda aposta (perda desconta) por dia (BRT) na
+  tabela `apostas_lucro` e apaga os dias velhos da pessoa. Sem prêmio fresco, o `markOf` soma os
+  últimos `luckyDays` dias (`luckySince`) e, com `luckyMin` ou mais, liga o `lucky` do `easyMark`,
+  que só soma `luckyRobBonus` na chance (espera, alarme, escudo e valor levado ficam normais) e
+  troca o aviso da resposta. Com prêmio fresco vale só a marca do alvo fácil, sem somar as duas. Não confundir com o evento
+  `bolada` (`bolada.go`), que olha o saldo em memória e não mexe em roubo. Enquanto a marca durar
+  e o ganho dela (`easyMark.haul`) for do tamanho de uma bolada, a pessoa também pode cair nos
+  eventos pesados da bolada (sequestro relâmpago, quadrilha...) pelo `stirStalker`, com chance
+  menor que a da bolada (skill `economia-eventos`).
 - O abuso de poder (`abuseKinds` em `prender.go`) deixa usar um comando mesmo com a espera dele
   pendente. Hoje tem quatro tipos: prisão (`!prender`), trabalho (`!trabalhar`), roubo (`!roubar`) e
   sequestro (`!sequestrar`). Cada `abuseKind` tem a coluna de espera dele na `carteiras` (`abuso_em`,

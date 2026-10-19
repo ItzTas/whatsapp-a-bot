@@ -55,7 +55,7 @@ func (b *bot) denunciar(ctx context.Context, evt *events.Message) error {
 		return b.punishSnitch(ctx, chat, reporterAcc, suspectAcc, reporterJob, reporter, suspect)
 	}
 	sentence := Profession{jailTime: baseJail}.sentence(suspectJob)
-	a, err := b.Wallets.arrest(ctx, chat, reporterAcc, suspectAcc, cooldown{column: reportCooldown.column, every: reporterJob.hasted(reportCooldown.every)}, nil, sentence, arrestOdds{chance: reporterJob.reportOddsOn(suspectJob), immunity: suspectJob.immunity()}, false, false, time.Now())
+	a, err := b.Wallets.arrest(ctx, chat, reporterAcc, suspectAcc, cooldown{column: reportCooldown.column, every: reporterJob.hasted(reportCooldown.every)}, nil, sentence, arrestOdds{chance: reporterJob.sober(reporterJob.reportOddsOn(suspectJob)), immunity: suspectJob.immunity()}, false, false, time.Now())
 	if err != nil {
 		return fmt.Errorf("denunciar: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/errgroup"
 )
 
 func (b *bot) mochila(ctx context.Context, evt *events.Message) error {
@@ -201,11 +202,20 @@ func unusableText(it item) string {
 }
 
 func (b *bot) boxLuck(ctx context.Context, chat types.JID, acc core.Account, it item) (int, error) {
-	if it.loot == nil {
+	if it.loot == nil && it.prizes == nil {
 		return 0, nil
 	}
-	job, err := b.ProfessionOf(ctx, chat, acc)
-	return job.boxLuck, err
+	var (
+		job  Profession
+		jinx int
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
+	g.Go(func() (err error) { jinx, err = b.Wallets.boxJinx(gctx, chat, acc, time.Now()); return err })
+	if err := g.Wait(); err != nil {
+		return 0, err
+	}
+	return job.boxLuck - jinx, nil
 }
 
 func effectText(it item, e itemEffect) string {

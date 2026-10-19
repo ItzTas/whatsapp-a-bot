@@ -48,7 +48,7 @@ func (b *bot) furtar(ctx context.Context, evt *events.Message) error {
 	if err != nil {
 		return err
 	}
-	t, err := b.Wallets.stealItem(ctx, chat, thiefAcc, victimAcc, thiefJob.theftCooldown(), theftRisk.by(thiefJob), time.Now(), theftChoice(wanted, thiefJob.theftBonus-victimJob.guard-thiefJob.curfew()))
+	t, err := b.Wallets.stealItem(ctx, chat, thiefAcc, victimAcc, thiefJob.theftCooldown(), theftRisk.by(thiefJob), time.Now(), theftChoice(wanted, thiefJob.theftBonus-thiefJob.hangover-victimJob.guard-thiefJob.curfew()))
 	if err != nil {
 		return fmt.Errorf("furtar item: %w", err)
 	}
