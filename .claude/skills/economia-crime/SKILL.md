@@ -128,7 +128,9 @@ Cadeia, flagrante, morte, saúde e tribunal.
     `dia`), marca o dia, apaga a recompensa que o bot tinha botado antes (linha com `autor` =
     `wantedAuthor`, que nenhum `!recompensa retirar` alcança) e bota de `wantedMin` a `wantedMax`
     moedas novas em alguém sorteado entre quem tá vivo e usou `!daily`, `!trabalhar` ou `!roubar`
-    nas últimas `wantedActive`. O aviso sai pelo `announce`, então só nos grupos com o
+    nas últimas `wantedActive` (`wantedSuspects`). O sorteio pesa pelo saldo: cada um entra com peso
+    `saldo + wantedWeightFloor`, então quem tem mais dinheiro é o alvo mais provável, mas quem tá
+    liso ainda pode sair. O aviso sai pelo `announce`, então só nos grupos com o
     submodo `anuncios`, e o `!recompensa` sem marcação mostra o procurado do dia embaixo da lista. Quem mata leva pelo `claimBounty` de sempre, junto do
     resto da cabeça.
   - O Quepe da Volante (relíquia passiva, `posse` na profissão) caça o procurado do dia. O

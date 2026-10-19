@@ -15,17 +15,23 @@ import (
 )
 
 const (
-	wantedHour      = 18
-	wantedAuthor    = "bot"
-	wantedMin       = 500
-	wantedMax       = 2000
-	wantedActive    = 3 * 24 * time.Hour
-	wantedChatLimit = 4
+	wantedHour        = 18
+	wantedAuthor      = "bot"
+	wantedMin         = 500
+	wantedMax         = 2000
+	wantedActive      = 3 * 24 * time.Hour
+	wantedChatLimit   = 4
+	wantedWeightFloor = 1_000
 
 	posseKillChance   = 0.5
 	posseLampiaoBonus = 0.3
 	lampiaoItem       = "chapeu-de-lampiao"
 )
+
+type wantedSuspect struct {
+	acc     core.Account
+	balance int64
+}
 
 type wantedPost struct {
 	target types.JID
@@ -129,25 +135,11 @@ func (s *walletStore) postWanted(ctx context.Context, chat types.JID, day string
 			return err
 		}
 
-		var (
-			target core.Account
-			raw    string
-		)
-		err = tx.QueryRowContext(ctx,
-			`SELECT pessoa, jid FROM carteiras
-			 WHERE chat = ? AND morto_ate <= ? AND MAX(daily_em, trabalho_em, roubo_em) >= ?
-			 ORDER BY RANDOM() LIMIT 1`,
-			chat.String(), now.Unix(), now.Add(-wantedActive).Unix(),
-		).Scan(&target.Key, &raw)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
+		suspects, err := wantedSuspects(ctx, tx, chat, now)
+		if err != nil || len(suspects) == 0 {
 			return err
 		}
-		if target.JID, err = types.ParseJID(raw); err != nil {
-			return err
-		}
+		target := suspects[weightedIndex(len(suspects), func(i int) int { return suspects[i].weight() })].acc
 
 		w.target, w.prize = target.JID, wantedMin+rand.Int64N(wantedMax-wantedMin+1)
 		_, err = tx.ExecContext(ctx,
@@ -162,6 +154,37 @@ func (s *walletStore) postWanted(ctx context.Context, chat types.JID, day string
 		return err
 	})
 	return w, ok, err
+}
+
+func (s wantedSuspect) weight() int {
+	return int(max(s.balance, 0) + wantedWeightFloor)
+}
+
+func wantedSuspects(ctx context.Context, tx *ledgerTx, chat types.JID, now time.Time) (suspects []wantedSuspect, err error) {
+	rows, err := tx.QueryContext(ctx,
+		`SELECT pessoa, jid, saldo FROM carteiras
+		 WHERE chat = ? AND morto_ate <= ? AND MAX(daily_em, trabalho_em, roubo_em) >= ?`,
+		chat.String(), now.Unix(), now.Add(-wantedActive).Unix(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { err = errors.Join(err, rows.Close()) }()
+
+	for rows.Next() {
+		var (
+			s   wantedSuspect
+			raw string
+		)
+		if err := rows.Scan(&s.acc.Key, &raw, &s.balance); err != nil {
+			return nil, err
+		}
+		if s.acc.JID, err = types.ParseJID(raw); err != nil {
+			return nil, err
+		}
+		suspects = append(suspects, s)
+	}
+	return suspects, rows.Err()
 }
 
 func (s *walletStore) wanted(ctx context.Context, chat types.JID) (w wantedPost, ok bool, err error) {
