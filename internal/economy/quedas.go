@@ -43,21 +43,32 @@ func noteLoss(ctx context.Context, db execer, chat types.JID, acc core.Account, 
 }
 
 func (b *bot) NoteBet(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64) {
+	b.noteMarkLevel(ctx, chat, acc, stake)
 	if err := noteLoss(ctx, b.Wallets.db, chat, acc, lossBet, stake-payout); err != nil {
 		b.Client.Log.Warnf("anotar prejuízo de aposta de %s: %v", acc.JID, err)
 	}
 	if err := b.Wallets.noteStreak(ctx, chat, acc, payout-stake); err != nil {
 		b.Client.Log.Warnf("anotar série de apostas de %s: %v", acc.JID, err)
 	}
-	if err := b.Wallets.noteJackpot(ctx, chat, acc, payout-stake, time.Now()); err != nil {
-		b.Client.Log.Warnf("anotar prêmio de aposta de %s: %v", acc.JID, err)
-	}
-	if err := b.Wallets.noteWinnings(ctx, chat, acc, payout-stake, time.Now()); err != nil {
-		b.Client.Log.Warnf("anotar lucro do dia na aposta de %s: %v", acc.JID, err)
-	}
+	b.noteWinnings(ctx, chat, acc, payout-stake)
 	if err := b.Wallets.noteRecentWinnings(ctx, chat, acc, payout-stake, time.Now()); err != nil {
 		b.Client.Log.Warnf("anotar lucro recente na aposta de %s: %v", acc.JID, err)
 	}
+}
+
+func (b *bot) noteWinnings(ctx context.Context, chat types.JID, acc core.Account, net int64) {
+	marked, err := b.Wallets.noteWinnings(ctx, chat, acc, net, time.Now())
+	if err != nil {
+		b.Client.Log.Warnf("anotar lucro de aposta de %s: %v", acc.JID, err)
+		return
+	}
+	if marked == 0 {
+		return
+	}
+	if _, err := b.SendMentions(ctx, chat, markedText(acc.JID, marked), []types.JID{acc.JID}); err != nil {
+		b.Client.Log.Errorf("avisar o alvo fácil %s: %v", acc.JID, err)
+	}
+	b.offerBoost(ctx, chat, acc, marked)
 }
 
 func (s *walletStore) falls(ctx context.Context, chat types.JID, ranking []wallet) (falls []richFall, err error) {

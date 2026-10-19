@@ -9,7 +9,7 @@ var allInEvents = eventBook{
 			title: "A ligação da mãe",
 			intros: []string{
 				"{@} já tava com o dedo no botão de apostar tudo quando o celular tocou. Era a mãe: 'oi, meu filho, tá fazendo o quê?'",
-				"Bem na hora que {@} ia botar o saldo inteiro na mesa, chegou um áudio de três minutos da mãe começando com 'eu sei o que você tá fazendo'",
+				"Bem na hora que {@} ia botar tudo na mesa, chegou um áudio de três minutos da mãe começando com 'eu sei o que você tá fazendo'",
 			},
 			choices: []choice{
 				{label: "📞 Contar a verdade", risk: lowRisk, endings: []ending{
@@ -57,7 +57,7 @@ var allInEvents = eventBook{
 			id:    "tudo-gerente",
 			title: "Cortesia da casa",
 			intros: []string{
-				"O gerente viu {@} chegando com o saldo inteiro na mão e mandou estender o tapete vermelho: 'pra quem vai com tudo, a casa oferece um drink'",
+				"O gerente viu {@} chegando com a bolada toda na mão e mandou estender o tapete vermelho: 'pra quem vai com tudo, a casa oferece um drink'",
 				"Um segurança de terno levou {@} pra uma sala VIP: 'o gerente faz questão de conhecer quem vai apostar tudo hoje'",
 			},
 			choices: []choice{

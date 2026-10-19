@@ -46,14 +46,22 @@ func TestJackpotRobbery(t *testing.T) {
 	seen := int64(-1)
 	peek := func(_, _ int64, m easyMark) (bool, int64) { seen = m.jackpot; return true, 100 }
 
-	if err := s.noteJackpot(ctx, chat, gambler, jackpotMin-1, now); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.noteJackpot(ctx, chat, gambler, 3_000, now); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.noteJackpot(ctx, chat, gambler, 2_000, now.Add(time.Minute)); err != nil {
-		t.Fatal(err)
+	for _, step := range []struct {
+		net    int64
+		at     time.Time
+		marked int64
+	}{
+		{jackpotMin - 1, now, 0},
+		{3_000, now, 3_000},
+		{2_000, now.Add(time.Minute), 0},
+	} {
+		marked, err := s.noteWinnings(ctx, chat, gambler, step.net, step.at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if marked != step.marked {
+			t.Errorf("lucro de %d: o aviso de alvo fácil sai só quando a marca começa (esperava %d, deu %d)", step.net, step.marked, marked)
+		}
 	}
 	robbedAt := now.Add(2 * time.Minute)
 	r, err := s.rob(ctx, chat, thief, gambler, cd, nil, crimeRisk{}, flagrant{}, robbedAt, robMinVictim, peek)
@@ -79,13 +87,47 @@ func TestJackpotRobbery(t *testing.T) {
 		t.Fatalf("passado o escudo curto, a marca de 5.000 continua valendo, chegou %d (%+v, %v)", seen, r, err)
 	}
 
-	if err := s.noteJackpot(ctx, chat, other, 4_000, now); err != nil {
+	if _, err := s.noteWinnings(ctx, chat, other, 4_000, now); err != nil {
 		t.Fatal(err)
 	}
 	seen = -1
 	r, err = s.rob(ctx, chat, late, other, cd, nil, crimeRisk{}, flagrant{}, now.Add(jackpotWindow+time.Second), robMinVictim, peek)
 	if err != nil || seen != 0 {
 		t.Fatalf("passada a janela de %s, o prêmio não conta mais, chegou %d (%+v, %v)", jackpotWindow, seen, r, err)
+	}
+}
+
+func TestJackpotOnlyInProfit(t *testing.T) {
+	ctx := context.Background()
+	chat := types.NewJID("120363000000000001", types.GroupServer)
+	s, people := jackpotWallets(t, ctx, chat, "5511900000001")
+	gambler := people[0]
+	now := time.Unix(time.Now().Unix(), 0)
+
+	steps := []struct {
+		name   string
+		net    int64
+		marked int64
+		mark   int64
+	}{
+		{"quem perdeu 20.000 não fica marcado(a)", -20_000, 0, 0},
+		{"ganhar 3.000 no prejuízo não marca", 3_000, 0, 0},
+		{"ganhar 18.000 e ficar 1.000 no lucro marca com o lucro de verdade", 18_000, 1_000, 1_000},
+		{"perder 500 e ficar abaixo do mínimo de lucro tira a marca", -500, 0, 0},
+	}
+	for i, step := range steps {
+		at := now.Add(time.Duration(i) * time.Second)
+		marked, err := s.noteWinnings(ctx, chat, gambler, step.net, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mark, err := markOf(ctx, s.db, chat, gambler, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if marked != step.marked || mark.jackpot != step.mark {
+			t.Errorf("%s: esperava aviso de %d e marca de %d, deu aviso de %d e marca de %d", step.name, step.marked, step.mark, marked, mark.jackpot)
+		}
 	}
 }
 
@@ -113,7 +155,7 @@ func TestJackpotShortensRobWait(t *testing.T) {
 	if _, err := s.rob(ctx, chat, thief, first, cd, nil, crimeRisk{}, flagrant{}, now, robMinVictim, miss); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.noteJackpot(ctx, chat, gambler, 5_000, now); err != nil {
+	if _, err := s.noteWinnings(ctx, chat, gambler, 5_000, now); err != nil {
 		t.Fatal(err)
 	}
 	short := jackpotPace(cd, 1).every
@@ -140,7 +182,7 @@ func TestJackpotDeath(t *testing.T) {
 	now := time.Unix(time.Now().Unix(), 0)
 
 	for _, acc := range []core.Account{gambler, stale} {
-		if err := s.noteJackpot(ctx, chat, acc, 20_000, now); err != nil {
+		if _, err := s.noteWinnings(ctx, chat, acc, 20_000, now); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -197,20 +239,17 @@ func TestLuckyMarkAfterJackpot(t *testing.T) {
 	}{
 		{lucky, 6_000, now.Add(-2 * day)},
 		{lucky, -500, now.Add(-day)},
-		{lucky, 5_000, now},
+		{lucky, 5_000, now.Add(-jackpotWindow - time.Minute)},
 		{faded, 20_000, now.Add(-3 * day)},
-		{faded, 1_000, now},
+		{faded, 1_000, now.Add(-jackpotWindow - time.Minute)},
 		{loser, 15_000, now.Add(-day)},
 		{loser, -6_000, now},
 		{fresh, 12_000, now},
 	}
 	for _, w := range wins {
-		if err := s.noteWinnings(ctx, chat, w.acc, w.net, w.at); err != nil {
+		if _, err := s.noteWinnings(ctx, chat, w.acc, w.net, w.at); err != nil {
 			t.Fatal(err)
 		}
-	}
-	if err := s.noteJackpot(ctx, chat, fresh, 12_000, now); err != nil {
-		t.Fatal(err)
 	}
 
 	cases := []struct {
@@ -221,7 +260,7 @@ func TestLuckyMarkAfterJackpot(t *testing.T) {
 		{"quem lucrou 10.500 em 3 dias fica marcado(a) depois que o prêmio vence", lucky, easyMark{lucky: true, won: 10_500}},
 		{"lucro de mais de 3 dias atrás não conta", faded, easyMark{}},
 		{"as perdas dos 3 dias descontam do lucro", loser, easyMark{}},
-		{"com o prêmio fresco vale só a marca do alvo fácil", fresh, easyMark{jackpot: 12_000}},
+		{"com o prêmio fresco vale só a marca do alvo fácil, no nível 1", fresh, easyMark{jackpot: 12_000, level: 1}},
 	}
 	for i, c := range cases {
 		var got easyMark
@@ -250,7 +289,7 @@ func TestJackpotArrestSlip(t *testing.T) {
 	cop, gambler, plain := people[0], people[1], people[2]
 	now := time.Unix(time.Now().Unix(), 0)
 
-	if err := s.noteJackpot(ctx, chat, gambler, 20_000, now); err != nil {
+	if _, err := s.noteWinnings(ctx, chat, gambler, 20_000, now); err != nil {
 		t.Fatal(err)
 	}
 	for _, acc := range []core.Account{gambler, plain} {

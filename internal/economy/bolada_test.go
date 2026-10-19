@@ -28,27 +28,53 @@ func TestWindfallStruck(t *testing.T) {
 		base   int64
 		gain   int64
 		after  time.Duration
+		earned bool
 		haul   int64
 		struck bool
 	}{
-		{"pobre abaixo do piso", 10_000, 4_000, time.Minute, 0, false},
-		{"pobre no piso", 10_000, windfallFloor, time.Minute, windfallFloor, true},
-		{"médio abaixo da porcentagem", 100_000, 29_000, time.Minute, 0, false},
-		{"médio na porcentagem", 100_000, 30_000, time.Minute, 30_000, true},
-		{"rico abaixo do teto", 518_756, 49_000, time.Minute, 0, false},
-		{"rico no teto", 518_756, 82_500, time.Minute, 82_500, true},
-		{"ganho inteiro no fim da janela", 100_000, 30_000, windfallWindow, 30_000, true},
-		{"ganho pela metade no meio do sumiço", 100_000, 80_000, fading, 40_000, true},
-		{"metade do ganho abaixo da porcentagem", 100_000, 50_000, fading, 0, false},
-		{"ganho depois do sumiço", 100_000, 80_000, windfallWindow + windfallFade, 0, false},
+		{"pobre abaixo do piso", 10_000, 4_000, time.Minute, false, 0, false},
+		{"pobre no piso", 10_000, windfallFloor, time.Minute, false, windfallFloor, true},
+		{"médio abaixo da porcentagem", 100_000, 29_000, time.Minute, false, 0, false},
+		{"médio na porcentagem", 100_000, 30_000, time.Minute, false, 30_000, true},
+		{"rico abaixo do teto", 518_756, 49_000, time.Minute, false, 0, false},
+		{"rico no teto", 518_756, 82_500, time.Minute, false, 82_500, true},
+		{"ganho inteiro no fim da janela", 100_000, 30_000, windfallWindow, false, 30_000, true},
+		{"ganho pela metade no meio do sumiço", 100_000, 80_000, fading, false, 40_000, true},
+		{"metade do ganho abaixo da porcentagem", 100_000, 50_000, fading, false, 0, false},
+		{"ganho depois do sumiço", 100_000, 80_000, windfallWindow + windfallFade, false, 0, false},
+		{"ganho de trabalho não é bolada", 10_000, 50_000, time.Minute, true, 0, false},
 	}
 	now := time.Now()
 	for _, c := range cases {
 		var w windfallBoard
-		w.struck("k", c.base, now)
-		haul, struck := w.struck("k", c.base+c.gain, now.Add(c.after))
+		w.struck("k", c.base, now, false)
+		haul, struck := w.struck("k", c.base+c.gain, now.Add(c.after), c.earned)
 		if haul != c.haul || struck != c.struck {
 			t.Errorf("%s: struck = (%d, %v), queria (%d, %v)", c.name, haul, struck, c.haul, c.struck)
+		}
+	}
+}
+
+func TestWindfallCountsOnlyLuck(t *testing.T) {
+	var w windfallBoard
+	now := time.Now()
+	steps := []struct {
+		name    string
+		balance int64
+		earned  bool
+		haul    int64
+		struck  bool
+	}{
+		{"saldo de partida", 10_000, false, 0, false},
+		{"o trampo sobe o saldo sem contar", 30_000, true, 0, false},
+		{"a sorte conta em cima do que foi trabalhado", 34_000, false, 0, false},
+		{"prejuízo no trampo desconta da sorte", 33_000, true, 0, false},
+		{"a sorte fecha 30% do saldo trabalhado", 39_000, false, 9_000, true},
+	}
+	for i, s := range steps {
+		haul, struck := w.struck("k", s.balance, now.Add(time.Duration(i)*time.Minute), s.earned)
+		if haul != s.haul || struck != s.struck {
+			t.Errorf("%s: struck = (%d, %v), queria (%d, %v)", s.name, haul, struck, s.haul, s.struck)
 		}
 	}
 }
@@ -115,7 +141,7 @@ func TestWindfallStalk(t *testing.T) {
 		{"depois do intervalo sai de novo", "a", stalkEvery, true},
 	}
 	for _, s := range steps {
-		if got := w.stalk(s.key, now.Add(s.after)); got != s.want {
+		if got := w.stalk(s.key, now.Add(s.after), stalkEvery); got != s.want {
 			t.Errorf("%s: stalk = %v, queria %v", s.name, got, s.want)
 		}
 	}

@@ -15,7 +15,7 @@ import (
 
 const (
 	jackpotMin        = 1_000
-	jackpotWindow     = 30 * time.Minute
+	jackpotWindow     = time.Hour
 	jackpotRobBonus   = 0.35
 	jackpotAlarmCut   = 0.2
 	jackpotWaitCut    = 0.35
@@ -51,11 +51,50 @@ func slipsArrest(ctx context.Context, q rowQuerier, chat types.JID, acc core.Acc
 	return jackpot > 0 && rand.Float64() < slip, err
 }
 
-func (s *walletStore) noteJackpot(ctx context.Context, chat types.JID, acc core.Account, net int64, now time.Time) error {
+func (s *walletStore) noteWinnings(ctx context.Context, chat types.JID, acc core.Account, net int64, now time.Time) (marked int64, err error) {
+	if net == 0 {
+		return 0, nil
+	}
+	err = s.inTx(ctx, func(tx *ledgerTx) error {
+		before, err := freshJackpot(ctx, tx, chat, acc, now)
+		if err != nil {
+			return err
+		}
+		if err := tallyWinnings(ctx, tx, chat, acc, net, now); err != nil {
+			return err
+		}
+		if err := stashJackpot(ctx, tx, chat, acc, net, now); err != nil {
+			return err
+		}
+		if before > 0 {
+			return nil
+		}
+		if marked, err = freshJackpot(ctx, tx, chat, acc, now); err != nil || marked == 0 {
+			return err
+		}
+		return resetMarkLevel(ctx, tx, chat, acc)
+	})
+	return marked, err
+}
+
+func tallyWinnings(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, net int64, now time.Time) error {
+	_, err := tx.ExecContext(ctx, "DELETE FROM apostas_lucro WHERE chat = ? AND pessoa = ? AND dia < ?", chat.String(), acc.Key, luckySince(now))
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO apostas_lucro (chat, pessoa, dia, lucro) VALUES (?, ?, ?, ?)
+		 ON CONFLICT (chat, pessoa, dia) DO UPDATE SET lucro = lucro + excluded.lucro`,
+		chat.String(), acc.Key, now.In(core.BrazilTime).Format(time.DateOnly), net,
+	)
+	return err
+}
+
+func stashJackpot(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, net int64, now time.Time) error {
 	if net < jackpotMin {
 		return nil
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := tx.ExecContext(ctx,
 		`UPDATE carteiras SET
 		   premio_aposta = CASE WHEN premio_aposta_em >= ? THEN premio_aposta + ? ELSE ? END,
 		   premio_aposta_em = ?
@@ -65,40 +104,33 @@ func (s *walletStore) noteJackpot(ctx context.Context, chat types.JID, acc core.
 	return err
 }
 
+func markedText(person types.JID, prize int64) string {
+	return fmt.Sprintf("🎯 @%s, você lucrou %s na aposta e a rua inteira viu: virou *alvo fácil* por %s. Quem tentar te !roubar ou montar uma !quadrilha pra cima de você tem %d%% a mais de chance e leva %d%% a mais, e se continuar apostando com o prêmio você sobe de nível e fica ainda mais na mira. Melhor guardar no !poupar ou no !imovel depositar",
+		person.User, Coins(prize), core.FormatWait(jackpotWindow), percent(jackpotRobBonus), percent(jackpotLootBonus))
+}
+
 func freshJackpot(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, now time.Time) (int64, error) {
-	var amount, at int64
-	err := q.QueryRowContext(ctx, "SELECT MIN(premio_aposta, saldo), premio_aposta_em FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key).Scan(&amount, &at)
+	var prize, balance, at, profit int64
+	err := q.QueryRowContext(ctx,
+		`SELECT premio_aposta, saldo, premio_aposta_em,
+		   (SELECT COALESCE(SUM(lucro), 0) FROM apostas_lucro WHERE chat = carteiras.chat AND pessoa = carteiras.pessoa AND dia >= ?)
+		 FROM carteiras WHERE chat = ? AND pessoa = ?`,
+		luckySince(now), chat.String(), acc.Key,
+	).Scan(&prize, &balance, &at, &profit)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
-	if err != nil || time.Unix(at, 0).Before(now.Add(-jackpotWindow)) {
+	if err != nil || time.Unix(at, 0).Before(now.Add(-jackpotWindow)) || profit < jackpotMin {
 		return 0, err
 	}
-	return amount, nil
+	return min(prize, balance, profit), nil
 }
 
 type easyMark struct {
 	jackpot int64
+	level   int
 	lucky   bool
 	won     int64
-}
-
-func (s *walletStore) noteWinnings(ctx context.Context, chat types.JID, acc core.Account, net int64, now time.Time) error {
-	if net == 0 {
-		return nil
-	}
-	return s.inTx(ctx, func(tx *ledgerTx) error {
-		_, err := tx.ExecContext(ctx, "DELETE FROM apostas_lucro WHERE chat = ? AND pessoa = ? AND dia < ?", chat.String(), acc.Key, luckySince(now))
-		if err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO apostas_lucro (chat, pessoa, dia, lucro) VALUES (?, ?, ?, ?)
-			 ON CONFLICT (chat, pessoa, dia) DO UPDATE SET lucro = lucro + excluded.lucro`,
-			chat.String(), acc.Key, now.In(core.BrazilTime).Format(time.DateOnly), net,
-		)
-		return err
-	})
 }
 
 func luckySince(now time.Time) string {
@@ -106,8 +138,12 @@ func luckySince(now time.Time) string {
 }
 
 func markOf(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, now time.Time) (m easyMark, err error) {
-	if m.jackpot, err = freshJackpot(ctx, q, chat, acc, now); err != nil || m.jackpot > 0 {
+	level, err := markLevelOf(ctx, q, chat, acc, now)
+	if err != nil {
 		return m, err
+	}
+	if level.jackpot > 0 {
+		return easyMark{jackpot: level.jackpot, level: level.level}, nil
 	}
 	var won int64
 	err = q.QueryRowContext(ctx,
@@ -130,7 +166,7 @@ func (m easyMark) haul() int64 {
 
 func (m easyMark) odds(chance float64) float64 {
 	if m.jackpot > 0 {
-		return clampChance(chance + jackpotRobBonus)
+		return clampChance(chance + jackpotRobBonus + levelRobStep*float64(m.steps()))
 	}
 	if m.lucky {
 		return clampChance(chance + luckyRobBonus)
@@ -142,7 +178,10 @@ func (m easyMark) text(victim types.JID) string {
 	if m.lucky {
 		return fmt.Sprintf("🍀 @%s lucrou alto na aposta esses dias e a rua inteira ficou sabendo, ainda tá mais fácil de roubar\n", victim.User)
 	}
-	return jackpotText(victim, m.jackpot)
+	if m.steps() == 0 {
+		return jackpotText(victim, m.jackpot)
+	}
+	return jackpotText(victim, m.jackpot) + fmt.Sprintf("🎯 E continuou apostando com o prêmio no bolso: tá no nível %d de alvo fácil\n", m.level)
 }
 
 func jackpotAlarm(chance float64, jackpot int64) float64 {

@@ -13,17 +13,17 @@ var windfallEvents = eventBook{
 			},
 			choices: []choice{
 				{label: "💸 Entregar a carteira", risk: lowRisk, endings: []ending{
-					{weight: 70, texts: []string{"{@} entregou a carteira sem discutir. Os caras levaram um pedaço da bolada e ainda agradeceram"}, effects: []effect{lose(5, 10)}},
+					{weight: 70, texts: []string{"{@} entregou a carteira sem discutir. Os caras levaram um pedaço da bolada e ainda agradeceram"}, effects: []effect{skim(5, 10)}},
 					{weight: 30, texts: []string{"{@} entregou a carteira velha, a de enganar ladrão. Os caras foram embora felizes com trinta conto e um cartão do SUS"}},
 				}},
 				{label: "🏃 Sair correndo", risk: midRisk, endings: []ending{
 					{weight: 50, texts: []string{"{@} correu igual nunca correu na vida e se enfiou numa padaria. A moto passou reto"}},
-					{weight: 30, texts: []string{"{@} tropeçou no meio-fio, ralou tudo e os caras pegaram o dinheiro caído no chão"}, effects: []effect{lose(8, 15), injure(10, 20)}},
-					{weight: 20, texts: []string{"Na correria, {@} esbarrou num vendedor ambulante e derrubou a banca. Pagou o prejuízo dele, mas salvou a bolada"}, effects: []effect{lose(2, 5)}},
+					{weight: 30, texts: []string{"{@} tropeçou no meio-fio, ralou tudo e os caras pegaram o dinheiro caído no chão"}, effects: []effect{skim(8, 15), injure(10, 20)}},
+					{weight: 20, texts: []string{"Na correria, {@} esbarrou num vendedor ambulante e derrubou a banca. Pagou o prejuízo dele, mas salvou a bolada"}, effects: []effect{skim(2, 5)}},
 				}},
 				{label: "👊 Reagir na mão", risk: highRisk, endings: []ending{
 					{weight: 35, texts: []string{"{@} acertou um soco no garupa, que caiu da moto e largou a pochete de outros assaltos. Virou o dia"}, effects: []effect{earn(100, 250)}},
-					{weight: 45, texts: []string{"Os dois deram uma surra em {@} e levaram o dinheiro de troco"}, effects: []effect{lose(10, 20), injure(25, 45)}},
+					{weight: 45, texts: []string{"Os dois deram uma surra em {@} e levaram o dinheiro de troco"}, effects: []effect{skim(10, 20), injure(25, 45)}},
 					{weight: 15, texts: []string{"{@} reagiu, levou umas pancadas, mas o povo da rua apareceu e os caras fugiram de mão vazia"}, effects: []effect{injure(10, 20)}},
 					{weight: 5, texts: []string{"O garupa não tava blefando. {@} não vai gastar essa bolada"}, effects: []effect{perish()}},
 				}},
@@ -48,7 +48,7 @@ var windfallEvents = eventBook{
 			},
 			choices: []choice{
 				{label: "📲 Passar o código que chegou", risk: highRisk, endings: []ending{
-					{weight: 70, texts: []string{"Não era o banco. Em dois minutos a conta de {@} tava mais leve e o número já não existia"}, effects: []effect{lose(15, 25)}},
+					{weight: 70, texts: []string{"Não era o banco. Em dois minutos a conta de {@} tava mais leve e o número já não existia"}, effects: []effect{skim(15, 25)}},
 					{weight: 30, texts: []string{"O golpista era tão ruim que errou o Pix e mandou dinheiro pra {@} em vez de tirar"}, effects: []effect{earn(50, 150)}},
 				}},
 				{label: "📵 Desligar na cara", risk: lowRisk, endings: []ending{
@@ -57,7 +57,7 @@ var windfallEvents = eventBook{
 				}},
 				{label: "🤡 Enrolar o golpista", risk: midRisk, endings: []ending{
 					{weight: 50, texts: []string{"{@} fingiu ser a vovó Neusa por quarenta minutos. O golpista desistiu e mandou um Pix de pena"}, effects: []effect{earn(20, 80)}},
-					{weight: 50, texts: []string{"{@} se empolgou no teatro e acabou digitando a senha de verdade sem querer"}, effects: []effect{lose(5, 12)}},
+					{weight: 50, texts: []string{"{@} se empolgou no teatro e acabou digitando a senha de verdade sem querer"}, effects: []effect{skim(5, 12)}},
 				}},
 				{label: "🕵️ Rastrear a ligação", risk: midRisk, needs: lawman, endings: []ending{
 					{weight: 70, texts: []string{"{@} rastreou o número até uma central de golpes num quartinho e levou um celular apreendido pra casa"}, effects: []effect{gain(1, "celular")}},
@@ -76,8 +76,8 @@ var windfallEvents = eventBook{
 			choices: []choice{
 				{label: "🤝 Investir no negócio", risk: highRisk, endings: []ending{
 					{weight: 25, texts: []string{"Contra todas as expectativas, a barraca de açaí do primo bombou e ele devolveu com juros"}, effects: []effect{earn(150, 300)}},
-					{weight: 55, texts: []string{"O primo sumiu com o dinheiro e mudou o nome no Instagram. {@} só soube depois, no almoço de Natal"}, effects: []effect{lose(10, 20)}},
-					{weight: 20, texts: []string{"O negócio era vender pirâmide. {@} perdeu um pouco e ganhou um kit de produtos que ninguém quer"}, effects: []effect{lose(3, 8), gain(1, "boleto")}},
+					{weight: 55, texts: []string{"O primo sumiu com o dinheiro e mudou o nome no Instagram. {@} só soube depois, no almoço de Natal"}, effects: []effect{skim(10, 20)}},
+					{weight: 20, texts: []string{"O negócio era vender pirâmide. {@} perdeu um pouco e ganhou um kit de produtos que ninguém quer"}, effects: []effect{skim(3, 8), gain(1, "boleto")}},
 				}},
 				{label: "🙅 Dizer que gastou tudo", risk: lowRisk, endings: []ending{
 					{weight: 60, texts: []string{"{@} jurou que tava duro, e o primo saiu levando só uma coxinha da geladeira"}},
@@ -85,7 +85,7 @@ var windfallEvents = eventBook{
 				}},
 				{label: "🍗 Chamar pra um churrasco", risk: midRisk, endings: []ending{
 					{weight: 50, texts: []string{"O churrasco juntou a família toda, ninguém pediu dinheiro e {@} saiu de alma lavada"}, effects: []effect{heal(15), enchant("protecao")}},
-					{weight: 50, texts: []string{"Apareceram vinte parentes, todos com um 'negocinho'. A conta da carne saiu do bolso de {@}"}, effects: []effect{lose(3, 8)}},
+					{weight: 50, texts: []string{"Apareceram vinte parentes, todos com um 'negocinho'. A conta da carne saiu do bolso de {@}"}, effects: []effect{skim(3, 8)}},
 				}},
 			},
 			idle: ending{texts: []string{"{@} deixou o primo no vácuo até ele desistir e mandar um 'tá bom, metido'"}},
@@ -100,7 +100,7 @@ var windfallEvents = eventBook{
 			choices: []choice{
 				{label: "🫣 Esconder o dinheiro na meia", risk: lowRisk, endings: []ending{
 					{weight: 70, texts: []string{"Ninguém procura dinheiro numa meia suada. {@} saiu do arrastão com tudo"}},
-					{weight: 30, texts: []string{"O ladrão era do tipo caprichoso e revistou até as meias de {@}"}, effects: []effect{lose(5, 10)}},
+					{weight: 30, texts: []string{"O ladrão era do tipo caprichoso e revistou até as meias de {@}"}, effects: []effect{skim(5, 10)}},
 				}},
 				{label: "🪑 Se jogar debaixo da mesa", risk: midRisk, endings: []ending{
 					{weight: 50, texts: []string{"Debaixo da mesa, {@} achou a carteira que algum ladrão deixou cair na pressa"}, effects: []effect{earn(40, 120)}},
@@ -108,7 +108,7 @@ var windfallEvents = eventBook{
 				}},
 				{label: "🦸 Bancar o herói", risk: highRisk, endings: []ending{
 					{weight: 40, texts: []string{"{@} derrubou um dos ladrões com uma cadeira de plástico e o bar inteiro pagou a conta dele"}, effects: []effect{earn(80, 200), enchant("protecao")}},
-					{weight: 50, texts: []string{"A cadeira de plástico quebrou na primeira pancada. Os ladrões não acharam graça"}, effects: []effect{injure(25, 45), lose(5, 15)}},
+					{weight: 50, texts: []string{"A cadeira de plástico quebrou na primeira pancada. Os ladrões não acharam graça"}, effects: []effect{injure(25, 45), skim(5, 15)}},
 					{weight: 10, texts: []string{"A polícia chegou, viu {@} batendo em todo mundo e levou junto"}, effects: []effect{nabbed()}},
 				}},
 			},
@@ -124,16 +124,16 @@ var windfallEvents = eventBook{
 			},
 			choices: []choice{
 				{label: "😴 Fingir que tá dormindo", risk: lowRisk, endings: []ending{
-					{weight: 60, texts: []string{"O ladrão levou uns trocados da gaveta e a televisão. {@} fingiu tão bem que dormiu de verdade"}, effects: []effect{lose(3, 8)}},
+					{weight: 60, texts: []string{"O ladrão levou uns trocados da gaveta e a televisão. {@} fingiu tão bem que dormiu de verdade"}, effects: []effect{skim(3, 8)}},
 					{weight: 40, texts: []string{"O ladrão não achou nada que prestasse e foi embora decepcionado com a decoração"}},
 				}},
 				{label: "📞 Ligar pra polícia", risk: midRisk, endings: []ending{
 					{weight: 40, texts: []string{"A viatura chegou rápido dessa vez e pegou o ladrão no quintal. Ele ainda devolveu o que tinha na mochila"}, effects: []effect{earn(30, 100)}},
-					{weight: 60, texts: []string{"A polícia chegou duas horas depois, anotou tudo e foi embora. O ladrão tinha ido bem antes, com uma parte da bolada"}, effects: []effect{lose(8, 15)}},
+					{weight: 60, texts: []string{"A polícia chegou duas horas depois, anotou tudo e foi embora. O ladrão tinha ido bem antes, com uma parte da bolada"}, effects: []effect{skim(8, 15)}},
 				}},
 				{label: "🧹 Pegar o cabo de vassoura", risk: highRisk, endings: []ending{
 					{weight: 45, texts: []string{"{@} desceu a vassoura no ladrão, que pulou o muro e largou tudo pra trás, até o celular dele"}, effects: []effect{gain(1, "celular")}},
-					{weight: 45, texts: []string{"O ladrão era maior que a porta. A vassoura não ajudou em nada"}, effects: []effect{injure(25, 45), lose(5, 12)}},
+					{weight: 45, texts: []string{"O ladrão era maior que a porta. A vassoura não ajudou em nada"}, effects: []effect{injure(25, 45), skim(5, 12)}},
 					{weight: 10, texts: []string{"O ladrão tava armado, e {@} levou uma vassoura pra um tiroteio"}, effects: []effect{perish()}},
 				}},
 				{label: "🔫 Esperar na escada armado", risk: midRisk, needs: armedUp, endings: []ending{
@@ -155,15 +155,15 @@ var windfallEvents = eventBook{
 			choices: []choice{
 				{label: "🔑 Trocar todas as senhas", risk: lowRisk, endings: []ending{
 					{weight: 70, texts: []string{"{@} trocou tudo pra senhas enormes e o hacker ficou do lado de fora chorando"}},
-					{weight: 30, texts: []string{"Trocou as senhas, mas o hacker já tinha feito um Pix antes. Pelo menos foi só um"}, effects: []effect{lose(5, 10)}},
+					{weight: 30, texts: []string{"Trocou as senhas, mas o hacker já tinha feito um Pix antes. Pelo menos foi só um"}, effects: []effect{skim(5, 10)}},
 				}},
 				{label: "💰 Pagar o resgate", risk: midRisk, price: cost{percent: 5, floor: 300}, endings: []ending{
 					{weight: 60, texts: []string{"O hacker, por incrível que pareça, cumpriu a palavra e ainda deixou uma avaliação cinco estrelas"}, effects: []effect{enchant("protecao")}},
-					{weight: 40, texts: []string{"{@} pagou o resgate e o hacker pediu mais. Hacker não tem palavra"}, effects: []effect{lose(5, 15)}},
+					{weight: 40, texts: []string{"{@} pagou o resgate e o hacker pediu mais. Hacker não tem palavra"}, effects: []effect{skim(5, 15)}},
 				}},
 				{label: "🧑‍💻 Hackear o hacker de volta", risk: highRisk, endings: []ending{
 					{weight: 35, texts: []string{"{@} abriu o terminal de tela preta, digitou rápido e esvaziou a conta do hacker"}, effects: []effect{earn(200, 500)}},
-					{weight: 50, texts: []string{"{@} digitou 'hackear' no Google e baixou um vírus pior ainda"}, effects: []effect{lose(15, 25)}},
+					{weight: 50, texts: []string{"{@} digitou 'hackear' no Google e baixou um vírus pior ainda"}, effects: []effect{skim(15, 25)}},
 					{weight: 15, texts: []string{"A invasão chamou atenção da Polícia Federal, que achou que {@} era o hacker"}, effects: []effect{nabbed()}},
 				}},
 			},
@@ -180,17 +180,17 @@ var windfallEvents = eventBook{
 			},
 			choices: []choice{
 				{label: "🏧 Sacar o que eles pedirem", risk: midRisk, endings: []ending{
-					{weight: 70, texts: []string{"{@} sacou o limite do dia e foi largado num posto de gasolina, inteiro e bem mais pobre"}, effects: []effect{lose(12, 20)}},
+					{weight: 70, texts: []string{"{@} sacou o limite do dia e foi largado num posto de gasolina, inteiro e bem mais pobre"}, effects: []effect{skim(12, 20)}},
 					{weight: 30, texts: []string{"O caixa tava sem dinheiro. Os sequestradores ficaram tão frustrados que soltaram {@} na hora"}},
 				}},
 				{label: "🚪 Pular do carro andando", risk: highRisk, endings: []ending{
 					{weight: 40, texts: []string{"{@} pulou num sinal fechado, rolou na calçada e sumiu num beco. Dolorido, mas com o dinheiro"}, effects: []effect{injure(15, 30)}},
-					{weight: 35, texts: []string{"O carro não tava tão devagar assim. {@} rolou no asfalto, e a pochete com a bolada ficou no banco de trás"}, effects: []effect{injure(35, 50), lose(15, 25)}},
+					{weight: 35, texts: []string{"O carro não tava tão devagar assim. {@} rolou no asfalto, e a pochete com a bolada ficou no banco de trás"}, effects: []effect{injure(35, 50), skim(15, 25)}},
 					{weight: 25, texts: []string{"{@} pulou bem na frente de um ônibus"}, effects: []effect{perish()}},
 				}},
 				{label: "🗣️ Convencer que é pobre", risk: midRisk, endings: []ending{
 					{weight: 40, texts: []string{"{@} mostrou o extrato de um mês atrás e chorou. Os sequestradores ficaram com pena e deixaram dez conto pro ônibus"}, effects: []effect{earn(10, 30)}},
-					{weight: 60, texts: []string{"Eles tinham o print do !ricos. Não colou"}, effects: []effect{lose(15, 25), injure(5, 15)}},
+					{weight: 60, texts: []string{"Eles tinham o print do !ricos. Não colou"}, effects: []effect{skim(15, 25), injure(5, 15)}},
 				}},
 				{label: "🔪 Virar o jogo dentro da van", risk: highRisk, needs: killer, endings: []ending{
 					{weight: 60, texts: []string{"Os sequestradores escolheram a pessoa errada. {@} saiu da van com a carteira de todos eles"}, effects: []effect{earn(200, 500), stain()}},
@@ -211,15 +211,15 @@ var windfallEvents = eventBook{
 			choices: []choice{
 				{label: "🛡️ Contratar segurança armada", risk: lowRisk, price: cost{percent: 8, floor: 1000}, endings: []ending{
 					{weight: 80, texts: []string{"Com dois armários de terno do lado, {@} passou a semana em paz. A quadrilha desistiu"}, effects: []effect{enchant("protecao")}},
-					{weight: 20, texts: []string{"Os seguranças eram da quadrilha. {@} pagou pra ser assaltado com escolta"}, effects: []effect{lose(10, 20)}},
+					{weight: 20, texts: []string{"Os seguranças eram da quadrilha. {@} pagou pra ser assaltado com escolta"}, effects: []effect{skim(10, 20)}},
 				}},
 				{label: "🧳 Sumir uns dias", risk: lowRisk, endings: []ending{
 					{weight: 60, texts: []string{"{@} passou uns dias na casa da avó no interior, comeu bem e voltou descansado"}, effects: []effect{heal(30)}},
-					{weight: 40, texts: []string{"A quadrilha não achou {@} e levou o que tinha em casa no lugar"}, effects: []effect{lose(8, 15)}},
+					{weight: 40, texts: []string{"A quadrilha não achou {@} e levou o que tinha em casa no lugar"}, effects: []effect{skim(8, 15)}},
 				}},
 				{label: "🪤 Montar uma armadilha", risk: highRisk, endings: []ending{
 					{weight: 40, texts: []string{"A armadilha funcionou: a quadrilha caiu numa rede, a polícia levou todos e a recompensa ficou com {@}"}, effects: []effect{earn(500, 1500)}},
-					{weight: 45, texts: []string{"A quadrilha desconfiou, desviou da armadilha e pegou {@} pelo outro lado"}, effects: []effect{lose(15, 25), injure(25, 45)}},
+					{weight: 45, texts: []string{"A quadrilha desconfiou, desviou da armadilha e pegou {@} pelo outro lado"}, effects: []effect{skim(15, 25), injure(25, 45)}},
 					{weight: 15, texts: []string{"A quadrilha não perdoa quem tenta fazer graça"}, effects: []effect{perish()}},
 				}},
 				{label: "🤝 Oferecer sociedade", risk: midRisk, needs: killer, endings: []ending{
