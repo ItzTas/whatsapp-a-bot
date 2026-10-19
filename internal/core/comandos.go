@@ -204,5 +204,16 @@ func (b *Bot) helpCommands() []Command {
 			},
 			Run: b.comandos,
 		},
+		{
+			Name:     "feedback",
+			Aliases:  []string{"sugestao", "sugerir"},
+			Category: helpCategory,
+			Help: []Usage{
+				{"!feedback <ideia>", "manda uma sugestão do que adicionar ou mudar no bot, que fica anotada nesta conversa 💬"},
+				{"!feedback ver", fmt.Sprintf("mostra os %d feedbacks mais recentes que a galera mandou nesta conversa", feedbackShown)},
+				{"!feedback apagar <número>", "apaga um feedback seu (o dono do bot apaga qualquer um)"},
+			},
+			Run: b.feedback,
+		},
 	}
 }

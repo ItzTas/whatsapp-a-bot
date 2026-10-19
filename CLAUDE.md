@@ -53,7 +53,7 @@ docker build -t whatsapp-a-bot .
 
 - `internal/core` tem o `Bot` (cliente, mensagens, nomes e apelidos, relacionamentos e adoções,
   modos, filtro e jogos salvos), os ganchos que os módulos registram (`ganchos.go`), os comandos
-  de ajuda (`!comandos`, `!modos`) e os de dono do filtro (`!modo`, `!blacklist`, `!whitelist`).
+  de ajuda (`!comandos`, `!modos`, `!feedback`) e os de dono do filtro (`!modo`, `!blacklist`, `!whitelist`).
   Também guarda os utilitários que mais de um módulo usa, um arquivo por assunto: `texto.go`,
   `marcacoes.go`, `grupo.go`, `tempo.go`, `citacoes.go`, `web.go`, `midia.go`, `respostas.go`,
   `contas.go`, `sorteio.go`, `restricoes.go` e `risada.go`.

@@ -28,6 +28,7 @@ type Bot struct {
 	Modes          *modeStore
 	games          *gameStore
 	versions       *versionStore
+	feedbacks      *feedbackStore
 	update         *botUpdate
 	gamesReady     chan struct{}
 	owners         []string
@@ -192,6 +193,7 @@ func New(client *whatsmeow.Client, gifs map[string][]GIF, messages *MessageStore
 		Modes:         &modeStore{db: messages.DB},
 		games:         &gameStore{db: messages.DB},
 		versions:      &versionStore{db: messages.DB},
+		feedbacks:     &feedbackStore{db: messages.DB},
 		gamesReady:    make(chan struct{}),
 		owners:        OwnersFromEnv(),
 	}
