@@ -61,11 +61,20 @@ func (c career) perk() string {
 	return fmt.Sprintf("🎓 Carreira de %s no nível %d: +%d%% no !trabalhar (já conta acima). Falta %s de trampo pro nível %d", c.job, level, c.bonus(), left, level+1)
 }
 
-func (c career) promotion(after career) string {
-	if after.level() <= c.level() {
+func (c career) progress(after career) string {
+	gained := after.worked - c.worked
+	if gained <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n🎓 Subiu pro nível %d na carreira de %s: o !trabalhar agora paga +%d%%", after.level(), c.job, after.bonus())
+	earned := fmt.Sprintf("\n🎓 +%s de experiência como %s", core.FormatWait(gained), c.job)
+	level := after.level()
+	if level > c.level() {
+		return fmt.Sprintf("%s. Subiu pro nível %d na carreira: o !trabalhar agora paga +%d%%", earned, level, after.bonus())
+	}
+	if level == careerTop {
+		return earned + " (carreira no nível máximo)"
+	}
+	return fmt.Sprintf("%s. Falta %s pro nível %d", earned, core.FormatWait(careerNeeds(level+1)-after.worked), level+1)
 }
 
 func careerHelp() string {
@@ -111,7 +120,7 @@ func (b *bot) promote(ctx context.Context, chat types.JID, acc core.Account, job
 	if err != nil {
 		return "", fmt.Errorf("subir na carreira: %w", err)
 	}
-	return job.career.promotion(after), nil
+	return job.career.progress(after), nil
 }
 
 func (c career) tag() string {

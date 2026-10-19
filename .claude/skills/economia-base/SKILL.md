@@ -63,8 +63,9 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `seasoned` antes de tudo: o nível (`career.level`, o nível N precisa de `careerFirst` vezes N², até
   `careerTop`) soma `careerStep`% no `min` e no `max`, então o `shiftValue` dos eventos cresce junto.
   Trocar de profissão começa outra carreira do zero e a antiga fica guardada. O `!trabalhar` soma o
-  tempo no fim (`promote` → `walletStore.build`, um `UPSERT` fora da transação do pagamento) e avisa
-  quando sobe de nível; o `perks()` mostra o nível e quanto falta (`career.perk`), e o menu do
+  tempo no fim (`promote` → `walletStore.build`, um `UPSERT` fora da transação do pagamento) e o
+  `career.progress` põe na resposta a experiência ganha e quanto falta pro próximo nível, ou avisa
+  quando sobe; o `perks()` mostra o nível e quanto falta (`career.perk`), e o menu do
   `!profissao` mostra o nível atual (`career.tag`). Deus (`divine`) não tem carreira.
   O que é da profissão também treina, bem pouco: `careerDrill` (1 minuto) por ação, contra os 8 a
   40 minutos de um turno do `!trabalhar`. A regra olha sempre a profissão pura (`professionNamed`,

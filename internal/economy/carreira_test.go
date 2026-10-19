@@ -55,11 +55,14 @@ func TestCareerStore(t *testing.T) {
 
 	start := career{job: "bico"}
 	half, err := s.build(ctx, chat, acc, start, careerFirst/2)
-	if err != nil || half.worked != careerFirst/2 || start.promotion(half) != "" {
-		t.Fatalf("meio caminho pro nível 1 não promove: %+v (%v)", half, err)
+	if err != nil || half.worked != careerFirst/2 {
+		t.Fatalf("meio caminho pro nível 1: %+v (%v)", half, err)
+	}
+	if got := start.progress(half); !strings.Contains(got, "+1h 30min de experiência como bico") || !strings.Contains(got, "Falta 1h 30min pro nível 1") {
+		t.Errorf("mostra a experiência ganha e quanto falta: %q", got)
 	}
 	full, err := s.build(ctx, chat, acc, half, careerFirst/2)
-	if err != nil || full.level() != 1 || !strings.Contains(half.promotion(full), "nível 1") {
+	if err != nil || full.level() != 1 || !strings.Contains(half.progress(full), "Subiu pro nível 1") {
 		t.Fatalf("o trampo soma e chega no nível 1: %+v (%v)", full, err)
 	}
 	if _, err := s.build(ctx, chat, acc, career{job: "médico"}, time.Hour); err != nil {
