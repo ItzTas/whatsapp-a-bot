@@ -16,6 +16,8 @@ type bot struct {
 	raceRounds     sync.Map
 	itemOffers     sync.Map
 	debtRequests   sync.Map
+	boostOffers    sync.Map
+	recoveryOffers sync.Map
 	TrialChats     sync.Map
 	trialPolls     sync.Map
 	heistCrews     sync.Map
@@ -29,8 +31,8 @@ type bot struct {
 	scenes         sceneBoard
 	tilts          tiltBoard
 	allIns         allInBoard
+	markWarnings   allInBoard
 	windfalls      windfallBoard
-	casinoWrath    wrathBoard
 	live           liveBoard
 	tips           tipBoard
 	Wallets        *walletStore
@@ -55,7 +57,7 @@ func (b *bot) Register() {
 	b.AddGuard(b.economyGuard)
 	b.AddAfterCommand(b.stirLive)
 	b.AddAfterCommand(b.stirWindfall)
-	b.AddAfterCommand(b.stirCasinoWrath)
+	b.AddAfterCommand(b.drillCareer)
 	b.AddDeparture(b.unseatDeserter)
 	b.OnModeOff(core.ModeEconomy, b.haltEvents)
 	b.OnModeOff(core.ModeEconomy, b.haltLive)

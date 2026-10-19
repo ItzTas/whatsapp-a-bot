@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/economy"
 )
 
 func TestWhitelistGate(t *testing.T) {
@@ -83,6 +85,22 @@ func TestDailyOncePerDay(t *testing.T) {
 	}
 }
 
+func TestBetCeiling(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.setup(chat, "economia")
+	b.say(chat, ana, "!daily")
+	start := b.balance(ana)
+	most, whole := start*70/100, start*60/100
+
+	wantReply(t, b.say(chat, ana, "!apostar 80%"), "dá pra apostar no máximo "+economy.Coins(most)+" de uma vez")
+	wantReply(t, b.say(chat, ana, "!apostar tudo"), "Isso é apostar tudo: "+economy.Coins(whole)+" de uma vez")
+	if got := b.balance(ana); got != start {
+		t.Fatalf("aposta recusada ou sem confirmar mexeu no saldo: %d virou %d", start, got)
+	}
+}
+
 func TestTransfer(t *testing.T) {
 	b := newBench(t)
 	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
@@ -155,4 +173,20 @@ func TestGameSurvivesRestart(t *testing.T) {
 	wantReply(t, b.say(chat, ana, "1"), "agora é a vez de "+mentionTag(bia))
 	wantReply(t, b.say(chat, bia, "5"), "A casa 5 já tá ocupada")
 	wantReply(t, b.say(chat, bia, "1"), mentionTag(bia)+" jogou na casa 1")
+}
+
+func TestThrowNeedsTheItemAndWaits(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "economia")
+
+	wantReply(t, b.say(chat, ana, "!tacarpedra "+mentionTag(bia), bia), "não tem 🪨 *Pedra* na mochila")
+	wantReply(t, b.say(chat, ana, "!tacartomate "+mentionTag(bia), bia), "não tem 🍅 *Tomate* na mochila")
+
+	b.say(chat, b.owner, "!profissao deus")
+	b.say(chat, b.owner, "!milagre pedra 2 "+mentionTag(ana), ana)
+	wantReply(t, b.say(chat, ana, "!tacar "+mentionTag(bia)+" pedra", bia), "tacou uma pedra em @"+bia.jid.User)
+	wantReply(t, b.say(chat, ana, "!tacarpedra "+mentionTag(bia), bia), "ainda tá com o braço doendo")
+	wantReply(t, b.say(chat, ana, "!mochila"), "Pedra")
 }

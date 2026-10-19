@@ -51,6 +51,7 @@ type robbery struct {
 	alarmed  bool
 	silent   bool
 	mark     easyMark
+	escort   firm
 	success  bool
 	amount   int64
 	jail     time.Duration
@@ -177,8 +178,8 @@ func (s *walletStore) work(ctx context.Context, chat types.JID, acc core.Account
 		if w.garnish, err = garnishPay(ctx, tx, chat, acc, lien, net, now); err != nil {
 			return err
 		}
-		if sh.found.id != "" {
-			if err := addItems(ctx, tx, chat, acc, sh.found.id, 1); err != nil {
+		for _, it := range sh.finds {
+			if err := addItems(ctx, tx, chat, acc, it.id, 1); err != nil {
 				return err
 			}
 		}
@@ -343,10 +344,14 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 		if err != nil {
 			return err
 		}
+		mark, escort, err := escortMark(ctx, tx, chat, victim, mark, false, now)
+		if err != nil {
+			return err
+		}
 		if r.wait, r.abuse, err = stampOrAbuse(ctx, tx, chat, thief, jackpotPace(cd, mark.jackpot), abuse, now); err != nil || r.wait > 0 {
 			return err
 		}
-		r.mark = mark
+		r.mark, r.escort = mark, escort
 		if err := markCrime(ctx, tx, chat, thief, now); err != nil {
 			return err
 		}

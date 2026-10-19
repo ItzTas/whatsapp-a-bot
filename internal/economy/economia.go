@@ -54,6 +54,8 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 		health     int64
 		vault      homeVault
 		shield     time.Duration
+		guard      contract
+		hired      bool
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = b.Wallets.Balance(gctx, chat, acc); return err })
@@ -63,6 +65,10 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	g.Go(func() (err error) { health, err = b.Wallets.Health(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { vault, err = b.Wallets.vault(gctx, chat, acc); return err })
 	g.Go(func() (err error) { shield, err = b.Wallets.shieldLeft(gctx, chat, acc, time.Now()); return err })
+	g.Go(func() (err error) {
+		guard, hired, err = contractOf(gctx, b.Wallets.db, chat, acc, time.Now())
+		return err
+	})
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler saldo: %w", err)
 	}
@@ -83,6 +89,9 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	lines = append(lines, cleanText(job))
 	if shield > 0 {
 		lines = append(lines, shieldText(shield))
+	}
+	if text := contractText(guard, hired, time.Now()); text != "" {
+		lines = append(lines, text)
 	}
 	if vault.stored > 0 {
 		lines = append(lines, fmt.Sprintf("🔐 No cofre de casa: %s, longe dos ladrões", Coins(vault.stored)))
@@ -193,12 +202,15 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 
 	stake := bet.Stake
 	payout, result := play(stake, rand.Float64() < bet.job.jinx()+bet.Boost.Risk(stake))
+	if payout < stake && rand.Float64() < bet.Boost.Favor(stake) {
+		payout, result = play(stake, false)
+	}
 	payout = bet.Boost.Pay(stake, payout)
 	saved := bet.Boost.Rescue(stake, payout)
 	refund := bet.job.refund(stake, payout+saved)
-	balance, err := b.Wallets.SettleBet(ctx, chat, acc, stake, payout+saved+refund, bet.Levy)
+	balance, err := b.Wallets.SettleBet(ctx, chat, acc, stake, payout+saved+refund)
 	if errors.Is(err, ErrNoFunds) {
-		return b.SendText(ctx, chat, StakeChanged)
+		return b.SendText(ctx, chat, stakeChanged)
 	}
 	if err != nil {
 		return fmt.Errorf("pagar aposta: %w", err)
@@ -209,7 +221,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	if refund > 0 {
 		text += fmt.Sprintf("\n🧾 Mas a profissão devolveu %s", Coins(refund))
 	}
-	text += BetLevyText(stake, payout, bet.Levy) + "\n💰 Saldo: " + Coins(balance)
+	text += "\n💰 Saldo: " + Coins(balance)
 	if _, err := b.SendMentions(ctx, chat, text, []types.JID{person}); err != nil {
 		return err
 	}
@@ -220,45 +232,47 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 type wager struct {
 	Stake int64
 	Boost PrizeBoost
-	Levy  PixLevy
 	job   Profession
 }
 
 func (b *bot) PlaceBet(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (wager, string, error) {
 	var (
-		p      presidency
 		job    Profession
 		heat   int64
 		solace int64
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) { p, _, err = b.Wallets.presidency(gctx, chat, time.Now()); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { heat, solace, err = b.Wallets.betRecord(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return wager{}, "", err
 	}
-	levy := p.casinoLevy(acc)
-	stake, refusal, err := b.stakeAfterLevy(ctx, chat, acc, arg, syntax, levy.percent)
-	return wager{Stake: stake, Boost: PrizeBoost{decree: max(p.decrees.level(casinoDecree), 0), luck: job.casinoLuck, heat: heat, solace: solace, rescued: rand.Float64() < job.rescueOdds}, Levy: levy, job: job}, refusal, err
+	stake, refusal, err := b.placeStake(ctx, chat, acc, arg, syntax)
+	if err != nil || refusal != "" {
+		return wager{}, refusal, err
+	}
+	if refusal, err = b.markWarning(ctx, chat, acc, syntax, stake); err != nil || refusal != "" {
+		return wager{}, refusal, err
+	}
+	return wager{Stake: stake, Boost: PrizeBoost{luck: job.casinoLuck, heat: heat, solace: solace, rescued: rand.Float64() < job.rescueOdds}, job: job}, "", nil
 }
 
-func (b *bot) PlaceStake(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (int64, string, error) {
-	return b.stakeAfterLevy(ctx, chat, acc, arg, syntax, 0)
-}
-
-func (b *bot) stakeAfterLevy(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string, percent int64) (int64, string, error) {
-	stake, budget, refusal, err := b.affordable(ctx, chat, acc, arg, syntax, percent)
+func (b *bot) placeStake(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (int64, string, error) {
+	rule, err := b.betRuleOf(ctx, chat, acc)
+	if err != nil {
+		return 0, "", err
+	}
+	stake, whole, refusal, err := b.affordable(ctx, chat, acc, arg, syntax, rule)
 	if err != nil || refusal != "" {
 		return stake, refusal, err
 	}
-	if refusal := b.allIn(ctx, chat, acc, syntax, stake, budget); refusal != "" {
+	if refusal := b.allIn(ctx, chat, acc, syntax, stake, whole); refusal != "" {
 		return 0, refusal, nil
 	}
 	return stake, "", nil
 }
 
-func (b *bot) affordable(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string, percent int64) (stake, budget int64, refusal string, err error) {
+func (b *bot) affordable(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string, rule stakeRule) (stake, whole int64, refusal string, err error) {
 	balance, _, err := b.Wallets.Balance(ctx, chat, acc)
 	if err != nil {
 		return 0, 0, "", fmt.Errorf("ler saldo: %w", err)
@@ -266,18 +280,24 @@ func (b *bot) affordable(ctx context.Context, chat types.JID, acc core.Account, 
 	if balance == 0 {
 		return 0, 0, "Você tá liso 🪹 Usa !daily e !trabalhar pra ter o que apostar", nil
 	}
-	budget = balance * 100 / (100 + percent)
-	stake, ok := ParseStake(arg, budget)
+	most, whole := rule.most(balance), rule.whole(balance)
+	if most == 0 {
+		return 0, 0, rule.tooMuch(balance), nil
+	}
+	stake, ok := ParseStake(arg, balance)
 	if !ok {
-		return 0, budget, fmt.Sprintf("Diz quanto apostar: %[1]s 100, %[1]s metade, %[1]s 10%% ou %[1]s tudo", syntax), nil
+		return 0, whole, fmt.Sprintf("Diz quanto apostar: %[1]s 100, %[1]s metade, %[1]s 10%% ou %[1]s tudo", syntax), nil
 	}
-	if stake <= budget {
-		return stake, budget, "", nil
+	if arg == "tudo" || arg == "all" {
+		stake = whole
 	}
-	if percent == 0 {
-		return 0, budget, "Você só tem " + Coins(balance), nil
+	if stake <= most {
+		return stake, whole, "", nil
 	}
-	return 0, budget, fmt.Sprintf("Você tem %s, mas toda aposta paga %d%% de taxa por decreto, então dá pra apostar no máximo %s", Coins(balance), percent, Coins(budget)), nil
+	if stake <= balance {
+		return 0, whole, rule.tooMuch(balance), nil
+	}
+	return 0, whole, "Você só tem " + Coins(balance), nil
 }
 
 func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
@@ -307,10 +327,13 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 		b.advance(chat, thiefAcc, crimeGoal, 1)
 	}
 	hurtText, freed := r.scuffle.text(thief, victim)
-	text := r.mark.text(victim) + robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
+	text := r.escort.escortText(victim) + r.mark.text(victim) + robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
 	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{thief, victim}, freed...))
 	if err != nil || r.wait > 0 || r.shield > 0 || r.poor || r.jail > 0 || r.scuffle.criminal.died {
 		return err
+	}
+	if r.success {
+		b.offerRecovery(ctx, chat, thiefAcc, victimAcc, r)
 	}
 	b.stirEvent(ctx, evt, eventSpot{place: "!roubar", won: r.success, victim: victim})
 	return nil
@@ -592,6 +615,7 @@ func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accoun
 		"assalto_em", "denuncia_em", "assassinato_em", "libertacao_em", "abuso_trabalho_em", "abuso_roubo_em",
 		"abuso_sequestro_em", "ressurreicao_em", "encanto_em", "disfarce_em", "preso_ate", "morto_ate", "crime_em",
 		"saude_em", "conversao_em", "desvio_em", "postagem_em", "publi_em", "cratera_em", "escudo_ate", "ficha_em",
+		"arremesso_em",
 	}
 	args := []any{chat.String()}
 	for _, acc := range accounts {

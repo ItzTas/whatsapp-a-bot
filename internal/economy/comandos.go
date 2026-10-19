@@ -91,7 +91,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "trabalhar",
 			Aliases:  []string{"trabalho", "work"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!trabalhar", "faz um trampo da sua profissão e ganha moedas 💼 Quanto ganha, de quanto em quanto tempo e o que pode acontecer no meio (pagar em dobro, achar item, dar ruim...) depende da profissão (veja !profissao). Algumas profissões são perigosas e dá pra se machucar no trampo: veja o risco da sua no !saude"}},
+			Help:     []core.Usage{{"!trabalhar", fmt.Sprintf("faz um trampo da sua profissão e ganha moedas 💼 Quanto ganha, de quanto em quanto tempo e o que pode acontecer no meio (pagar em dobro, achar item, dar ruim...) depende da profissão (veja !profissao). Se ficar mais tempo sem trabalhar, os turnos que passaram vão acumulando e saem todos no próximo !trabalhar, até %s de trampo. %s. Algumas profissões são perigosas e dá pra se machucar no trampo: veja o risco da sua no !saude", core.FormatWait(backlogSpan), careerHelp())}},
 			Run:      b.trabalhar,
 		},
 		{
@@ -141,7 +141,7 @@ func (b *bot) economyCommands() []core.Command {
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
 				{"!apostar <valor>", "cara ou coroa: dobra a aposta ou perde tudo 🪙"},
-				{"!apostar tudo", "aposta todo o saldo (também aceita metade e porcentagem, tipo 10%)"},
+				{"!apostar tudo", fmt.Sprintf("aposta %d%% do saldo. Também aceita metade e porcentagem (tipo 10%%), mas uma aposta só vai até %d%% do saldo, e dá pra apostar no máximo %s a cada %s", allInSharePercent, stakeSharePercent, Coins(betWindowCap), core.FormatWait(betWindow))},
 			},
 			Run:          b.apostar,
 			BarredInJail: true,
@@ -195,7 +195,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "roubar",
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de %d%% a %d%% do saldo dela, se der errado paga indenização 🦹 A porcentagem vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, então rico perde uma fatia bem menor (o valor de roubo aparece no !saldo). Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tem %d%% de chance de ele disparar e barrar o roubo. Quem acabou de ser roubado(a) fica %s sem poder ser roubado(a) de novo, e ladrão com menos de %s que é pego vai direto pra cadeia, porque não tem como pagar a indenização. Cada %s sem cometer crime dá %d%% de proteção, até %d%% (a ficha limpa aparece no !saldo). Quem lucrou %s ou mais numa aposta fica marcado(a) por %s: a chance de roubar sobe %d%%, o alarme perde %d%% de chance de disparar, a espera pra roubar essa pessoa cai %d%%, o prêmio sai sem o desconto das faixas e o roubo leva %d%% a mais. Ser roubado(a) não tira a marca, só deixa o escudo mais curto, e quanto mais a pessoa ganhou, mais curto ele fica: %s pra quem lucrou %s, até %s pra quem lucrou %s ou mais. E quando a marca acaba, quem tá com %s ou mais de lucro em aposta nos últimos %d dias (ganhos menos perdas) continua com %d%% a mais de chance de ser roubado(a)", robLootMin, robLootMax, core.FormatWait(robEvery), percent(alarmChance), core.FormatWait(robShield), Coins(brokeThief), core.FormatWait(cleanEvery), percent(cleanStep), percent(cleanMax), Coins(jackpotMin), core.FormatWait(jackpotWindow), percent(jackpotRobBonus), percent(jackpotAlarmCut), percent(jackpotWaitCut), percent(jackpotLootBonus), core.FormatWait(jackpotShield(jackpotMin)), Coins(jackpotMin), core.FormatWait(jackpotShield(jackpotShieldTop)), Coins(jackpotShieldTop), Coins(luckyMin), luckyDays, percent(luckyRobBonus))},
+				{"!roubar @pessoa", fmt.Sprintf("tenta roubar a pessoa marcada: se der certo leva de %d%% a %d%% do saldo dela, se der errado paga indenização 🦹 A porcentagem vale cheia só nas primeiras 1.000 moedas e cai nas faixas de cima, então rico perde uma fatia bem menor (o valor de roubo aparece no !saldo). Dá pra roubar a cada %s, e a profissão de cada um muda a espera e a chance (veja !profissao). Quem tem 🚨 alarme na mochila tem %d%% de chance de ele disparar e barrar o roubo. Quem acabou de ser roubado(a) fica %s sem poder ser roubado(a) de novo, e ladrão com menos de %s que é pego vai direto pra cadeia, porque não tem como pagar a indenização. Cada %s sem cometer crime dá %d%% de proteção, até %d%% (a ficha limpa aparece no !saldo). Quem lucrou %s ou mais numa aposta fica marcado(a) por %s: a chance de roubar sobe %d%%, o alarme perde %d%% de chance de disparar, a espera pra roubar essa pessoa cai %d%%, o prêmio sai sem o desconto das faixas e o roubo leva %d%% a mais. Ser roubado(a) não tira a marca, só deixa o escudo mais curto, e quanto mais a pessoa ganhou, mais curto ele fica: %s pra quem lucrou %s, até %s pra quem lucrou %s ou mais. E quando a marca acaba, quem tá com %s ou mais de lucro em aposta nos últimos %d dias (ganhos menos perdas) continua com %d%% a mais de chance de ser roubado(a). Quem segue apostando com a marca sobe de nível, até o %d: cada vez que aposta, somando, o tamanho do prêmio, a chance de roubar essa pessoa sobe mais %d%%, a empresa de segurança dela (!empresa) defende %d%% menos e os eventos de quem ganhou muito acham ela mais vezes", robLootMin, robLootMax, core.FormatWait(robEvery), percent(alarmChance), core.FormatWait(robShield), Coins(brokeThief), core.FormatWait(cleanEvery), percent(cleanStep), percent(cleanMax), Coins(jackpotMin), core.FormatWait(jackpotWindow), percent(jackpotRobBonus), percent(jackpotAlarmCut), percent(jackpotWaitCut), percent(jackpotLootBonus), core.FormatWait(jackpotShield(jackpotMin)), Coins(jackpotMin), core.FormatWait(jackpotShield(jackpotShieldTop)), Coins(jackpotShieldTop), Coins(luckyMin), luckyDays, percent(luckyRobBonus), markLevelMax, percent(levelRobStep), percent(levelEscortCut))},
 			},
 			Run:          b.roubar,
 			BarredInJail: true,
@@ -374,6 +374,15 @@ func (b *bot) economyCommands() []core.Command {
 				{"!reviver @pessoa", fmt.Sprintf("tenta trazer de volta quem morreu no !matar 🧟 Só algumas profissões conseguem, cada uma com a sua chance: %s, e o presidente também revive. Com o Livro de São Cipriano (relíquia), qualquer um revive sem falhar, mas a pessoa volta presa num pacto e passa %d%% de tudo que ganhar pra quem fez o ritual por %s. Se der certo a pessoa volta na hora e já pode usar a economia, e se der errado ela continua no caixão até o prazo acabar. Dá pra tentar a cada %s", revivingProfessions(), soulPactPercent, core.FormatWait(soulPactHold), core.FormatWait(reviveCooldown.every))},
 			},
 			Run: b.reviver,
+		},
+		{
+			Name:     "suicidio",
+			Aliases:  []string{"suicidar"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!suicidio", fmt.Sprintf("sai do jogo por conta própria 🪦 Você fica %s morto(a), sem nenhum comando de economia, o enterro leva de %d%% a %d%% do seu saldo e, se tiver um refém no cativeiro, ele fica livre. Dá pra voltar antes pagando o !hospital ou com alguém que saiba !reviver", core.FormatWait(deathHold), deathLossMinPercent, deathLossMaxPercent)},
+			},
+			Run: b.suicidio,
 		},
 		{
 			Name:     "abencoar",
@@ -621,6 +630,17 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.contratar,
 		},
 		{
+			Name:     "empresa",
+			Aliases:  []string{"empresas"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!empresa", "mostra as empresas de segurança, o que cada uma faz e quanto sai a diária pra você 🏢 Elas só trabalham quando você tá marcado(a) como alvo fácil: em cada roubo têm uma chance de tirar a marca, e aí o ladrão rouba como se você fosse qualquer um. Também seguram parte do que você perder nos eventos de quem ganhou muito na aposta"},
+				{"!empresa contratar <nome>", fmt.Sprintf("contrata uma empresa por %s, pagando na hora uma porcentagem do saldo (com mínimo). Contratar a mesma de novo soma mais %s no contrato, e trocar de empresa começa um contrato novo. Quem contrata com o prêmio de aposta ainda fresco paga mais %d%% dele de taxa de emergência", core.FormatWait(contractSpan), core.FormatWait(contractSpan), emergencyCut)},
+				{"!empresa cancelar", "cancela o contrato. O que já foi pago não volta"},
+			},
+			Run: b.empresa,
+		},
+		{
 			Name:     "coletar",
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
@@ -812,14 +832,14 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "aceitar",
 			Aliases:  []string{"aceito"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!aceitar", "fecha a compra que alguém te ofereceu com o !vender @você, ou empresta as moedas que alguém te pediu com o !agiota @você ou diz sim pro pedido de casamento ou namoro ✅"}},
+			Help:     []core.Usage{{"!aceitar", "fecha a compra que alguém te ofereceu com o !vender @você, ou empresta as moedas que alguém te pediu com o !agiota @você, ou paga a proteção que uma empresa de segurança te ofereceu, ou diz sim pro pedido de casamento ou namoro ✅"}},
 			Run:      b.aceitar,
 		},
 		{
 			Name:     "recusar",
 			Aliases:  []string{"recuso"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!recusar", "recusa a proposta, o pedido de empréstimo ou o pedido de casamento ou namoro que te fizeram, ou cancela os que você fez 🙅"}},
+			Help:     []core.Usage{{"!recusar", "recusa a proposta, o pedido de empréstimo, a oferta da empresa de segurança ou o pedido de casamento ou namoro que te fizeram, ou cancela os que você fez 🙅"}},
 			Run:      b.recusar,
 		},
 		{
@@ -882,7 +902,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"pesca", "pescaria"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!pescar", fmt.Sprintf("joga a linha e pesca um item, de lambari a escama de sereia 🎣 Precisa de vara de pesca (tem na !loja) e dá pra pescar a cada %s. Em %s das vezes se machuca (a boia salva-vidas protege)", core.FormatWait(fishing.cooldown.every), oddsText(fishing.hazard.chance))},
+				{"!pescar", fmt.Sprintf("joga a linha e pesca um item, de lambari a escama de sereia 🎣 Precisa de vara de pesca (tem na !loja) e dá pra pescar a cada %s. Em %s das vezes se machuca (a boia salva-vidas protege)%s", core.FormatWait(fishing.cooldown.every), oddsText(fishing.hazard.chance), backlogHelp())},
 			},
 			Run: b.gather(fishing),
 		},
@@ -891,7 +911,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"mina", "mineracao"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!minerar", fmt.Sprintf("desce na mina atrás de minério e pedra preciosa, e com sorte um meteorito ⛏️ Precisa de picareta (tem na !loja) e dá pra minerar a cada %s. Em %s das vezes se machuca (o capacete protege)", core.FormatWait(mining.cooldown.every), oddsText(mining.hazard.chance))},
+				{"!minerar", fmt.Sprintf("desce na mina atrás de minério e pedra preciosa, e com sorte um meteorito ⛏️ Precisa de picareta (tem na !loja) e dá pra minerar a cada %s. Em %s das vezes se machuca (o capacete protege)%s", core.FormatWait(mining.cooldown.every), oddsText(mining.hazard.chance), backlogHelp())},
 			},
 			Run: b.gather(mining),
 		},
@@ -900,7 +920,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"lixao", "lixo", "garimpar"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!vasculhar", fmt.Sprintf("revira o lixão atrás de tralha, e às vezes de coisa boa 🗑️ Não precisa de nada e dá pra vasculhar a cada %s. Em %s das vezes se machuca (a luva de borracha protege)", core.FormatWait(scavenging.cooldown.every), oddsText(scavenging.hazard.chance))},
+				{"!vasculhar", fmt.Sprintf("revira o lixão atrás de tralha, e às vezes de coisa boa 🗑️ Não precisa de nada e dá pra vasculhar a cada %s. Em %s das vezes se machuca (a luva de borracha protege)%s", core.FormatWait(scavenging.cooldown.every), oddsText(scavenging.hazard.chance), backlogHelp())},
 			},
 			Run: b.gather(scavenging),
 		},
@@ -909,9 +929,18 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"cacar", "cacada", "insetos", "borboletas"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!catar", fmt.Sprintf("sai com a rede atrás de inseto, de pernilongo a fada no pote 🦋 Precisa de rede de insetos (tem na !loja) e dá pra catar a cada %s. Em %s das vezes se machuca (a roupa de apicultor protege)", core.FormatWait(bugging.cooldown.every), oddsText(bugging.hazard.chance))},
+				{"!catar", fmt.Sprintf("sai com a rede atrás de inseto, de pernilongo a fada no pote 🦋 Precisa de rede de insetos (tem na !loja) e dá pra catar a cada %s. Em %s das vezes se machuca (a roupa de apicultor protege)%s", core.FormatWait(bugging.cooldown.every), oddsText(bugging.hazard.chance), backlogHelp())},
 			},
 			Run: b.gather(bugging),
+		},
+		{
+			Name:     "extracao",
+			Aliases:  []string{"extrair", "extracoes"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!extracao", fmt.Sprintf("faz todas as extrações de uma vez (%s) e junta tudo numa resposta só 🧺 Cada uma segue as regras dela: precisa da ferramenta, respeita a própria espera e pode machucar. A que não dá pra fazer agora só avisa, e as outras saem normal", extractionCommands())},
+			},
+			Run: b.extracao,
 		},
 		{
 			Name:         "plantar",
@@ -954,6 +983,17 @@ func (b *bot) economyCommands() []core.Command {
 				{"!furtar @pessoa <item>", "tenta furtar um item específico, com menos chance de dar certo. Quem tem 🔒 cadeado na mochila tá protegido, e relíquia nunca pode ser furtada"},
 			},
 			Run:          b.furtar,
+			BarredInJail: true,
+		},
+		{
+			Name:     "tacar",
+			Aliases:  []string{"tacarpedra", "tacartomate", "pedrada", "tomatada", "apedrejar"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!tacar @pessoa pedra", fmt.Sprintf("taca uma 🪨 Pedra da sua mochila na pessoa marcada (ou !tacarpedra @pessoa). Acerta em %d%% das vezes (a proteção dela tira um pouco) e, se acertar, ela perde até %d de saúde. Mas cuidado: em %d%% das vezes ela pega a pedra do chão e taca de volta em você. Ninguém morre de pedrada, a saúde para em 1. Cada tacada gasta a pedra, e dá pra tacar a cada %s", percent(throwHitChance), stoneThrow.harm, percent(throwRetortChance), core.FormatWait(throwCooldown.every))},
+				{"!tacar @pessoa tomate", fmt.Sprintf("o mesmo com um 🍅 Tomate (ou !tacartomate @pessoa): suja mais do que machuca, até %d de saúde", tomatoThrow.harm)},
+			},
+			Run:          b.tacar,
 			BarredInJail: true,
 		},
 	}

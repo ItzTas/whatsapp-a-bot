@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro", "!postar", "!publi", "!apostar", "!cassino", "!blackjack", "!crash", "!corrida", windfallPlace, stalkPlace, casinoWrathPlace, casinoWatchPlace, allInPlace}
+	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro", "!postar", "!publi", "!apostar", "!cassino", "!blackjack", "!crash", "!corrida", windfallPlace, stalkPlace, allInPlace}
 	victimPlaces = []string{"!roubar", "!furtar", "!sequestrar", "!matar", "!quadrilha"}
 	placeholder  = regexp.MustCompile(`\{[^}]*\}`)
 	offCharms    = []string{"dizimo", "pacto", "assombracao"}
@@ -139,7 +139,7 @@ func checkPlaces(t *testing.T, sc listedScenario, label string, fx effect) {
 		case refundEffect:
 			idle = !slices.Contains(victimPlaces, p)
 		case skimEffect:
-			idle = p != windfallPlace
+			idle = p != windfallPlace && p != stalkPlace
 		}
 		if idle {
 			t.Errorf("%s/%s: %T não faz nada em %s", sc.id, label, fx, p)
@@ -289,7 +289,7 @@ func TestEventEffects(t *testing.T) {
 	all := []effect{
 		earn(50, 150), lose(5, 10), skim(10, 20), gain(2, "baseado"), forfeit("baseado", 1), findLoot(), injure(5, 10), heal(5),
 		buzz("baseado"), nabbed(), stain(), enchant("sorte"), enchant("azar"), enchant("purificacao"), grudge("dizimo"), grudge("assombracao"), refresh(), delay(time.Minute),
-		breakTool(), plant("teste", time.Hour), refund(5, 10), fans(5, 10), unfollow(5, 10), repealCasino(), injure(200, 200), perish(),
+		breakTool(), plant("teste", time.Hour), refund(5, 10), fans(5, 10), unfollow(5, 10), injure(200, 200), perish(),
 	}
 	for _, place := range eventPlaces {
 		reset(t, "")
