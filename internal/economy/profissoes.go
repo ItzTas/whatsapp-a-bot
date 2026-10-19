@@ -1080,6 +1080,7 @@ var professions = []Profession{
 		name: "fazendeiro", emoji: "🚜", title: "é fazendeiro", area: areaCampo, aliases: []string{"agro"},
 		min: 220, max: 380, every: 36 * time.Minute,
 		bust: 0.1, bustFine: 120, findChance: 0.12, finds: []string{"pote-de-feijao", "pao-de-queijo", "cafe", "picanha"},
+		farmBeds: 2, farmFaster: 30,
 		hazard: hazard{chance: 0.05, harm: 25, wounds: []string{"levou um coice da vaca", "teve o pé atropelado pelo trator"}},
 		tasks: []string{
 			"tirou leite da vaca às 4 da manhã", "colheu milho e vendeu pamonha na beira da estrada",
@@ -1216,7 +1217,7 @@ var professions = []Profession{
 	},
 	{
 		name: "agrônomo", emoji: "🌱", title: "é agrônomo", area: areaCampo, min: 130, max: 230, every: 28 * time.Minute,
-		interest: 4,
+		interest: 4, farmFaster: 20, farmGrade: 2,
 		tasks: []string{
 			"fez análise de solo e mandou botar mais calcário", "salvou a soja de uma praga com um laudo de 40 páginas",
 			"calculou a safra e errou só por 3 toneladas", "foi na feira agropecuária e voltou com 12 bonés de brinde",

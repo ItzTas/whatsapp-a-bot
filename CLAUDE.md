@@ -230,7 +230,7 @@ O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar cont
 
 - `economia-base`: carteiras, profissões, deus, `ProfessionOf`, ralos, reset de intervalos.
 - `economia-itens`: catálogo, raridades, qualidade, ferramentas, lojas, vendas, mercado negro,
-  primordiais e o Meteorito do Bendegó.
+  primordiais, o Meteorito do Bendegó e a horta (`!plantar`, `!colher`, `!horta`).
 - `economia-crime`: cadeia, fuga, sequestro, morte, saúde, assalto, suborno, tribunal.
 - `economia-presidencia`: presidente, decretos, impeachment, renúncia, golpe.
 - `economia-fama`: redes do `!postar`, seguidores, níveis de fama, `!fama` e `!publi`.

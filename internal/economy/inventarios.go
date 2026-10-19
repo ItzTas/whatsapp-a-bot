@@ -27,6 +27,7 @@ type haul struct {
 type gathering struct {
 	haul
 	pulled []haul
+	seed   item
 	noTool bool
 	wait   time.Duration
 	broken item
@@ -271,6 +272,11 @@ func (s *walletStore) gather(ctx context.Context, chat types.JID, acc core.Accou
 				continue
 			}
 			if err := addGrades(ctx, tx, chat, acc, h.found.id, []grade{{h.grade, 1}}); err != nil {
+				return err
+			}
+		}
+		if g.seed = k.stray(); g.seed.id != "" {
+			if err := addItems(ctx, tx, chat, acc, g.seed.id, 1); err != nil {
 				return err
 			}
 		}

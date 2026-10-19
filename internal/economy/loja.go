@@ -89,6 +89,9 @@ func shopLine(it item) string {
 }
 
 func brief(it item) string {
+	if it.seed != nil {
+		return seedBrief(it)
+	}
 	if it.gear != nil {
 		return gearBrief(it.gear)
 	}

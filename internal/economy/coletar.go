@@ -31,6 +31,7 @@ type activity struct {
 	mythics   bool
 	hazard    hazard
 	safety    int64
+	seeds     float64
 	loot      []drop
 	found     []string
 	empty     []string
@@ -47,6 +48,7 @@ var fishing = activity{
 	}},
 	tool:   "vara-de-pesca",
 	breaks: 0.05,
+	seeds:  0.03,
 	loot: []drop{
 		{"", 180}, {"bota-velha", 80}, {"sapo", 60}, {"lambari", 170}, {"tilapia", 140}, {"camarao", 90},
 		{"caranguejo", 80}, {"baiacu", 50}, {"peixe-palhaco", 40}, {"tambaqui", 50}, {"lula", 30}, {"polvo", 25},
@@ -82,6 +84,7 @@ var mining = activity{
 	}},
 	tool:   "picareta",
 	breaks: 0.06,
+	seeds:  0.03,
 	loot: []drop{
 		{"", 150}, {"pedra", 200}, {"carvao", 150}, {"cobre", 120}, {"ferro", 110}, {"sal-grosso", 60},
 		{"caveira", 40}, {"prata", 60}, {"ametista", 40}, {"ouro", 35}, {"moeda-do-imperio", 15}, {"vaso-antigo", 15},
@@ -115,6 +118,7 @@ var scavenging = activity{
 		"cortou a mão num caco de vidro escondido no lixo", "levou uma mordida de um rato do tamanho de um gato",
 		"pisou num prego enferrujado e vai ter que tomar antitetânica", "brigou com um urubu e perdeu",
 	}},
+	seeds: 0.06,
 	loot: []drop{
 		{"", 210}, {"casca-de-banana", 85}, {"boleto", 65}, {"chinelo", 80}, {"cueca", 60}, {"jornal", 55},
 		{"todynho-pela-metade", 70}, {"cabo-usb", 55}, {"guarda-chuva", 50}, {"controle-remoto", 50}, {"boneca", 40},
@@ -157,6 +161,7 @@ var bugging = activity{
 	}},
 	tool:   "rede-de-insetos",
 	breaks: 0.05,
+	seeds:  0.10,
 	loot: []drop{
 		{"", 170}, {"folha-seca", 120}, {"teia-de-aranha", 80}, {"pernilongo", 120}, {"mosca-varejeira", 100},
 		{"formiga", 120}, {"barata", 80}, {"mosquito-da-dengue", 60}, {"isca", 90}, {"grilo", 110}, {"caracol", 80},
@@ -442,6 +447,13 @@ func (a activity) find() haul {
 	return h
 }
 
+func (a activity) stray() item {
+	if rand.Float64() >= a.seeds {
+		return item{}
+	}
+	return wildSeed()
+}
+
 func (a activity) pick() item {
 	if a.starfall && rand.Float64() < starfallOdds {
 		rock, _ := itemByID(skyRockID)
@@ -511,6 +523,9 @@ func (a activity) report(g gathering, person types.JID) string {
 		if extra.found.id != "" {
 			text += fmt.Sprintf("\n\n☄️ A gravidade do Bendegó puxou junto %s\n%s", extra.found.label()+extra.grade.tag(), extra.grade.summary(extra.found))
 		}
+	}
+	if g.seed.id != "" {
+		text += fmt.Sprintf("\n\n🌱 De quebra, achou %s no caminho. Dá pra plantar com !plantar", g.seed.label())
 	}
 	text += findNotes(append([]haul{g.haul}, g.pulled...))
 	if len(g.worn) > 0 {

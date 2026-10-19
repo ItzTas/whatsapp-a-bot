@@ -120,6 +120,7 @@ type item struct {
 	graft     *implant
 	networks  []string
 	hot       bool
+	seed      *crop
 }
 
 type stack struct {
@@ -148,7 +149,7 @@ var cooldownCommands = map[string]string{
 	"inseto_em":    "!catar",
 }
 
-var catalog = append([]item{
+var catalog = slices.Concat([]item{
 	{id: "vara-de-pesca", name: "Vara de pesca", emoji: "🎣", rarity: uncommon, value: 300, shop: true, aliases: []string{"vara"}},
 	{id: "picareta", name: "Picareta", emoji: "⛏️", rarity: uncommon, value: 400, shop: true},
 	{id: "rede-de-insetos", name: "Rede de insetos", emoji: "🥅", rarity: uncommon, value: 150, shop: true, aliases: []string{"rede", "puca", "vara de insetos"}},
@@ -1086,7 +1087,7 @@ var catalog = append([]item{
 		gear: &gear{activities: []string{"!pescar", "!minerar", "!vasculhar", "!catar"}, pull: 1, alwaysFinds: true}},
 	{id: "scanner-da-policia", name: "Scanner da polícia", emoji: "📡", rarity: epic, value: 6_000, hot: true, aliases: []string{"scanner", "escuta da policia", "radio da policia"},
 		flex: &flex{effect: fmt.Sprintf("fica na frequência da polícia: %d%% de chance de ouvir a viatura chegando e escapar quando alguém tenta te !prender", percent(scannerTipoff)), apply: func(p Profession) Profession { p.tipoff += scannerTipoff; return p }}},
-}, implantGoods()...)
+}, implantGoods(), gardenGoods)
 
 func itemByID(id string) (item, bool) {
 	i := slices.IndexFunc(catalog, func(it item) bool { return it.id == id })
@@ -1202,6 +1203,7 @@ var itemCategories = []itemCategory{
 	{"🎁", "Pra abrir", []string{"abrir", "caixas", "premios", "sorte"}, func(it item) bool { return it.loot != nil || it.prizes != nil }},
 	{"💝", "Presentes", []string{"presente"}, func(it item) bool { return it.shop && it.gift != "" }},
 	{"🍔", "Comes e bebes", []string{"comida", "comidas", "bebida", "bebidas", "lanche", "lanches"}, func(it item) bool { return it.shop && it.use != "" }},
+	{"🌱", "Horta", []string{"sementes", "mudas", "plantas", "planta", "colheita", "plantacao", "roca"}, fromGarden},
 	{"🎣", "Pesca", []string{"pescar", "peixe", "peixes"}, droppedBy("!pescar")},
 	{"⛏️", "Mineração", []string{"minerar", "minerio", "minerios"}, droppedBy("!minerar")},
 	{"🗑️", "Lixão", []string{"vasculhar", "lixo"}, droppedBy("!vasculhar")},
@@ -1491,6 +1493,9 @@ func perk(it item) string {
 }
 
 func effectPerk(it item) string {
+	if it.seed != nil {
+		return seedPerk(it)
+	}
 	if it.graft != nil {
 		return it.graft.perk()
 	}
@@ -1588,6 +1593,12 @@ func sources(it item) []string {
 	var found []string
 	if it.shop {
 		found = append(found, it.shelf())
+	}
+	if it.seed != nil {
+		found = append(found, wildSeedSources(it)...)
+	}
+	if seed, ok := seedFor(it); ok && seed.id != it.id {
+		found = append(found, "!colher (plantando "+seed.label()+")")
 	}
 	if luxuryGoods(it) {
 		found = append(found, "!luxo (quando tá no estoque do dia)")

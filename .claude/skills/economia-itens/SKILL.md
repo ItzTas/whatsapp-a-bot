@@ -1,6 +1,6 @@
 ---
 name: economia-itens
-description: "Itens da economia (catalog em itens.go, inventarios, raridades, relíquias, míticos e primordiais, Meteorito do Bendegó em bendego.go com Rocha celeste, fragmentos, cratera e campo gravitacional, !primordial, qualidade.go, ferramentas de extração e a calibração do tempo de se pagar, equip/loot/roll, tipos itemCategories, números #12, vendas em lote do !vender, favoritos do !favoritar, !loja e ofertas do dia, !luxo, !mercadonegro, !petshop, resets/limiter do !usar). Carregue antes de mexer em item, loja, mochila, extração (!pescar, !minerar, !vasculhar, !catar) ou venda."
+description: "Itens da economia (catalog em itens.go, inventarios, raridades, relíquias, míticos e primordiais, Meteorito do Bendegó em bendego.go com Rocha celeste, fragmentos, cratera e campo gravitacional, !primordial, qualidade.go, ferramentas de extração e a calibração do tempo de se pagar, equip/loot/roll, tipos itemCategories, números #12, vendas em lote do !vender, favoritos do !favoritar, !loja e ofertas do dia, !luxo, !mercadonegro, !petshop, resets/limiter do !usar, horta do !plantar/!colher/!horta com sementes, canteiros e a tabela plantacoes). Carregue antes de mexer em item, loja, mochila, extração (!pescar, !minerar, !vasculhar, !catar), horta ou venda."
 user-invocable: false
 ---
 
@@ -284,3 +284,34 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   energético e do chimarrão, e o `disguise` (coluna `disfarce_em`) do Kit disfarce, que zera o
   `!roubar`, o `!furtar` e o `!sequestrar`. Item novo de zerar espera escolhe um dos dois ou cria
   outro `limiter`, com a coluna numa migração e no `resetCooldowns`.
+- A horta (`horta.go`, `plantar.go`, `colher.go`, tabela `plantacoes` com uma linha por canteiro
+  ocupado, guardando a `semente` e o `pronta_em`) planta item com `seed` (`crop`: o `yields` é o id
+  do que nasce, o `grows` é o tempo, o `least`/`most` é quantas unidades sai por canteiro e o `wild`
+  é o peso no achado de quebra). As sementes e o que nasce delas ficam no `gardenGoods`, no fim do
+  `catalog` (depois dos implantes), pra não empurrar o número de ninguém, e semente nova entra no fim
+  dele. O que nasce pode ser item que já existia: a Rosa e o Girassol saem da Muda de roseira e da
+  Semente de girassol e continuam no tipo 💝 Presentes. O resto cai no tipo 🌱 Horta (`fromGarden`,
+  logo depois de Comes e bebes), junto das sementes.
+  - Todo mundo começa com `gardenBeds` canteiros, o `farmBeds` da profissão soma mais
+    (`gardenRoom`) e o `!horta expandir` (`walletStore.expandGarden`) compra um de cada vez, guardado
+    na coluna `canteiros_comprados` da `carteiras`. O preço de cada compra sai do `bedPrices` (o
+    tamanho dele é o máximo que dá pra comprar), é um ralo (as moedas somem) e não depende do imóvel
+    de propósito, pra não deixar o imóvel mais forte. O `plot` lê de uma vez a profissão, os
+    canteiros, os comprados e a mochila, e o `plot.room()` é o total. O
+    `!plantar <semente> [quantidade|tudo]` aceita o nome do que nasce (o `plantable` troca o item
+    pela semente com o `seedFor`), tira as sementes da mochila e grava o `pronta_em` na hora, com o
+    `growth` (o `farmFaster` da profissão) já aplicado, então trocar de profissão depois não mexe no
+    que já tá plantado. O `walletStore.sow` recusa com `errGardenFull` quando não cabe. O `!colher`
+    (`walletStore.reap`) apaga os canteiros prontos e sorteia, por canteiro, de `least` a `most`
+    unidades, cada uma com a qualidade dela (`rollQuality` com o `farmGrade` da profissão). Planta
+    pronta nunca estraga. O `!plantar` e o `!colher` têm `BarredInJail`, mas a horta continua
+    crescendo na cadeia. O `!horta [@pessoa]` mostra os canteiros e as sementes da mochila. Hoje o
+    fazendeiro tem `farmBeds` e `farmFaster`, e o agrônomo tem `farmFaster` e `farmGrade`.
+  - Semente não tem qualidade (o `gradable()` olha o `seed`), tem efeito no `effectPerk` (`seedPerk`,
+    então nunca sai no `!vender inuteis` nem no `bugigangas`) e resumo próprio na `!loja`
+    (`seedBrief`). As comuns até raras são `shop`, e as épicas e lendárias (cacau, jabuticaba e
+    pau-brasil) só saem de quebra nas extrações ou de caixa. O achado de quebra fica fora do `loot`:
+    o `stray` da atividade, com a chance `seeds` dela (hoje 10% no `!catar`, 6% no `!vasculhar` e 3%
+    no `!pescar` e no `!minerar`), sorteia uma semente pelo `wild` e põe na mochila junto do achado,
+    então não mexe na calibração das ferramentas. O `wildSeedSources` mostra a chance de cada semente
+    em cada extração no "Onde conseguir".
