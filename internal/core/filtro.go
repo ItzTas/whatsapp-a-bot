@@ -214,7 +214,10 @@ func (b *Bot) filterChecks(ctx context.Context, chat types.JID, sender []types.J
 	if chat.Server == types.DefaultUserServer || chat.Server == types.HiddenUserServer {
 		return []filterEntry{{target: filterPeople, ids: b.Identities(ctx, chat)}}
 	}
-	checks := []filterEntry{{target: filterPeople, ids: sender}}
+	var checks []filterEntry
+	if len(sender) > 0 {
+		checks = append(checks, filterEntry{target: filterPeople, ids: sender})
+	}
 	if chat.Server == types.GroupServer {
 		checks = append(checks, filterEntry{target: filterGroups, ids: []types.JID{chat}})
 	}
