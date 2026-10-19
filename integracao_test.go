@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/economy"
@@ -189,4 +190,19 @@ func TestThrowNeedsTheItemAndWaits(t *testing.T) {
 	wantReply(t, b.say(chat, ana, "!tacar "+mentionTag(bia)+" pedra", bia), "tacou uma pedra em @"+bia.jid.User)
 	wantReply(t, b.say(chat, ana, "!tacarpedra "+mentionTag(bia), bia), "ainda tá com o braço doendo")
 	wantReply(t, b.say(chat, ana, "!mochila"), "Pedra")
+}
+
+func TestExtractionRunsEveryActivity(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.setup(chat, "economia")
+
+	first := wantReply(t, b.say(chat, ana, "!extração"), "Pra usar o !pescar")
+	for _, fragment := range []string{"Pra usar o !minerar", "Pra usar o !catar", "🗑️"} {
+		if !strings.Contains(first, fragment) {
+			t.Fatalf("esperava %q na resposta do !extracao, veio %q", fragment, first)
+		}
+	}
+	wantReply(t, b.say(chat, ana, "!extrair"), "acabou de revirar o lixão")
 }
