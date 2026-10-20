@@ -77,8 +77,9 @@ func (b *bot) jokesCommands() []core.Command {
 			Category: core.JokesCategory,
 			Help: []core.Usage{
 				{"!nome @pessoa <nome>", "anota o nome de verdade da pessoa marcada, só pra referência: quem tem apelido continua aparecendo pelo apelido, mas a IA sabe o nome. Quem não tem nome ganha o do zap sozinho quando entra ou manda mensagem"},
+				{"!nome @5511999999999 <nome>", "anota o nome pelo número, sem marcar, e serve até pra quem já saiu do grupo. Também dá pra responder um contato com !nome <nome>"},
 				{"!nome <nome>", "anota o seu nome"},
-				{"!nome @pessoa", "apaga o nome anotado da pessoa marcada"},
+				{"!nome @pessoa", "apaga o nome anotado da pessoa marcada (ou do número digitado)"},
 			},
 			Run: b.nome,
 		},

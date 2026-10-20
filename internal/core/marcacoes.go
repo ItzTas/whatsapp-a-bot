@@ -33,6 +33,22 @@ func FirstMentionOrSender(evt *events.Message) types.JID {
 
 var MentionTagPattern = regexp.MustCompile(`@\d+`)
 
+var vcardNumber = regexp.MustCompile(`waid=(\d+)`)
+
+func QuotedContact(msg *waE2E.Message) (types.JID, bool) {
+	quoted := msg.GetExtendedTextMessage().GetContextInfo().GetQuotedMessage()
+	cards := []string{quoted.GetContactMessage().GetVcard()}
+	for _, contact := range quoted.GetContactsArrayMessage().GetContacts() {
+		cards = append(cards, contact.GetVcard())
+	}
+	for _, card := range cards {
+		if found := vcardNumber.FindStringSubmatch(card); found != nil {
+			return types.NewJID(found[1], types.DefaultUserServer), true
+		}
+	}
+	return types.JID{}, false
+}
+
 func (b *Bot) SendMentions(ctx context.Context, chat types.JID, text string, mentions []types.JID) (types.MessageID, error) {
 	return b.SendRawMentions(ctx, chat, b.WithNicknames(ctx, chat, text), mentions)
 }

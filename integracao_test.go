@@ -345,3 +345,25 @@ func TestZapNameStaysOutOfMentions(t *testing.T) {
 	b.say(chat, ana, "!nome Ana Paula")
 	wantReply(t, b.say(chat, ana, "!saldo"), "@"+ana.jid.User+" (Ana Paula)")
 }
+
+func TestNameByNumber(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "economia zoeira")
+	b.say(chat, ana, "!daily")
+	b.say(chat, bia, "!daily")
+	b.leave(chat, bia)
+
+	wantReply(t, b.say(chat, ana, "!nome "+mentionTag(bia)+" Beatriz Lima"), "o nome de @"+bia.jid.User+" (Beatriz Lima) é Beatriz Lima")
+	if reply := wantReply(t, b.say(chat, ana, "!saldo"), "@"+ana.jid.User); strings.Contains(reply, "Beatriz") {
+		t.Fatalf("o nome pelo número não devia cair na Ana, veio %q", reply)
+	}
+	start := b.balance(bia)
+	b.say(chat, ana, "!roubar beatriz lima")
+	if b.balance(bia) == start {
+		t.Fatalf("o !roubar pelo nome anotado pelo número devia mexer no saldo da Bia, e ficou em %d", start)
+	}
+	wantReply(t, b.say(chat, ana, "!nome "+mentionTag(bia)), "Esqueci o nome de @"+bia.jid.User)
+	wantReply(t, b.replyContact(chat, ana, "!nome Bibi", bia), "o nome de @"+bia.jid.User+" (Bibi) é Bibi")
+}

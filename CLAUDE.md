@@ -234,7 +234,9 @@ Quem não tem nome na tabela `nomes` ganha o nome do zap (o `PushName`) sozinho:
 contato já tiver nome. O `labelStore.fill` só insere se nenhuma identidade da pessoa tiver nome, com
 `automatico = 1`, e o `!nome` (`Set`) volta a coluna pra 0. O `ChatNicknames` traz todos os nomes
 (pra achar gente pelo nome, listas e IA), e o `ChatTags`, que o `WithNicknames` e os placares usam
-do lado das marcações, deixa os automáticos de fora.
+do lado das marcações, deixa os automáticos de fora. O `!nome` acha a pessoa pela marcação, pelo
+contato respondido (`core.QuotedContact`) ou pelo número digitado logo depois do comando
+(`nameTarget` em `internal/jokes/nome.go`), então dá pra dar nome a quem já saiu do grupo.
 
 ### Skills de arquitetura
 
