@@ -275,3 +275,25 @@ func TestFairSellsBetweenPlayers(t *testing.T) {
 	wantReply(t, b.say(chat, bia, "!feira tirar "+id), "Tirou 2x 🪨 *Pedra* da feira")
 	wantReply(t, b.say(chat, ana, "!feira"), "A feira tá vazia")
 }
+
+func TestWaitSuggestsWhatIsFree(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "economia")
+
+	b.say(chat, ana, "!vasculhar")
+	reply := wantReply(t, b.say(chat, ana, "!vasculhar"), "Enquanto isso")
+	if !strings.Contains(reply, "o !trabalhar já tá liberado") || strings.Contains(reply, "o !vasculhar") {
+		t.Fatalf("a espera do !vasculhar devia apontar o !trabalhar livre e não o próprio !vasculhar, veio %q", reply)
+	}
+
+	b.say(chat, b.owner, "!profissao deus")
+	b.say(chat, b.owner, "!milagre pedra 1 "+mentionTag(bia), bia)
+	b.say(chat, bia, "!feira vender pedra 30")
+	b.say(chat, ana, "!trabalhar")
+	reply = wantReply(t, b.say(chat, ana, "!trabalhar"), "ainda tá cansado")
+	if !strings.Contains(reply, "tem 1 anúncio da galera na !feira") {
+		t.Fatalf("a espera do !trabalhar devia apontar o anúncio da Bia na !feira, veio %q", reply)
+	}
+}

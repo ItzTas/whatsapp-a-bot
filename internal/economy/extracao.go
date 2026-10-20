@@ -31,12 +31,15 @@ func (b *bot) extracao(ctx context.Context, evt *events.Message) error {
 		texts  []string
 		people []types.JID
 		spots  []eventSpot
+		tired  bool
+		went   bool
 	)
 	for _, a := range activities {
 		x, err := b.extract(ctx, chat, person, acc, job, bundled(a), now)
 		if err != nil {
 			return err
 		}
+		tired, went = tired || x.tired, went || x.went
 		texts = append(texts, x.text+x.hurt)
 		for _, p := range x.people {
 			if !slices.Contains(people, p) {
@@ -51,7 +54,13 @@ func (b *bot) extracao(ctx context.Context, evt *events.Message) error {
 			spots = append(spots, x.spot)
 		}
 	}
-	if _, err := b.SendMentions(ctx, chat, strings.Join(texts, "\n\n")+job.decrees.note(gatherDecree), people); err != nil {
+	var idle string
+	if tired && !went {
+		if idle, err = b.meanwhile(ctx, chat, acc, job, now, ""); err != nil {
+			return err
+		}
+	}
+	if _, err := b.SendMentions(ctx, chat, strings.Join(texts, "\n\n")+idle+job.decrees.note(gatherDecree), people); err != nil {
 		return err
 	}
 	if len(spots) == 0 {

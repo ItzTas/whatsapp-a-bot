@@ -479,6 +479,7 @@ type extraction struct {
 	people []types.JID
 	spot   eventSpot
 	went   bool
+	tired  bool
 	died   bool
 }
 
@@ -486,10 +487,15 @@ func (x extraction) eventful() bool {
 	return x.went && !x.died
 }
 
-func (b *bot) extract(ctx context.Context, chat, person types.JID, acc core.Account, job Profession, base activity, now time.Time) (extraction, error) {
+func (b *bot) paced(chat types.JID, job Profession, base activity, now time.Time) (activity, crater) {
 	pit := b.craterIn(chat, base, now)
 	a := pit.dig(job.forage(job.craft.apply(base)))
 	a.cooldown.every = a.cooldown.every * time.Duration(100+job.decrees.level(gatherDecree)) / 100
+	return a, pit
+}
+
+func (b *bot) extract(ctx context.Context, chat, person types.JID, acc core.Account, job Profession, base activity, now time.Time) (extraction, error) {
+	a, pit := b.paced(chat, job, base, now)
 	g, err := b.Wallets.gather(ctx, chat, acc, a, pit, now)
 	if err != nil {
 		return extraction{}, fmt.Errorf("%s: %w", a.command, err)
@@ -510,6 +516,7 @@ func (b *bot) extract(ctx context.Context, chat, person types.JID, acc core.Acco
 		people: people,
 		spot:   eventSpot{place: a.command, won: slices.ContainsFunc(g.finds(), func(h haul) bool { return h.found.id != "" })},
 		went:   went,
+		tired:  g.wait > 0,
 		died:   g.injury.died,
 	}, nil
 }
@@ -523,11 +530,18 @@ func (b *bot) gather(base activity) core.Handler {
 		if err != nil {
 			return err
 		}
-		x, err := b.extract(ctx, chat, person, acc, job, base, time.Now())
+		now := time.Now()
+		x, err := b.extract(ctx, chat, person, acc, job, base, now)
 		if err != nil {
 			return err
 		}
-		_, err = b.SendMentions(ctx, chat, x.text+job.decrees.note(gatherDecree)+x.hurt, x.people)
+		var idle string
+		if x.tired {
+			if idle, err = b.meanwhile(ctx, chat, acc, job, now, base.command); err != nil {
+				return err
+			}
+		}
+		_, err = b.SendMentions(ctx, chat, x.text+idle+job.decrees.note(gatherDecree)+x.hurt, x.people)
 		if err != nil || !x.eventful() {
 			return err
 		}

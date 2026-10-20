@@ -671,7 +671,11 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 	}
 	text := s.text(job, person.User, w.paid) + promoted + incomeTaxText(w.tax, levy) + w.tithe.text() + gravityText(w.pulled) + w.garnish.text() + w.abuse.note("Abusou do poder e trabalhou sem descansar")
 	if w.wait > 0 {
-		text = fmt.Sprintf("😮‍💨 @%s ainda tá cansado do último trampo. Volta em %s", person.User, core.FormatWait(w.wait))
+		idle, err := b.meanwhile(ctx, chat, acc, job, now, "!trabalhar")
+		if err != nil {
+			return err
+		}
+		text = fmt.Sprintf("😮‍💨 @%s ainda tá cansado do último trampo. Volta em %s", person.User, core.FormatWait(w.wait)) + idle
 	}
 	text += p.decrees.note(workDecree) + p.decrees.note(payDecree)
 	if job.cursed && w.wait == 0 {

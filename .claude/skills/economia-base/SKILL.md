@@ -165,6 +165,15 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `announce`, nunca pelo `SendText` direto. A exceção é o aviso de atualização do bot, que também
   sai pros grupos com o `anuncios` ligado, mas fica no `core` (`versao.go`, seção "Versões e
   novidades" do CLAUDE.md) e não passa pelo `announce`.
+- A sugestão da espera (`enquantoisso.go`): quando o `!trabalhar`, uma extração ou o `!extracao`
+  inteiro é recusado pela espera, o `meanwhile` põe na resposta um bloco "👉 Enquanto isso" com o
+  que a pessoa pode fazer agora: as rendas já liberadas (o `!trabalhar` pelo `workCooldown` da
+  presidência e as extrações pelo `paced` + `equip`, a mesma conta do `extract`, então só aparece
+  extração com ferramenta e na espera do comando sozinho, não na do atalho), a horta (canteiro
+  pronto pro `!colher`, ou vazio com semente na mochila pro `!plantar`) e os anúncios dos outros na
+  `!feira`. Sem nada disso, sorteia uma linha fixa (blackjack, crash, corrida, missões, feira). O
+  comando que foi recusado fica de fora (`busy`). Renda nova com espera que deva aparecer ali entra
+  no `idleBoard`.
 - As dicas (`dicas.go`) saem pelo `offerTip`, registrado no `AddAfterMessage` depois do
   `announcePayouts`: numa mensagem qualquer, se já passou `tipEvery` desde a última dica daquela
   conversa, o `tipBoard` tira a próxima do baralho dela (embaralhado, sem repetir até acabar) e o
