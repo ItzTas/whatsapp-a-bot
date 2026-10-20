@@ -829,6 +829,17 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.vender,
 		},
 		{
+			Name:     "feira",
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!feira [item]", "mostra o que a galera tá vendendo, e com o nome de um item mostra só os anúncios dele 🛒"},
+				{"!feira vender <item> [quantidade] <preço>", fmt.Sprintf("anuncia pra qualquer um comprar pelo preço que você quiser, por %s. O item fica na sua mochila até alguém comprar, e a feira fica com %d%% da venda", core.FormatWait(stallSpan), stallFeePercent)},
+				{"!feira comprar <número>", "compra o anúncio daquele número na hora"},
+				{"!feira tirar <número>", fmt.Sprintf("tira um anúncio seu da feira (cada um pode ter até %d)", stallsPerSeller)},
+			},
+			Run: b.feira,
+		},
+		{
 			Name:     "aceitar",
 			Aliases:  []string{"aceito"},
 			Category: core.EconomyCategory,

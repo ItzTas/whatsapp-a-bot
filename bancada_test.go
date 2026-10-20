@@ -327,6 +327,16 @@ func (b *bench) balance(p person) int64 {
 	return saldo
 }
 
+func (b *bench) held(p person, item string) int64 {
+	b.t.Helper()
+	var quantity int64
+	err := b.db.QueryRowContext(b.ctx, "SELECT COALESCE(SUM(quantidade), 0) FROM inventarios WHERE pessoa = ? AND item = ?", p.jid.User, item).Scan(&quantity)
+	if err != nil {
+		b.t.Fatalf("ler %s da mochila de %s: %v", item, p.name, err)
+	}
+	return quantity
+}
+
 func wantReply(t *testing.T, replies []string, fragment string) string {
 	t.Helper()
 	i := slices.IndexFunc(replies, func(r string) bool { return strings.Contains(r, fragment) })

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -224,4 +225,53 @@ func TestPostWithoutNetworkPicksOneTheDeviceReaches(t *testing.T) {
 	if !strings.Contains(reply, "no TikTok") && !strings.Contains(reply, "no Instagram") {
 		t.Fatalf("com só o Celular o !postar devia cair no TikTok ou no Instagram, respondeu %q", reply)
 	}
+}
+
+func listingNumber(t *testing.T, reply string) string {
+	t.Helper()
+	found := regexp.MustCompile(`!feira comprar (\d+)`).FindStringSubmatch(reply)
+	if found == nil {
+		t.Fatalf("o anúncio não disse o número pra comprar: %q", reply)
+	}
+	return found[1]
+}
+
+func TestFairSellsBetweenPlayers(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "economia")
+	b.say(chat, b.owner, "!profissao deus")
+	b.say(chat, b.owner, "!milagre pedra 3 "+mentionTag(ana), ana)
+	b.say(chat, b.owner, "!milagre 1000 "+mentionTag(bia), bia)
+	anaStart, biaStart := b.balance(ana), b.balance(bia)
+
+	wantReply(t, b.say(chat, bia, "!feira"), "A feira tá vazia")
+	id := listingNumber(t, wantReply(t, b.say(chat, ana, "!feira vender pedra 2 100"), "botou na feira"))
+	wantReply(t, b.say(chat, bia, "!feira"), "*"+id+"* · ⚪ 2x 🪨 *Pedra* · "+economy.Coins(100))
+	wantReply(t, b.say(chat, bia, "!feira pedra"), "Pedra")
+	wantReply(t, b.say(chat, bia, "!feira todynho"), "Ninguém tá vendendo")
+	wantReply(t, b.say(chat, ana, "!feira comprar "+id), "Comprar o próprio anúncio?")
+
+	wantReply(t, b.say(chat, bia, "!feira comprar "+id), "comprou 2x 🪨 *Pedra*")
+	if got := b.balance(bia); got != biaStart-100 {
+		t.Fatalf("Bia devia pagar 100, o saldo foi de %d pra %d", biaStart, got)
+	}
+	if got := b.balance(ana); got != anaStart+95 {
+		t.Fatalf("Ana devia receber 95 (100 menos a comissão de 5%%), o saldo foi de %d pra %d", anaStart, got)
+	}
+	if ana, bia := b.held(ana, "pedra"), b.held(bia, "pedra"); ana != 1 || bia != 2 {
+		t.Fatalf("depois da venda Ana devia ter 1 pedra e Bia 2, ficaram %d e %d", ana, bia)
+	}
+	wantReply(t, b.say(chat, bia, "!feira comprar "+id), "não tá mais na feira")
+
+	id = listingNumber(t, wantReply(t, b.say(chat, ana, "!feira vender pedra 50"), "botou na feira"))
+	b.say(chat, ana, "!vender pedra")
+	wantReply(t, b.say(chat, bia, "!feira comprar "+id), "não tem mais 🪨 *Pedra*, então o anúncio saiu da feira")
+	wantReply(t, b.say(chat, bia, "!feira"), "A feira tá vazia")
+
+	id = listingNumber(t, wantReply(t, b.say(chat, bia, "!feira vender pedra 2 80"), "botou na feira"))
+	wantReply(t, b.say(chat, ana, "!feira tirar "+id), "Você não tem nenhum anúncio "+id)
+	wantReply(t, b.say(chat, bia, "!feira tirar "+id), "Tirou 2x 🪨 *Pedra* da feira")
+	wantReply(t, b.say(chat, ana, "!feira"), "A feira tá vazia")
 }

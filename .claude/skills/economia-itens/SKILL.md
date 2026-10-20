@@ -1,6 +1,6 @@
 ---
 name: economia-itens
-description: "Itens da economia (catalog em itens.go, inventarios, raridades, relíquias, míticos e primordiais, Meteorito do Bendegó em bendego.go com Rocha celeste, fragmentos, cratera e campo gravitacional, !primordial, qualidade.go, ferramentas de extração e a calibração do tempo de se pagar, equip/loot/roll, tipos itemCategories, números #12, vendas em lote do !vender, favoritos do !favoritar, !loja e ofertas do dia, !luxo, !mercadonegro, !petshop, resets/limiter do !usar, horta do !plantar/!colher/!horta com sementes, canteiros e a tabela plantacoes). Carregue antes de mexer em item, loja, mochila, extração (!pescar, !minerar, !vasculhar, !catar), horta ou venda."
+description: "Itens da economia (catalog em itens.go, inventarios, raridades, relíquias, míticos e primordiais, Meteorito do Bendegó em bendego.go com Rocha celeste, fragmentos, cratera e campo gravitacional, !primordial, qualidade.go, ferramentas de extração e a calibração do tempo de se pagar, equip/loot/roll, tipos itemCategories, números #12, vendas em lote do !vender, feira entre jogadores do !feira com a tabela feira_anuncios, favoritos do !favoritar, !loja e ofertas do dia, !luxo, !mercadonegro, !petshop, resets/limiter do !usar, horta do !plantar/!colher/!horta com sementes, canteiros e a tabela plantacoes). Carregue antes de mexer em item, loja, mochila, extração (!pescar, !minerar, !vasculhar, !catar), horta ou venda."
 user-invocable: false
 ---
 
@@ -196,6 +196,20 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   `!vender duplicados`, que ignora os favoritos e vende as cópias, sempre deixando 1. O `!dar`, o
   `!usar` e o `!furtar` não olham os favoritos. A `!mochila` mostra ⭐ do lado (`favoriteMark`).
   Venda nova de item precisa passar pelo `heldForSale` ou receber os favoritos.
+- A feira (`feira.go`, tabela `feira_anuncios`) é o mercado entre jogadores: o `!feira vender
+  <item> [quantidade] <preço>` anuncia pra qualquer um da economia, e o `!feira comprar <número>`
+  compra. O anúncio não tira o item da mochila: ele só guarda item, quantidade e preço, e o
+  `walletStore.buyStall` move tudo na hora da compra, numa transação só, pelo mesmo `moveItems` do
+  `!vender @pessoa` (qualidade e desgaste vão junto, da pior pra melhor). Se o vendedor não tem mais
+  o item, a compra falha com `errNoItems` e o `discardStall` tira o anúncio. Cada pessoa tem um
+  anúncio por item (o `UNIQUE (chat, vendedor, item)`: anunciar de novo troca quantidade e preço) e
+  até `stallsPerSeller`, que valem `stallSpan` (24h) e somem sozinhos (o `pitch` apaga os vencidos e
+  as consultas filtram pelo `expira_em`). A comissão `stallFeePercent` (5%) é ralo: o comprador
+  paga o preço cheio pro vendedor e o `debitBalance` tira a comissão dele. Anunciar passa pelo
+  `heldForSale` (favorito não entra) e ilegal é recusado (vai pro `!mercadonegro` ou pro `!vender
+  @pessoa`). O número do anúncio é o `id` da tabela, não o `#12` do catálogo. A lista mostra o
+  vendedor pelo `DisplayName`, sem marcar ninguém. O `rivalStalls` conta os anúncios abertos dos
+  outros pra sugestão da espera (`enquantoisso.go`, skill `economia-base`).
 - O número de cada item (`#12`) é a posição dele no `catalog` (`item.number()`/`itemByNumber`), não
   vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
   pelo menos um com `#`, o resto pode vir sem, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
