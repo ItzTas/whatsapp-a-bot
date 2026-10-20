@@ -18,17 +18,18 @@ import (
 )
 
 const (
-	dailyMin         = 150
-	dailyMax         = 300
-	robEvery         = 30 * time.Minute
-	robMinVictim     = 50
-	robSuccessChance = 0.4
-	robLootMin       = 10
-	robLootMax       = 30
-	brokeThief       = 50
-	coinWinChance    = 0.475
-	slotHouseCut     = 0.045
-	RichestCount     = 10
+	dailyMin          = 150
+	dailyMax          = 300
+	robEvery          = 30 * time.Minute
+	robMinVictim      = 50
+	robSuccessChance  = 0.4
+	robLootMin        = 10
+	robLootMax        = 30
+	brokeThief        = 50
+	brokeCaughtChance = 0.5
+	coinWinChance     = 0.475
+	slotHouseCut      = 0.045
+	RichestCount      = 10
 
 	QuizReward          = 50
 	QuemfalouReward     = 50
@@ -318,7 +319,7 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 	}
 	chance := thiefJob.sober(clampChance(robSuccessChance + thiefJob.robBonus - victimJob.guard - thiefJob.curfew()))
 	risk := robRisk.by(thiefJob).on(victimJob)
-	caught := flagrant{odds: thiefJob.flagrantOdds(1), jail: Profession{jailTime: baseJail}.sentence(thiefJob)}
+	caught := flagrant{odds: thiefJob.flagrantOdds(brokeCaughtChance), jail: Profession{jailTime: baseJail}.sentence(thiefJob)}
 	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), risk, caught, time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
 	if err != nil {
 		return fmt.Errorf("roubar: %w", err)

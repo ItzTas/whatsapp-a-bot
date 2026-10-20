@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	escapeChance    = 0.25
+	escapeChance    = 0.3
 	escapePenalty   = 7 * time.Minute
 	breakoutChance  = 0.2
 	breakoutPenalty = 7 * time.Minute

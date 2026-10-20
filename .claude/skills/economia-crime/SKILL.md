@@ -232,8 +232,8 @@ Cadeia, flagrante, morte, saúde e tribunal.
   lá a chance é `alarmChance`, e aqui o `gangAlarmChance` tira `alarmGangCut` por pessoa a mais. Se der certo, a quadrilha leva de
   `gangLootMin` a `gangLootMax` por cento do saldo da vítima, passado pelas faixas do `exposed` (veja o valor de roubo abaixo), dividido igual, e a parte de cada um cresce o `robHaul` da profissão dele (hoje só o Chapéu de Lampião, o mesmo que aumenta o que leva no `!roubar`); se der errado, cada
   um paga de 10% a 20% do próprio saldo pra vítima, e quem tinha menos de `brokeThief` (o `broke`
-  do `indemnify`) vai preso na hora pelo `jailBroke`, com as mesmas regras do ladrão liso do
-  `!roubar` (veja abaixo).
+  do `indemnify`) tem `brokeCaughtChance` de ir preso na hora pelo `jailBroke`, com as mesmas regras
+  do ladrão liso do `!roubar` (veja abaixo).
 - Roubo de saldo tem duas travas (`escudo.go`, `ficha.go`):
   - O escudo: quando um `!roubar` ou uma `!quadrilha` dá certo, o `raiseShield` grava
     `escudo_ate` (agora mais `robShield`, ou menos se ela tá marcada como alvo fácil, veja abaixo) na vítima, e enquanto ele não passa o `shieldOn` barra
@@ -241,10 +241,11 @@ Cadeia, flagrante, morte, saúde e tribunal.
     também ao abrir (`shieldLeft`). O `!furtar` não olha o escudo. O `!saldo` e o `!tu` mostram o
     tempo que falta (`shieldText`).
   - O ladrão liso: no `!roubar` que falha (sem alarme e sem morrer no `clash`), quem tinha menos de
-    `brokeThief` não tem como pagar a indenização e vai preso na hora, com chance
-    `flagrantOdds(1)` (o Gorro escapa) e cadeia de `baseJail` ajustada pelo `jailFactor`, pelo
-    `jailRobber`, que chama o `lockUp` e zera o `crime_em`. O `flagrant` leva a chance e a pena
-    pro `walletStore.rob`.
+    `brokeThief` não tem como pagar a indenização e pode ir preso na hora, com chance
+    `flagrantOdds(brokeCaughtChance)` (o Gorro escapa) e cadeia de `baseJail` ajustada pelo
+    `jailFactor`, pelo `jailRobber`, que chama o `lockUp` e zera o `crime_em`. O `flagrant` leva a
+    chance e a pena pro `walletStore.rob`. Quem escapa paga o que der da indenização, como qualquer
+    ladrão que falha.
   - A ficha limpa: o `ficha_em` da `carteiras` guarda a hora do último crime e, diferente do
     `crime_em`, a prisão e a anistia não zeram ele. Todo lugar que marca o `crime_em` com a hora
     (`markCrime`, `stampGang`, o `!assalto` e as fugas do `fugir.go`) grava o `ficha_em` junto, e
@@ -328,10 +329,14 @@ Cadeia, flagrante, morte, saúde e tribunal.
   mela uma venda de refém pendente. O `!hospital` tem `WhileDead` no `economyCommands`, que é
   o que deixa ele passar pelo `holdIfDead`; com a pessoa viva, ele não passa pelo `buyExit` e vira o
   tratamento da saúde (`treat`).
-- O flagrante na hora (`!sequestrar`, `!matar`, `!fugir @pessoa`, o `jailCrew` do `!assalto`, o
-  desvio da `!igreja` e o `nabbed` dos eventos) passa pelo `flagrantOdds(chance)` (`prender.go`):
+- O flagrante na hora (`!sequestrar`, `!matar`, `!fugir @pessoa`, o ladrão liso do `!roubar` e da
+  `!quadrilha`, o `jailCrew` do `!assalto`, o desvio da `!igreja` e o `nabbed` dos eventos) passa
+  pelo `flagrantOdds(chance)` (`prender.go`):
   zero pro `elusive` do Gorro do Saci, a chance vezes `1 - immunity()` pro presidente (skill
-  `economia-presidencia`) e a chance cheia pro resto. No `jailCrew`, quem escapou assim fica com
+  `economia-presidencia`) e a chance cheia pro resto. Crime que dá errado nunca prende de certeza:
+  a chance base do flagrante de cada um (`brokeCaughtChance`, `kidnapCaughtChance`,
+  `killCaughtChance`, `rescueCaught`) fica entre o `reportChance` do `!denunciar` e 1, o que o
+  `TestBotchedCrimeCaughtOdds` confere; crime novo com flagrante segue a mesma faixa. No `jailCrew`, quem escapou assim fica com
   `shielded`, que escolhe o texto do `fate`. O Gorro só escapa do flagrante, não do `!prender`, do
   `!denunciar` nem da batida do `!mercadonegro`. Não tem jeito de comprar a polícia nem o juiz: o
   `!processar` sempre sai pela enquete do júri.

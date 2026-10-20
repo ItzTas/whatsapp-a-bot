@@ -351,7 +351,7 @@ func (r *gangRobbery) jailBroke(ctx context.Context, tx *ledgerTx, chat types.JI
 	}
 	for i := range r.gangsters {
 		g := &r.gangsters[i]
-		if !g.broke || g.injury.died || rand.Float64() >= g.job.flagrantOdds(1) {
+		if !g.broke || g.injury.died || rand.Float64() >= g.job.flagrantOdds(brokeCaughtChance) {
 			continue
 		}
 		g.jail = Profession{jailTime: baseJail}.sentence(g.job)
