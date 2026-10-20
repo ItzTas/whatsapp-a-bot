@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	dailyMin          = 150
-	dailyMax          = 300
+	dailyMin          = 1_000
+	dailyMax          = 2_000
 	robEvery          = 30 * time.Minute
 	robMinVictim      = 50
 	robSuccessChance  = 0.4
