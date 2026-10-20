@@ -62,7 +62,7 @@ docker build -t whatsapp-a-bot .
   de ajuda (`!comandos`, `!modos`, `!feedback`) e os de dono do filtro (`!modo`, `!blacklist`, `!whitelist`).
   Também guarda os utilitários que mais de um módulo usa, um arquivo por assunto: `texto.go`,
   `marcacoes.go`, `grupo.go`, `tempo.go`, `citacoes.go`, `web.go`, `midia.go`, `respostas.go`,
-  `contas.go`, `sorteio.go`, `restricoes.go` e `risada.go`.
+  `contas.go`, `sorteio.go`, `restricoes.go`, `risada.go` e `fixadas.go`.
 - `internal/llm` é o cliente da IA (`Assistant`, os modelos, a cota e o `Tool` das ferramentas) e
   não sabe nada do bot.
 - O resto é um pacote por modo: `economy`, `romance` (com a família), `games`, `stats`, `jokes`

@@ -16,7 +16,6 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -202,28 +201,12 @@ func pinLengthLabel(d time.Duration) string {
 	return core.FormatDuration(d)
 }
 
-func (b *bot) pinChange(p pin, kind waE2E.PinInChatMessage_Type) *waE2E.Message {
-	return &waE2E.Message{
-		PinInChatMessage: &waE2E.PinInChatMessage{
-			Key:               b.Client.BuildMessageKey(p.chat, p.sender, p.id),
-			Type:              kind.Enum(),
-			SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
-		},
-	}
-}
-
 func (b *bot) sendPin(ctx context.Context, p pin, length time.Duration) error {
-	msg := b.pinChange(p, waE2E.PinInChatMessage_PIN_FOR_ALL)
-	msg.MessageContextInfo = &waE2E.MessageContextInfo{
-		MessageAddOnDurationInSecs: proto.Uint32(uint32(length.Seconds())),
-	}
-	_, err := b.Client.SendMessage(ctx, p.chat, msg)
-	return err
+	return b.PinMessage(ctx, p.chat, p.sender, p.id, length)
 }
 
 func (b *bot) sendUnpin(ctx context.Context, p pin) error {
-	_, err := b.Client.SendMessage(ctx, p.chat, b.pinChange(p, waE2E.PinInChatMessage_UNPIN_FOR_ALL))
-	return err
+	return b.UnpinMessage(ctx, p.chat, p.sender, p.id)
 }
 
 func (b *bot) forgetUnpinned(ctx context.Context, evt *events.Message) bool {

@@ -38,7 +38,9 @@ Coisas que o bot faz sozinho, fora do fluxo de uma mensagem.
   `*events.GroupInfo` pelo `AddGroupInfo`: ele junta as entradas de um grupo por `welcomeDelay` numa
   mensagem só e respeita o modo `moderacao` e o `AllowedIn` de quem entrou.
 - O `!fixar` (`internal/moderation/fixar.go`, só admin ou o dono do bot) manda um
-  `PinInChatMessage` com a duração em `MessageContextInfo.MessageAddOnDurationInSecs`. O WhatsApp só
+  `PinInChatMessage` com a duração em `MessageContextInfo.MessageAddOnDurationInSecs`, pelo
+  `core.PinMessage`/`core.UnpinMessage` (`internal/core/fixadas.go`), que o evento ao vivo da
+  economia também usa. O WhatsApp só
   aceita 24h, 7 dias ou 30 dias (`whatsappPinLength`), então o bot fixa pelo menor prazo que cobre o
   tempo pedido e guarda a mensagem em `mensagens_fixadas` (`ate` = fim, 0 = pra sempre;
   `renovar_em` = próxima ação). O `runPins`, a cada `core.ReminderTick`, pega o que venceu o
