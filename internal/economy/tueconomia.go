@@ -30,8 +30,7 @@ type EconomyProfile struct {
 	health     int64
 	captive    captivity
 	shield     time.Duration
-	guard      contract
-	hired      bool
+	contracts  []contract
 	now        time.Time
 }
 
@@ -59,7 +58,7 @@ func (b *bot) EconomyProfile(ctx context.Context, chat types.JID, person types.J
 	g.Go(func() (err error) { e.health, err = b.Wallets.Health(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.captive, err = b.Wallets.captivity(gctx, chat, acc, now); return err })
 	g.Go(func() (err error) { e.shield, err = b.Wallets.shieldLeft(gctx, chat, acc, now); return err })
-	g.Go(func() (err error) { e.guard, e.hired, err = contractOf(gctx, b.Wallets.db, chat, acc, now); return err })
+	g.Go(func() (err error) { e.contracts, err = b.Wallets.contracts(gctx, chat, acc, now); return err })
 	if err := g.Wait(); err != nil {
 		return EconomyProfile{}, fmt.Errorf("ler economia: %w", err)
 	}
@@ -114,7 +113,7 @@ func (e EconomyProfile) assetLines() []string {
 	if e.shield > 0 {
 		lines = append(lines, shieldText(e.shield))
 	}
-	if text := contractText(e.guard, e.hired, e.now); text != "" {
+	if text := contractText(e.contracts, e.now); text != "" {
 		lines = append(lines, text)
 	}
 	if e.hasSavings {

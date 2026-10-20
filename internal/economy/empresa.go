@@ -26,29 +26,35 @@ const (
 var errNoContract = errors.New("sem contrato")
 
 type firm struct {
-	id      string
-	name    string
-	emoji   string
-	annul   float64
-	gangs   bool
-	cover   int64
-	rate    int64
-	floor   int64
-	aliases []string
+	id           string
+	sector       string
+	name         string
+	emoji        string
+	annul        float64
+	gangs        bool
+	cover        int64
+	edge         float64
+	breakout     int64
+	breakoutOdds float64
+	rate         int64
+	floor        int64
+	aliases      []string
 }
 
 var firms = []firm{
-	{id: "vigia-de-rua", name: "Vigia de rua", emoji: "🔦", annul: 0.4, cover: 10, rate: 2, floor: 500, aliases: []string{"vigia"}},
-	{id: "escolta-armada", name: "Escolta armada", emoji: "🚓", annul: 0.6, gangs: true, cover: 20, rate: 4, floor: 1_500, aliases: []string{"escolta"}},
-	{id: "carro-forte", name: "Carro-forte", emoji: "🛡️", annul: 0.8, gangs: true, cover: 35, rate: 7, floor: 4_000},
+	{id: "vigia-de-rua", sector: securitySector, name: "Vigia de rua", emoji: "🔦", annul: 0.4, cover: 10, rate: 2, floor: 500, aliases: []string{"vigia"}},
+	{id: "escolta-armada", sector: securitySector, name: "Escolta armada", emoji: "🚓", annul: 0.6, gangs: true, cover: 20, rate: 4, floor: 1_500, aliases: []string{"escolta"}},
+	{id: "carro-forte", sector: securitySector, name: "Carro-forte", emoji: "🛡️", annul: 0.8, gangs: true, cover: 35, rate: 7, floor: 4_000},
 }
 
+var allFirms = slices.Concat(firms, syndicates)
+
 func firmByID(id string) (firm, bool) {
-	i := slices.IndexFunc(firms, func(f firm) bool { return f.id == id })
+	i := slices.IndexFunc(allFirms, func(f firm) bool { return f.id == id })
 	if i < 0 {
 		return firm{}, false
 	}
-	return firms[i], true
+	return allFirms[i], true
 }
 
 func findFirm(query string) (firm, bool) {
@@ -69,8 +75,8 @@ func findFirm(query string) (firm, bool) {
 		func(key string) bool { return strings.Contains(key, q) },
 	}
 	for _, match := range matchers {
-		if i := slices.IndexFunc(firms, func(f firm) bool { return slices.ContainsFunc(keys(f), match) }); i >= 0 {
-			return firms[i], true
+		if i := slices.IndexFunc(allFirms, func(f firm) bool { return slices.ContainsFunc(keys(f), match) }); i >= 0 {
+			return allFirms[i], true
 		}
 	}
 	return firm{}, false
@@ -85,6 +91,9 @@ func (f firm) fee(balance int64) int64 {
 }
 
 func (f firm) perks() string {
+	if f.sector == crimeSector {
+		return f.backing()
+	}
 	reach := "!roubar"
 	if f.gangs {
 		reach = "!roubar e !quadrilha"
@@ -99,12 +108,16 @@ type contract struct {
 	boost time.Time
 }
 
-func contractOf(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, now time.Time) (c contract, found bool, err error) {
+func contractOf(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, now time.Time) (contract, bool, error) {
+	return contractIn(ctx, q, chat, acc, securitySector, now)
+}
+
+func contractIn(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, sector string, now time.Time) (c contract, found bool, err error) {
 	var id string
 	var until, boost int64
 	err = q.QueryRowContext(ctx,
 		"SELECT empresa, ate, reforco_ate FROM contratos WHERE chat = ? AND pessoa = ? AND ramo = ? AND ate > ?",
-		chat.String(), acc.Key, securitySector, now.Unix(),
+		chat.String(), acc.Key, sector, now.Unix(),
 	).Scan(&id, &until, &boost)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, false, nil
@@ -116,15 +129,39 @@ func contractOf(ctx context.Context, q rowQuerier, chat types.JID, acc core.Acco
 	return contract{firm: f, until: time.Unix(until, 0), boost: time.Unix(boost, 0)}, ok, nil
 }
 
-func contractText(c contract, hired bool, now time.Time) string {
-	if !hired {
-		return ""
+func (s *walletStore) contracts(ctx context.Context, chat types.JID, acc core.Account, now time.Time) ([]contract, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT empresa, ate, reforco_ate FROM contratos WHERE chat = ? AND pessoa = ? AND ate > ? ORDER BY ramo = ?",
+		chat.String(), acc.Key, now.Unix(), crimeSector,
+	)
+	if err != nil {
+		return nil, err
 	}
-	text := fmt.Sprintf("📄 Contrato com a %s por mais %s", c.firm.label(), core.FormatWait(c.until.Sub(now)))
-	if now.Before(c.boost) {
-		text += ", com reforço"
+	defer func() { _ = rows.Close() }()
+	var contracts []contract
+	for rows.Next() {
+		var id string
+		var until, boost int64
+		if err := rows.Scan(&id, &until, &boost); err != nil {
+			return nil, err
+		}
+		if f, ok := firmByID(id); ok {
+			contracts = append(contracts, contract{firm: f, until: time.Unix(until, 0), boost: time.Unix(boost, 0)})
+		}
 	}
-	return text
+	return contracts, rows.Err()
+}
+
+func contractText(contracts []contract, now time.Time) string {
+	lines := make([]string, 0, len(contracts))
+	for _, c := range contracts {
+		text := fmt.Sprintf("📄 Contrato com a %s por mais %s", c.firm.label(), core.FormatWait(c.until.Sub(now)))
+		if now.Before(c.boost) {
+			text += ", com reforço"
+		}
+		lines = append(lines, text)
+	}
+	return strings.Join(lines, "\n")
 }
 
 type firmOffer interface {
@@ -158,6 +195,12 @@ func (b *bot) answerFirmOffer(ctx context.Context, key string, accepted bool) (b
 		}
 		return true, b.acceptRecovery(ctx, o)
 	}
+	if o, ok := takeOffer[*breakoutOffer](&b.breakoutOffers, key, now); ok {
+		if !accepted {
+			return true, b.dismissFirm(ctx, o.chat, o.acc, o.firm)
+		}
+		return true, b.acceptBreakout(ctx, o)
+	}
 	return false, nil
 }
 
@@ -185,11 +228,10 @@ func (s *walletStore) sign(ctx context.Context, chat types.JID, acc core.Account
 		if err := tx.QueryRowContext(ctx, "SELECT saldo FROM carteiras WHERE chat = ? AND pessoa = ?", chat.String(), acc.Key).Scan(&balance); err != nil {
 			return err
 		}
-		jackpot, err := freshJackpot(ctx, tx, chat, acc, now)
-		if err != nil {
+		h.fee = f.fee(balance)
+		if h.urgency, err = f.emergency(ctx, tx, chat, acc, now); err != nil {
 			return err
 		}
-		h.fee, h.urgency = f.fee(balance), jackpot*emergencyCut/100
 		if err := debitBalance(ctx, tx, chat, acc, h.total()); err != nil {
 			return err
 		}
@@ -199,22 +241,30 @@ func (s *walletStore) sign(ctx context.Context, chat types.JID, acc core.Account
 			 ON CONFLICT (chat, pessoa, ramo) DO UPDATE SET
 			   ate = CASE WHEN contratos.empresa = excluded.empresa AND contratos.ate > ? THEN contratos.ate + ? ELSE excluded.ate END,
 			   empresa = excluded.empresa`,
-			chat.String(), acc.Key, securitySector, f.id, now.Unix()+span, now.Unix(), span,
+			chat.String(), acc.Key, f.sector, f.id, now.Unix()+span, now.Unix(), span,
 		)
 		if err != nil {
 			return err
 		}
 		var until int64
-		err = tx.QueryRowContext(ctx, "SELECT ate FROM contratos WHERE chat = ? AND pessoa = ? AND ramo = ?", chat.String(), acc.Key, securitySector).Scan(&until)
+		err = tx.QueryRowContext(ctx, "SELECT ate FROM contratos WHERE chat = ? AND pessoa = ? AND ramo = ?", chat.String(), acc.Key, f.sector).Scan(&until)
 		h.until = time.Unix(until, 0)
 		return err
 	})
 	return h, err
 }
 
-func (s *walletStore) cancelContract(ctx context.Context, chat types.JID, acc core.Account, now time.Time) (f firm, err error) {
+func (f firm) emergency(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, now time.Time) (int64, error) {
+	if f.sector != securitySector {
+		return 0, nil
+	}
+	jackpot, err := freshJackpot(ctx, q, chat, acc, now)
+	return jackpot * emergencyCut / 100, err
+}
+
+func (s *walletStore) cancelContract(ctx context.Context, chat types.JID, acc core.Account, sector string, now time.Time) (f firm, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
-		c, found, err := contractOf(ctx, tx, chat, acc, now)
+		c, found, err := contractIn(ctx, tx, chat, acc, sector, now)
 		if err != nil {
 			return err
 		}
@@ -222,55 +272,82 @@ func (s *walletStore) cancelContract(ctx context.Context, chat types.JID, acc co
 			return errNoContract
 		}
 		f = c.firm
-		_, err = tx.ExecContext(ctx, "DELETE FROM contratos WHERE chat = ? AND pessoa = ? AND ramo = ?", chat.String(), acc.Key, securitySector)
+		_, err = tx.ExecContext(ctx, "DELETE FROM contratos WHERE chat = ? AND pessoa = ? AND ramo = ?", chat.String(), acc.Key, sector)
 		return err
 	})
 	return f, err
 }
 
+type sector struct {
+	id     string
+	title  string
+	firms  []firm
+	footer string
+}
+
+func sectors() []sector {
+	return []sector{
+		{
+			id: securitySector, title: "🏢 *Empresas de segurança*", firms: firms,
+			footer: fmt.Sprintf("Quem contrata logo depois de ganhar na aposta paga mais %d%% do prêmio de taxa de emergência", emergencyCut),
+		},
+		{
+			id: crimeSector, title: "🕴️ *Organizações do crime*", firms: syndicates,
+			footer: "Se você rodar com o contrato ativo, a organização oferece o resgate na hora, é só !aceitar",
+		},
+	}
+}
+
 func (b *bot) empresa(ctx context.Context, evt *events.Message) error {
 	text := core.MessageText(evt.Message)
 	args := strings.Fields(core.FoldLetters(text))[1:]
+	all := sectors()
+	listing := func(shown ...sector) func(context.Context, *events.Message, string) error {
+		return func(ctx context.Context, evt *events.Message, _ string) error { return b.listFirms(ctx, evt, shown) }
+	}
 	if len(args) == 0 {
-		return b.listFirms(ctx, evt, "")
+		return b.listFirms(ctx, evt, all)
 	}
 	actions := map[string]func(context.Context, *events.Message, string) error{
-		"lista": b.listFirms, "planos": b.listFirms, "empresas": b.listFirms,
+		"lista": listing(all...), "planos": listing(all...), "empresas": listing(all...),
+		"seguranca": listing(all[0]), "crime": listing(all[1]), "organizacao": listing(all[1]), "organizacoes": listing(all[1]),
 		"contratar": b.signFirm, "assinar": b.signFirm, "renovar": b.signFirm,
 		"cancelar": b.cancelFirm, "encerrar": b.cancelFirm,
 	}
 	action, ok := actions[args[0]]
 	if !ok {
-		return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Use assim: !empresa, !empresa contratar <nome> ou !empresa cancelar")
+		return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Use assim: !empresa, !empresa crime, !empresa contratar <nome> ou !empresa cancelar")
 	}
 	return action(ctx, evt, core.TextAfterFields(text, 2))
 }
 
-func (b *bot) listFirms(ctx context.Context, evt *events.Message, _ string) error {
+func (b *bot) listFirms(ctx context.Context, evt *events.Message, shown []sector) error {
 	chat := evt.Info.Chat.ToNonAD()
 	acc := b.Account(ctx, evt.Info.Sender.ToNonAD())
 	now := time.Now()
 	var (
-		balance int64
-		current contract
-		hired   bool
+		balance   int64
+		contracts []contract
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, _, err = b.Wallets.Balance(gctx, chat, acc); return err })
-	g.Go(func() (err error) { current, hired, err = contractOf(gctx, b.Wallets.db, chat, acc, now); return err })
+	g.Go(func() (err error) { contracts, err = b.Wallets.contracts(gctx, chat, acc, now); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler empresas: %w", err)
 	}
-	lines := []string{"🏢 *Empresas de segurança*"}
-	if text := contractText(current, hired, now); text != "" {
-		lines = append(lines, text)
+	var lines []string
+	if text := contractText(contracts, now); text != "" {
+		lines = append(lines, text, "")
 	}
-	for _, f := range firms {
-		lines = append(lines, "", f.label()+" "+f.perks(),
-			fmt.Sprintf("💰 Diária: %d%% do saldo, no mínimo %s. Pra você agora: %s", f.rate, Coins(f.floor), Coins(f.fee(balance))))
+	for _, sec := range shown {
+		lines = append(lines, sec.title)
+		for _, f := range sec.firms {
+			lines = append(lines, "", f.label()+" "+f.perks(),
+				fmt.Sprintf("💰 Diária: %d%% do saldo, no mínimo %s. Pra você agora: %s", f.rate, Coins(f.floor), Coins(f.fee(balance))))
+		}
+		lines = append(lines, "", "_"+sec.footer+"_", "")
 	}
-	lines = append(lines, "", fmt.Sprintf("_Manda !empresa contratar <nome>. O contrato vale %s, e quem contrata logo depois de ganhar na aposta paga mais %d%% do prêmio de taxa de emergência_",
-		core.FormatWait(contractSpan), emergencyCut))
+	lines = append(lines, fmt.Sprintf("_Manda !empresa contratar <nome>. O contrato vale %s, e dá pra ter um de segurança e um com o crime ao mesmo tempo_", core.FormatWait(contractSpan)))
 	return b.SendText(ctx, chat, strings.Join(lines, "\n"))
 }
 
@@ -298,16 +375,46 @@ func (b *bot) signFirm(ctx context.Context, evt *events.Message, query string) e
 	return err
 }
 
-func (b *bot) cancelFirm(ctx context.Context, evt *events.Message, _ string) error {
+func (b *bot) cancelFirm(ctx context.Context, evt *events.Message, query string) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := evt.Info.Sender.ToNonAD()
-	f, err := b.Wallets.cancelContract(ctx, chat, b.Account(ctx, person), time.Now())
+	acc := b.Account(ctx, person)
+	now := time.Now()
+	sector, refusal, err := b.cancelledSector(ctx, chat, acc, query, now)
+	if err != nil {
+		return err
+	}
+	if refusal != "" {
+		return b.SendText(ctx, chat, refusal)
+	}
+	f, err := b.Wallets.cancelContract(ctx, chat, acc, sector, now)
 	if errors.Is(err, errNoContract) {
-		return b.SendText(ctx, chat, "Você não tem contrato com nenhuma empresa. Manda !empresa pra ver as opções")
+		return b.SendText(ctx, chat, "Você não tem contrato com essa empresa. Manda !empresa pra ver as opções")
 	}
 	if err != nil {
 		return fmt.Errorf("cancelar empresa: %w", err)
 	}
 	_, err = b.SendMentions(ctx, chat, fmt.Sprintf("📄 @%s cancelou o contrato com a %s. O que já foi pago não volta", person.User, f.label()), []types.JID{person})
 	return err
+}
+
+func (b *bot) cancelledSector(ctx context.Context, chat types.JID, acc core.Account, query string, now time.Time) (sector, refusal string, err error) {
+	if strings.TrimSpace(query) != "" {
+		f, ok := findFirm(query)
+		if !ok {
+			return "", "Não achei essa empresa. Manda !empresa pra ver os nomes", nil
+		}
+		return f.sector, "", nil
+	}
+	contracts, err := b.Wallets.contracts(ctx, chat, acc, now)
+	if err != nil {
+		return "", "", fmt.Errorf("ler contratos: %w", err)
+	}
+	if len(contracts) == 0 {
+		return "", "Você não tem contrato com nenhuma empresa. Manda !empresa pra ver as opções", nil
+	}
+	if len(contracts) == 1 {
+		return contracts[0].firm.sector, "", nil
+	}
+	return "", fmt.Sprintf("Você tem contrato com a %s e com a %s. Fala qual, tipo !empresa cancelar %s", contracts[0].firm.label(), contracts[1].firm.label(), strings.ToLower(contracts[1].firm.name)), nil
 }

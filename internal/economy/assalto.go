@@ -55,6 +55,7 @@ type robber struct {
 type heist struct {
 	robbers []robber
 	gear    []item
+	backer  firm
 	chance  float64
 	success bool
 	share   int64
@@ -202,7 +203,11 @@ func (b *bot) runHeist(ctx context.Context, chat types.JID, members []core.Accou
 		return fmt.Errorf("assalto: %w", err)
 	}
 	hurtText, freed := h.injuries()
-	if _, err := b.SendMentions(ctx, chat, h.text()+hurtText, append(accountJIDs(members), freed...)); err != nil {
+	cover := ""
+	if h.success {
+		cover = h.backer.coverText("a equipe")
+	}
+	if _, err := b.SendMentions(ctx, chat, cover+h.text()+hurtText, append(accountJIDs(members), freed...)); err != nil {
 		return err
 	}
 	b.stirCrewEvent(ctx, chat, uncaught(h.robbers), eventSpot{place: "!assalto", won: h.success})
@@ -212,11 +217,17 @@ func (b *bot) runHeist(ctx context.Context, chat types.JID, members []core.Accou
 func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robber, now time.Time) (h heist, err error) {
 	h.robbers = slices.Clone(robbers)
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
-		for _, r := range robbers {
+		backers := make([]firm, len(robbers))
+		for i, r := range robbers {
 			if err := openWallet(ctx, tx, chat, r.acc); err != nil {
 				return err
 			}
-			_, err := tx.ExecContext(ctx,
+			backer, err := syndicateOf(ctx, tx, chat, r.acc, now)
+			if err != nil {
+				return err
+			}
+			backers[i] = backer
+			_, err = tx.ExecContext(ctx,
 				"UPDATE carteiras SET assalto_em = ?, crime_em = ?, ficha_em = ? WHERE chat = ? AND pessoa = ?",
 				now.Unix(), now.Unix(), now.Unix(), chat.String(), r.acc.Key,
 			)
@@ -228,8 +239,8 @@ func (s *walletStore) heist(ctx context.Context, chat types.JID, robbers []robbe
 		if err != nil {
 			return err
 		}
-		h.gear = gear
-		h.chance = clampChance(heistChance + crewBonus(robbers) + gearBonus(gear))
+		h.gear, h.backer = gear, crewSyndicate(backers)
+		h.chance = clampChance(heistChance + crewBonus(robbers) + gearBonus(gear) + h.backer.edge)
 		h.success = rand.Float64() < crewHangover(robbers, func(r robber) Profession { return r.job }).sober(h.chance)
 		if err := woundCrew(ctx, tx, chat, h.robbers, h.success, now); err != nil {
 			return err

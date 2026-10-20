@@ -113,7 +113,7 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
 3. A mensagem é gravada no `mensagens.db` (é dela que saem ranking, medidores, IA, etc.). Depois
    os reatores (`AddReactor`) tentam reagir, e o primeiro que reagir encerra: o `reactIfMarked`
    da `jokes` vem antes do `reactToAilments` da `economy`. O `AddAfterMessage` (o
-   `settleMissions`, o `announceAssemblies`, o `announcePayouts` e o `offerTip`) roda no fim, com `defer`.
+   `settleMissions`, o `announceAssemblies`, o `announcePayouts`, o `offerBreakouts` e o `offerTip`) roda no fim, com `defer`.
 4. Os observadores (`AddObserver`) recebem a mensagem como possível resposta dos jogos em
    andamento: `answerBmc`, `answerVdd`, `AnswerPoll`, `answerImpostor`, `answerEspiao`,
    `answerForca`, `answerTermo`, `answerGuess`, `answerVelha` e `answerBatata` na `games`, e o

@@ -18,6 +18,7 @@ type bot struct {
 	debtRequests   sync.Map
 	boostOffers    sync.Map
 	recoveryOffers sync.Map
+	breakoutOffers sync.Map
 	TrialChats     sync.Map
 	trialPolls     sync.Map
 	heistCrews     sync.Map
@@ -45,6 +46,7 @@ func (b *bot) Register() {
 	b.AddAfterMessage(b.settleMissions)
 	b.AddAfterMessage(b.announceAssemblies)
 	b.AddAfterMessage(b.announcePayouts)
+	b.AddAfterMessage(b.offerBreakouts)
 	b.AddAfterMessage(b.offerTip)
 	b.AddReactor(b.reactToAilments)
 	b.AddObserver("responder o tribunal", func(ctx context.Context, evt *events.Message) error { return b.AnswerPoll(ctx, evt, &b.trialPolls) })

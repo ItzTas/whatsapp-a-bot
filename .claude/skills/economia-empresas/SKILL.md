@@ -1,27 +1,54 @@
 ---
 name: economia-empresas
-description: "Empresas de NPC da economia (empresa.go, escolta.go, reforco.go e recuperacao.go, !empresa lista/contratar/cancelar, catálogo firms em código, tabela contratos com ramo, contractOf e contractText, diária fee com piso e taxa de emergência, escortMark no !roubar e na !quadrilha, cushion dos eventos bolada/alvofacil, oferta de reforço offerBoost depois do prêmio, oferta de recuperação offerRecovery depois do roubo, boostOffers/recoveryOffers respondidos pelo !aceitar/!recusar com answerFirmOffer). Carregue antes de mexer numa empresa, num contrato ou numa oferta delas."
+description: "Empresas de NPC da economia (empresa.go, escolta.go, reforco.go, recuperacao.go e organizacao.go, !empresa lista/crime/contratar/cancelar, catálogos firms e syndicates em código, ramos seguranca e crime, organizações do crime com bônus no !roubar/!assalto/!quadrilha e oferta de resgate da cadeia breakoutOffers depois do lockUp, tabela contratos com ramo, contractOf e contractText, diária fee com piso e taxa de emergência, escortMark no !roubar e na !quadrilha, cushion dos eventos bolada/alvofacil, oferta de reforço offerBoost depois do prêmio, oferta de recuperação offerRecovery depois do roubo, boostOffers/recoveryOffers respondidos pelo !aceitar/!recusar com answerFirmOffer). Carregue antes de mexer numa empresa, num contrato ou numa oferta delas."
 user-invocable: false
 ---
 
 # Economia: empresas
 
-- As empresas são de NPC e vivem em código (`firms` em `empresa.go`); só o `id` vai pra coluna
-  `empresa` da tabela `contratos`. Nunca renomeie um `id`: o contrato some (o `contractOf` devolve
-  `found` falso). Hoje só existe o ramo de segurança (`securitySector`), mas a tabela já guarda o
-  `ramo`, com chave (`chat`, `pessoa`, `ramo`), então ramo novo é só outra constante e outra lista,
-  sem migração. É um contrato por pessoa por ramo.
+- As empresas são de NPC e vivem em código; só o `id` vai pra coluna `empresa` da tabela
+  `contratos`. Nunca renomeie um `id`: o contrato some (o `contractIn` devolve `found` falso). Tem
+  dois ramos, cada um com a constante e a lista dele: segurança (`securitySector`, `firms` em
+  `empresa.go`) e crime (`crimeSector`, `syndicates` em `organizacao.go`). Cada `firm` guarda o
+  `sector` dela, e o `allFirms` junta as duas listas pro `firmByID` e o `findFirm`, então os `id`s
+  e nomes não podem se repetir entre os ramos. A chave da tabela é (`chat`, `pessoa`, `ramo`): um
+  contrato por pessoa por ramo, então dá pra ter um de segurança e um do crime ao mesmo tempo.
+  Ramo novo é outra constante, outra lista no `allFirms` e outra entrada no `sectors()`, sem
+  migração. O `contractIn` lê o contrato de um ramo (o `contractOf` é ele com a segurança, o
+  `syndicateOf` devolve só a organização do crime) e o `walletStore.contracts` lê todos, com a
+  segurança primeiro.
 - Cada empresa de segurança tem `annul` (chance de anular a marca de alvo fácil num roubo), `gangs`
   (se cobre a `!quadrilha` além do `!roubar`), `cover` (porcentagem da perda coberta nos eventos) e
   a diária: `rate` por cento do saldo com piso `floor` (`fee`), e as moedas somem (é ralo). O
-  `perks()` monta o texto do `!empresa` e da contratação a partir desses campos, então mudar um
-  número já muda o texto.
+  `perks()` monta o texto do `!empresa` e da contratação a partir desses campos (pra organização
+  do crime, pelo `backing()`), então mudar um número já muda o texto.
 - O `!empresa contratar <nome>` (`walletStore.sign`) cobra a diária e grava `ate` em
-  `contractSpan`. Contratar a mesma empresa com o contrato ativo soma `contractSpan` no fim dele;
-  trocar de empresa começa um contrato novo a partir de agora (o tempo que sobrava se perde). Quem
-  tá com prêmio fresco de aposta (`freshJackpot`, skill `economia-crime`) paga ainda
-  `emergencyCut` por cento dele de taxa de emergência (`hiring.urgency`). O `!empresa cancelar`
-  apaga a linha sem devolver nada. Contrato não é espera: fica fora do `resetCooldowns`.
+  `contractSpan`, no ramo da empresa escolhida. Contratar a mesma empresa com o contrato ativo soma
+  `contractSpan` no fim dele; trocar por outra do mesmo ramo começa um contrato novo a partir de
+  agora (o tempo que sobrava se perde). Quem contrata segurança com prêmio fresco de aposta
+  (`freshJackpot`, skill `economia-crime`) paga ainda `emergencyCut` por cento dele de taxa de
+  emergência (`firm.emergency`, só no ramo de segurança). O `!empresa cancelar [nome]` apaga a
+  linha do ramo sem devolver nada: sem nome, cancela o único contrato que a pessoa tiver e, com
+  dois, pede o nome (`cancelledSector`). Contrato não é espera: fica fora do `resetCooldowns`.
+- O `!empresa` sem nada lista os dois ramos (`sectors()`, cada um com título, lista e rodapé), e o
+  `!empresa seguranca` e o `!empresa crime` listam um só.
+- **Organizações do crime** (`organizacao.go`): cada uma tem `edge` (chance somada no crime),
+  `gangs` (se o `edge` vale também no `!assalto` e na `!quadrilha`), e o resgate: `breakout` é o
+  preço fixo, que não depende do saldo, e `breakoutOdds` a chance de dar certo.
+  - Bônus: o `!roubar` lê o `syndicateOf` do ladrão em paralelo com as profissões e soma o `edge`
+    na chance antes do `sober`. Na `!quadrilha` (lido em paralelo no `runGang`) e no `!assalto`
+    (lido dentro da transação do `heist`), o `crewSyndicate` fica com a melhor organização com
+    `gangs` da equipe, sem somar as de cada um. Quando o crime dá certo, o `coverText` abre a
+    resposta dizendo quem deu cobertura.
+  - Resgate: o `lockUp` (toda ida pra cadeia, skill `economia-crime`) anota a pessoa no
+    `ledgerTx.jailed`, e o `inTx` passa pro `walletStore.jailings` (`jailLog`, por conversa) só
+    depois do commit. O `offerBreakouts`, no `AddAfterMessage` depois do `announcePayouts`, tira as
+    prisões daquela conversa e, pra quem tem contrato no ramo do crime e ainda tá preso, guarda um
+    `breakoutOffer` em `breakoutOffers` (chave `OfferKey`, vence em `offerWindow`). Quem não tem
+    contrato não recebe oferta. No `!aceitar`, o `walletStore.breakout` cobra o `breakout` com o
+    `spend` e, em `breakoutOdds` das vezes, zera o `preso_ate` e marca `crime_em` e `ficha_em`
+    (é fuga, então a polícia pode prender de novo); dando errado, as moedas somem e a pessoa fica
+    presa. Se ela já saiu, o `errNotHeld` desfaz a cobrança.
 - **Anulação da marca** (`escortMark` em `escolta.go`): o `walletStore.rob` e o `gangRob` chamam
   logo depois do `markOf`, então vale antes do `jackpotPace`, do `stampOrAbuse`, do alarme, do
   `looted` e do `jackpotShield`. Só age com a marca ligada (prêmio fresco ou `lucky`). Sorteia uma
@@ -35,10 +62,10 @@ user-invocable: false
   (`cover` por cento do que ia sumir). No `lose` a parte coberta volta pro saldo depois do
   `burnBalance`; no `skim` ela já sai descontada. A linha do efeito mostra quanto a empresa segurou.
   Efeito novo de perda em moeda desses lugares chama o `cushion` também.
-- **Ofertas** ficam em memória (`boostOffers` e `recoveryOffers` no `bot`, chave `OfferKey`) e
+- **Ofertas** ficam em memória (`boostOffers`, `recoveryOffers` e `breakoutOffers` no `bot`, chave `OfferKey`) e
   vencem em `offerWindow` (o mesmo prazo da venda do `!vender`); o `takeOffer` descarta a vencida.
   O `!aceitar` e o `!recusar` (`vender.go`) chamam o `answerFirmOffer` depois da venda e do
-  empréstimo. Quem não tem contrato recebe a oferta da `offerFirmID` (Escolta armada).
+  empréstimo. Quem não tem contrato de segurança recebe o reforço e a recuperação da `offerFirmID` (Escolta armada).
   - Reforço (`reforco.go`): o `noteWinnings` de `quedas.go`, logo depois do aviso 🎯 do
     `markedText`, chama o `offerBoost`, que só oferece com prêmio de pelo menos `boostPrizeMin`.
     Custa `boostCut` por cento do prêmio, e o `walletStore.boost` grava o `reforco_ate` até a marca
@@ -57,6 +84,7 @@ user-invocable: false
   (`markWarnings`, um `allInBoard` com chave `eventKey` mais a sintaxe).
   Quem não tem contrato sobe de nível sem aviso. O `!bolao` usa o `placeStake` direto e fica de
   fora, porque não passa pelo `NoteBet`, onde o nível sobe.
-- O `!saldo` e o `!tu` mostram o contrato ativo (`contractText`), e o `!empresa` sem nada lista as
-  empresas com a diária calculada pro saldo de quem pediu.
-- Teste: `go test ./internal/economy/ -run 'TestSignFirm|TestCancelContract|TestEscort|TestEventCushion|TestBoostContract|TestRecover|TestTakeOffer|TestMarkLevel|TestStalk'`.
+- O `!saldo` e o `!tu` mostram os contratos ativos dos dois ramos (`contractText` com o
+  `walletStore.contracts`), e o `!empresa` lista as empresas com a diária calculada pro saldo de
+  quem pediu.
+- Teste: `go test ./internal/economy/ -run 'TestSignFirm|TestCancelContract|TestEscort|TestEventCushion|TestBoostContract|TestRecover|TestTakeOffer|TestMarkLevel|TestStalk|TestSignSyndicate|TestCrewSyndicate|TestLockUpNotesJailing|TestBreakout'`.

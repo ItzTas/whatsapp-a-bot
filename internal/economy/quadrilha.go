@@ -265,25 +265,33 @@ func (b *bot) expireGang(ctx context.Context, chat types.JID, g *gang) {
 }
 
 func (b *bot) runGang(ctx context.Context, chat types.JID, victim core.Account, members []core.Account) error {
+	now := time.Now()
 	gangsters := make([]gangster, len(members))
+	backers := make([]firm, len(members))
 	var victimJob Profession
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { victimJob, err = b.ProfessionOf(gctx, chat, victim); return err })
 	for i, acc := range members {
 		gangsters[i].acc = acc
 		g.Go(func() (err error) { gangsters[i].job, err = b.ProfessionOf(gctx, chat, acc); return err })
+		g.Go(func() (err error) { backers[i], err = syndicateOf(gctx, b.Wallets.db, chat, acc, now); return err })
 	}
 	if err := g.Wait(); err != nil {
 		return err
 	}
-	chance := clampChance(robSuccessChance + gangBonus(gangsters) - victimJob.guard)
-	r, err := b.Wallets.gangRob(ctx, chat, victim, gangsters, chance, gangRisk.on(victimJob), time.Now())
+	backer := crewSyndicate(backers)
+	chance := clampChance(robSuccessChance + gangBonus(gangsters) + backer.edge - victimJob.guard)
+	r, err := b.Wallets.gangRob(ctx, chat, victim, gangsters, chance, gangRisk.on(victimJob), now)
 	if err != nil {
 		return fmt.Errorf("quadrilha: %w", err)
 	}
 	hurtText, freed := r.injuries()
 	people := append(accountJIDs(append(members, victim)), freed...)
-	if _, err := b.SendMentions(ctx, chat, r.escort.escortText(victim.JID)+r.mark.text(victim.JID)+r.text()+hurtText, people); err != nil || r.poor || r.shield > 0 {
+	cover := ""
+	if r.success {
+		cover = backer.coverText("a quadrilha")
+	}
+	if _, err := b.SendMentions(ctx, chat, r.escort.escortText(victim.JID)+r.mark.text(victim.JID)+cover+r.text()+hurtText, people); err != nil || r.poor || r.shield > 0 {
 		return err
 	}
 	b.stirCrewEvent(ctx, chat, r.survivors(), eventSpot{place: "!quadrilha", won: r.success, victim: victim.JID})

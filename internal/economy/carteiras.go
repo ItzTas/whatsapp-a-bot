@@ -22,7 +22,8 @@ var (
 )
 
 type walletStore struct {
-	db *ledgerDB
+	db       *ledgerDB
+	jailings jailLog
 }
 
 type wallet struct {
@@ -505,7 +506,11 @@ func (s *walletStore) inTx(ctx context.Context, fn func(tx *ledgerTx) error) (er
 	if err = fn(tx); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	s.jailings.add(tx.jailed)
+	return nil
 }
 
 func openWallet(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) error {

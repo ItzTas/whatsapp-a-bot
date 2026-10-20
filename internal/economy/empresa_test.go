@@ -79,7 +79,7 @@ func (fb firmBench) markJackpot(t *testing.T, acc core.Account, prize int64) {
 func (fb firmBench) contract(t *testing.T, acc core.Account, f firm, boost time.Time) {
 	t.Helper()
 	fb.exec(t, "INSERT INTO contratos (chat, pessoa, ramo, empresa, ate, reforco_ate) VALUES (?, ?, ?, ?, ?, ?)",
-		fb.chat.String(), acc.Key, securitySector, f.id, fb.now.Add(contractSpan).Unix(), boost.Unix())
+		fb.chat.String(), acc.Key, f.sector, f.id, fb.now.Add(contractSpan).Unix(), boost.Unix())
 }
 
 func mustFirm(t *testing.T, id string) firm {
@@ -141,18 +141,22 @@ func TestCancelContract(t *testing.T) {
 	fb := newFirmBench(t)
 	acc := fb.person("5511900000001")
 	fb.setBalance(t, acc, 10_000)
-	escolta := mustFirm(t, "escolta-armada")
+	escolta, firma := mustFirm(t, "escolta-armada"), mustFirm(t, "firma-do-157")
 	fb.contract(t, acc, escolta, time.Time{})
+	fb.contract(t, acc, firma, time.Time{})
 
-	f, err := fb.s.cancelContract(fb.ctx, fb.chat, acc, fb.now)
+	f, err := fb.s.cancelContract(fb.ctx, fb.chat, acc, securitySector, fb.now)
 	if err != nil || f.id != escolta.id {
-		t.Fatalf("cancelar devolve a empresa do contrato, deu %+v (%v)", f, err)
+		t.Fatalf("cancelar devolve a empresa do contrato daquele ramo, deu %+v (%v)", f, err)
 	}
 	if fb.balance(t, acc) != 10_000 {
 		t.Fatal("cancelar não devolve dinheiro nenhum")
 	}
-	if _, err := fb.s.cancelContract(fb.ctx, fb.chat, acc, fb.now); !errors.Is(err, errNoContract) {
-		t.Fatalf("sem contrato ativo não tem o que cancelar, deu %v", err)
+	if _, err := fb.s.cancelContract(fb.ctx, fb.chat, acc, securitySector, fb.now); !errors.Is(err, errNoContract) {
+		t.Fatalf("sem contrato ativo no ramo não tem o que cancelar, deu %v", err)
+	}
+	if contracts, err := fb.s.contracts(fb.ctx, fb.chat, acc, fb.now); err != nil || len(contracts) != 1 || contracts[0].firm.id != firma.id {
+		t.Fatalf("o contrato do outro ramo continua, deu %+v (%v)", contracts, err)
 	}
 }
 

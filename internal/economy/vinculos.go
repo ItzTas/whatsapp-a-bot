@@ -184,7 +184,8 @@ func (l *ledgerDB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*ledgerTx,
 }
 
 type ledgerTx struct {
-	tx *sql.Tx
+	tx     *sql.Tx
+	jailed []jailing
 }
 
 func (l *ledgerTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {

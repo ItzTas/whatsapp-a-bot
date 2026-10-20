@@ -55,8 +55,7 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 		health     int64
 		vault      homeVault
 		shield     time.Duration
-		guard      contract
-		hired      bool
+		contracts  []contract
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = b.Wallets.Balance(gctx, chat, acc); return err })
@@ -66,10 +65,7 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	g.Go(func() (err error) { health, err = b.Wallets.Health(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { vault, err = b.Wallets.vault(gctx, chat, acc); return err })
 	g.Go(func() (err error) { shield, err = b.Wallets.shieldLeft(gctx, chat, acc, time.Now()); return err })
-	g.Go(func() (err error) {
-		guard, hired, err = contractOf(gctx, b.Wallets.db, chat, acc, time.Now())
-		return err
-	})
+	g.Go(func() (err error) { contracts, err = b.Wallets.contracts(gctx, chat, acc, time.Now()); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler saldo: %w", err)
 	}
@@ -91,7 +87,7 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	if shield > 0 {
 		lines = append(lines, shieldText(shield))
 	}
-	if text := contractText(guard, hired, time.Now()); text != "" {
+	if text := contractText(contracts, time.Now()); text != "" {
 		lines = append(lines, text)
 	}
 	if vault.stored > 0 {
@@ -315,22 +311,34 @@ func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 		return b.SendText(ctx, chat, "Roubar de você mesmo? Isso se chama mudar o dinheiro de bolso 🤡")
 	}
 
-	thiefJob, victimJob, err := b.rivalProfessions(ctx, chat, thiefAcc, victimAcc)
-	if err != nil {
+	now := time.Now()
+	var (
+		thiefJob, victimJob Profession
+		backer              firm
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+		thiefJob, victimJob, err = b.rivalProfessions(gctx, chat, thiefAcc, victimAcc)
+		return err
+	})
+	g.Go(func() (err error) { backer, err = syndicateOf(gctx, b.Wallets.db, chat, thiefAcc, now); return err })
+	if err := g.Wait(); err != nil {
 		return err
 	}
-	chance := thiefJob.sober(clampChance(robSuccessChance + thiefJob.robBonus - victimJob.guard - thiefJob.curfew()))
+	chance := thiefJob.sober(clampChance(robSuccessChance + thiefJob.robBonus + backer.edge - victimJob.guard - thiefJob.curfew()))
 	risk := robRisk.by(thiefJob).on(victimJob)
 	caught := flagrant{odds: thiefJob.flagrantOdds(brokeCaughtChance), jail: Profession{jailTime: baseJail}.sentence(thiefJob)}
-	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), risk, caught, time.Now(), robMinVictim, robOutcome(chance, thiefJob.robHaul))
+	r, err := b.Wallets.rob(ctx, chat, thiefAcc, victimAcc, thiefJob.robCooldown(), thiefJob.abuse(robAbuse), risk, caught, now, robMinVictim, robOutcome(chance, thiefJob.robHaul))
 	if err != nil {
 		return fmt.Errorf("roubar: %w", err)
 	}
+	cover := ""
 	if r.success {
 		b.advance(chat, thiefAcc, crimeGoal, 1)
+		cover = backer.coverText("@" + thief.User)
 	}
 	hurtText, freed := r.scuffle.text(thief, victim)
-	text := r.escort.escortText(victim) + r.mark.text(victim) + robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
+	text := r.escort.escortText(victim) + r.mark.text(victim) + cover + robberyText(r, thief, victim) + r.abuse.note("Abusou do poder e roubou sem esperar a polícia esquecer") + hurtText
 	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{thief, victim}, freed...))
 	if err != nil || r.wait > 0 || r.shield > 0 || r.poor || r.jail > 0 || r.scuffle.criminal.died {
 		return err

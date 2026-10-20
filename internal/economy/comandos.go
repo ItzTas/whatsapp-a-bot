@@ -634,9 +634,10 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"empresas"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!empresa", "mostra as empresas de segurança, o que cada uma faz e quanto sai a diária pra você 🏢 Elas só trabalham quando você tá marcado(a) como alvo fácil: em cada roubo têm uma chance de tirar a marca, e aí o ladrão rouba como se você fosse qualquer um. Também seguram parte do que você perder nos eventos de quem ganhou muito na aposta"},
-				{"!empresa contratar <nome>", fmt.Sprintf("contrata uma empresa por %s, pagando na hora uma porcentagem do saldo (com mínimo). Contratar a mesma de novo soma mais %s no contrato, e trocar de empresa começa um contrato novo. Quem contrata com o prêmio de aposta ainda fresco paga mais %d%% dele de taxa de emergência", core.FormatWait(contractSpan), core.FormatWait(contractSpan), emergencyCut)},
-				{"!empresa cancelar", "cancela o contrato. O que já foi pago não volta"},
+				{"!empresa", "mostra as empresas de segurança e as organizações do crime, o que cada uma faz e quanto sai a diária pra você 🏢 As de segurança só trabalham quando você tá marcado(a) como alvo fácil: em cada roubo têm uma chance de tirar a marca, e aí o ladrão rouba como se você fosse qualquer um. Também seguram parte do que você perder nos eventos de quem ganhou muito na aposta"},
+				{"!empresa crime", "mostra só as organizações do crime 🕴️ Elas somam chance no !roubar (as maiores também no !assalto e na !quadrilha, valendo a melhor da equipe) e, se você rodar, oferecem te tirar da cadeia na hora por um preço fixo, com chance de dar errado"},
+				{"!empresa contratar <nome>", fmt.Sprintf("contrata uma empresa por %s, pagando na hora uma porcentagem do saldo (com mínimo). Dá pra ter uma de segurança e uma do crime ao mesmo tempo. Contratar a mesma de novo soma mais %s no contrato, e trocar por outra do mesmo tipo começa um contrato novo. Quem contrata segurança com o prêmio de aposta ainda fresco paga mais %d%% dele de taxa de emergência", core.FormatWait(contractSpan), core.FormatWait(contractSpan), emergencyCut)},
+				{"!empresa cancelar [nome]", "cancela o contrato. Se você tiver dois, fala o nome de qual. O que já foi pago não volta"},
 			},
 			Run: b.empresa,
 		},
@@ -843,7 +844,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "aceitar",
 			Aliases:  []string{"aceito"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!aceitar", "fecha a compra que alguém te ofereceu com o !vender @você, ou empresta as moedas que alguém te pediu com o !agiota @você, ou paga a proteção que uma empresa de segurança te ofereceu, ou diz sim pro pedido de casamento ou namoro ✅"}},
+			Help:     []core.Usage{{"!aceitar", "fecha a compra que alguém te ofereceu com o !vender @você, ou empresta as moedas que alguém te pediu com o !agiota @você, ou paga a proteção que uma empresa de segurança te ofereceu, ou paga o resgate da cadeia que a tua organização do crime ofereceu, ou diz sim pro pedido de casamento ou namoro ✅"}},
 			Run:      b.aceitar,
 		},
 		{

@@ -310,6 +310,7 @@ func lockUp(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account,
 	if err := easeEscape(ctx, tx, chat, acc, now); err != nil {
 		return 0, err
 	}
+	tx.jailed = append(tx.jailed, jailing{chat: chat, acc: acc})
 	return burnBalance(ctx, tx, chat, acc, fineMinPercent, fineMaxPercent, 1)
 }
 

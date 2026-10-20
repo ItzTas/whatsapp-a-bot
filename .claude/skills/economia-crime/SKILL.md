@@ -47,7 +47,8 @@ Cadeia, flagrante, morte, saúde e tribunal.
   da espera do `!fugir` que faltava (`lockUp`, via `easeEscape`), e as moedas somem, menos no
   `!prender`, em que o `arrest` (com `copKeepsFine`) credita a multa em quem mandou prender; a
   `!fianca` é outra coisa, é o preço de sair antes. Caminho novo que mande alguém pra cadeia precisa
-  chamar o `lockUp` também. Comando com `BarredInJail` no `economyCommands` é barrado pela guarda da
+  chamar o `lockUp` também, porque é ele que anota a prisão pra oferta de resgate da organização do
+  crime (skill `economia-empresas`). Comando com `BarredInJail` no `economyCommands` é barrado pela guarda da
   economia (`economyGuard`) enquanto quem mandou tá preso ou em cativeiro (hoje `!apostar`,
   `!cassino`, `!blackjack`, `!crash`, `!corrida`, `!roubar`, `!furtar`, `!sequestrar`,
   `!venderrefem`, `!matar`, `!assalto`, `!quadrilha` e `!libertar`).

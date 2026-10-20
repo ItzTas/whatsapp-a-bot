@@ -183,6 +183,7 @@ func economyTips() []string {
 			Coins(jackpotMin), core.FormatWait(jackpotWindow), percent(jackpotRobBonus), percent(jackpotAlarmCut), percent(jackpotWaitCut), percent(jackpotLootBonus), Coins(luckyMin), luckyDays, percent(luckyRobBonus), markLevelMax),
 		fmt.Sprintf("Vive ganhando na aposta? Contrata uma empresa no !empresa: em cada roubo ela tem chance de tirar sua fama de alvo fácil e ainda segura parte do prejuízo nos eventos de quem ganhou muito. Quem ganha %s ou mais de uma vez recebe a oferta de escolta na hora, e quem é roubado(a) às vezes recebe a oferta de ir atrás do ladrão, é só !aceitar 🕶️",
 			Coins(boostPrizeMin)),
+		"Vive de crime? Tem organização pra isso também: manda !empresa crime. Ela soma chance no !roubar (as maiores também no !assalto e na !quadrilha) e, se você rodar, oferece te tirar da cadeia por um preço fixo, é só !aceitar 🕴️",
 		"O presidente tem !decreto anistia (solta todo mundo e limpa a ficha, uma vez por mandato) e !decreto indulto @pessoa (tira alguém da cadeia na hora). Vale a pena fazer amizade com ele 🤝",
 		fmt.Sprintf("O !decreto ditadura não tem volta: o presidente pode cobrar imposto muito acima do teto e o !impeachment deixa de existir. Em troca, o !golpe precisa de só %d golpistas e pode ser tentado a cada %s, e ditador que morre perde o cargo 🪖",
 			tyrantCoupMin, core.FormatWait(tyrantCoupEvery)),
