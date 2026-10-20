@@ -301,11 +301,14 @@ func (b *bot) affordable(ctx context.Context, chat types.JID, acc core.Account, 
 
 func (b *bot) roubar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
-	mentions := core.MentionedJIDs(evt.Message)
-	if len(mentions) == 0 {
-		return b.SendText(ctx, chat, "Marca quem você vai roubar: !roubar @pessoa")
+	aim, problem := b.targetOf(ctx, evt)
+	if problem != "" {
+		return b.SendText(ctx, chat, problem)
 	}
-	thief, victim := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
+	if !aim.found() {
+		return b.SendText(ctx, chat, "Marca quem você vai roubar: !roubar @pessoa\n"+targetHint)
+	}
+	thief, victim := evt.Info.Sender.ToNonAD(), aim.person
 	thiefAcc, victimAcc := b.Account(ctx, thief), b.Account(ctx, victim)
 	if thiefAcc.Key == victimAcc.Key {
 		return b.SendText(ctx, chat, "Roubar de você mesmo? Isso se chama mudar o dinheiro de bolso 🤡")

@@ -101,6 +101,7 @@ func (b *bot) commandTips() []string {
 
 func economyTips() []string {
 	return []string{
+		"Quem saiu do grupo não escapa: no !roubar, !furtar, !sequestrar, !matar, !quadrilha, !prender e !denunciar dá pra mandar o nome da pessoa, o número dela (@5511999999999) ou responder uma mensagem ou um contato dela 🕵️",
 		"Relíquia não sai de caixa comum. O único jeito é achar o *Relicário perdido* no !pescar, !minerar, !vasculhar ou !catar e abrir ele com !usar relicario 🏺",
 		"A sorte da ferramenta e dos acessórios só ajuda a achar o *Relicário perdido* se você tiver a *Bússola do relicário* na mochila. Ela ainda aumenta a chance dele aparecer, mas é gasta a cada extração, então usa na hora certa 🧭",
 		"A *Isca de minhoca* e a *Garrafa de melado* dão sorte, mas essa sorte nunca acha Relicário, nem com a bússola. E o *Ímã* tira o Relicário do sorteio: pra caçar relíquia, deixa ele fora da mochila 🧲",

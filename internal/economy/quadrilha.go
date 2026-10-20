@@ -69,9 +69,13 @@ type gangRobbery struct {
 func (b *bot) quadrilha(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	acc := b.Account(ctx, evt.Info.Sender.ToNonAD())
+	aim, problem := b.targetOf(ctx, evt)
+	if _, open := b.gangs.Load(chat.String()); problem != "" && !open {
+		return b.SendText(ctx, chat, problem)
+	}
 	var target *core.Account
-	if mentions := core.MentionedJIDs(evt.Message); len(mentions) > 0 {
-		victim := b.Account(ctx, mentions[0].ToNonAD())
+	if aim.found() {
+		victim := b.Account(ctx, aim.person)
 		target = &victim
 	}
 	if target != nil && target.Key == acc.Key {
@@ -96,7 +100,7 @@ func (b *bot) quadrilha(ctx context.Context, evt *events.Message) error {
 
 	g, found := b.gangFor(ctx, chat, target)
 	if !found {
-		return b.SendText(ctx, chat, "Marca quem a quadrilha vai roubar: !quadrilha @pessoa")
+		return b.SendText(ctx, chat, "Marca quem a quadrilha vai roubar: !quadrilha @pessoa\n"+targetHint)
 	}
 	members, refusal := b.joinGang(ctx, chat, g, acc, target)
 	if refusal != "" {

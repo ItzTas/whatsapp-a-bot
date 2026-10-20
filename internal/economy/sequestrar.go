@@ -69,11 +69,14 @@ type hostageSale struct {
 
 func (b *bot) sequestrar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
-	mentions := core.MentionedJIDs(evt.Message)
-	if len(mentions) == 0 {
-		return b.SendText(ctx, chat, "Marca quem você vai sequestrar: !sequestrar @pessoa")
+	aim, problem := b.targetOf(ctx, evt)
+	if problem != "" {
+		return b.SendText(ctx, chat, problem)
 	}
-	kidnapper, victim := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
+	if !aim.found() {
+		return b.SendText(ctx, chat, "Marca quem você vai sequestrar: !sequestrar @pessoa\n"+targetHint)
+	}
+	kidnapper, victim := evt.Info.Sender.ToNonAD(), aim.person
 	kidnapperAcc, victimAcc := b.Account(ctx, kidnapper), b.Account(ctx, victim)
 	if kidnapperAcc.Key == victimAcc.Key {
 		return b.SendText(ctx, chat, "Se sequestrar? Isso se chama se trancar no quarto 🤡")

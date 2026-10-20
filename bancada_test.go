@@ -288,6 +288,38 @@ func (b *bench) say(chat types.JID, from person, text string, mentions ...person
 		}
 		message = core.MentionMessage(text, jids)
 	}
+	return b.deliver(chat, from, text, message)
+}
+
+func (b *bench) reply(chat types.JID, from person, text string, quoted person) []string {
+	b.t.Helper()
+	return b.quote(chat, from, text, &waE2E.ContextInfo{StanzaID: proto.String("MSG0"), Participant: proto.String(quoted.jid.String())})
+}
+
+func (b *bench) replyContact(chat types.JID, from person, text string, contact person) []string {
+	b.t.Helper()
+	vcard := fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nFN:%[1]s\nTEL;type=CELL;waid=%[2]s:+%[2]s\nEND:VCARD", contact.name, contact.jid.User)
+	return b.quote(chat, from, text, &waE2E.ContextInfo{
+		StanzaID:      proto.String("MSG0"),
+		Participant:   proto.String(from.jid.String()),
+		QuotedMessage: &waE2E.Message{ContactMessage: &waE2E.ContactMessage{DisplayName: proto.String(contact.name), Vcard: proto.String(vcard)}},
+	})
+}
+
+func (b *bench) quote(chat types.JID, from person, text string, quoted *waE2E.ContextInfo) []string {
+	b.t.Helper()
+	return b.deliver(chat, from, text, &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{Text: proto.String(text), ContextInfo: quoted}})
+}
+
+func (b *bench) leave(chat types.JID, p person) {
+	b.net.mu.Lock()
+	defer b.net.mu.Unlock()
+	info := b.net.groups[chat]
+	info.Participants = slices.DeleteFunc(info.Participants, func(member types.GroupParticipant) bool { return member.JID == p.jid })
+}
+
+func (b *bench) deliver(chat types.JID, from person, text string, message *waE2E.Message) []string {
+	b.t.Helper()
 	evt := &events.Message{
 		Info: types.MessageInfo{
 			MessageSource: types.MessageSource{Chat: chat, Sender: from.jid, IsGroup: chat.Server == types.GroupServer},

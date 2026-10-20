@@ -222,6 +222,16 @@ Cadeia, flagrante, morte, saúde e tribunal.
   moedas novas entre `heistLootMin` e `heistLootMax`; se der errado, cada um tenta escapar com o
   `escapeOdds` da profissão, e quem não escapa vai pra cadeia por `baseJail` ajustado pelo
   `jailFactor` (via `sentence`), com o `crime_em` zerado.
+- O alvo do `!roubar`, `!furtar`, `!sequestrar`, `!matar`, `!quadrilha`, `!prender` e `!denunciar`
+  sai do `targetOf` (`alvo.go`), nesta ordem: a marcação, o número do contato (vcard, pelo `core.QuotedContact`) da mensagem
+  respondida, o autor da mensagem respondida (menos o próprio bot), o primeiro `@número` digitado e,
+  por último, o nome (`personNamed`): o começo do texto depois do comando comparado com os nomes do
+  `!nome` (inclusive os automáticos) e os `!apelido` da conversa, sem acento e sem maiúscula, ficando
+  com o nome mais comprido que bate. O `target.rest` é o texto sem o nome, que o `!furtar` usa pra
+  achar o item. Nome que ninguém tem ou que mais de uma pessoa tem volta um texto de recusa, menos na
+  `!quadrilha` com uma quadrilha aberta, em que vira entrar nela. Nada disso olha quem tá no grupo,
+  então dá pra mirar quem saiu, que o WhatsApp não deixa marcar. Comando novo que mire uma pessoa
+  usa o `targetOf` e mostra o `targetHint` quando não vem ninguém.
 - A `!quadrilha @pessoa` (`quadrilha.go`) é o `!roubar` em grupo: junta até `gangSize` pessoas em
   `gangs` (uma por conversa, efêmera e salva com `KeepGame`) contra uma vítima só, marcada por quem
   abre; quem entra depois manda `!quadrilha` (marcar outra pessoa é recusado). Com `gangSize` sai

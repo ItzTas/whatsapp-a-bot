@@ -73,11 +73,14 @@ type arrest struct {
 
 func (b *bot) prender(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
-	mentions := core.MentionedJIDs(evt.Message)
-	if len(mentions) == 0 {
-		return b.SendText(ctx, chat, "Marca quem você vai prender: !prender @pessoa")
+	aim, problem := b.targetOf(ctx, evt)
+	if problem != "" {
+		return b.SendText(ctx, chat, problem)
 	}
-	cop, suspect := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
+	if !aim.found() {
+		return b.SendText(ctx, chat, "Marca quem você vai prender: !prender @pessoa\n"+targetHint)
+	}
+	cop, suspect := evt.Info.Sender.ToNonAD(), aim.person
 	copAcc, suspectAcc := b.Account(ctx, cop), b.Account(ctx, suspect)
 	if copAcc.Key == suspectAcc.Key {
 		return b.SendText(ctx, chat, "Quer se entregar? Pede pra outro policial te prender 🤡")

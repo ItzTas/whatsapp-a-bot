@@ -22,18 +22,21 @@ var theftCooldown = cooldown{column: "furto_em", every: 30 * time.Minute}
 
 func (b *bot) furtar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
-	mentions := core.MentionedJIDs(evt.Message)
-	if len(mentions) == 0 {
-		return b.SendText(ctx, chat, "Marca de quem você vai furtar: !furtar @pessoa (ou !furtar @pessoa todynho pra tentar um item específico)")
+	aim, problem := b.targetOf(ctx, evt)
+	if problem != "" {
+		return b.SendText(ctx, chat, problem)
 	}
-	thief, victim := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
+	if !aim.found() {
+		return b.SendText(ctx, chat, "Marca de quem você vai furtar: !furtar @pessoa (ou !furtar @pessoa todynho pra tentar um item específico)\n"+targetHint)
+	}
+	thief, victim := evt.Info.Sender.ToNonAD(), aim.person
 	thiefAcc, victimAcc := b.Account(ctx, thief), b.Account(ctx, victim)
 	if thiefAcc.Key == victimAcc.Key {
 		return b.SendText(ctx, chat, "Furtar a própria mochila? Isso se chama pegar as suas coisas 🤡")
 	}
 
 	var wanted item
-	if name := parseItemQuery(core.MessageText(evt.Message)).name; name != "" {
+	if name := parseItemQuery(aim.rest).name; name != "" {
 		matches := findItems(name)
 		if problem := itemQueryProblem(name, matches); problem != "" {
 			return b.SendText(ctx, chat, problem)

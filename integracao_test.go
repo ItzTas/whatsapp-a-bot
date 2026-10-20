@@ -298,6 +298,40 @@ func TestWaitSuggestsWhatIsFree(t *testing.T) {
 	}
 }
 
+func TestCrimesReachSomeoneWhoLeft(t *testing.T) {
+	b := newBench(t)
+	ana, bia, cris := newPerson("Ana", "5511990000002"), newPerson("Bia Souza", "5511990000003"), newPerson("Cris", "5511990000004")
+	chat := b.group("Galera", ana, bia, cris)
+	b.setup(chat, "economia zoeira")
+	b.say(chat, ana, "!daily")
+	b.say(chat, bia, "!daily")
+	b.leave(chat, bia)
+
+	fresh := func() { b.say(chat, b.owner, "!economia resetar intervalos") }
+	robbed := func(how string, send func() []string) {
+		t.Helper()
+		fresh()
+		start := b.balance(bia)
+		replies := send()
+		if b.balance(bia) == start {
+			t.Fatalf("o !roubar %s devia mexer no saldo da Bia, que saiu do grupo, e ficou em %d (respostas: %q)", how, start, replies)
+		}
+	}
+	robbed("pelo nome do zap", func() []string { return b.say(chat, ana, "!roubar bia souza") })
+	robbed("pelo número", func() []string { return b.say(chat, ana, "!roubar "+mentionTag(bia)) })
+	robbed("respondendo uma mensagem", func() []string { return b.reply(chat, ana, "!roubar", bia) })
+	robbed("respondendo um contato", func() []string { return b.replyContact(chat, ana, "!roubar", bia) })
+
+	fresh()
+	wantReply(t, b.say(chat, ana, "!sequestrar Bia Souza"), "@"+bia.jid.User)
+	fresh()
+	wantReply(t, b.say(chat, ana, "!matar Ninguem"), "Ninguém aqui tem o nome ou o apelido Ninguem")
+
+	b.say(chat, cris, "!apelido Bia Souza")
+	fresh()
+	wantReply(t, b.say(chat, ana, "!furtar Bia Souza pedra"), "Tem mais de uma pessoa chamada Bia Souza")
+}
+
 func TestZapNameStaysOutOfMentions(t *testing.T) {
 	b := newBench(t)
 	ana := newPerson("Ana", "5511990000002")

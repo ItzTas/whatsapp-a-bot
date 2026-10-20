@@ -37,11 +37,14 @@ type payback struct {
 
 func (b *bot) denunciar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
-	mentions := core.MentionedJIDs(evt.Message)
-	if len(mentions) == 0 {
-		return b.SendText(ctx, chat, "Marca quem você vai denunciar: !denunciar @pessoa")
+	aim, problem := b.targetOf(ctx, evt)
+	if problem != "" {
+		return b.SendText(ctx, chat, problem)
 	}
-	reporter, suspect := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
+	if !aim.found() {
+		return b.SendText(ctx, chat, "Marca quem você vai denunciar: !denunciar @pessoa\n"+targetHint)
+	}
+	reporter, suspect := evt.Info.Sender.ToNonAD(), aim.person
 	reporterAcc, suspectAcc := b.Account(ctx, reporter), b.Account(ctx, suspect)
 	if reporterAcc.Key == suspectAcc.Key {
 		return b.SendText(ctx, chat, "Quer se denunciar? Vai direto na delegacia e confessa 🤡")

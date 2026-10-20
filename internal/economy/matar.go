@@ -57,11 +57,14 @@ type killOdds struct {
 
 func (b *bot) matar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
-	mentions := core.MentionedJIDs(evt.Message)
-	if len(mentions) == 0 {
-		return b.SendText(ctx, chat, "Marca quem você vai apagar: !matar @pessoa")
+	aim, problem := b.targetOf(ctx, evt)
+	if problem != "" {
+		return b.SendText(ctx, chat, problem)
 	}
-	killer, victim := evt.Info.Sender.ToNonAD(), mentions[0].ToNonAD()
+	if !aim.found() {
+		return b.SendText(ctx, chat, "Marca quem você vai apagar: !matar @pessoa\n"+targetHint)
+	}
+	killer, victim := evt.Info.Sender.ToNonAD(), aim.person
 	killerAcc, victimAcc := b.Account(ctx, killer), b.Account(ctx, victim)
 	if killerAcc.Key == victimAcc.Key {
 		return b.SendText(ctx, chat, "Se matar não 💛 Se a coisa tiver pesada de verdade, o CVV atende no 188, a qualquer hora")
