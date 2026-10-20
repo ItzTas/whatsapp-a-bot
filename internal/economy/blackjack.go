@@ -56,6 +56,8 @@ type blackjackSave struct {
 	Chat       types.JID           `json:"chat"`
 	Account    core.StoredAccount  `json:"account"`
 	Stake      int64               `json:"stake"`
+	Decree     int64               `json:"decree,omitempty"`
+	Levy       *levySave           `json:"levy,omitempty"`
 	Luck       int64               `json:"luck"`
 	Heat       int64               `json:"heat"`
 	Solace     int64               `json:"solace"`
@@ -139,7 +141,7 @@ func (b *bot) dealBlackjack(ctx context.Context, chat types.JID, acc core.Accoun
 		return b.SendText(ctx, chat, refusal)
 	}
 	stake := bet.Stake
-	held, err := b.holdStake(ctx, chat, acc, stake)
+	held, err := b.holdStake(ctx, chat, acc, stake, bet.Boost.levy)
 	if err != nil {
 		return fmt.Errorf("apostar no !blackjack: %w", err)
 	}
@@ -149,7 +151,7 @@ func (b *bot) dealBlackjack(ctx context.Context, chat types.JID, acc core.Accoun
 
 	key := blackjackKey(chat, acc)
 	hand := b.trackBlackjack(ctx, chat, key, newBlackjackHand(acc, bet))
-	report := hand.report("")
+	report := hand.report(strings.TrimPrefix(BetLevyText(stake, bet.Boost.levy), "\n"))
 	if report.over {
 		return b.sendBlackjack(ctx, chat, report)
 	}
@@ -182,7 +184,7 @@ func (b *bot) restoreBlackjack(ctx context.Context, saved core.SavedGame) error 
 	hand := b.trackBlackjack(ctx, chat, key, &blackjackHand{
 		acc:        state.Account.Account(),
 		stake:      state.Stake,
-		boost:      PrizeBoost{luck: state.Luck, heat: state.Heat, solace: state.Solace, rescued: state.Rescued},
+		boost:      PrizeBoost{decree: state.Decree, levy: state.Levy.levy(), luck: state.Luck, heat: state.Heat, solace: state.Solace, rescued: state.Rescued},
 		deck:       loadBlackjackCards(state.Deck),
 		player:     loadBlackjackCards(state.Player),
 		dealer:     loadBlackjackCards(state.Dealer),
@@ -207,18 +209,19 @@ func (b *bot) doubleBlackjack(ctx context.Context, chat types.JID, h *blackjackH
 	if len(h.player) > 2 {
 		return "✋ Só dá pra dobrar com as duas primeiras cartas", nil
 	}
-	held, err := b.holdStake(ctx, chat, h.acc, h.stake)
+	held, err := b.holdStake(ctx, chat, h.acc, h.stake, h.boost.levy)
 	if err != nil {
 		return "", fmt.Errorf("dobrar no !blackjack: %w", err)
 	}
 	if !held {
-		return "🪹 Você não tem " + Coins(h.stake) + " pra dobrar", nil
+		return "🪹 Você não tem " + Coins(h.stake+h.boost.levy.cut(h.stake)) + " pra dobrar", nil
 	}
+	note := strings.TrimPrefix(BetLevyText(h.stake, h.boost.levy), "\n")
 	h.stake *= 2
 	h.doubled = true
 	h.player = append(h.player, h.draw())
 	h.stand()
-	return "", nil
+	return note, nil
 }
 
 func (b *bot) playBlackjack(ctx context.Context, chat types.JID, key string, hand *blackjackHand, move blackjackMove) error {
@@ -275,8 +278,8 @@ func (b *bot) sendBlackjack(ctx context.Context, chat types.JID, report blackjac
 	return nil
 }
 
-func (b *bot) holdStake(ctx context.Context, chat types.JID, acc core.Account, stake int64) (bool, error) {
-	_, err := b.Wallets.SettleBet(ctx, chat, acc, stake, 0)
+func (b *bot) holdStake(ctx context.Context, chat types.JID, acc core.Account, stake int64, levy PixLevy) (bool, error) {
+	_, err := b.Wallets.SettleBet(ctx, chat, acc, stake, 0, levy)
 	if errors.Is(err, ErrNoFunds) {
 		return false, nil
 	}
@@ -326,6 +329,8 @@ func (h *blackjackHand) saved(chat types.JID) blackjackSave {
 		Chat:       chat,
 		Account:    core.StoreAccount(h.acc),
 		Stake:      h.stake,
+		Decree:     h.boost.decree,
+		Levy:       h.boost.levy.saved(),
 		Luck:       h.boost.luck,
 		Heat:       h.boost.heat,
 		Solace:     h.boost.solace,

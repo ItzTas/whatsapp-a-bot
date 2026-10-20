@@ -26,6 +26,8 @@ const (
 	decreeSwing           = 50
 	shopTaxDecreeMax      = 20
 	pixDecreeMax          = 10
+	casinoDecreeMaxRaise  = 10
+	betTaxDecreeMax       = 10
 	interestDecreeMax     = 10
 	savingsTaxDecreeMax   = 50
 	bailTaxDecreeMax      = 30
@@ -43,6 +45,7 @@ type percentDecree struct {
 	names    []string
 	column   string
 	lo, hi   int64
+	tyrantLo int64
 	tyrantHi int64
 	popular  bool
 	raised   string
@@ -170,7 +173,14 @@ var (
 		revoked: "o !postar volta à espera normal",
 		syntax:  "!decreto fama -30", about: "muda a espera do !postar de todo mundo",
 	}
-	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, fameDecree}
+	casinoDecree = percentDecree{
+		names: []string{"cassino", "premio", "premios", "apostas", "aposta"}, column: "cassino_pct", lo: -betTaxDecreeMax, hi: casinoDecreeMaxRaise, tyrantLo: -tyrantBetTaxMax, popular: true,
+		raised:  "o cassino paga %d%% mais nos prêmios",
+		lowered: "toda aposta no cassino paga %d%% de taxa pro presidente, em cima do valor apostado",
+		revoked: "o cassino volta ao normal, sem prêmio a mais nem taxa",
+		syntax:  "!decreto cassino 10", about: "mexe no " + casinoGames + ": positivo aumenta o lucro de quem ganha e negativo cobra uma taxa em cima do valor apostado, ganhando ou perdendo, que vai pro bolso do presidente. Vale o decreto da hora da aposta (dá pra mandar !decreto imposto aposta 5 também)",
+	}
+	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, fameDecree, casinoDecree}
 
 	curfewDecree = toggleDecree{
 		names: []string{"recolher", "toque", "toquederecolher"}, column: "toque_recolher", emoji: "🌃",
@@ -353,6 +363,8 @@ func (p Profession) curfew() float64 {
 const casinoGames = "!apostar, !cassino, !blackjack, !crash, !corrida e !roleta"
 
 type PrizeBoost struct {
+	decree  int64
+	levy    PixLevy
 	luck    int64
 	heat    int64
 	solace  int64
@@ -397,14 +409,24 @@ func (pb PrizeBoost) Pay(stake, payout int64) int64 {
 	if payout <= stake {
 		return payout
 	}
-	return stake + (payout-stake)*(100+pb.luck)/100
+	return stake + (payout-stake)*(100+pb.decree+pb.luck)/100
 }
 
 func (pb PrizeBoost) Tag(stake, payout int64) string {
-	if payout <= stake || pb.luck == 0 {
+	if payout <= stake {
 		return ""
 	}
-	return fmt.Sprintf(" (🃏 %+d%% de sorte)", pb.luck)
+	var parts []string
+	if pb.decree != 0 {
+		parts = append(parts, fmt.Sprintf("📜 %+d%% por decreto", pb.decree))
+	}
+	if pb.luck != 0 {
+		parts = append(parts, fmt.Sprintf("🃏 %+d%% de sorte", pb.luck))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
 
 func (p presidency) workCooldown(every time.Duration) time.Duration {
@@ -420,6 +442,12 @@ func (p presidency) payFor(s shift) shift {
 
 func (p presidency) incomeLevy(acc core.Account) PixLevy {
 	return p.levy(incomeTaxDecree, acc)
+}
+
+func (p presidency) casinoLevy(acc core.Account) PixLevy {
+	levy := p.levy(casinoDecree, acc)
+	levy.percent = max(-levy.percent, 0)
+	return levy
 }
 
 func (p presidency) levy(pd percentDecree, payers ...core.Account) PixLevy {
@@ -489,6 +517,10 @@ func (b *bot) decrees() map[string]decree {
 			runs[name] = run
 		}
 	}
+	taxed := taxedRun(runs[casinoDecree.names[0]])
+	for _, name := range []string{"impostoaposta", "impostoapostas", "taxaaposta", "taxaapostas"} {
+		runs[name] = taxed
+	}
 	for _, td := range toggleDecrees {
 		run := b.toggleDecreeRun(td)
 		for _, name := range td.names {
@@ -516,6 +548,15 @@ func (b *bot) decrees() map[string]decree {
 		}
 	}
 	return runs
+}
+
+func taxedRun(run decree) decree {
+	return func(ctx context.Context, call decreeCall) (string, error) {
+		if len(call.args) > 0 && !strings.HasPrefix(call.args[0], "-") {
+			call.args = append([]string{"-" + call.args[0]}, call.args[1:]...)
+		}
+		return run(ctx, call)
+	}
 }
 
 func percentDecreeHelp(revokeHint string) []core.Usage {
@@ -1025,11 +1066,36 @@ func (s *walletStore) payPrize(ctx context.Context, chat types.JID, acc core.Acc
 	})
 }
 
-func (s *walletStore) SettleBet(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64) (balance int64, err error) {
+type levySave struct {
+	President core.StoredAccount `json:"president"`
+	Percent   int64              `json:"percent"`
+	Excess    int64              `json:"excess,omitempty"`
+}
+
+func (l PixLevy) saved() *levySave {
+	if l.percent == 0 {
+		return nil
+	}
+	return &levySave{President: core.StoreAccount(l.president), Percent: l.percent, Excess: l.excess}
+}
+
+func (s *levySave) levy() PixLevy {
+	if s == nil {
+		return PixLevy{}
+	}
+	return PixLevy{president: s.President.Account(), percent: s.Percent, excess: s.Excess}
+}
+
+func (pb PrizeBoost) Levy() PixLevy {
+	return pb.levy
+}
+
+func (s *walletStore) SettleBet(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64, levy PixLevy) (balance int64, err error) {
+	fee := levy.cut(stake)
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET saldo = saldo - ? + ? WHERE chat = ? AND pessoa = ? AND saldo >= ? RETURNING saldo",
-			stake, payout, chat.String(), acc.Key, stake,
+			stake+fee, payout, chat.String(), acc.Key, stake+fee,
 		).Scan(&balance)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNoFunds
@@ -1037,9 +1103,20 @@ func (s *walletStore) SettleBet(ctx context.Context, chat types.JID, acc core.Ac
 		if err != nil {
 			return err
 		}
+		if err := payLevy(ctx, tx, chat, levy, fee); err != nil {
+			return err
+		}
 		return noteWager(ctx, tx, chat, acc, stake, time.Now())
 	})
 	return balance, err
+}
+
+func BetLevyText(stake int64, levy PixLevy) string {
+	fee := levy.cut(stake)
+	if fee == 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n📜 E mais %s (%d%% da aposta) de taxa foram %s, por decreto", Coins(fee), levy.percent, levy.office())
 }
 
 func payLevy(ctx context.Context, tx *ledgerTx, chat types.JID, levy PixLevy, fee int64) error {

@@ -143,7 +143,7 @@ func TestWageredWindow(t *testing.T) {
 
 	wager(100_000, now.Add(-betWindow-time.Minute))
 	wager(30_000, now.Add(-90*time.Minute))
-	if _, err := s.SettleBet(ctx, chat, gambler, 20_000, 0); err != nil {
+	if _, err := s.SettleBet(ctx, chat, gambler, 20_000, 0, PixLevy{}); err != nil {
 		t.Fatal(err)
 	}
 	spent, freed, err := s.wagered(ctx, chat, gambler, now)

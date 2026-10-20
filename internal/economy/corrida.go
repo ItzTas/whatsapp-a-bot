@@ -76,6 +76,7 @@ type raceSaveHorse struct {
 type raceSaveBet struct {
 	Account core.StoredAccount `json:"account"`
 	Stake   int64              `json:"stake"`
+	Decree  int64              `json:"decree,omitempty"`
 	Luck    int64              `json:"luck"`
 	Heat    int64              `json:"heat"`
 	Solace  int64              `json:"solace"`
@@ -134,7 +135,7 @@ func (b *bot) restoreRace(ctx context.Context, saved core.SavedGame) error {
 	}
 	bets := make([]*raceBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, horse: bet.Horse}
+		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Decree, luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, horse: bet.Horse}
 	}
 	round := b.trackRace(ctx, state.Chat, &raceRound{
 		opened:  state.Opened,
@@ -179,6 +180,7 @@ func (b *bot) betRace(ctx context.Context, evt *events.Message, args []string) e
 	if opened {
 		text = round.announcement() + "\n\n" + round.entry(bet)
 	}
+	text += BetLevyText(bet.stake, bet.boost.levy)
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{acc.JID})
 	return err
 }
@@ -192,7 +194,7 @@ func (b *bot) enterRace(ctx context.Context, chat types.JID, round *raceRound, b
 	if slices.ContainsFunc(round.bets, func(other *raceBet) bool { return other.acc.Key == bet.acc.Key }) {
 		return "Você já apostou nessa corrida 🏇 É uma aposta por pessoa", nil
 	}
-	held, err := b.holdStake(ctx, chat, bet.acc, bet.stake)
+	held, err := b.holdStake(ctx, chat, bet.acc, bet.stake, bet.boost.levy)
 	if err != nil {
 		return "", fmt.Errorf("apostar na !corrida: %w", err)
 	}
@@ -378,7 +380,7 @@ func (r *raceRound) saved(chat types.JID) raceSave {
 	}
 	bets := make([]raceSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Horse: bet.horse}
+		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Decree: bet.boost.decree, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Horse: bet.horse}
 	}
 	return raceSave{Chat: chat, Opened: r.opened, Started: r.started, Horses: horses, Winner: r.winner, Frames: r.frames, Bets: bets}
 }

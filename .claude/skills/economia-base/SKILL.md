@@ -210,10 +210,15 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   maior a aposta de uma vez, maior a chance de perder: o `stakeRisk` (`risco.go`) soma
   `stakeRiskStep` a cada 10x acima de `stakeRiskFloor`, até `stakeRiskMax`. Os jogos que passam
   pelo `PlaceBet` leem essa chance pelo `PrizeBoost.Risk`, que soma a ela o calor da série (veja
-  abaixo, limitado a `streakHeatMax`). Não existe decreto de cassino: a presidência não mexe em
-  aposta nenhuma, nem com prêmio a mais nem com taxa. O `PlaceBet` devolve um `wager` com o
-  `Boost` da hora da aposta (`PrizeBoost`), guardado na aposta e no save das rodadas (`Luck`, `Heat`,
-  `Solace`, `Rescued`): o `luck` é o `casinoLuck` da profissão (Baralho do Zé Pelintra e afins), que
+  abaixo, limitado a `streakHeatMax`) e `decreeRiskStep` por ponto do decreto `cassino` (skill
+  `economia-presidencia`). O `PlaceBet` devolve um `wager` com o
+  `Boost` da hora da aposta (`PrizeBoost`), guardado na aposta e no save das rodadas (`Decree`, `Luck`, `Heat`,
+  `Solace`, `Rescued`): o `decree` é o nível positivo do decreto `cassino` (lido da presidência), que o
+  `Pay` soma no lucro e o `Tag` mostra (📜), mas que também soma `decreeRiskStep` de chance de perder
+  por ponto no `edge` (+10% de lucro, +4,5% de chance de perder no máximo), e nada no `Help`, no `Tag`
+  ou no menu do `!decreto` fala desse risco; o `levy` é a taxa do decreto negativo, cobrada em cima do
+  valor apostado pelo `SettleBet` (e pelo `holdStake`, que passa por ele) e mostrada pelo `BetLevyText`
+  (skill `economia-presidencia`); o `luck` é o `casinoLuck` da profissão (Baralho do Zé Pelintra e afins), que
   o `Pay` soma no lucro e o `Tag` mostra (🃏), e o `rescued` é sorteado ali com o `rescueOdds`, e na
   derrota o `Rescue` devolve a aposta inteira (no `!crash` e na `!corrida`, pelo `payRescues` no fim
   da rodada). Os jogos que seguram a aposta durante a rodada descontam pelo `holdStake` e pagam pelo

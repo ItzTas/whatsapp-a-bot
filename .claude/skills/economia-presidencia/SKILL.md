@@ -58,8 +58,18 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `fianca` (imposto em cima do preço do `!fianca`, cobrado de quem paga no `buyExit` pelo `levy` do
   `exit` e pago pro presidente na mesma transação, a não ser que seja ele pagando; o `!decreto
   imposto fianca` cai nela pelo mesmo motivo do `iof`, e o `!hospital` e o `!resgate` não pagam).
-  Não existe decreto de cassino (saiu na migração `00118`): nenhum decreto mexe em aposta, nem
-  com prêmio a mais nem com taxa, e o `PlaceBet` nem lê a presidência. Os de uma vez são `imposto`, `auxilio`
+  O `cassino` (`casinoDecree`, coluna `cassino_pct`, que voltou na migração `00124`) vai de
+  `-betTaxDecreeMax` a `+casinoDecreeMaxRaise` (10 pros dois lados, e `-tyrantBetTaxMax` na ditadura,
+  pelo `tyrantLo`). O `PlaceBet` lê a presidência em paralelo e monta o `PrizeBoost` da hora da aposta
+  (skill `economia-base`): positivo vai pro `decree`, e cada ponto soma 1% no lucro de quem ganha e,
+  escondido, `decreeRiskStep` (0,45 ponto percentual) na chance de perder; negativo vira o `levy`
+  (`casinoLevy`), uma taxa em cima do valor apostado, ganhando ou perdendo, que o `SettleBet` cobra
+  junto da aposta na mesma transação e paga pelo `payLevy` (o presidente não paga na aposta dele, e
+  depois do `!renunciar` vai pro ralo). Como o `SettleBet` é quem tira a aposta (o `holdStake` também
+  passa por ele), a taxa vale no `!apostar`, `!cassino`, `!roleta`, `!crash`, `!corrida` e no
+  `!blackjack`, inclusive no dobro (o `levy` vai no save da mão, `levySave`). O `BetLevyText` mostra a
+  taxa na resposta. O `!decreto imposto aposta 5` cai nele, e o `taxedRun` dos apelidos
+  `impostoaposta`/`taxaaposta` troca o sinal. O `!bicho` não lê (é clandestino). Os de uma vez são `imposto`, `auxilio`
   (`presidentAid` de moeda nova pra cada carteira da conversa), `caixa` (uma `presidentBoxItem`, a
   caixa misteriosa comum, na mochila de cada carteira da conversa), `anistia` (zera `preso_ate` e o
   `crime_em` dentro da `crimeWindow`), `indulto @pessoa` (`presidentPardons` por mandato), `confisco
@@ -127,14 +137,15 @@ Presidente, decretos, impeachment, renúncia e golpe.
 - A ditadura (`ditadura.go`) é o `tyrannyDecree`, um decreto do `toggleDecrees` com `lasting`: o
   `toggleDecreeRun` recusa desligar quando ele já tá ligado, então só cai com o fim do mandato, o
   `!golpe`, a morte do ditador ou o `!renunciar` (o `resign` zera a coluna `ditadura`). Com ela
-  ligada, o `decrees.limits` troca o teto dos decretos de imposto pelo `tyrantHi`, e tanto o `level` quanto a validação do `percentDecreeRun` leem os
+  ligada, o `decrees.limits` troca o teto dos decretos de imposto pelo `tyrantHi` (e o piso da taxa do
+  `cassino` pelo `tyrantLo`), e tanto o `level` quanto a validação do `percentDecreeRun` leem os
   limites por ele. Quando a ditadura cai, o `level` volta a cortar no teto normal sozinho. O
   `!impeachment` não abre e, se a ditadura sair no meio da votação, o `impeachmentResult` anula. O
   `!golpe` lê `coupMin()`/`coupEvery()` dos decretos (`tyrantCoupMin`, `tyrantCoupEvery`), e o
   mínimo da abertura fica guardado no `need` da conspiração (e no save). A revolta (coluna
   `revolta`) sobe no `stirRevolt` a cada imposto cobrado pro ditador, chamado pelo `payLevy` e pelo
   `transferWithPix`, somando o `excess` do `PixLevy` (o quanto o nível passa do
-  limite normal, pelo `abuse`, também salvo no `heldLevySave`). O `!decreto exercito [batalhões]`
+  limite normal, pelo `abuse`, também salvo no `levySave`). O `!decreto exercito [batalhões]`
   (`armyDecree`, só na ditadura) cobra `battalionPercent` do saldo (piso `battalionFloor`) por
   batalhão, um ralo, e empurra a coluna `exercito_ate` em `battalionTime` por batalhão, até
   `armyBattalions`. A proteção cai em linha reta até o `exercito_ate` (`decrees.army`). As duas

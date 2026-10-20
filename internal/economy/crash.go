@@ -58,6 +58,7 @@ type crashSave struct {
 type crashSaveBet struct {
 	Account core.StoredAccount `json:"account"`
 	Stake   int64              `json:"stake"`
+	Decree  int64              `json:"decree,omitempty"`
 	Luck    int64              `json:"luck"`
 	Heat    int64              `json:"heat"`
 	Solace  int64              `json:"solace"`
@@ -134,6 +135,7 @@ func (b *bot) betCrash(ctx context.Context, evt *events.Message, args []string) 
 	if joined {
 		text = fmt.Sprintf("%s. Decola em %s 🚀", bet.entry(), formatSeconds(crashWindow-time.Since(round.opened)))
 	}
+	text += BetLevyText(bet.stake, bet.boost.levy)
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{acc.JID})
 	return err
 }
@@ -147,7 +149,7 @@ func (b *bot) enterCrash(ctx context.Context, chat types.JID, round *crashRound,
 	if slices.ContainsFunc(round.bets, func(other *crashBet) bool { return other.acc.Key == bet.acc.Key }) {
 		return "Você já tá nesse foguete 🚀 É uma aposta por pessoa", nil
 	}
-	held, err := b.holdStake(ctx, chat, bet.acc, bet.stake)
+	held, err := b.holdStake(ctx, chat, bet.acc, bet.stake, bet.boost.levy)
 	if err != nil {
 		return "", fmt.Errorf("apostar no !crash: %w", err)
 	}
@@ -276,7 +278,7 @@ func (b *bot) restoreCrash(ctx context.Context, saved core.SavedGame) error {
 	}
 	bets := make([]*crashBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &crashBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, target: bet.Target, cashed: bet.Cashed}
+		bets[i] = &crashBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Decree, luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, target: bet.Target, cashed: bet.Cashed}
 	}
 	round := b.trackCrash(ctx, state.Chat, &crashRound{opened: state.Opened, start: state.Start, point: state.Point, bets: bets})
 	wait := crashWindow - time.Since(round.opened)
@@ -364,7 +366,7 @@ func (r *crashRound) ends() time.Time {
 func (r *crashRound) saved(chat types.JID) crashSave {
 	bets := make([]crashSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = crashSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Target: bet.target, Cashed: bet.cashed}
+		bets[i] = crashSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Decree: bet.boost.decree, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Target: bet.target, Cashed: bet.cashed}
 	}
 	return crashSave{Chat: chat, Opened: r.opened, Start: r.start, Point: r.point, Bets: bets}
 }

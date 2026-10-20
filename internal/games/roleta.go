@@ -149,7 +149,7 @@ func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, f
 	}
 	payout := bet.boost.Pay(bet.stake, roletaPayout(bet.stake, fired, chambersLeft))
 	saved := bet.boost.Rescue(bet.stake, payout)
-	balance, err := b.economy.Wallets.SettleBet(ctx, chat, bet.acc, bet.stake, payout+saved)
+	balance, err := b.economy.Wallets.SettleBet(ctx, chat, bet.acc, bet.stake, payout+saved, bet.boost.Levy())
 	if errors.Is(err, economy.ErrNoFunds) {
 		return fmt.Sprintf("🤨 O saldo de @%s mudou no meio e a aposta não valeu", bet.shooter.User), 0, false
 	}
@@ -161,7 +161,7 @@ func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, f
 	if fired {
 		result = fmt.Sprintf("💸 @%s perdeu %s", bet.shooter.User, economy.Coins(bet.stake)) + economy.SavedBetText(saved)
 	}
-	return result + "\n💰 Saldo: " + economy.Coins(balance), payout + saved, true
+	return result + economy.BetLevyText(bet.stake, bet.boost.Levy()) + "\n💰 Saldo: " + economy.Coins(balance), payout + saved, true
 }
 
 func roletaPayout(stake int64, fired bool, chambersLeft int) int64 {
