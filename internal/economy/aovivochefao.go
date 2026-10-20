@@ -137,17 +137,16 @@ func (ev *liveEvent) ranking() ([]liveHitter, int64) {
 	return hitters, ev.health
 }
 
-func (b *bot) showBoss(ctx context.Context, ev *liveEvent, players []types.JID) error {
+func (b *bot) showBoss(ctx context.Context, ev *liveEvent, players []types.JID) (types.MessageID, error) {
 	sc, ok := bossByID(ev.scenario)
 	if !ok {
-		return fmt.Errorf("chefão %s não existe", ev.scenario)
+		return "", fmt.Errorf("chefão %s não existe", ev.scenario)
 	}
 	health, life := ev.vitals()
 	rules := fmt.Sprintf("❤️ %s\n⚔️ Todo mundo pode *!atacar*, uma vez a cada %s. Se cair em até %s, todo mundo que bateu leva prêmio, maior pra quem deu mais dano. Se escapar, quem bateu paga o pato",
 		lifeBar(health, life), core.FormatWait(bossRest), core.FormatWait(bossWindow))
 	text := liveHeader("👹", sc.title, sc.rarity) + "\n\n" + core.PickOne(sc.intros) + "\n\n" + rules + liveCall(players)
-	_, err := b.SendMentions(ctx, ev.chat, text, players)
-	return err
+	return b.SendMentions(ctx, ev.chat, text, players)
 }
 
 func (b *bot) atacar(ctx context.Context, evt *events.Message) error {

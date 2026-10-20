@@ -75,22 +75,22 @@ func majority(picks []int, options int) (pick, votes int) {
 	return core.PickOne(tied), votes
 }
 
-func (b *bot) showVote(ctx context.Context, ev *liveEvent, players []types.JID) error {
+func (b *bot) showVote(ctx context.Context, ev *liveEvent, players []types.JID) (types.MessageID, error) {
 	sc, ok := voteByID(ev.scenario)
 	if !ok {
-		return fmt.Errorf("enquete %s não existe", ev.scenario)
+		return "", fmt.Errorf("enquete %s não existe", ev.scenario)
 	}
 	rules := fmt.Sprintf("_Vota na enquete aqui embaixo em até %s: a opção mais votada vale pra todo mundo que votar_", core.FormatWait(voteWindow))
 	text := liveHeader("🗳️", sc.title, sc.rarity) + "\n\n" + core.PickOne(sc.intros) + "\n\n" + rules + liveCall(players)
 	if _, err := b.SendMentions(ctx, ev.chat, text, players); err != nil {
-		return err
+		return "", err
 	}
 	poll, err := b.Client.SendMessage(ctx, ev.chat, b.Client.BuildPollCreation(sc.ask(), ev.labels, 1))
 	if err != nil {
-		return fmt.Errorf("mandar a enquete: %w", err)
+		return "", fmt.Errorf("mandar a enquete: %w", err)
 	}
 	ev.setPoll(poll.ID)
-	return nil
+	return poll.ID, nil
 }
 
 func (ev *liveEvent) setPoll(id types.MessageID) {

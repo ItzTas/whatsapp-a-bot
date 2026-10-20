@@ -96,13 +96,13 @@ func (sc grabScenario) lockText(clue string) string {
 	return fmt.Sprintf("🔐 %s *%s*", sc.lock, clue)
 }
 
-func (b *bot) showGrab(ctx context.Context, ev *liveEvent, _ []types.JID) error {
+func (b *bot) showGrab(ctx context.Context, ev *liveEvent, _ []types.JID) (types.MessageID, error) {
 	sc, ok := grabByID(ev.scenario)
 	if !ok {
-		return fmt.Errorf("corrida %s não existe", ev.scenario)
+		return "", fmt.Errorf("corrida %s não existe", ev.scenario)
 	}
 	text := liveHeader("🏁", sc.title, sc.rarity) + "\n\n" + core.PickOne(sc.intros) + "\n\n" + sc.call(ev.clue)
-	return b.SendText(ctx, ev.chat, text)
+	return b.SendRawMentions(ctx, ev.chat, text, nil)
 }
 
 func (b *bot) missGrab(ctx context.Context, ev *liveEvent) error {

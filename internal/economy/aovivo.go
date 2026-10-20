@@ -31,6 +31,7 @@ const (
 	liveSaveEvery  = 10 * time.Minute
 	liveGrace      = 30 * time.Second
 	liveJobLimit   = 4
+	livePinLength  = 24 * time.Hour
 	liveFailure    = "⚠️ deu erro na hora de pagar, avisa o dono do bot"
 )
 
@@ -47,7 +48,7 @@ type liveRules struct {
 	crowd  int
 	window time.Duration
 	setup  func(ev *liveEvent, crowd int)
-	show   func(b *bot, ctx context.Context, ev *liveEvent, players []types.JID) error
+	show   func(b *bot, ctx context.Context, ev *liveEvent, players []types.JID) (types.MessageID, error)
 	finish func(b *bot, ctx context.Context, ev *liveEvent) error
 }
 
@@ -282,6 +283,7 @@ type liveEvent struct {
 	hitters  map[string]*liveHitter
 	labels   []string
 	poll     types.MessageID
+	pinned   types.MessageID
 	ballots  map[string]liveBallot
 	timer    *time.Timer
 	closed   bool
@@ -311,6 +313,7 @@ type liveSave struct {
 	Hitters  []hitterSave    `json:"hitters,omitempty"`
 	Labels   []string        `json:"labels,omitempty"`
 	Poll     types.MessageID `json:"poll,omitempty"`
+	Pinned   types.MessageID `json:"pinned,omitempty"`
 	Ballots  []liveBallot    `json:"ballots,omitempty"`
 }
 
@@ -370,12 +373,14 @@ func (b *bot) openLive(ctx context.Context, chat types.JID, formats []liveFormat
 		return false, nil
 	}
 	b.keepLiveChat(ctx, chat, b.live.opened(chat, entry.id, now))
-	if err := entry.format.rules().show(b, ctx, ev, players); err != nil {
+	shown, err := entry.format.rules().show(b, ctx, ev, players)
+	if err != nil {
 		if ev.close() {
 			b.releaseLive(ctx, ev)
 		}
 		return false, fmt.Errorf("mostrar o evento ao vivo %s: %w", entry.id, err)
 	}
+	b.pinLive(ctx, ev, shown)
 	b.trackLive(ctx, ev, time.Until(ev.expires))
 	return true, nil
 }
@@ -433,10 +438,36 @@ func (ev *liveEvent) arm(expire func(), wait time.Duration) (types.MessageID, bo
 	return ev.poll, true
 }
 
-func (ev *liveEvent) pollID() types.MessageID {
+func (ev *liveEvent) messages() (poll, pinned types.MessageID) {
 	ev.mu.Lock()
 	defer ev.mu.Unlock()
-	return ev.poll
+	return ev.poll, ev.pinned
+}
+
+func (b *bot) pinLive(ctx context.Context, ev *liveEvent, id types.MessageID) {
+	if err := b.PinMessage(ctx, ev.chat, b.Client.Store.GetJID(), id, livePinLength); err != nil {
+		b.Client.Log.Warnf("fixar o evento ao vivo %s em %s: %v", ev.scenario, ev.chat, err)
+		return
+	}
+	if !ev.pin(id) {
+		b.unpinLive(ctx, ev.chat, id)
+	}
+}
+
+func (ev *liveEvent) pin(id types.MessageID) bool {
+	ev.mu.Lock()
+	defer ev.mu.Unlock()
+	if ev.closed {
+		return false
+	}
+	ev.pinned = id
+	return true
+}
+
+func (b *bot) unpinLive(ctx context.Context, chat types.JID, id types.MessageID) {
+	if err := b.UnpinMessage(ctx, chat, b.Client.Store.GetJID(), id); err != nil {
+		b.Client.Log.Warnf("desfixar o evento ao vivo em %s: %v", chat, err)
+	}
 }
 
 func (b *bot) keepLive(ctx context.Context, ev *liveEvent) {
@@ -451,7 +482,7 @@ func (b *bot) keepLive(ctx context.Context, ev *liveEvent) {
 func (ev *liveEvent) snapshot() liveSave {
 	s := liveSave{
 		Chat: ev.chat, Format: ev.format, Scenario: ev.scenario, Expires: ev.expires, Clue: ev.clue, Answer: ev.answer,
-		Life: ev.life, Health: ev.health, Labels: ev.labels, Poll: ev.poll,
+		Life: ev.life, Health: ev.health, Labels: ev.labels, Poll: ev.poll, Pinned: ev.pinned,
 	}
 	for _, h := range ev.hitters {
 		s.Hitters = append(s.Hitters, hitterSave{Account: core.StoreAccount(h.acc), Damage: h.damage, Hits: h.hits, Last: h.last})
@@ -465,7 +496,7 @@ func (ev *liveEvent) snapshot() liveSave {
 func (s liveSave) event() *liveEvent {
 	ev := &liveEvent{
 		chat: s.Chat, format: s.Format, scenario: s.Scenario, expires: s.Expires, clue: s.Clue, answer: s.Answer,
-		life: s.Life, health: s.Health, labels: s.Labels, poll: s.Poll,
+		life: s.Life, health: s.Health, labels: s.Labels, poll: s.Poll, pinned: s.Pinned,
 		hitters: map[string]*liveHitter{}, ballots: map[string]liveBallot{},
 	}
 	for _, h := range s.Hitters {
@@ -526,8 +557,12 @@ func (ev *liveEvent) shut() bool {
 
 func (b *bot) releaseLive(ctx context.Context, ev *liveEvent) {
 	b.live.events.CompareAndDelete(ev.chat, ev)
-	if poll := ev.pollID(); poll != "" {
+	poll, pinned := ev.messages()
+	if poll != "" {
 		b.live.polls.CompareAndDelete(poll, ev)
+	}
+	if pinned != "" {
+		b.unpinLive(ctx, ev.chat, pinned)
 	}
 	b.DropGame(ctx, liveKind, ev.chat.String())
 }

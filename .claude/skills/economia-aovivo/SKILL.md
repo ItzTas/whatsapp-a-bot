@@ -52,6 +52,13 @@ da economia: morto não joga, e os dois comandos de jogar têm `BarredInJail`.
   `shiftValue` de quem recebe, igual nos eventos com escolha.
 - **Deus.** O `!aovivo [corrida|chefão|enquete]` (`invocar`, só com `divine`) abre um evento na hora, sem
   esperar o relógio, sem olhar o horário nem o mínimo de jogadores, e reinicia o relógio do grupo.
+- **Fixado.** O `show` devolve a mensagem que fica fixada enquanto o evento durar: o aviso na corrida e
+  no chefão, a enquete na enquete coletiva. O `pinLive` fixa por `livePinLength` (24h, o menor prazo que o
+  WhatsApp aceita) com o `core.PinMessage`, guarda em `pinned` (e no save) e o `releaseLive` desfixa em
+  todo fim de evento (ganhou, expirou, `haltLive`). Se o evento fechar enquanto o pino tá saindo, o
+  `pin` recusa e ele desfixa na hora. Fixar ou desfixar que falhar (bot sem admin num grupo onde só
+  admin mexe nas configurações) só vai pro log como aviso, e o evento segue igual. Isso não passa pela
+  `mensagens_fixadas` do `!fixar`.
 - **Estado.** Se o aviso não sai (`show` falha), o evento é fechado e apagado na hora. O evento em
   andamento é salvo com `KeepGame` do tipo `aovivo` (chave = chat) a cada mudança
   (`keepLive`, que não salva evento fechado) e volta pelo `restoreLive`, que religa o timer. Desligar a
