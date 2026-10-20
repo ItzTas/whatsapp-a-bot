@@ -18,6 +18,7 @@ type Bot struct {
 	Client         *Client
 	GIFs           map[string][]GIF
 	privatePrompts sync.Map
+	named          sync.Map
 	panics         sync.Map
 	Messages       *MessageStore
 	Nicknames      *labelStore
@@ -90,6 +91,7 @@ func (b *Bot) HandleMessage(ctx context.Context, evt *events.Message) {
 	if err := b.Messages.record(ctx, evt); err != nil {
 		b.Client.Log.Errorf("guardar mensagem: %v", err)
 	}
+	b.nameSender(ctx, evt)
 	b.reactToMessage(ctx, evt)
 	b.observeMessage(ctx, evt)
 	if !isCommand {
@@ -187,7 +189,7 @@ func New(client *whatsmeow.Client, gifs map[string][]GIF, messages *MessageStore
 		GIFs:          gifs,
 		Messages:      messages,
 		Nicknames:     &labelStore{db: messages.DB, table: "apelidos", column: "apelido"},
-		Names:         &labelStore{db: messages.DB, table: "nomes", column: "nome"},
+		Names:         &labelStore{db: messages.DB, table: "nomes", column: "nome", automatic: true},
 		Relationships: &relationshipStore{db: messages.DB},
 		Adoptions:     &adoptionStore{db: messages.DB},
 		Assistant:     assistant,

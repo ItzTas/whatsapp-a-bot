@@ -228,6 +228,14 @@ outro em `SenderAlt`. Por isso tabelas guardam `id`/`id_alt` (ou `remetente`/`re
 código usa `b.SenderIdentities`/`b.Identities` (`internal/core`) e `ToNonAD()` antes de comparar ou
 gravar JIDs. Siga esse padrão em qualquer lógica nova que identifique pessoas.
 
+Quem não tem nome na tabela `nomes` ganha o nome do zap (o `PushName`) sozinho: o `nameSender`
+(`internal/core/nomes.go`) grava na primeira mensagem de cada pessoa por conversa (lembrado em
+`b.named` até reiniciar) e o `nameNewcomers` grava quem entrou no grupo, pelo `GroupInfo`, se o
+contato já tiver nome. O `labelStore.fill` só insere se nenhuma identidade da pessoa tiver nome, com
+`automatico = 1`, e o `!nome` (`Set`) volta a coluna pra 0. O `ChatNicknames` traz todos os nomes
+(pra achar gente pelo nome, listas e IA), e o `ChatTags`, que o `WithNicknames` e os placares usam
+do lado das marcações, deixa os automáticos de fora.
+
 ### Skills de arquitetura
 
 O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar contexto o tempo todo.

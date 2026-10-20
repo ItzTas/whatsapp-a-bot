@@ -186,7 +186,7 @@ func (b *bot) revealQuemfalou(ctx context.Context, chat types.JID, pollID types.
 	if !round.keeper.discard() {
 		return
 	}
-	nicknames := b.ChatNicknames(ctx, chat)
+	nicknames := b.ChatTags(ctx, chat)
 	text, mentions := round.reveal(b.FullName(ctx, round.author, nicknames), nicknames)
 	text = core.AppendLine(text, core.TagNicknames(b.rewardQuemfalou(ctx, chat, round), nicknames))
 	if _, err := b.SendRawMentions(ctx, chat, text, mentions); err != nil {

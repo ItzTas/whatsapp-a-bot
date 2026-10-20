@@ -11,14 +11,16 @@ import (
 	"sync"
 
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 const MaxNicknameLength = 40
 
 type labelStore struct {
-	db     *sql.DB
-	table  string
-	column string
+	db        *sql.DB
+	table     string
+	column    string
+	automatic bool
 }
 
 func (s *labelStore) Set(ctx context.Context, chat types.JID, users []string, label string) (err error) {
@@ -31,10 +33,14 @@ func (s *labelStore) Set(ctx context.Context, chat types.JID, users []string, la
 			err = errors.Join(err, tx.Rollback())
 		}
 	}()
+	update := fmt.Sprintf("%[1]s = excluded.%[1]s", s.column)
+	if s.automatic {
+		update += ", automatico = 0"
+	}
 	for _, user := range users {
 		_, err := tx.ExecContext(ctx,
-			fmt.Sprintf(`INSERT INTO %[1]s (chat, usuario, %[2]s) VALUES (?, ?, ?)
-			 ON CONFLICT (chat, usuario) DO UPDATE SET %[2]s = excluded.%[2]s`, s.table, s.column),
+			fmt.Sprintf(`INSERT INTO %s (chat, usuario, %s) VALUES (?, ?, ?)
+			 ON CONFLICT (chat, usuario) DO UPDATE SET %s`, s.table, s.column, update),
 			chat.ToNonAD().String(), user, label,
 		)
 		if err != nil {
@@ -42,6 +48,17 @@ func (s *labelStore) Set(ctx context.Context, chat types.JID, users []string, la
 		}
 	}
 	return tx.Commit()
+}
+
+func (s *labelStore) fill(ctx context.Context, chat types.JID, users []string, label string) error {
+	first, second := users[0], users[len(users)-1]
+	_, err := s.db.ExecContext(ctx,
+		fmt.Sprintf(`INSERT INTO %[1]s (chat, usuario, %[2]s, automatico)
+		 SELECT ?, usuario, ?, 1 FROM (SELECT ? AS usuario UNION SELECT ?)
+		 WHERE NOT EXISTS (SELECT 1 FROM %[1]s WHERE chat = ? AND usuario IN (?, ?))`, s.table, s.column),
+		chat.ToNonAD().String(), label, first, second, chat.ToNonAD().String(), first, second,
+	)
+	return err
 }
 
 func (s *labelStore) Remove(ctx context.Context, chat types.JID, users []string) error {
@@ -53,8 +70,19 @@ func (s *labelStore) Remove(ctx context.Context, chat types.JID, users []string)
 	return err
 }
 
-func (s *labelStore) inChat(ctx context.Context, chat types.JID) (labels map[string]string, err error) {
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf("SELECT usuario, %s FROM %s WHERE chat = ?", s.column, s.table), chat.ToNonAD().String())
+func (s *labelStore) inChat(ctx context.Context, chat types.JID) (map[string]string, error) {
+	return s.query(ctx, fmt.Sprintf("SELECT usuario, %s FROM %s WHERE chat = ?", s.column, s.table), chat)
+}
+
+func (s *labelStore) chosenInChat(ctx context.Context, chat types.JID) (map[string]string, error) {
+	if !s.automatic {
+		return s.inChat(ctx, chat)
+	}
+	return s.query(ctx, fmt.Sprintf("SELECT usuario, %s FROM %s WHERE chat = ? AND automatico = 0", s.column, s.table), chat)
+}
+
+func (s *labelStore) query(ctx context.Context, query string, chat types.JID) (labels map[string]string, err error) {
+	rows, err := s.db.QueryContext(ctx, query, chat.ToNonAD().String())
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +105,7 @@ func NicknameFrom(text string) string {
 }
 
 func (b *Bot) WithNicknames(ctx context.Context, chat types.JID, text string) string {
-	return TagNicknames(text, b.ChatNicknames(ctx, chat))
+	return TagNicknames(text, b.ChatTags(ctx, chat))
 }
 
 func TagNicknames(text string, nicknames map[string]string) string {
@@ -110,9 +138,22 @@ func (b *Bot) ChatNames(ctx context.Context, chat types.JID) map[string]string {
 }
 
 func (b *Bot) ChatNicknames(ctx context.Context, chat types.JID) map[string]string {
+	return b.namesWithNicknames(ctx, chat, b.Names.inChat)
+}
+
+func (b *Bot) ChatTags(ctx context.Context, chat types.JID) map[string]string {
+	return b.namesWithNicknames(ctx, chat, b.Names.chosenInChat)
+}
+
+func (b *Bot) namesWithNicknames(ctx context.Context, chat types.JID, read func(context.Context, types.JID) (map[string]string, error)) map[string]string {
 	var names, nicknames map[string]string
 	var wg sync.WaitGroup
-	wg.Go(func() { names = b.ChatNames(ctx, chat) })
+	wg.Go(func() {
+		var err error
+		if names, err = read(ctx, chat); err != nil {
+			b.Client.Log.Warnf("ler nomes de %s: %v", chat, err)
+		}
+	})
 	wg.Go(func() { nicknames = b.chatOnlyNicknames(ctx, chat) })
 	wg.Wait()
 	labels := map[string]string{}
@@ -225,4 +266,45 @@ func (b *Bot) ContactName(ctx context.Context, identities []types.JID) string {
 		}
 	}
 	return ""
+}
+
+func (b *Bot) nameSender(ctx context.Context, evt *events.Message) {
+	chat := evt.Info.Chat.ToNonAD()
+	key := chat.String() + "|" + evt.Info.Sender.User
+	if _, done := b.named.Load(key); done {
+		return
+	}
+	name := strings.TrimSpace(evt.Info.PushName)
+	if name == "" {
+		return
+	}
+	if err := b.Names.fill(ctx, chat, UsersOf(b.SenderIdentities(ctx, evt)), name); err != nil {
+		b.Client.Log.Warnf("anotar nome do zap de %s em %s: %v", evt.Info.Sender, chat, err)
+		return
+	}
+	b.named.Store(key, true)
+}
+
+func (b *Bot) nameNewcomers(ctx context.Context, chat types.JID, joined []types.JID) {
+	if len(joined) == 0 {
+		return
+	}
+	allowed, err := b.AllowedIn(ctx, chat, nil)
+	if err != nil {
+		b.Client.Log.Errorf("checar blacklist/whitelist de %s: %v", chat, err)
+		return
+	}
+	if !allowed {
+		return
+	}
+	for _, person := range joined {
+		identities := b.Identities(ctx, person.ToNonAD())
+		name := b.ContactName(ctx, identities)
+		if name == "" {
+			continue
+		}
+		if err := b.Names.fill(ctx, chat, UsersOf(identities), name); err != nil {
+			b.Client.Log.Warnf("anotar nome do zap de %s em %s: %v", person, chat, err)
+		}
+	}
 }

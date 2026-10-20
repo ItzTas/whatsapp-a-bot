@@ -224,7 +224,7 @@ func (b *bot) runRace(ctx context.Context, chat types.JID, round *raceRound, wai
 }
 
 func (b *bot) gallopRace(ctx context.Context, chat types.JID, round *raceRound) {
-	nicknames := b.ChatNicknames(ctx, chat)
+	nicknames := b.ChatTags(ctx, chat)
 	mentions := round.players()
 	board := func(frame int) string { return core.TagNicknames(round.board(frame), nicknames) }
 	race, err := b.SendRawMentions(ctx, chat, board(0), mentions)

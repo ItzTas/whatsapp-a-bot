@@ -200,7 +200,7 @@ func (b *bot) runCrash(ctx context.Context, chat types.JID, round *crashRound, w
 }
 
 func (b *bot) flyCrash(ctx context.Context, chat types.JID, round *crashRound) {
-	nicknames := b.ChatNicknames(ctx, chat)
+	nicknames := b.ChatTags(ctx, chat)
 	mentions := round.players()
 	board := func() string { return core.TagNicknames(round.board(time.Now()), nicknames) }
 	flight, err := b.SendRawMentions(ctx, chat, board(), mentions)

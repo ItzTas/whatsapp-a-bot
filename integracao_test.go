@@ -297,3 +297,17 @@ func TestWaitSuggestsWhatIsFree(t *testing.T) {
 		t.Fatalf("a espera do !trabalhar devia apontar o anúncio da Bia na !feira, veio %q", reply)
 	}
 }
+
+func TestZapNameStaysOutOfMentions(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.setup(chat, "economia zoeira")
+
+	reply := wantReply(t, b.say(chat, ana, "!saldo"), "@"+ana.jid.User)
+	if strings.Contains(reply, "(Ana)") {
+		t.Fatalf("o nome que veio do zap não devia aparecer do lado da marcação, veio %q", reply)
+	}
+	b.say(chat, ana, "!nome Ana Paula")
+	wantReply(t, b.say(chat, ana, "!saldo"), "@"+ana.jid.User+" (Ana Paula)")
+}

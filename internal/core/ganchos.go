@@ -239,6 +239,7 @@ func (b *Bot) StartJobs(ctx context.Context) {
 func (b *Bot) HandleGroupInfo(ctx context.Context, evt *events.GroupInfo) {
 	defer b.Rescue(ctx, evt.JID)
 	b.Departed(ctx, evt.JID, evt.Leave)
+	b.nameNewcomers(ctx, evt.JID, evt.Join)
 	for _, handle := range b.hooks.groupInfo {
 		handle(ctx, evt)
 	}
