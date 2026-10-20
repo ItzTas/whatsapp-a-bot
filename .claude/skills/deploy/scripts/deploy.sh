@@ -5,8 +5,7 @@ set -euo pipefail
 readonly host=${DEPLOY_HOST:-pi}
 readonly image=ghcr.io/itztas/whatsapp-a-bot
 readonly container=whatsapp-a-bot
-readonly volume=whatsapp-a-bot-data
-readonly env_file=/etc/whatsapp-a-bot.env
+readonly stack=${DEPLOY_STACK:-/opt/stacks/whatsapp-a-bot}
 readonly login_timeout=${DEPLOY_LOGIN_TIMEOUT:-60}
 
 die() {
@@ -37,12 +36,22 @@ wait_for_build() {
 
 replace_container() {
     local ref=$1
-    step "baixando $ref no $host"
-    ssudo -H "$host" docker pull -q "$ref" >/dev/null
-    step "recriando o container $container"
-    ssudo -H "$host" -s "docker rm -f $container >/dev/null 2>&1 || true
-docker run -d --name $container --restart unless-stopped --env-file $env_file -v $volume:/data $ref >/dev/null
-docker images $image --format '{{.Repository}}:{{.Tag}}' | grep -vx '$ref' | xargs -r docker rmi >/dev/null 2>&1 || true
+    step "baixando $ref e a latest no $host"
+    ssudo -H "$host" -s "set -e
+cd $stack
+if [ -f .env ]; then sed -i '/^BOT_TAG=/d' .env; fi
+docker pull -q $ref >/dev/null
+docker compose pull -q
+if [ \"\$(docker image inspect -f '{{.Id}}' $ref)\" != \"\$(docker image inspect -f '{{.Id}}' $image:latest)\" ]; then
+    docker rmi $ref >/dev/null
+    echo 'a latest do ghcr não é o $ref; tem build mais novo na main, rode o deploy de novo' >&2
+    exit 1
+fi
+docker rmi $ref >/dev/null" || die "não deu pra baixar a imagem certa"
+    step "recriando o container $container pelo compose ($stack)"
+    ssudo -H "$host" -s "set -e
+cd $stack
+docker compose up -d --remove-orphans >/dev/null
 docker image prune -f >/dev/null"
 }
 
