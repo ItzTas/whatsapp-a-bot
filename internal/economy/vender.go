@@ -127,18 +127,17 @@ func parseItemNumbers(text string) ([]int, bool) {
 		return nil, false
 	}
 	numbers := make([]int, 0, len(fields)-1)
+	tagged := false
 	for _, field := range fields[1:] {
-		digits, ok := strings.CutPrefix(field, "#")
-		if !ok {
-			return nil, false
-		}
+		digits, hashed := strings.CutPrefix(field, "#")
+		tagged = tagged || hashed
 		n, err := strconv.Atoi(digits)
 		if err != nil {
 			return nil, false
 		}
 		numbers = append(numbers, n)
 	}
-	return numbers, true
+	return numbers, tagged
 }
 
 func (b *bot) sellNumbered(ctx context.Context, evt *events.Message, numbers []int) error {

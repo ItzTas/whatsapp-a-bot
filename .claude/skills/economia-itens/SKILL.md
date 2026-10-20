@@ -198,7 +198,7 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   Venda nova de item precisa passar pelo `heldForSale` ou receber os favoritos.
 - O número de cada item (`#12`) é a posição dele no `catalog` (`item.number()`/`itemByNumber`), não
   vai pro banco. Ele aparece na `!mochila` e no `!item <nome>`, e o `!vender #12 #40 #87` (só números,
-  todos com `#`, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
+  pelo menos um com `#`, o resto pode vir sem, separados por espaço ou vírgula) vende tudo o que a pessoa tem de cada um numa transação só
   (`sellNumbered` → `sellBatch` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
   todos os que vêm depois dele, então item novo vai sempre no fim do último bloco do `slices.Concat`
   do `catalog` (hoje o `gatherGoods`, em `apetrechos.go`), seja ele semente, acessório ou qualquer
