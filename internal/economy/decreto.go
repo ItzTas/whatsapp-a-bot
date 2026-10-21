@@ -369,6 +369,7 @@ type PrizeBoost struct {
 	luck    int64
 	heat    int64
 	solace  int64
+	cheat   int64
 	rescued bool
 }
 
@@ -445,8 +446,8 @@ func (p presidency) incomeLevy(acc core.Account) PixLevy {
 	return p.levy(incomeTaxDecree, acc)
 }
 
-func (p presidency) casinoLevy(acc core.Account) PixLevy {
-	levy := p.levy(casinoDecree, acc)
+func (p presidency) taxLevy(pd percentDecree, acc core.Account) PixLevy {
+	levy := p.levy(pd, acc)
 	levy.percent = max(-levy.percent, 0)
 	return levy
 }

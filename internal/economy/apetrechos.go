@@ -1,5 +1,7 @@
 package economy
 
+import "fmt"
+
 var gatherGoods = []item{
 	{id: "molinete", name: "Molinete", emoji: "⚙️", rarity: rare, value: 1_800, shop: true, aliases: []string{"carretilha"},
 		gear: &gear{activities: []string{"!pescar"}, luck: 1}},
@@ -17,4 +19,14 @@ var gatherGoods = []item{
 		gear: &gear{activities: []string{"!pescar", "!minerar", "!vasculhar", "!catar"}, fewerJunk: 15}},
 	{id: "detector-de-metais", name: "Detector de metais", emoji: "📟", rarity: epic, value: 6_000, shop: true, rotating: true, aliases: []string{"detector"},
 		gear: &gear{activities: []string{"!minerar", "!vasculhar"}, moreRare: 40}},
+	{id: loadedCoinID, name: "Moeda viciada", emoji: "🪙", rarity: epic, value: 6_500, illegal: true, daily: loadedCoinDaily, aliases: []string{"moeda adulterada", "moeda de duas caras"},
+		flex: &flex{
+			effect: fmt.Sprintf("deixa os jogos do %s um pouco mais a seu favor e dá +%d%% de lucro quando ganha, mas cada aposta tem %d%% de chance de te pegarem: a aposta não vale, a moeda é apreendida, o cassino toma de %d%% a %d%% do saldo e você vai preso ou morre",
+				casinoGames, loadedCoinLuck, percent(loadedCoinCaught), loadedCoinLossMin, loadedCoinLossMax),
+			brief: fmt.Sprintf("mais chance e +%d%% de lucro nas apostas, mas pode dar cadeia ou morte", loadedCoinLuck),
+			apply: func(p Profession) Profession {
+				p.cheat += loadedCoinFavor
+				p.casinoLuck += loadedCoinLuck
+				return p
+			}}},
 }

@@ -278,6 +278,13 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `solaceStep` de propósito: apostar de uma vez o que perdeu sempre fica com `Risk`, então a maré
   só ajuda quem volta com aposta menor que a perda. É escondido como a série, e o `!bicho` não
   passa pelo `PlaceBet` e fica de fora.
+- A Moeda viciada (`moedaviciada.go`, skill `economia-itens`) usa o mesmo vício a favor: o `cheat`
+  do `PrizeBoost` (pontos percentuais, do `cheat` da profissão) é descontado no `edge`, então vira
+  `Favor` em todos os jogos do `PlaceBet`. Ao contrário da série e da maré, ela é visível: o efeito
+  do item e os `perks()` falam que os jogos ficam a favor (sem número). Em toda aposta, depois do
+  `markWarning`, o `bustCheat` sorteia o flagra com `flagrantOdds(loadedCoinCaught)`; se pegar, ele
+  mesmo manda a resposta e o `PlaceBet` volta com `wager.Busted`, que todo jogo checa junto do
+  `err` pra sair sem apostar nem mandar recusa.
 - O prestígio (`prestigio.go`, coluna `prestigio` da `carteiras`, migração `00130`) é o renascer:
   quem tem patrimônio (saldo + `cofre_casa` + poupança, a mesma conta do `enriquecimento.go`) de
   pelo menos `prestigeCost(nível)` (`prestigeBase` vezes `(nível + 1)²`: 5M, 20M, 45M...) manda o

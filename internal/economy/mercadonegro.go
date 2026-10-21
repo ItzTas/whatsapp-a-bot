@@ -390,7 +390,7 @@ func blackMarketText(chat types.JID, sold map[string]bool, now time.Time) string
 				lines = append(lines, fmt.Sprintf("• %s: ~esgotado~, alguém já levou", it.label()))
 				continue
 			}
-			lines = append(lines, fmt.Sprintf("• %s: %s (%s)", it.label(), Coins(blackMarketPrice(chat, it, now)), priceTrend(blackMarketPercent(chat, it, now))))
+			lines = append(lines, fmt.Sprintf("• %s: %s (%s)%s", it.label(), Coins(blackMarketPrice(chat, it, now)), priceTrend(blackMarketPercent(chat, it, now)), dailyCapTag(it)))
 		}
 	}
 	lines = append(lines, "",
@@ -468,6 +468,9 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 					return err
 				}
 			}
+			if err := claimDaily(ctx, tx, chat, acc, it, quantity, now); err != nil {
+				return err
+			}
 			return debitBalance(ctx, tx, chat, acc, cost)
 		},
 		get:    func(tx *ledgerTx) error { return addItems(ctx, tx, chat, acc, it.id, quantity) },
@@ -476,6 +479,9 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 	}, now)
 	if errors.Is(err, errSoldOut) {
 		return b.SendText(ctx, chat, fmt.Sprintf("Alguém já levou %s hoje. Muamba só vem uma de cada, volta amanhã pra ver se chega outra", it.label()))
+	}
+	if errors.Is(err, errDailyCap) {
+		return b.SendText(ctx, chat, dailyCapText(it))
 	}
 	if errors.Is(err, ErrNoFunds) {
 		return b.SendText(ctx, chat, fmt.Sprintf("Você não tem moeda pra isso: %s fica %s. Confere no !saldo", quantityLabel(it, quantity), Coins(cost)))

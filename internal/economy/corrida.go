@@ -80,6 +80,7 @@ type raceSaveBet struct {
 	Luck    int64              `json:"luck"`
 	Heat    int64              `json:"heat"`
 	Solace  int64              `json:"solace"`
+	Cheat   int64              `json:"cheat,omitempty"`
 	Rescued bool               `json:"rescued"`
 	Horse   int                `json:"horse"`
 }
@@ -135,7 +136,7 @@ func (b *bot) restoreRace(ctx context.Context, saved core.SavedGame) error {
 	}
 	bets := make([]*raceBet, len(state.Bets))
 	for i, bet := range state.Bets {
-		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Decree, luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, rescued: bet.Rescued}, horse: bet.Horse}
+		bets[i] = &raceBet{acc: bet.Account.Account(), stake: bet.Stake, boost: PrizeBoost{decree: bet.Decree, luck: bet.Luck, heat: bet.Heat, solace: bet.Solace, cheat: bet.Cheat, rescued: bet.Rescued}, horse: bet.Horse}
 	}
 	round := b.trackRace(ctx, state.Chat, &raceRound{
 		opened:  state.Opened,
@@ -160,7 +161,7 @@ func (b *bot) betRace(ctx context.Context, evt *events.Message, args []string) e
 	}
 	acc := b.Account(ctx, evt.Info.Sender)
 	placed, refusal, err := b.PlaceBet(ctx, chat, acc, args[0], "!corrida")
-	if err != nil {
+	if err != nil || placed.Busted {
 		return err
 	}
 	if refusal != "" {
@@ -380,7 +381,7 @@ func (r *raceRound) saved(chat types.JID) raceSave {
 	}
 	bets := make([]raceSaveBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Decree: bet.boost.decree, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Rescued: bet.boost.rescued, Horse: bet.horse}
+		bets[i] = raceSaveBet{Account: core.StoreAccount(bet.acc), Stake: bet.stake, Decree: bet.boost.decree, Luck: bet.boost.luck, Heat: bet.boost.heat, Solace: bet.boost.solace, Cheat: bet.boost.cheat, Rescued: bet.boost.rescued, Horse: bet.horse}
 	}
 	return raceSave{Chat: chat, Opened: r.opened, Started: r.started, Horses: horses, Winner: r.winner, Frames: r.frames, Bets: bets}
 }

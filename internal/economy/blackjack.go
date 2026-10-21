@@ -61,6 +61,7 @@ type blackjackSave struct {
 	Luck       int64               `json:"luck"`
 	Heat       int64               `json:"heat"`
 	Solace     int64               `json:"solace"`
+	Cheat      int64               `json:"cheat,omitempty"`
 	Rescued    bool                `json:"rescued"`
 	Deck       []blackjackSaveCard `json:"deck"`
 	Player     []blackjackSaveCard `json:"player"`
@@ -134,7 +135,7 @@ func (b *bot) blackjackMoves(ctx context.Context, chat types.JID) map[string]bla
 
 func (b *bot) dealBlackjack(ctx context.Context, chat types.JID, acc core.Account, arg string) error {
 	bet, refusal, err := b.PlaceBet(ctx, chat, acc, arg, "!blackjack")
-	if err != nil {
+	if err != nil || bet.Busted {
 		return err
 	}
 	if refusal != "" {
@@ -184,7 +185,7 @@ func (b *bot) restoreBlackjack(ctx context.Context, saved core.SavedGame) error 
 	hand := b.trackBlackjack(ctx, chat, key, &blackjackHand{
 		acc:        state.Account.Account(),
 		stake:      state.Stake,
-		boost:      PrizeBoost{decree: state.Decree, levy: state.Levy.levy(), luck: state.Luck, heat: state.Heat, solace: state.Solace, rescued: state.Rescued},
+		boost:      PrizeBoost{decree: state.Decree, levy: state.Levy.levy(), luck: state.Luck, heat: state.Heat, solace: state.Solace, cheat: state.Cheat, rescued: state.Rescued},
 		deck:       loadBlackjackCards(state.Deck),
 		player:     loadBlackjackCards(state.Player),
 		dealer:     loadBlackjackCards(state.Dealer),
@@ -334,6 +335,7 @@ func (h *blackjackHand) saved(chat types.JID) blackjackSave {
 		Luck:       h.boost.luck,
 		Heat:       h.boost.heat,
 		Solace:     h.boost.solace,
+		Cheat:      h.boost.cheat,
 		Rescued:    h.boost.rescued,
 		Deck:       saveBlackjackCards(h.deck),
 		Player:     saveBlackjackCards(h.player),

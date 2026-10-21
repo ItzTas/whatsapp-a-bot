@@ -195,7 +195,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
 	bet, refusal, err := b.PlaceBet(ctx, chat, acc, core.FirstPlainArg(core.MessageText(evt.Message)), syntax)
-	if err != nil {
+	if err != nil || bet.Busted {
 		return err
 	}
 	if refusal != "" {
@@ -232,9 +232,10 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 }
 
 type wager struct {
-	Stake int64
-	Boost PrizeBoost
-	job   Profession
+	Stake  int64
+	Boost  PrizeBoost
+	Busted bool
+	job    Profession
 }
 
 func (b *bot) PlaceBet(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (wager, string, error) {
@@ -258,7 +259,10 @@ func (b *bot) PlaceBet(ctx context.Context, chat types.JID, acc core.Account, ar
 	if refusal, err = b.markWarning(ctx, chat, acc, syntax, stake); err != nil || refusal != "" {
 		return wager{}, refusal, err
 	}
-	return wager{Stake: stake, Boost: PrizeBoost{decree: max(job.decrees.level(casinoDecree), 0), levy: p.casinoLevy(acc), luck: job.casinoLuck, heat: heat, solace: solace, rescued: rand.Float64() < job.rescueOdds}, job: job}, "", nil
+	if busted, err := b.bustCheat(ctx, chat, acc, job, syntax); err != nil || busted {
+		return wager{Busted: busted}, "", err
+	}
+	return wager{Stake: stake, Boost: PrizeBoost{decree: max(job.decrees.level(casinoDecree), 0), levy: p.taxLevy(casinoDecree, acc), luck: job.casinoLuck, heat: heat, solace: solace, cheat: job.cheat, rescued: rand.Float64() < job.rescueOdds}, job: job}, "", nil
 }
 
 func (b *bot) placeStake(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (int64, string, error) {

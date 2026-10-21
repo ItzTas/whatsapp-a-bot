@@ -167,6 +167,12 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `takeDrug`, o `hurt` da saúde zerada e o `!suicidio` (`suicidio.go`, sem espera, chance nem
   vantagem: é só zoeira, e a resposta fecha com o CVV 188, como o `!matar` em si mesmo, que
   continua recusado). Caminho novo de morte usa o `die` e mostra o `funeralText`.
+- O flagra da Moeda viciada (`bustCheat` em `moedaviciada.go`) pega quem aposta com ela na mochila,
+  com `flagrantOdds(loadedCoinCaught)` por aposta (o Gorro escapa, o presidente tem desconto). Numa
+  transação só, a aposta não vale, uma moeda é gasta, o `ficha_em` é carimbado (sem `crime_em`), o
+  cassino queima de `loadedCoinLossMin` a `loadedCoinLossMax` por cento do saldo (`burnBalance`, as
+  moedas somem) e, meio a meio, a pessoa vai presa pelo `jailSnitch` (`snitchSentence`, com
+  `lockUp`) ou morre pelo `killSnitch` (`die`), os mesmos destinos do X-9, devolvidos no `payback`.
 - A saúde (`saude.go`) fica nas colunas `saude`/`saude_em` da `carteiras`: vale o número guardado
   mais 1 ponto a cada `healthRegenEvery` desde o `saude_em`, até `MaxHealth`, calculado na leitura
   (`readHealth`), sem nada rodando em segundo plano. Um enfermeiro do `!empregados` encurta esse

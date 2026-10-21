@@ -46,14 +46,14 @@ func TestCasinoLevy(t *testing.T) {
 	gambler, president := people[0], people[1]
 	taxed := presidency{president: president, decrees: decrees{casinoDecree.column: -10}}
 
-	if got := (presidency{president: president, decrees: decrees{casinoDecree.column: 10}}).casinoLevy(gambler).percent; got != 0 {
+	if got := (presidency{president: president, decrees: decrees{casinoDecree.column: 10}}).taxLevy(casinoDecree, gambler).percent; got != 0 {
 		t.Fatalf("decreto positivo cobra %d%% de taxa, want 0", got)
 	}
-	if got := taxed.casinoLevy(president).percent; got != 0 {
+	if got := taxed.taxLevy(casinoDecree, president).percent; got != 0 {
 		t.Fatalf("o presidente paga %d%% de taxa na própria aposta, want 0", got)
 	}
 
-	levy := taxed.casinoLevy(gambler)
+	levy := taxed.taxLevy(casinoDecree, gambler)
 	balances := func() (int64, int64) {
 		t.Helper()
 		g, _, err := s.Balance(ctx, chat, gambler)

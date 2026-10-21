@@ -261,7 +261,16 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   viciado, que valem pelo `flex`, o Colete à prova de balas e o Alvará de soltura falso).
   O `!usar` do alvará (`alvara.go`) tira da cadeia quem usou ou quem foi marcado, pelo `releaseHeld`
   da fiança, e marca o `crime_em` de quem usou; com chance `forgeryCaught`, o carcereiro percebe e
-  a pena aumenta `escapePenalty`. Nos dois casos o alvará é gasto. O estoque do dia sai do `dailyRand` (o mesmo sorteio da
+  a pena aumenta `escapePenalty`. Nos dois casos o alvará é gasto. A Moeda viciada
+  (`moedaviciada.go`, `loadedCoinID`) também é contrabando com `flex`: soma `loadedCoinLuck` no
+  `casinoLuck` e `loadedCoinFavor` no `cheat` da profissão, que o `PlaceBet` põe no `cheat` do
+  `PrizeBoost` (e os saves do `!blackjack`, `!crash` e `!corrida` guardam). O flagra é no
+  `bustCheat`, chamado pelo `PlaceBet` em toda aposta (skill `economia-crime`). Item com `daily`
+  (hoje só ela, `loadedCoinDaily` = 1) tem limite de compra por pessoa e por dia no
+  `!mercadonegro comprar`: o `claimDaily` soma a compra na tabela `compras_diarias` (`chat`, `dia`
+  em BRT pelo `blackMarketDay`, `pessoa`, `item`, `quantidade`) na mesma transação da cobrança,
+  falha com `errDailyCap` quando passa do limite e apaga os dias velhos da pessoa. Batida também
+  conta como compra. O `dailyCapTag` mostra o limite na lista. O estoque do dia sai do `dailyRand` (o mesmo sorteio da
   `!luxo`, com outro sal), e cada item tem um preço do dia entre `blackMarketMinPercent` e
   `blackMarketMaxPercent` do `value`. O receptador (`!mercadonegro vender`) paga
   `blackMarketBuyback` por cento desse preço, e o `!vender` comum recusa item ilegal. Além do estoque

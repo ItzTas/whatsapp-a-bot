@@ -123,6 +123,7 @@ type item struct {
 	hot       bool
 	seed      *crop
 	carry     int64
+	daily     int64
 	storeOnly bool
 }
 

@@ -17,7 +17,7 @@ func stakeRisk(stake int64) float64 {
 }
 
 func (pb PrizeBoost) edge(stake int64) float64 {
-	return stakeRisk(stake) + float64(min(pb.heat, streakHeatMax)-min(pb.solace, solaceMax))/100 + float64(pb.decree)*decreeRiskStep
+	return stakeRisk(stake) + float64(min(pb.heat, streakHeatMax)-min(pb.solace, solaceMax))/100 + float64(pb.decree)*decreeRiskStep - float64(pb.cheat)/100
 }
 
 func (pb PrizeBoost) Risk(stake int64) float64 {

@@ -258,6 +258,7 @@ type Profession struct {
 	jinxProof     bool
 	casinoLuck    int64
 	rescueOdds    float64
+	cheat         int64
 	animalLuck    int64
 	legalDiscount int64
 	trialDiscount int64
@@ -537,6 +538,7 @@ func (p Profession) perks() []string {
 		{p.jinxProof, "🍀 A maldição Azar não estraga suas vitórias no !apostar e no !cassino"},
 		{p.casinoLuck > 0, fmt.Sprintf("🃏 Leva %d%% a mais de lucro quando ganha no %s", p.casinoLuck, casinoGames)},
 		{p.rescueOdds > 0, fmt.Sprintf("🃏 %d%% de chance de pegar a aposta inteira de volta quando perde no %s", percent(p.rescueOdds), casinoGames)},
+		{p.cheat > 0, fmt.Sprintf("🪙 Os jogos do %s ficam um pouco mais a seu favor, mas cada aposta tem %d%% de chance de te pegarem com a moeda viciada", casinoGames, percent(p.flagrantOdds(loadedCoinCaught)))},
 		{p.animalLuck > 0, fmt.Sprintf("🦁 Leva %d%% a mais de lucro quando acerta no !bicho", p.animalLuck)},
 		{p.legalDiscount > 0, fmt.Sprintf("⚖️ Paga %d%% menos de pensão e de indenização por traição", p.legalDiscount)},
 		{p.trialDiscount > 0, fmt.Sprintf("💼 Paga %d%% menos quando perde um !processar", p.trialDiscount)},

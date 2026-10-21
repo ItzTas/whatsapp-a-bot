@@ -87,6 +87,7 @@ type roletaBet struct {
 	acc     core.Account
 	stake   int64
 	boost   economy.PrizeBoost
+	busted  bool
 }
 
 func (b *bot) roleta(ctx context.Context, evt *events.Message) error {
@@ -96,7 +97,7 @@ func (b *bot) roleta(ctx context.Context, evt *events.Message) error {
 	value, _ := b.revolvers.LoadOrStore(chat.String(), b.trackRevolver(ctx, chat, newRevolver()))
 	gun := value.(*revolver)
 	bet, refusal, err := b.roletaBet(ctx, chat, shooter, core.FirstPlainArg(core.MessageText(evt.Message)), gun)
-	if err != nil {
+	if err != nil || bet.busted {
 		return err
 	}
 	if refusal != "" {
@@ -140,7 +141,7 @@ func (b *bot) roletaBet(ctx context.Context, chat, shooter types.JID, arg string
 	}
 	acc := b.Account(ctx, shooter)
 	bet, refusal, err := b.economy.PlaceBet(ctx, chat, acc, arg, "!roleta")
-	return roletaBet{shooter: shooter, acc: acc, stake: bet.Stake, boost: bet.Boost}, refusal, err
+	return roletaBet{shooter: shooter, acc: acc, stake: bet.Stake, boost: bet.Boost, busted: bet.Busted}, refusal, err
 }
 
 func (b *bot) payRoletaBet(ctx context.Context, chat types.JID, bet roletaBet, fired bool, chambersLeft int) (text string, paid int64, settled bool) {
