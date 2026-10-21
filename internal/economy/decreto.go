@@ -28,6 +28,7 @@ const (
 	pixDecreeMax          = 10
 	casinoDecreeMaxRaise  = 10
 	betTaxDecreeMax       = 10
+	saleDecreeSwing       = 5
 	interestDecreeMax     = 10
 	savingsTaxDecreeMax   = 50
 	bailTaxDecreeMax      = 30
@@ -182,7 +183,14 @@ var (
 		revoked: "o cassino volta ao normal, sem prêmio a mais nem taxa",
 		syntax:  "!decreto cassino 10", about: "mexe no " + casinoGames + ": positivo aumenta o lucro de quem ganha e negativo cobra uma taxa em cima do valor apostado, ganhando ou perdendo, que vai pro bolso do presidente. Vale o decreto da hora da aposta (dá pra mandar !decreto imposto aposta 5 também)",
 	}
-	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, fameDecree, casinoDecree}
+	saleDecree = percentDecree{
+		names: []string{"venda", "vendas", "vender"}, column: "venda_pct", lo: -saleDecreeSwing, hi: saleDecreeSwing, tyrantLo: -tyrantSaleTaxMax, popular: true,
+		raised:  "o !vender pro mercado paga %d%% a mais",
+		lowered: "o !vender pro mercado cobra %d%% de imposto em cima da venda, e ele vai pro presidente",
+		revoked: "o !vender volta a pagar o normal, sem bônus nem imposto",
+		syntax:  "!decreto venda 5", about: "mexe no !vender pro mercado: positivo paga mais em cada venda e negativo cobra imposto em cima do que a venda rende, que vai pro bolso do presidente (dá pra mandar !decreto imposto venda 5 também)",
+	}
+	percentDecrees = []percentDecree{workDecree, payDecree, dailyDecree, interestDecree, savingsTaxDecree, incomeTaxDecree, shopTaxDecree, pixDecree, sentenceDecree, bailDecree, gatherDecree, fameDecree, casinoDecree, saleDecree}
 
 	curfewDecree = toggleDecree{
 		names: []string{"recolher", "toque", "toquederecolher"}, column: "toque_recolher", emoji: "🌃",
@@ -533,9 +541,15 @@ func (b *bot) decrees() map[string]decree {
 			runs[name] = run
 		}
 	}
-	taxed := taxedRun(runs[casinoDecree.names[0]])
-	for _, name := range []string{"impostoaposta", "impostoapostas", "taxaaposta", "taxaapostas"} {
-		runs[name] = taxed
+	taxed := map[string][]string{
+		casinoDecree.names[0]: {"impostoaposta", "impostoapostas", "taxaaposta", "taxaapostas"},
+		saleDecree.names[0]:   {"impostovenda", "impostovendas", "taxavenda", "taxavendas"},
+	}
+	for decree, names := range taxed {
+		run := taxedRun(runs[decree])
+		for _, name := range names {
+			runs[name] = run
+		}
 	}
 	for _, td := range toggleDecrees {
 		run := b.toggleDecreeRun(td)

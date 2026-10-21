@@ -50,6 +50,37 @@ func OfferKey(chat types.JID, buyer core.Account) string {
 	return chat.String() + "|" + buyer.Key
 }
 
+type saleTerms struct {
+	boost int64
+	levy  PixLevy
+}
+
+func (b *bot) saleTermsOf(ctx context.Context, chat types.JID, acc core.Account) (job Profession, terms saleTerms, err error) {
+	var p presidency
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
+	g.Go(func() (err error) { p, _, err = b.Wallets.presidency(gctx, chat, time.Now()); return err })
+	if err := g.Wait(); err != nil {
+		return Profession{}, saleTerms{}, err
+	}
+	return job, saleTerms{boost: max(job.decrees.level(saleDecree), 0), levy: p.taxLevy(saleDecree, acc)}, nil
+}
+
+func (t saleTerms) bonus(payout int64) int64 {
+	return payout * t.boost / 100
+}
+
+func (t saleTerms) text(payout int64) string {
+	if bonus := t.bonus(payout); bonus > 0 {
+		return fmt.Sprintf("\n📜 E mais %s (%d%%) de bônus da venda por decreto", Coins(bonus), t.boost)
+	}
+	tax := t.levy.cut(payout)
+	if tax == 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n📜 Desse valor, %s (%d%%) foram de imposto da venda %s, %s", Coins(tax), t.levy.percent, t.levy.pocket(), t.levy.decreed())
+}
+
 func marketPayout(it item, quantity int64) int64 {
 	return marketPayoutAt(it.value, quantity, marketPercentOf(it, marketSalePercent))
 }
@@ -273,10 +304,11 @@ func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick salePick,
 		held      []stack
 		favorites map[string]bool
 		job       Profession
+		terms     saleTerms
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { held, favorites, err = b.shelf(gctx, chat, acc); return err })
-	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
+	g.Go(func() (err error) { job, terms, err = b.saleTermsOf(gctx, chat, acc); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("preparar venda em lote: %w", err)
 	}
@@ -286,7 +318,7 @@ func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick salePick,
 		return b.SendText(ctx, chat, "Nada foi vendido 🤷\n"+strings.Join(problems, "\n")+"\n\n"+hint)
 	}
 
-	sold, balance, err := b.Wallets.sellItems(ctx, chat, acc, sales)
+	sold, balance, err := b.Wallets.sellItems(ctx, chat, acc, sales, terms)
 	if errors.Is(err, errNoItems) {
 		return b.SendText(ctx, chat, "Sua mochila mudou no meio da venda e não dá mais 🤨 Confere no !mochila")
 	}
@@ -300,12 +332,12 @@ func (b *bot) sellBatch(ctx context.Context, evt *events.Message, pick salePick,
 		lines = append(lines, fmt.Sprintf("#%d %s%s · %s", sale.item.number(), quantityLabel(sale.item, sale.quantity), gradesLabel(sale.grades), Coins(sale.payout)))
 	}
 	b.advance(chat, acc, saleGoal, total)
-	lines = append(lines, "", "💵 Total: "+Coins(total)+marketBonus(job, person)+mythicNote(sold), "💰 Saldo: "+Coins(balance))
+	lines = append(lines, "", "💵 Total: "+Coins(total)+marketBonus(job, person)+mythicNote(sold)+terms.text(total), "💰 Saldo: "+Coins(balance))
 	if len(problems) > 0 {
 		lines = append(lines, "", "⚠️ Ficou de fora:")
 		lines = append(lines, problems...)
 	}
-	_, err = b.SendMentions(ctx, chat, strings.Join(lines, "\n"), []types.JID{person})
+	_, err = b.SendMentions(ctx, chat, strings.Join(lines, "\n"), append([]types.JID{person}, terms.levy.payee()...))
 	return err
 }
 
@@ -364,11 +396,11 @@ func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 		return b.SendText(ctx, chat, "Você só tem "+quantityLabel(it, have))
 	}
 
-	job, err := b.ProfessionOf(ctx, chat, acc)
+	job, terms, err := b.saleTermsOf(ctx, chat, acc)
 	if err != nil {
 		return err
 	}
-	sold, balance, err := b.Wallets.sellItems(ctx, chat, acc, []marketSale{{item: it, quantity: quantity, percent: job.marketPercent()}})
+	sold, balance, err := b.Wallets.sellItems(ctx, chat, acc, []marketSale{{item: it, quantity: quantity, percent: job.marketPercent()}}, terms)
 	if errors.Is(err, errNoItems) {
 		return b.SendText(ctx, chat, "Sua mochila mudou no meio da venda e não dá mais 🤨 Confere no !mochila")
 	}
@@ -381,9 +413,9 @@ func (b *bot) sellToMarket(ctx context.Context, evt *events.Message) error {
 		"pro agiota do bairro", "pra um colecionador meio estranho", "pro dono do bar da esquina", "pra um tiozinho no Marketplace",
 	}
 	sale := sold[0]
-	text := fmt.Sprintf("💸 @%s vendeu %s%s %s por %s%s%s\n💰 Saldo: %s\n\n_Vendendo pra alguém do grupo com !vender @pessoa dá pra cobrar o valor cheio (%s)_",
-		person.User, quantityLabel(it, quantity), gradesLabel(sale.grades), core.PickOne(buyers), Coins(sale.payout), marketBonus(job, person), mythicNote(sold), Coins(balance), Coins(worthOf(it, sale.grades)))
-	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})
+	text := fmt.Sprintf("💸 @%s vendeu %s%s %s por %s%s%s%s\n💰 Saldo: %s\n\n_Vendendo pra alguém do grupo com !vender @pessoa dá pra cobrar o valor cheio (%s)_",
+		person.User, quantityLabel(it, quantity), gradesLabel(sale.grades), core.PickOne(buyers), Coins(sale.payout), marketBonus(job, person), mythicNote(sold), terms.text(sale.payout), Coins(balance), Coins(worthOf(it, sale.grades)))
+	_, err = b.SendMentions(ctx, chat, text, append([]types.JID{person}, terms.levy.payee()...))
 	return err
 }
 

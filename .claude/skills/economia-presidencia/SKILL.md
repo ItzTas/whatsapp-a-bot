@@ -72,7 +72,17 @@ Presidente, decretos, impeachment, renúncia e golpe.
   passa por ele), a taxa vale no `!apostar`, `!cassino`, `!roleta`, `!crash`, `!corrida` e no
   `!blackjack`, inclusive no dobro (o `levy` vai no save da mão, `levySave`). O `BetLevyText` mostra a
   taxa na resposta. O `!decreto imposto aposta 5` cai nele, e o `taxedRun` dos apelidos
-  `impostoaposta`/`taxaaposta` troca o sinal. O `!bicho` não lê (é clandestino). Os de uma vez são `imposto`, `auxilio`
+  `impostoaposta`/`taxaaposta` troca o sinal. O `!bicho` não lê (é clandestino). A `venda`
+  (`saleDecree`, coluna `venda_pct`, migração `00133`) é o mesmo bônus-ou-imposto no `!vender` pro
+  mercado, de `-saleDecreeSwing` a `+saleDecreeSwing` (5 pros dois lados, e `-tyrantSaleTaxMax` na
+  ditadura, pelo `tyrantLo`): o `saleTermsOf` lê a profissão e a presidência em paralelo e monta o
+  `saleTerms`, com o `boost` (nível positivo, lido dos `decrees` da profissão, então o ditador fica
+  com o bônus inteiro dele) e o `levy` do `taxLevy` (o mesmo do `cassino`, que só vale com nível
+  negativo). O `sellItems` credita o total mais o bônus (moeda nova) menos o imposto, e paga o imposto
+  pelo `payLevy` na mesma transação, então o imposto acima do teto normal alimenta a revolta. O
+  `saleTerms.text` mostra o bônus ou o imposto, a missão de venda conta o valor bruto, e o
+  `!decreto imposto venda 5` cai nele pelo `taxedRun` (`impostovenda`/`taxavenda`). A venda pra
+  outra pessoa (`!vender @pessoa`), a `!feira` e o `!mercadonegro` não leem. Os de uma vez são `imposto`, `auxilio`
   (`presidentAid` de moeda nova pra cada carteira da conversa), `caixa` (uma `presidentBoxItem`, a
   caixa misteriosa comum, na mochila de cada carteira da conversa), `anistia` (zera `preso_ate` e o
   `crime_em` dentro da `crimeWindow`), `indulto @pessoa` (`presidentPardons` por mandato), `confisco

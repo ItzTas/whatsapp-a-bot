@@ -132,7 +132,7 @@ type marketSale struct {
 	payout   int64
 }
 
-func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc core.Account, sales []marketSale) (sold []marketSale, balance int64, err error) {
+func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc core.Account, sales []marketSale, terms saleTerms) (sold []marketSale, balance int64, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		sold = make([]marketSale, len(sales))
 		var payout int64
@@ -148,10 +148,15 @@ func (s *walletStore) sellItems(ctx context.Context, chat types.JID, acc core.Ac
 		if err := openWallet(ctx, tx, chat, acc); err != nil {
 			return err
 		}
-		return tx.QueryRowContext(ctx,
+		tax := terms.levy.cut(payout)
+		err := tx.QueryRowContext(ctx,
 			"UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ? RETURNING saldo",
-			payout, chat.String(), acc.Key,
+			payout+terms.bonus(payout)-tax, chat.String(), acc.Key,
 		).Scan(&balance)
+		if err != nil {
+			return err
+		}
+		return payLevy(ctx, tx, chat, terms.levy, tax)
 	})
 	return sold, balance, err
 }

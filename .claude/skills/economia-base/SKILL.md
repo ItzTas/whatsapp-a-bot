@@ -1,6 +1,6 @@
 ---
 name: economia-base
-description: "Base da economia do bot (carteiras, chave canônica b.Account, profissões em profissoes.go/profissao.go, ProfessionOf/standing, deus.go, oficio.go e o !trabalhar, ralos de dinheiro, walletStore.spend, !economia resetar intervalos, vínculo de economia entre grupos com !economia vincular, ledgerDB e ledgers em vinculos.go, missões diárias do !missoes em missoes.go). Carregue antes de mexer em qualquer comando ou arquivo da economia, junto da skill economia-* do assunto."
+description: "Base da economia do bot (carteiras, chave canônica b.Account, profissões em profissoes.go/profissao.go, ProfessionOf/standing, deus.go, oficio.go e o !trabalhar, ralos de dinheiro, walletStore.spend, !economia resetar intervalos, vínculo de economia entre grupos com !economia vincular, ledgerDB e ledgers em vinculos.go, missões diárias do !missoes em missoes.go, renascer do !prestigio em prestigio.go). Carregue antes de mexer em qualquer comando ou arquivo da economia, junto da skill economia-* do assunto."
 user-invocable: false
 ---
 
