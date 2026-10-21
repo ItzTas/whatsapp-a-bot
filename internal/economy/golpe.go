@@ -25,6 +25,7 @@ const (
 	coupHelp   = 0.1
 	coupEvery  = time.Hour
 	coupKind   = "golpe"
+	coupLoot   = 10
 )
 
 var errCoupVacant = errors.New("o presidente já saiu do cargo")
@@ -36,6 +37,7 @@ type coup struct {
 	plotters  []core.Account
 	loyalists []core.Account
 	need      int
+	revolt    float64
 	closed    bool
 }
 
@@ -56,6 +58,7 @@ type coupAttempt struct {
 	guards    []Profession
 	chance    float64
 	success   bool
+	loot      int64
 }
 
 func (b *bot) golpe(ctx context.Context, evt *events.Message) error {
@@ -103,7 +106,7 @@ func (b *bot) openCoup(ctx context.Context, chat types.JID, acc core.Account, lo
 		text := fmt.Sprintf("🪖 Já teve tentativa de golpe contra @%s há pouco e o palácio tá cercado. A próxima só daqui a %s", p.president.JID.User, core.FormatWait(wait))
 		return nil, false, true, b.sendMentionsText(ctx, chat, text, p.president)
 	}
-	value, running := b.coups.LoadOrStore(chat.String(), &coup{opened: now, president: p.president, need: p.decrees.coupMin()})
+	value, running := b.coups.LoadOrStore(chat.String(), &coup{opened: now, president: p.president, need: p.decrees.coupMin(), revolt: p.decrees.revoltOn(now)})
 	c = value.(*coup)
 	if running {
 		return c, false, false, nil
@@ -161,7 +164,7 @@ func (c *coup) tyrannyNote() string {
 	if c.need >= coupMin {
 		return ""
 	}
-	return "\n🪖 _É ditadura: o povo tá do lado de quem derruba, então o golpe precisa de menos gente_"
+	return fmt.Sprintf("\n🪖 _É ditadura: o povo tá do lado de quem derruba, então o golpe precisa de menos gente_\n🔥 _A revolta do povo tá em %d%% e derruba isso da segurança do ditador. Quanto mais ela sobe, mais fácil fica_\n💰 _Se der certo, quem abriu o golpe ainda leva %d%% do saldo do ditador_", percent(c.revolt), coupLoot)
 }
 
 func (c *coup) close(ctx context.Context, b *bot, chat types.JID) (plotters, loyalists []core.Account) {
@@ -275,7 +278,7 @@ func (a coupAttempt) odds() float64 {
 	if a.godDefending() {
 		return 0
 	}
-	chance := coupChance + coupHelp*float64(len(a.plotters)-len(a.guards)-1) - a.head.violenceGuard() - a.head.curfew()
+	chance := coupChance + coupHelp*float64(len(a.plotters)-len(a.guards)-1) - a.head.violenceGuard()
 	for _, r := range a.plotters {
 		chance += r.job.arsenal().crime
 	}
@@ -306,11 +309,33 @@ func (s *walletStore) coup(ctx context.Context, chat types.JID, a *coupAttempt, 
 		if a.success = rand.Float64() < crewHangover(a.plotters, func(r robber) Profession { return r.job }).sober(a.chance); !a.success {
 			return jailCrew(ctx, tx, chat, a.plotters, now)
 		}
-		return seize(ctx, tx, chat, a.president, a.plotters[0].acc, now)
+		leader := a.plotters[0].acc
+		loot, err := plunderTyrant(ctx, tx, chat, a.president, leader, now)
+		if err != nil {
+			return err
+		}
+		a.loot = loot
+		return seize(ctx, tx, chat, a.president, leader, now)
 	})
 }
 
+func plunderTyrant(ctx context.Context, tx *ledgerTx, chat types.JID, tyrant, leader core.Account, now time.Time) (int64, error) {
+	var loot int64
+	err := tx.QueryRowContext(ctx,
+		`SELECT COALESCE((SELECT c.saldo * ? / 100 FROM carteiras c JOIN presidencias p ON p.chat = c.chat AND p.pessoa = c.pessoa
+		 WHERE p.chat = ? AND p.pessoa = ? AND p.mandato_ate > ? AND p.`+tyrannyDecree.column+` != 0), 0)`,
+		coupLoot, chat.String(), tyrant.Key, now.Unix(),
+	).Scan(&loot)
+	if err != nil || loot <= 0 {
+		return 0, err
+	}
+	return loot, moveCoins(ctx, tx, chat, tyrant, leader, loot)
+}
+
 func seize(ctx context.Context, tx *ledgerTx, chat types.JID, president, leader core.Account, now time.Time) error {
+	if err := forgetTyrant(ctx, tx, chat); err != nil {
+		return err
+	}
 	res, err := tx.ExecContext(ctx,
 		`UPDATE presidencias SET pessoa = ?, jid = ?, votos = 0, eleito_em = ?, mandato_ate = ?, golpe_em = ?, golpista = 1, sorteado = 0,
 		 impeachment_em = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0
@@ -345,7 +370,11 @@ func (a coupAttempt) text() string {
 	if len(a.loyalists) > 0 {
 		lines = append(lines, "🛡️ Defensores: "+mentionList(a.loyalists))
 	}
-	lines = append(lines, fmt.Sprintf("🎯 Chance de dar certo: %d%%", percent(a.chance)), "")
+	lines = append(lines, fmt.Sprintf("🎯 Chance de dar certo: %d%%", percent(a.chance)))
+	if revolt := a.head.decrees.revoltOn(time.Now()); revolt > 0 {
+		lines = append(lines, fmt.Sprintf("🔥 Já contando a revolta do povo, que derrubou %d%% da segurança do ditador", percent(revolt)))
+	}
+	lines = append(lines, "")
 	if a.godPlotting() {
 		lines = append(lines, "⚡ Deus tava no golpe, então não tinha como dar errado")
 	}
@@ -354,8 +383,11 @@ func (a coupAttempt) text() string {
 	}
 	if a.success {
 		leader := a.plotters[0].acc
+		lines = append(lines, fmt.Sprintf("🏛️ Os tanques tomaram o palácio! @%s derrubou @%s e é o novo presidente por %s. Os decretos do governo anterior caíram, e o !votar só volta quando o mandato acabar", leader.JID.User, a.president.JID.User, core.FormatWait(termLength)))
+		if a.loot > 0 {
+			lines = append(lines, fmt.Sprintf("💰 E ainda saqueou o cofre do ditador: levou %s de @%s (%d%% do saldo)", Coins(a.loot), a.president.JID.User, coupLoot))
+		}
 		return strings.Join(append(lines,
-			fmt.Sprintf("🏛️ Os tanques tomaram o palácio! @%s derrubou @%s e é o novo presidente por %s. Os decretos do governo anterior caíram, e o !votar só volta quando o mandato acabar", leader.JID.User, a.president.JID.User, core.FormatWait(termLength)),
 			fmt.Sprintf("🚓 Mas golpe é crime: dá pra !prender quem participou (menos o novo presidente) nas próximas %s", core.FormatWait(crimeWindow)),
 		), "\n")
 	}

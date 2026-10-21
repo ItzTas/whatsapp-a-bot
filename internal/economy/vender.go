@@ -70,6 +70,9 @@ func (b *bot) vender(ctx context.Context, evt *events.Message) error {
 		return b.offerItem(ctx, evt, mentions[0].ToNonAD())
 	}
 	text := core.MessageText(evt.Message)
+	if isHostageSale(text) {
+		return b.sellHostage(ctx, evt)
+	}
 	if numbers, ok := parseItemNumbers(text); ok {
 		return b.sellNumbered(ctx, evt, numbers)
 	}
@@ -80,6 +83,19 @@ func (b *bot) vender(ctx context.Context, evt *events.Message) error {
 		return b.sellBatch(ctx, evt, sale.pick, sale.hint)
 	}
 	return b.sellToMarket(ctx, evt)
+}
+
+func isHostageSale(text string) bool {
+	keywords := map[string]bool{"refem": true, "sequestrado": true}
+	fields := strings.Fields(text)
+	return len(fields) == 2 && keywords[normalizeItemName(fields[1])]
+}
+
+func (b *bot) sellHostage(ctx context.Context, evt *events.Message) error {
+	if b.holdIfJailed(ctx, evt) || b.holdIfHostage(ctx, evt) {
+		return nil
+	}
+	return b.venderrefem(ctx, evt)
 }
 
 func parseCategorySale(text string) (string, bool) {

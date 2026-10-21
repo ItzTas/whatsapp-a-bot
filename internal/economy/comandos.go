@@ -310,7 +310,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"golpedeestado", "conspirar"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!golpe", fmt.Sprintf("trama derrubar o presidente na marra 🪖 O primeiro abre a conspiração e quem quiser entra mandando !golpe em até %s. Precisa de pelo menos %d golpistas: começa com %d%% de chance, cada golpista a mais soma %d%%, arma na mochila ajuda e a proteção do presidente atrapalha. Se der certo, quem abriu vira presidente por %s e os decretos caem; se der errado, quem não escapar vai preso. Dá pra tentar um golpe a cada %s por mandato. Contra ditador, bastam %d golpistas e dá pra tentar a cada %s. Com deus no golpe, não tem como dar errado", core.FormatWait(coupWindow), coupMin, percent(coupChance), percent(coupHelp), core.FormatWait(termLength), core.FormatWait(coupEvery), tyrantCoupMin, core.FormatWait(tyrantCoupEvery))},
+				{"!golpe", fmt.Sprintf("trama derrubar o presidente na marra 🪖 O primeiro abre a conspiração e quem quiser entra mandando !golpe em até %s. Precisa de pelo menos %d golpistas: começa com %d%% de chance, cada golpista a mais soma %d%%, arma na mochila ajuda e a proteção do presidente atrapalha. Se der certo, quem abriu vira presidente por %s e os decretos caem; se der errado, quem não escapar vai preso. Dá pra tentar um golpe a cada %s por mandato. Contra ditador, bastam %d golpistas, dá pra tentar a cada %s e, se der certo, quem abriu ainda leva %d%% do saldo dele. Com deus no golpe, não tem como dar errado", core.FormatWait(coupWindow), coupMin, percent(coupChance), percent(coupHelp), core.FormatWait(termLength), core.FormatWait(coupEvery), tyrantCoupMin, core.FormatWait(tyrantCoupEvery), coupLoot)},
 				{"!golpe defender", fmt.Sprintf("entra do lado do governo (o presidente também pode): cada defensor tira %d%% da chance do golpe, e arma na mochila tira mais. Com deus defendendo, o golpe não passa", percent(coupHelp))},
 			},
 			Run:          b.golpe,
@@ -340,7 +340,7 @@ func (b *bot) economyCommands() []core.Command {
 			Aliases:  []string{"vendersequestrado"},
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
-				{"!venderrefem", fmt.Sprintf("leva o seu refém pro mercado clandestino 🤝 O negócio fecha em %s, e até lá a polícia ainda pode !prender você e libertar o refém, ou ele pode !fugir. O preço depende da profissão do refém (quem ganha mais vale mais), da fama dele (famoso vale mais, veja !fama) e da sua profissão (contrabandista, cambista e golpista vendem mais caro). Depois de vendido, o refém fica no máximo mais %s trabalhando pra quem comprou, sem poder apostar, a não ser que consiga !fugir, e nem a polícia resgata mais", core.FormatWait(hostageSaleWait), core.FormatWait(soldHostageHold))},
+				{"!venderrefem", fmt.Sprintf("leva o seu refém pro mercado clandestino 🤝 O negócio fecha em %s, e até lá a polícia ainda pode !prender você e libertar o refém, ou ele pode !fugir. O preço depende da profissão do refém (quem ganha mais vale mais), da fama dele (famoso vale mais, veja !fama) e da sua profissão (contrabandista, cambista e golpista vendem mais caro). Depois de vendido, o refém fica no máximo mais %s trabalhando pra quem comprou, sem poder apostar, a não ser que consiga !fugir, e nem a polícia resgata mais. Sequestrar o ditador não derruba ele, mas vender derruba: o cargo fica vago e a ditadura acaba", core.FormatWait(hostageSaleWait), core.FormatWait(soldHostageHold))},
 			},
 			Run:          b.venderrefem,
 			BarredInJail: true,
@@ -836,6 +836,7 @@ func (b *bot) economyCommands() []core.Command {
 				{"!vender inuteis", "vende tudo da mochila que não tem efeito nenhum (peixe, minério, lixo, inseto...), lendários e míticos inclusos"},
 				{"!vender bugigangas", "vende os inúteis e mais o que dá pra !usar mas não faz nada de verdade (comida, presente, Nokia, Tamagotchi...). Os bichinhos ficam"},
 				{"!vender duplicados", "vende tudo que tá repetido e deixa 1 de cada item, sempre o de melhor qualidade. É a única venda que mexe nos favoritos ⭐ (só nas cópias)"},
+				{"!vender refem", "leva o seu refém pro mercado clandestino, igualzinho ao !venderrefem 🤝"},
 				{"!vender @pessoa <item> <preço>", fmt.Sprintf("oferece o item pra pessoa marcada pelo preço que você quiser, e ela tem %s pra responder com !aceitar ou !recusar 🤝", core.FormatWait(offerWindow))},
 				{"!vender @pessoa <item> <quantidade> <preço>", "vende vários de uma vez, com o preço sendo o total"},
 			},

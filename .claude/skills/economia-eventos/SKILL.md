@@ -130,6 +130,17 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   com peso baixo (até uns 20, quase sempre bem menos) no desfecho. Efeito novo é um
   tipo com `apply` que devolve a linha do resumo e com `fortune`, que diz se ele é bom (positivo), ruim
   (negativo) ou neutro (zero). Os `fortune` ficam todos em `buzios.go`, e o compilador cobra o de efeito novo.
+- **Ditadura** (`eventosditadura.go`, livro `tyrannyEvents`). Só abre com a ditadura ligada: os eventos
+  com `when: tyrantRules` saem pro ditador e os com `when: underTyranny` (`oppressed()`) pro povo, então o
+  favorito do ditador não vê nenhum. O livro tem `places` com as atividades normais (trabalho, extrações,
+  crimes, `!postar`, `!publi`), pra pesar como evento de lugar e não como universal. Ele tem efeitos
+  próprios (`eventoefeitos.go`), que mexem na ditadura atual da conversa pelo `tyrannyIn` e respondem o
+  `tyrannyOverText` se ela já caiu: os de revolta (`revoltEffect`, em pontos percentuais na coluna
+  `agitacao`, skill `economia-presidencia`) são o `rebel` e o `betray` do povo e o `outrage` e o `quell`
+  do ditador, e os de exército (`armyEffect`, em batalhões, no mesmo relógio do `armyRoom` que o `!decreto
+  exercito` usa) são o `enlist` e o `desert` do ditador e o `sabotage` do povo. O `tyrannySide` de cada
+  um diz pra quem ele é bom (o `cheers` decide o `fortune`), e o teste da ditadura cobra que o efeito
+  seja do mesmo lado do evento e que nenhum outro livro use eles.
 - **Búzios encantados** (relíquia passiva, `oracle` na profissão, `buzios.go`). Além do triplo de eventos, a
   enquete de quem tem mostra em cada opção a chance de dar bom e de dar ruim (`choice.reading`, colado no
   texto da opção no `newPendingEvent`, que também serve a etapa do `next`). A chance sai dos mesmos pesos do

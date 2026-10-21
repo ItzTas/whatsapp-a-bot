@@ -350,7 +350,7 @@ func (s *walletStore) gangRob(ctx context.Context, chat types.JID, victim core.A
 			return err
 		}
 		if r.success {
-			return raiseShield(ctx, tx, chat, victim, now.Add(jackpotShield(r.mark.jackpot)))
+			return raiseShield(ctx, tx, chat, victim, now, jackpotShield(r.mark.jackpot))
 		}
 		return r.jailBroke(ctx, tx, chat, now)
 	})

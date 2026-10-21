@@ -96,7 +96,9 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `kidnapEvery` da profissão). A tentativa marca o `crime_em`; se falhar, paga indenização e tem
   `kidnapCaughtChance` de ir preso na hora (mais `copVictimCaught` se a vítima tem `jailTime`,
   por `baseJail` ajustado pelo `jailFactor`). O `!prender` em quem sequestrou solta o refém
-  (`freeHostage`). O `!venderrefem` abre uma negociação efêmera em `hostageSales` (uma por
+  (`freeHostage`). Sequestrar o ditador (inclusive o X-9 ditador levado de refém no `captureSnitch`) não
+  derruba ninguém: ele só cai quando é vendido (`deposeTyrant` no `sellHostage`, skill
+  `economia-presidencia`). O `!venderrefem` (ou `!vender refem`, que o `vender` desvia pro `sellHostage` com as mesmas travas de cadeia e cativeiro do `BarredInJail`, já que o `!vender` não tem) abre uma negociação efêmera em `hostageSales` (uma por
   sequestrador) que só fecha depois de `hostageSaleWait`; até lá o `!prender` ou o `!fugir` melam o
   negócio, e o preço e o tempo que sobra são lidos no fechamento. Na venda, paga, com moedas
   novas, o ganho da profissão do refém vezes `hostagePriceFactor`, mais o `ransomBonus` de quem

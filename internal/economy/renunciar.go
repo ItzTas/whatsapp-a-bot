@@ -35,7 +35,7 @@ func (b *bot) renunciar(ctx context.Context, evt *events.Message) error {
 		return b.SendText(ctx, chat, "🏛️ O mandato acabou bem agora, então nem deu tempo de renunciar")
 	}
 	text := fmt.Sprintf("🏳️ *Renúncia!* @%s largou a presidência e perdeu os poderes do cargo na hora. Manda !votar @pessoa pra abrir uma eleição nova\n\n🎲 %s", person.User, vacancyNote(now.Add(vacancyWindow), now))
-	if len(p.decrees.inForce()) > 0 {
+	if len(p.decrees.inForce(now)) > 0 {
 		text += "\n\n📜 Os decretos dele continuam valendo até alguém tomar posse, mas os impostos agora somem em vez de ir pra alguém. Manda !presidente pra ver quais são"
 	}
 	_, err = b.SendMentions(ctx, chat, text, []types.JID{person})

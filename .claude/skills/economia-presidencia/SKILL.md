@@ -21,7 +21,8 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `cordon` (`presidentGuard`) é a segurança presidencial: fica fora do `guard`, então não protege
   contra `!roubar`, `!furtar` nem `!quadrilha`, e só entra onde a conta usa o `violenceGuard()`
   (`guard + cordon`: `!sequestrar`, `!matar` e a chance do `!golpe`). O presidente pode ser preso,
-  mas tem imunidade parcial: o `immunity()` da profissão devolve `presidentImmunity`. No `!prender`
+  mas tem imunidade parcial: o `immunity()` da profissão devolve `presidentImmunity`, ou zero
+  com a ditadura ligada (ditador não tem imunidade). No `!prender`
   e no `!denunciar` ela vai no `arrestOdds` do `walletStore.arrest`, sorteada depois da chance da
   denúncia; se segurar, o `arrest` volta com `immune`, ninguém é preso, o `crime_em` continua (dá
   pra tentar de novo) e a resposta é o `immunityText`. No flagrante na hora, o `flagrantOdds` da
@@ -35,7 +36,9 @@ Presidente, decretos, impeachment, renúncia e golpe.
   nomes que aceita e a coluna dele na `presidencias`: `percentDecrees` (um número guardado na
   coluna, limitado a `lo`/`hi` na leitura; negativo corta e positivo aumenta, como no `trabalho`,
   que vai de `-workDecreeMaxCut` a `+workDecreeMaxRaise` na espera), `toggleDecrees` (liga/desliga,
-  o `!decreto` sem número inverte) e `onceDecrees` (até `limit` usos no mandato, contados na coluna
+  o `!decreto` sem número inverte; com `lasts`, como o toque de recolher, que dura `curfewTime`
+  (15 minutos), a coluna guarda quando ele acaba, o `flipDecree` liga por esse tempo ou desliga se
+  ainda tá valendo, o `zipDecrees` zera o que já venceu e o "em vigor" mostra quanto falta) e `onceDecrees` (até `limit` usos no mandato, contados na coluna
   pelo `spendDecree`, que roda o efeito na mesma transação e desfaz tudo com `errDecreeIdle` quando
   não tinha o que fazer, sem gastar o uso). O menu, a ajuda do `!decreto` no `economyCommands`, o
   "em vigor" e o "sobrando" do `!presidente` saem dessas tabelas, e o `inaugurate` zera todas as
@@ -137,35 +140,78 @@ Presidente, decretos, impeachment, renúncia e golpe.
   mandato só sai depois de `coupEvery`. Quando a `coupWindow` acaba, o golpe precisa de `coupMin`
   golpistas (sem esse mínimo se deus tiver no golpe). A chance (`coupAttempt.odds`) é `coupChance`
   mais `coupHelp` por golpista a mais, menos `coupHelp` por defensor, mais o `crime` da arma de
-  cada golpista, menos o `guard` da arma de cada defensor (`arsenal`), menos o `guard` do
-  presidente e o toque de recolher; deus golpista dá 100% e deus defendendo (ou presidente) dá 0%.
+  cada golpista, menos o `guard` da arma de cada defensor (`arsenal`) e menos o `guard` do
+  presidente; o toque de recolher não entra; deus golpista dá 100% e deus defendendo (ou presidente) dá 0%.
   Todo golpista leva `crime_em`. Se der certo, o `seize` troca a linha da `presidencias` pro líder
   com `mandato_ate` de `termLength`, `golpista = 1`, `sorteado = 0`, `golpe_em` agora e abusos e decretos zerados
   (o `UPDATE` exige o presidente da abertura ainda no cargo, senão falha com `errCoupVacant`); o
-  presidente derrubado só perde o cargo. Se der errado, os golpistas passam pelo `jailCrew` do
+  presidente derrubado só perde o cargo, a não ser que seja ditador: aí o `plunderTyrant`, na mesma
+  transação e antes do `seize` (que zera a coluna `ditadura`), passa `coupLoot`% do saldo dele pro
+  líder (`coupAttempt.loot`, mostrado no resultado). Se der errado, os golpistas passam pelo `jailCrew` do
   `!assalto`. O `inaugurate` zera `golpe_em` e `golpista`.
-- A ditadura (`ditadura.go`) é o `tyrannyDecree`, um decreto do `toggleDecrees` com `lasting`: o
-  `toggleDecreeRun` recusa desligar quando ele já tá ligado, então só cai com o fim do mandato, o
-  `!golpe`, a morte do ditador ou o `!renunciar` (o `resign` zera a coluna `ditadura`). Com ela
+- A ditadura (`ditadura.go`) é o `tyrannyDecree`, um decreto do `toggleDecrees` com `lasting`, mas
+  os nomes dele vão pro `tyrannyDecreeRun`, não pro `toggleDecreeRun`. Ele recusa desligar quando ela
+  já tá ligada (o texto do `lasting`), então só cai com o fim do mandato, o `!golpe`, a morte do
+  ditador, a venda dele como refém ou o `!renunciar` (o `resign` zera a coluna `ditadura`). Quem foi ditador no
+  próprio mandato anterior não declara de novo: o `declareTyranny` confere, na mesma transação em que
+  liga (pelo `flipToggle`), a tabela `ditadores` (uma linha por pessoa e economia, com o
+  `ditadura_em` da última ditadura dela, que o `inaugurate` não zera, porque o `resign` zera a coluna
+  `ditadura` antes da posse seguinte), e recusa com `errTyrannyRepeat` quando o `ditadura_em` é de
+  antes do `eleito_em` do mandato de agora. Toda posse (`swearIn` e `seize`) chama antes o
+  `forgetTyrant`, que apaga a linha de quem tá saindo se o mandato dele acabou sem ditadura, então a
+  proibição dura um mandato só da pessoa, mesmo com outros presidentes no meio. Com ela
   ligada, o `decrees.limits` troca o teto dos decretos de imposto pelo `tyrantHi` (e o piso da taxa do
   `cassino` pelo `tyrantLo`), e tanto o `level` quanto a validação do `percentDecreeRun` leem os
   limites por ele. Quando a ditadura cai, o `level` volta a cortar no teto normal sozinho. O
   `!impeachment` não abre e, se a ditadura sair no meio da votação, o `impeachmentResult` anula. O
   `!golpe` lê `coupMin()`/`coupEvery()` dos decretos (`tyrantCoupMin`, `tyrantCoupEvery`), e o
-  mínimo da abertura fica guardado no `need` da conspiração (e no save). A revolta (coluna
-  `revolta`) sobe no `stirRevolt` a cada imposto cobrado pro ditador, chamado pelo `payLevy` e pelo
+  mínimo da abertura fica guardado no `need` da conspiração (e no save). Ligar a ditadura grava a hora do decreto na coluna `ditadura` (o `window` devolve `now`
+  pros decretos com `lasting`). A revolta (`decrees.revolt(now)`) começa em `revoltBase`, soma
+  `revoltRise` a cada `revoltRiseEvery` desde essa hora e mais os pontos da coluna `revolta` (a soma
+  é o `rawRevolt`) e não tem teto: o `easedRevolt` deixa ela igual até `revoltKnee` (40%) e, dali
+  pra cima, só `revoltSlowdown` (metade) do que passa conta. O `revoltUnrest` (revolta sobre o
+  `revoltKnee`, de 0 a 1) é o quanto das vantagens do povo já vale, e a barra do `revoltLines`
+  enche até o `revoltKnee`. A coluna `revolta`
+  sobe no `stirRevolt` a cada imposto cobrado pro ditador, chamado pelo `payLevy` e pelo
   `transferWithPix`, somando o `excess` do `PixLevy` (o quanto o nível passa do
-  limite normal, pelo `abuse`, também salvo no `levySave`). O `!decreto exercito [batalhões]`
+  limite normal, pelo `abuse`, também salvo no `levySave`). O `brewedRevolt` (base + tempo) e o
+  `taxedRevolt` (imposto) separam as duas origens, e o `revoltOn` devolve zero fora da ditadura.
+  A terceira origem é a coluna `agitacao` (migração `00132`, também no `tyrannyColumns`), os pontos
+  dos eventos da ditadura (skill `economia-eventos`): o protesto do povo soma e a repressão do ditador
+  tira, presa entre `agitationFloor` (-15%) e `agitationCeiling` (+25%), e o `stirredRevolt` lê ela.
+  Por isso o `rawRevolt` nunca fica abaixo de zero, o `routedAt` e o `raiseArmy` contam ela junto do
+  imposto e o `revoltOrigins` mostra no `revoltLines` os protestos ou o que a repressão abafou.
+  A revolta aparece pra galera em três lugares: no `!presidente`, pelo `revoltLines` (dentro do
+  `tyrannyLines`), com a barra do `core.MeterBar`, o que ela derruba do ditador, o que ela dá pro
+  povo, de onde veio e quando sobe de novo; no `!golpe`, na abertura (o `tyrannyNote` usa o
+  `revolt` guardado na conspiração quando ela abre, que não vai pro save porque só serve pra essa
+  mensagem) e no resultado (o `coupAttempt.text`); e em todo texto de imposto de decreto, que
+  termina com o `levy.decreed()`, e ele avisa que o povo ficou mais revoltado quando o imposto
+  passou do teto e foi pro ditador. Texto novo de imposto de decreto usa o `decreed()` no lugar de
+  "por decreto". O `!decreto exercito [batalhões]`
   (`armyDecree`, só na ditadura) cobra `battalionPercent` do saldo (piso `battalionFloor`) por
   batalhão, um ralo, e empurra a coluna `exercito_ate` em `battalionTime` por batalhão, até
-  `armyBattalions`. A proteção cai em linha reta até o `exercito_ate` (`decrees.army`). As duas
+  `armyBattalions`. A proteção cai em linha reta até o `exercito_ate` (`decrees.army`), medido no relógio do exército (`armyClock`): ele anda junto com o relógio de verdade até a revolta passar do `revoltKnee` (o `routedAt`, calculado com a revolta de imposto de agora) e depois corre `routPace` vezes mais rápido, então os batalhões desertam mais rápido com a revolta alta. O `raiseArmy` empurra a coluna nesse mesmo relógio, e o `armyGone` converte de volta pra hora de verdade em que o último batalhão sai. Imposto abusivo que adianta o `routedAt` derruba o exército na hora. As duas
   entram pelo `tyrannical`, aplicado no `ProfessionOf` logo depois do `presidential()` (os
-  `decrees` são pendurados antes): `cordon` mais o exército menos a revolta (`revoltMax` no
-  máximo), então valem no `!matar`, no `!sequestrar` e no `!golpe` pelo `violenceGuard()`. A morte
+  `decrees` são pendurados antes): `cordon` mais o exército menos a revolta (sem limite, então
+  passando do `cordon` deixa o ditador mais fácil de pegar que qualquer um), então valem no `!matar`, no `!sequestrar` e no `!golpe` pelo `violenceGuard()`. A morte
   derruba o ditador: o `bury` chama o `deposeTyrant`, que joga o `mandato_ate` pra agora e abre a
-  vaga, e todo texto de morte mostra o `deposedText` quando o `death.deposed` vem marcado. As
+  vaga, e todo texto de morte mostra o `deposedText` quando o `death.deposed` vem marcado. O
+  cativeiro sozinho não derruba (nem o `!sequestrar` nem o X-9 levado de refém no `captureSnitch`):
+  só a venda do `!venderrefem`, em que o `sellHostage` chama o `deposeTyrant` na mesma transação
+  que fecha o negócio, e a resposta mostra o `soldTyrantText` (`hostageSold.deposed`). As
   colunas `revolta` e `exercito_ate` entram no `decreeColumns()` pelo `tyrannyColumns`, então o
   `inaugurate` e o `seize` também zeram as duas.
+  O povo também muda na ditadura: quem não é o presidente fica `oppressed()` (os `decrees` vêm na
+  profissão de todo mundo). O `roused`, logo depois do `patronized` no `ProfessionOf`, guarda a
+  revolta de agora no `uprising` da profissão (zero pro ditador), e as duas vantagens crescem com
+  ela pelo `unrest` (o `revoltUnrest` do `uprising`): o `tyrantEscape` soma `tyrantEscapeBonus`
+  vezes o `unrest` no `escapeOdds` (vale no `!fugir`, no `!fugir @pessoa` e na fuga do `!assalto`,
+  com o `tyrantEscapeText` na resposta), o `immunity()` devolve o `tyrantImmunity`
+  (`tyrantCitizenImmunity` vezes o `unrest`, então segura o `!prender`, o `!denunciar`, o
+  flagrante e a batida do `!mercadonegro`, com o `shelterText` no lugar do `immunityText`) e o
+  `raiseShield` soma `tyrantShelter` no escudo de quem foi roubado(a) (`tyrantShelterOn`, que olha
+  na transação se tem ditadura e se a vítima não é o ditador). A fuga do cativeiro não muda.
 - O favorito do ditador (`favorecido.go`, tabela `ditadura_favoritos`, uma linha por conversa com
   `pessoa`, `jid` e `favorito_em`) sai do `!decreto favorecer @pessoa` (`protegeDecree`, só na
   ditadura, e não aceita o próprio ditador nem o bot). É um só por vez: o `anointProtege` troca a
@@ -175,8 +221,10 @@ Presidente, decretos, impeachment, renúncia e golpe.
   mandato ou uma ditadura nova derrubam ele sem precisar apagar a linha. Os bônus são de propósito
   bem menores que os do presidente: o `patronized`, primeiro passo do `ProfessionOf` depois da
   presidência, soma `protegePayBonus`% no `!trabalhar`, `protegeDailyBonus`% no `!daily` e
-  `protegeGuard` no `cordon` (só contra `!matar`, `!sequestrar` e `!golpe`). O favorito continua
-  `oppressed()` como o resto do povo.
+  `protegeGuard` no `cordon` (só contra `!matar`, `!sequestrar` e `!golpe`). Em troca, o favorito
+  não é povo: o `oppressed()` pula ele (campo `protege` da profissão), então fica sem o
+  `tyrantEscape`, sem a `tyrantImmunity` e sem a revolta do `roused`, e o `tyrantShelterOn` não dá
+  o escudo a mais quando quem foi roubado(a) é o favorito daquela ditadura.
 - Bondade de ditador é só dele (`decretoditador.go`). Cada decreto de porcentagem tem uma segunda
   coluna na `presidencias`, o `rulerColumn()` (`<coluna>_ditador`, migração `00126`), com quanto o
   nível do ditador passa do nível do povo. A coluna normal continua sendo o nível do povo, que todo
@@ -194,4 +242,4 @@ Presidente, decretos, impeachment, renúncia e golpe.
   dois níveis ficam diferentes, o "em vigor" mostra os dois (`percentInForce`) e o `!renunciar` zera
   as colunas do ditador (`rulerReset`), junto da `ditadura`. Os tetos dos impostos na ditadura são
   `tyrantIncomeTaxMax` (80), `tyrantShopTaxMax` (75), `tyrantPixMax` (50), `tyrantBailTaxMax` (130),
-  `tyrantBetTaxMax` (50) e `tyrantSavingsTaxMax` (100, todos os juros).
+  `tyrantBetTaxMax` (50), `tyrantSaleTaxMax` (25) e `tyrantSavingsTaxMax` (100, todos os juros).

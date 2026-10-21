@@ -2,6 +2,7 @@ package economy
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -611,4 +612,100 @@ func (e refundEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (s
 		return "", err
 	}
 	return fmt.Sprintf("🤝 Devolveu %s pra @%s", Coins(amount), run.victim.JID.User), nil
+}
+
+type tyrannySide int
+
+const (
+	peopleSide tyrannySide = iota
+	tyrantSide
+)
+
+const tyrannyOverText = "🪖 Só que a ditadura já tinha acabado, e isso não mudou nada"
+
+func tyrannyIn(ctx context.Context, tx *ledgerTx, chat types.JID, now time.Time) (decrees, bool, error) {
+	var reign, revolt, agitation, army int64
+	err := tx.QueryRowContext(ctx,
+		"SELECT "+tyrannyDecree.column+", "+revoltColumn+", "+agitationColumn+", "+armyColumn+" FROM presidencias WHERE chat = ? AND mandato_ate > ? AND "+tyrannyDecree.column+" != 0",
+		chat.String(), now.Unix(),
+	).Scan(&reign, &revolt, &agitation, &army)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return decrees{tyrannyDecree.column: reign, revoltColumn: revolt, agitationColumn: agitation, armyColumn: army}, true, nil
+}
+
+func setTyranny(ctx context.Context, tx *ledgerTx, chat types.JID, column string, value int64) error {
+	_, err := tx.ExecContext(ctx, "UPDATE presidencias SET "+column+" = ? WHERE chat = ?", value, chat.String())
+	return err
+}
+
+type revoltEffect struct {
+	lo, hi int64
+	sign   int64
+	side   tyrannySide
+}
+
+func rebel(lo, hi int64) effect   { return revoltEffect{lo, hi, 1, peopleSide} }
+func betray(lo, hi int64) effect  { return revoltEffect{lo, hi, -1, peopleSide} }
+func outrage(lo, hi int64) effect { return revoltEffect{lo, hi, 1, tyrantSide} }
+func quell(lo, hi int64) effect   { return revoltEffect{lo, hi, -1, tyrantSide} }
+
+func (e revoltEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string, error) {
+	d, ok, err := tyrannyIn(ctx, tx, run.chat, run.now)
+	if err != nil || !ok {
+		return tyrannyOverText, err
+	}
+	stirred := min(max(d[agitationColumn]+e.sign*between(e.lo, e.hi)*revoltPoint, agitationFloor), agitationCeiling)
+	if stirred == d[agitationColumn] {
+		return map[bool]string{
+			true:  "🔥 A revolta do povo não subiu mais: os protestos já empurraram tudo o que dava",
+			false: "🪖 A revolta do povo não caiu mais: a repressão já abafou tudo o que dava",
+		}[e.sign > 0], nil
+	}
+	d[agitationColumn] = stirred
+	if err := setTyranny(ctx, tx, run.chat, agitationColumn, stirred); err != nil {
+		return "", err
+	}
+	if e.sign > 0 {
+		return fmt.Sprintf("🔥 A revolta do povo subiu pra %d%%", percent(d.revolt(run.now))), nil
+	}
+	return fmt.Sprintf("🪖 A revolta do povo caiu pra %d%%", percent(d.revolt(run.now))), nil
+}
+
+type armyEffect struct {
+	battalions int64
+	sign       int64
+	side       tyrannySide
+}
+
+func enlist(n int64) effect   { return armyEffect{n, 1, tyrantSide} }
+func desert(n int64) effect   { return armyEffect{n, -1, tyrantSide} }
+func sabotage(n int64) effect { return armyEffect{n, -1, peopleSide} }
+
+func (e armyEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string, error) {
+	d, ok, err := tyrannyIn(ctx, tx, run.chat, run.now)
+	if err != nil || !ok {
+		return tyrannyOverText, err
+	}
+	start, room := d.armyRoom(run.now)
+	n := min(e.sign*e.battalions, room)
+	if e.sign > 0 && n <= 0 {
+		return "🪖 Apareceram voluntários, mas o exército do ditador já tava cheio", nil
+	}
+	if e.sign < 0 && d.army(run.now) == 0 {
+		return "🏳️ Nem tinha soldado pra desertar: o exército do ditador já tava vazio", nil
+	}
+	d[armyColumn] = start.Add(time.Duration(n) * battalionTime).Unix()
+	if err := setTyranny(ctx, tx, run.chat, armyColumn, d[armyColumn]); err != nil {
+		return "", err
+	}
+	guard := percent(d.army(run.now))
+	if n > 0 {
+		return fmt.Sprintf("🪖 O exército do ditador ganhou %s: a segurança dele tá em +%d%%", core.CountLabel(int(n), "batalhão", "batalhões"), guard), nil
+	}
+	return fmt.Sprintf("🏳️ O exército do ditador perdeu %s: a segurança dele caiu pra +%d%%", core.CountLabel(int(-n), "batalhão", "batalhões"), guard), nil
 }

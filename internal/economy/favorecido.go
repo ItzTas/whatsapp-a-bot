@@ -35,11 +35,11 @@ func (p Profession) patronized(protege bool) Profession {
 }
 
 func protegePerk() string {
-	return fmt.Sprintf("🎖️ É o favorito do ditador: o !trabalhar paga +%d%%, o !daily rende +%d%% e quem tenta !sequestrar ou !matar você tem mais %d%% de chance de errar", protegePayBonus, protegeDailyBonus, percent(protegeGuard))
+	return fmt.Sprintf("🎖️ É o favorito do ditador: o !trabalhar paga +%d%%, o !daily rende +%d%% e quem tenta !sequestrar ou !matar você tem mais %d%% de chance de errar. Em troca, não é povo: não foge da cadeia mais fácil, a polícia não larga a sua prisão e o escudo depois de um roubo não aumenta", protegePayBonus, protegeDailyBonus, percent(protegeGuard))
 }
 
 func protegeHelp() core.Usage {
-	return core.Usage{protegeSyntax, fmt.Sprintf("só na ditadura: escolhe o favorito do regime, só um de cada vez (escolher outro tira o anterior). O favorito ganha +%d%% no !trabalhar, +%d%% no !daily e +%d%% de segurança contra !matar e !sequestrar, e perde tudo quando a ditadura cai",
+	return core.Usage{protegeSyntax, fmt.Sprintf("só na ditadura: escolhe o favorito do regime, só um de cada vez (escolher outro tira o anterior). O favorito ganha +%d%% no !trabalhar, +%d%% no !daily e +%d%% de segurança contra !matar e !sequestrar, e perde tudo quando a ditadura cai. Em troca, o favorito deixa de ser povo e fica sem o que o povo ganha na ditadura (fuga mais fácil, polícia largando a prisão e escudo maior depois de roubo)",
 		protegePayBonus, protegeDailyBonus, percent(protegeGuard))}
 }
 
@@ -71,9 +71,9 @@ func (b *bot) protegeDecree(ctx context.Context, call decreeCall) (string, error
 	text := fmt.Sprintf("🎖️ *Favorito do regime!* @%s escolheu @%s pra ser o queridinho da ditadura: +%d%% no !trabalhar, +%d%% no !daily e +%d%% de segurança contra !matar e !sequestrar enquanto a ditadura durar",
 		user, protege.JID.User, protegePayBonus, protegeDailyBonus, percent(protegeGuard))
 	if swap == protegeReplaced {
-		text += "\n_O favorito de antes perdeu a boquinha_"
+		text += "\n_O favorito de antes perdeu a boquinha e voltou a ser povo_"
 	}
-	return text, nil
+	return text + "\n_Favorito não é povo: fica sem a fuga mais fácil, sem a polícia largando a prisão e sem o escudo maior depois de roubo_", nil
 }
 
 type protegeSwap int

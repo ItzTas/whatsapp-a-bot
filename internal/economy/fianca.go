@@ -105,14 +105,14 @@ func exitTaxShare(tax int64, levy PixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" (contando %s de imposto %s, por decreto)", Coins(tax), levy.office())
+	return fmt.Sprintf(" (contando %s de imposto %s, %s)", Coins(tax), levy.office(), levy.decreed())
 }
 
 func exitTaxText(tax int64, levy PixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da fiança foram %s, por decreto", Coins(tax), levy.percent, levy.pocket())
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da fiança foram %s, %s", Coins(tax), levy.percent, levy.pocket(), levy.decreed())
 }
 
 func releaseHeld(ctx context.Context, tx *ledgerTx, statement string, chat types.JID, acc core.Account, now time.Time) error {

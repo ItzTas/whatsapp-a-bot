@@ -105,7 +105,7 @@ func (s *walletStore) decreesOf(ctx context.Context, chat types.JID, acc core.Ac
 	if err != nil {
 		return nil, fmt.Errorf("ler decretos: %w", err)
 	}
-	d := zipDecrees(columns, values)
+	d := zipDecrees(columns, values, now)
 	if ruler {
 		return d.ruled(), nil
 	}

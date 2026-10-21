@@ -377,7 +377,7 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 			return err
 		}
 		if r.success {
-			return raiseShield(ctx, tx, chat, victim, now.Add(jackpotShield(r.mark.jackpot)))
+			return raiseShield(ctx, tx, chat, victim, now, jackpotShield(r.mark.jackpot))
 		}
 		if r.alarmed || r.scuffle.criminal.died || thiefBalance >= brokeThief || rand.Float64() >= caught.odds {
 			return nil

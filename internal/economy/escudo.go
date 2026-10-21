@@ -21,8 +21,12 @@ func shieldOn(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Acc
 	return max(time.Unix(until, 0).Sub(now), 0), err
 }
 
-func raiseShield(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Account, until time.Time) error {
-	_, err := tx.ExecContext(ctx, "UPDATE carteiras SET escudo_ate = ? WHERE chat = ? AND pessoa = ?", until.Unix(), chat.String(), victim.Key)
+func raiseShield(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Account, now time.Time, shield time.Duration) error {
+	shelter, err := tyrantShelterOn(ctx, tx, chat, victim, now)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE carteiras SET escudo_ate = ? WHERE chat = ? AND pessoa = ?", now.Add(shield+shelter).Unix(), chat.String(), victim.Key)
 	return err
 }
 

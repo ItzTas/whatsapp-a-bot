@@ -77,6 +77,17 @@ func (breakEffect) fortune() int    { return -2 }
 func (nabEffect) fortune() int      { return -2 }
 func (perishEffect) fortune() int   { return -3 }
 
+func (s tyrannySide) cheers(revolt int64) int {
+	if s == tyrantSide {
+		return -int(revolt)
+	}
+	return int(revolt)
+}
+
+func (e revoltEffect) fortune() int { return e.side.cheers(e.sign) }
+
+func (e armyEffect) fortune() int { return e.side.cheers(-e.sign) }
+
 func (e spellEffect) fortune() int {
 	c, ok := charmByID(e.id)
 	if !ok {

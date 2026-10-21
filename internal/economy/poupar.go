@@ -53,7 +53,7 @@ func savingsTaxText(tax int64, levy PixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" (já tirando %s, %d%% dos juros, de imposto %s, por decreto)", Coins(tax), levy.percent, levy.pocket())
+	return fmt.Sprintf(" (já tirando %s, %d%% dos juros, de imposto %s, %s)", Coins(tax), levy.percent, levy.pocket(), levy.decreed())
 }
 
 func (b *bot) savingsReply(ctx context.Context, evt *events.Message, acc core.Account, now time.Time) (string, error) {

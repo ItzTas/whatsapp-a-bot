@@ -47,7 +47,7 @@ func TestTyrantReadsOwnDecrees(t *testing.T) {
 	if err := s.inaugurate(ctx, chat, tyrant, 3, now); err != nil {
 		t.Fatal(err)
 	}
-	if on, set, err := s.flipDecree(ctx, chat, tyrant, tyrannyDecree.column, now); err != nil || !set || !on {
+	if on, set, err := s.flipDecree(ctx, chat, tyrant, tyrannyDecree, now); err != nil || !set || !on {
 		t.Fatalf("o !decreto ditadura não ligou: on %v, set %v, err %v", on, set, err)
 	}
 	if set, err := s.setDecree(ctx, chat, tyrant, payDecree, 10, 40, now); err != nil || !set {
@@ -76,7 +76,7 @@ func TestTyrantReadsOwnDecrees(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inForce := d.inForce()
+	inForce := d.inForce(now)
 	want := payDecree.effect(10) + " (pro ditador, " + payDecree.effect(50) + ")"
 	if len(inForce) == 0 || inForce[0] != want {
 		t.Errorf("decretos em vigor = %q, want começando com %q", inForce, want)

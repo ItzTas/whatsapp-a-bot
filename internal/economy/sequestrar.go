@@ -180,6 +180,10 @@ func kidnapCaption(kidnapperJob, victimJob Profession, kidnapper, victim types.J
 		kidnapper.User, core.FormatWait(min(crimeWindow, hostageHold)), victim.User)
 }
 
+func soldTyrantText(person types.JID) string {
+	return fmt.Sprintf("🪖 @%s era o ditador e foi vendido(a) feito mercadoria: sem ninguém no trono, o cargo ficou vago e a ditadura acabou. Manda !votar @pessoa pra abrir uma eleição nova", person.User)
+}
+
 func kidnapText(k kidnapping, victimJob Profession, kidnapper, victim types.JID) string {
 	if k.holding {
 		return fmt.Sprintf("🪢 @%s já tem um refém no cativeiro. Manda !venderrefem antes de pegar outro", kidnapper.User)
@@ -299,18 +303,22 @@ func (b *bot) finishHostageSale(ctx context.Context, sale *hostageSale) error {
 		return err
 	}
 	price := sellerJob.ransom(hostageJob)
-	left, err := b.Wallets.sellHostage(ctx, sale.chat, sale.sellerAcc, h.acc, price, time.Now())
+	sold, err := b.Wallets.sellHostage(ctx, sale.chat, sale.sellerAcc, h.acc, price, time.Now())
 	if err != nil {
 		return err
 	}
 	people := []types.JID{sale.seller, h.acc.JID}
-	if left <= 0 {
+	if sold.left <= 0 {
 		text := fmt.Sprintf("🏃 O negócio melou: na hora de fechar, @%s não tava mais no cativeiro de @%s", h.acc.JID.User, sale.seller.User)
 		_, err = b.SendMentions(ctx, sale.chat, text, people)
 		return err
 	}
-	h.left = left
-	return b.SendGIF(ctx, sale.chat, "venderrefem", saleCaption(sellerJob, hostageJob, sale.seller, h, price), people)
+	h.left = sold.left
+	caption := saleCaption(sellerJob, hostageJob, sale.seller, h, price)
+	if sold.deposed {
+		caption += "\n" + soldTyrantText(h.acc.JID)
+	}
+	return b.SendGIF(ctx, sale.chat, "venderrefem", caption, people)
 }
 
 func saleCaption(sellerJob, hostageJob Profession, seller types.JID, h hostage, price int64) string {
@@ -472,7 +480,12 @@ func (s *walletStore) hostageOf(ctx context.Context, chat types.JID, kidnapper c
 	return hostage{acc: core.Account{Key: key, JID: parsed}, left: time.Unix(until, 0).Sub(now)}, true, nil
 }
 
-func (s *walletStore) sellHostage(ctx context.Context, chat types.JID, seller, sold core.Account, price int64, now time.Time) (left time.Duration, err error) {
+type hostageSold struct {
+	left    time.Duration
+	deposed bool
+}
+
+func (s *walletStore) sellHostage(ctx context.Context, chat types.JID, seller, sold core.Account, price int64, now time.Time) (h hostageSold, err error) {
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var until int64
 		err := tx.QueryRowContext(ctx,
@@ -485,11 +498,15 @@ func (s *walletStore) sellHostage(ctx context.Context, chat types.JID, seller, s
 		if err != nil {
 			return err
 		}
-		left = time.Unix(until, 0).Sub(now)
+		h.left = time.Unix(until, 0).Sub(now)
 		_, err = tx.ExecContext(ctx, "UPDATE carteiras SET saldo = saldo + ? WHERE chat = ? AND pessoa = ?", price, chat.String(), seller.Key)
+		if err != nil {
+			return err
+		}
+		h.deposed, err = deposeTyrant(ctx, tx, chat, sold, now)
 		return err
 	})
-	return left, err
+	return h, err
 }
 
 func freeHostage(ctx context.Context, tx *ledgerTx, chat types.JID, kidnapper core.Account, now time.Time) (types.JID, error) {

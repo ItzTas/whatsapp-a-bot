@@ -128,7 +128,7 @@ func reportText(a arrest, reporterJob, suspectJob Profession, sentence time.Dura
 		return fmt.Sprintf("☎️ A polícia ainda tá ignorando a última ligação de @%s. Espera %s pra denunciar de novo", reporter.User, core.FormatWait(a.wait))
 	}
 	if a.immune {
-		return immunityText(reporter, suspect)
+		return suspectJob.shelterText(reporter, suspect)
 	}
 	if a.dismissed {
 		return fmt.Sprintf("📵 @%s ligou pro 190 pra denunciar @%s, mas acharam que era trote e ninguém apareceu", reporter.User, suspect.User) + reportEdgeText(reporterJob, suspectJob, suspect)

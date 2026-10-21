@@ -177,7 +177,7 @@ func arrestText(a arrest, copJob, suspectJob Profession, sentence time.Duration,
 		return fmt.Sprintf("📝 @%s ainda tá preenchendo a papelada da última prisão. Espera %s pra prender de novo", cop.User, core.FormatWait(a.wait))
 	}
 	if a.immune {
-		return immunityText(cop, suspect) + a.abuse.note("Abusou do poder e pulou a papelada, mas a imunidade segurou mesmo assim")
+		return suspectJob.shelterText(cop, suspect) + a.abuse.note("Abusou do poder e pulou a papelada, mas a imunidade segurou mesmo assim")
 	}
 	if a.dismissed {
 		return fmt.Sprintf("📡 @%s ouviu no scanner que a viatura de @%s tava chegando e meteu o pé antes! O crime continua na ficha, então dá pra tentar de novo depois da papelada", suspect.User, cop.User) + a.abuse.note("Abusou do poder e pulou a papelada, mas o suspeito escapou mesmo assim")
@@ -373,10 +373,13 @@ func (p Profession) violenceGuard() float64 {
 }
 
 func (p Profession) immunity() float64 {
-	if p.president {
-		return presidentImmunity
+	if p.oppressed() {
+		return p.tyrantImmunity()
 	}
-	return 0
+	if !p.president || p.decrees.on(tyrannyDecree) {
+		return 0
+	}
+	return presidentImmunity
 }
 
 func (p Profession) flagrantOdds(odds float64) float64 {

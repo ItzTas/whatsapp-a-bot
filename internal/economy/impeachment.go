@@ -85,7 +85,7 @@ func (b *bot) openImpeachment(ctx context.Context, chat types.JID) (i *impeachme
 		return nil, false, true, b.SendText(ctx, chat, "🏛️ Ninguém é presidente agora, então não tem quem tirar do cargo. Manda !votar @pessoa pra abrir a eleição")
 	}
 	if p.decrees.on(tyrannyDecree) {
-		text := fmt.Sprintf("🪖 @%s é ditador e fechou o Congresso: não tem mais !impeachment. Agora só cai com !golpe, com o fim do mandato ou morto", p.president.JID.User)
+		text := fmt.Sprintf("🪖 @%s é ditador e fechou o Congresso: não tem mais !impeachment. Agora só cai com !golpe, com o fim do mandato, morto ou sequestrado", p.president.JID.User)
 		_, err = b.SendMentions(ctx, chat, text, []types.JID{p.president.JID})
 		return nil, false, true, err
 	}

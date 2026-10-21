@@ -264,5 +264,5 @@ func shopTaxText(tax int64, levy PixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da compra foram %s, por decreto", Coins(tax), levy.percent, levy.pocket())
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de imposto da compra foram %s, %s", Coins(tax), levy.percent, levy.pocket(), levy.decreed())
 }

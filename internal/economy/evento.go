@@ -131,7 +131,7 @@ type listedScenario struct {
 
 var eventBooks = []eventBook{
 	generalEvents, fishingEvents, miningEvents, scavengingEvents, buggingEvents,
-	workEvents, craftEvents, professionEvents, crimeEvents, fameEvents, gamblingEvents, allInEvents, windfallEvents, rareEvents,
+	workEvents, craftEvents, professionEvents, crimeEvents, fameEvents, gamblingEvents, allInEvents, windfallEvents, tyrannyEvents, rareEvents,
 }
 
 var eventCatalog = listScenarios(eventBooks)
@@ -365,6 +365,14 @@ func inCharge(c eventCase) bool {
 
 func homeOwner(c eventCase) bool {
 	return c.job.estate > 0
+}
+
+func tyrantRules(c eventCase) bool {
+	return c.job.president && c.job.decrees.on(tyrannyDecree)
+}
+
+func underTyranny(c eventCase) bool {
+	return c.job.oppressed()
 }
 
 type sceneBoard struct {

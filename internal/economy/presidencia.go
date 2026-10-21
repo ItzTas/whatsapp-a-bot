@@ -384,8 +384,8 @@ func presidentialPowers() []string {
 		fmt.Sprintf("🔓 Pode !libertar com pelo menos %d%% de chance, e se der errado a multa sai %d%% mais barata", percent(presidentRelease), percent(presidentFineDiscount)),
 		fmt.Sprintf("🧟 Pode !reviver quem foi morto com pelo menos %d%% de chance", percent(presidentRevive)),
 		fmt.Sprintf("🛡️ Segurança presidencial: quem tenta !sequestrar, !matar ou dar !golpe no presidente tem mais %d%% de chance de errar. Contra !roubar e !furtar não adianta", percent(presidentGuard)),
-		fmt.Sprintf("⚖️ Imunidade: quando tentam prender o presidente (!prender, !denunciar ou pego no flagra), tem %d%% de chance de ele mostrar a imunidade e sair andando. Quem tava preso sai da cadeia ao tomar posse", percent(presidentImmunity)),
-		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, cobra imposto de renda, mexe na poupança, nos preços, no pix, na cadeia e na !fianca, mexe nos prêmios e na taxa do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Também pode declarar ditadura, sem volta: imposto sem teto e sem !impeachment, mas com o povo revoltado e o !golpe mais fácil. Manda !decreto pra ver a lista",
+		fmt.Sprintf("⚖️ Imunidade: quando tentam prender o presidente (!prender, !denunciar ou pego no flagra), tem %d%% de chance de ele mostrar a imunidade e sair andando (ditador não tem imunidade). Quem tava preso sai da cadeia ao tomar posse", percent(presidentImmunity)),
+		"📜 Baixa !decreto: mexe no !trabalhar, no !daily, cobra imposto de renda, mexe na poupança, nos preços, no pix, na cadeia e na !fianca, mexe nos prêmios e na taxa do cassino, decreta toque de recolher e, uma vez no mandato, cobra imposto, dá auxílio, anistia, indulto, confisco e intervém nas !acoes. Também pode declarar ditadura, sem volta: imposto sem teto e sem !impeachment, mas sem imunidade, com o povo cada vez mais revoltado e o !golpe mais fácil. Manda !decreto pra ver a lista",
 	}
 }
 
@@ -411,7 +411,7 @@ func (b *bot) presidente(ctx context.Context, evt *events.Message) error {
 	}
 	if !found {
 		text := fmt.Sprintf("🏛️ Ninguém é presidente agora. Manda !votar @pessoa pra abrir a eleição: a urna fica aberta %s e quem ganhar fica %s no cargo\n\n🎲 %s", core.FormatWait(electionWindow), core.FormatWait(termLength), vacancyNote(vacant.drawAt, now))
-		return b.SendText(ctx, chat, text+p.decrees.leftoverText())
+		return b.SendText(ctx, chat, text+p.decrees.leftoverText(now))
 	}
 	text := p.text()
 	if value, running := b.impeachments.Load(chat.String()); running {
@@ -440,7 +440,7 @@ func (p presidency) text() string {
 		"😈 Abusos de poder sobrando: " + p.abusesLeftText(),
 		"📜 Decretos de uma vez sobrando: " + p.decrees.onceLeftText(),
 	}
-	for _, decree := range p.decrees.inForce() {
+	for _, decree := range p.decrees.inForce(time.Now()) {
 		lines = append(lines, "📜 Decreto em vigor: "+decree)
 	}
 	lines = append(lines, p.decrees.tyrannyLines(time.Now())...)
@@ -542,7 +542,7 @@ func (s *walletStore) presidency(ctx context.Context, chat types.JID, now time.T
 	for i, column := range charges {
 		p.abuses[column] = used[i]
 	}
-	p.decrees = zipDecrees(columns, levels)
+	p.decrees = zipDecrees(columns, levels, now)
 	p.until = time.Unix(until, 0)
 	if !p.until.After(now) {
 		return presidency{decrees: p.decrees}, false, nil
@@ -559,6 +559,9 @@ func (s *walletStore) inaugurate(ctx context.Context, chat types.JID, acc core.A
 
 func swearIn(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, votes int, drawn bool, now time.Time) error {
 	if err := openWallet(ctx, tx, chat, acc); err != nil {
+		return err
+	}
+	if err := forgetTyrant(ctx, tx, chat); err != nil {
 		return err
 	}
 	_, err := tx.ExecContext(ctx,

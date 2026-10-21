@@ -34,6 +34,7 @@ const (
 	incomeTaxDecreeMax    = 30
 	stockDecreeSwing      = 30
 	curfewPenalty         = 0.15
+	curfewTime            = 15 * time.Minute
 	termOverText          = "🏛️ O mandato acabou bem agora, então o decreto não valeu. Só o próximo presidente (eleito no !votar ou sorteado) baixa decreto de novo"
 )
 
@@ -62,6 +63,7 @@ type toggleDecree struct {
 	effect  string
 	revoked string
 	lasting string
+	lasts   time.Duration
 	syntax  string
 	about   string
 }
@@ -185,8 +187,8 @@ var (
 	curfewDecree = toggleDecree{
 		names: []string{"recolher", "toque", "toquederecolher"}, column: "toque_recolher", emoji: "🌃",
 		effect:  fmt.Sprintf("vale o toque de recolher (!roubar, !furtar, !sequestrar, !matar e !assalto com %d%% menos chance)", percent(curfewPenalty)),
-		revoked: "acabou o toque de recolher 🌅",
-		syntax:  "!decreto recolher", about: fmt.Sprintf("liga (ou desliga) o toque de recolher: !roubar, !furtar, !sequestrar, !matar e !assalto ficam com %d%% menos chance", percent(curfewPenalty)),
+		revoked: "acabou o toque de recolher 🌅", lasts: curfewTime,
+		syntax: "!decreto recolher", about: fmt.Sprintf("liga (ou desliga) o toque de recolher por %s: !roubar, !furtar, !sequestrar, !matar e !assalto ficam com %d%% menos chance", core.FormatWait(curfewTime), percent(curfewPenalty)),
 	}
 	toggleDecrees = []toggleDecree{curfewDecree, tyrannyDecree}
 
@@ -242,10 +244,15 @@ func decreeColumns() []string {
 	return slices.Concat(columns, tyrannyColumns, rulerColumns())
 }
 
-func zipDecrees(columns []string, values []int64) decrees {
+func zipDecrees(columns []string, values []int64, now time.Time) decrees {
 	d := make(decrees, len(columns))
 	for i, column := range columns {
 		d[column] = values[i]
+	}
+	for _, td := range toggleDecrees {
+		if td.lasts > 0 && d[td.column] <= now.Unix() {
+			d[td.column] = 0
+		}
 	}
 	return d
 }
@@ -271,7 +278,14 @@ func (d decrees) note(pd percentDecree) string {
 	return "\n📜 Decreto do presidente: " + pd.effect(level)
 }
 
-func (d decrees) inForce() []string {
+func (d decrees) toggleEffect(td toggleDecree, now time.Time) string {
+	if td.lasts == 0 {
+		return td.effect
+	}
+	return fmt.Sprintf("%s, que acaba em %s", td.effect, core.FormatWait(time.Unix(d[td.column], 0).Sub(now)))
+}
+
+func (d decrees) inForce(now time.Time) []string {
 	var texts []string
 	ruled := d.ruled()
 	for _, pd := range percentDecrees {
@@ -281,14 +295,14 @@ func (d decrees) inForce() []string {
 	}
 	for _, td := range toggleDecrees {
 		if d.on(td) {
-			texts = append(texts, td.effect)
+			texts = append(texts, d.toggleEffect(td, now))
 		}
 	}
 	return texts
 }
 
-func (d decrees) leftoverText() string {
-	inForce := d.inForce()
+func (d decrees) leftoverText(now time.Time) string {
+	inForce := d.inForce(now)
 	if len(inForce) == 0 {
 		return ""
 	}
@@ -529,6 +543,9 @@ func (b *bot) decrees() map[string]decree {
 			runs[name] = run
 		}
 	}
+	for _, name := range tyrannyDecree.names {
+		runs[name] = b.tyrannyDecreeRun
+	}
 	for _, name := range []string{"exercito", "exercitos", "batalhao", "batalhoes", "tropas", "milicia"} {
 		runs[name] = b.armyDecree
 	}
@@ -671,10 +688,7 @@ func (b *bot) percentDecreeRun(pd percentDecree) decree {
 
 func (b *bot) toggleDecreeRun(td toggleDecree) decree {
 	return func(ctx context.Context, call decreeCall) (string, error) {
-		if td.lasting != "" && call.p.decrees.on(td) {
-			return td.lasting, nil
-		}
-		on, set, err := b.Wallets.flipDecree(ctx, call.chat, call.p.president, td.column, call.now)
+		on, set, err := b.Wallets.flipDecree(ctx, call.chat, call.p.president, td, call.now)
 		if err != nil {
 			return "", fmt.Errorf("decreto %s: %w", td.names[0], err)
 		}
@@ -685,8 +699,29 @@ func (b *bot) toggleDecreeRun(td toggleDecree) decree {
 		if !on {
 			return fmt.Sprintf("📜 @%s revogou o decreto: %s", user, td.revoked), nil
 		}
-		return fmt.Sprintf("%s *Decreto presidencial!* @%s decretou que %s até o fim do mandato", td.emoji, user, td.effect), nil
+		return td.declaredText(user), nil
 	}
+}
+
+func (td toggleDecree) declaredText(user string) string {
+	return fmt.Sprintf("%s *Decreto presidencial!* @%s decretou que %s %s", td.emoji, user, td.effect, td.span())
+}
+
+func (td toggleDecree) span() string {
+	if td.lasts == 0 {
+		return "até o fim do mandato"
+	}
+	return "pelos próximos " + core.FormatWait(td.lasts)
+}
+
+func (td toggleDecree) window(now time.Time) (since, until int64) {
+	if td.lasting != "" {
+		return 0, now.Unix()
+	}
+	if td.lasts == 0 {
+		return 0, 1
+	}
+	return now.Unix(), now.Add(td.lasts).Unix()
 }
 
 func (b *bot) spendDecree(ctx context.Context, call decreeCall, od onceDecree, then func(tx *ledgerTx) error) (onceOutcome, error) {
@@ -970,11 +1005,16 @@ func (s *walletStore) setDecree(ctx context.Context, chat types.JID, president c
 	return set > 0, err
 }
 
-func (s *walletStore) flipDecree(ctx context.Context, chat types.JID, president core.Account, column string, now time.Time) (on, set bool, err error) {
+func (s *walletStore) flipDecree(ctx context.Context, chat types.JID, president core.Account, td toggleDecree, now time.Time) (on, set bool, err error) {
+	return flipToggle(ctx, s.db, chat, president, td, now)
+}
+
+func flipToggle(ctx context.Context, q rowQuerier, chat types.JID, president core.Account, td toggleDecree, now time.Time) (on, set bool, err error) {
 	var value int64
-	err = s.db.QueryRowContext(ctx,
-		"UPDATE presidencias SET "+column+" = 1 - MIN(MAX("+column+", 0), 1) WHERE chat = ? AND pessoa = ? AND mandato_ate > ? RETURNING "+column,
-		chat.String(), president.Key, now.Unix(),
+	since, until := td.window(now)
+	err = q.QueryRowContext(ctx,
+		"UPDATE presidencias SET "+td.column+" = CASE WHEN "+td.column+" > ? THEN 0 ELSE ? END WHERE chat = ? AND pessoa = ? AND mandato_ate > ? RETURNING "+td.column,
+		since, until, chat.String(), president.Key, now.Unix(),
 	).Scan(&value)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, false, nil
@@ -1113,7 +1153,7 @@ func BetLevyText(stake int64, levy PixLevy) string {
 	if fee == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%% da aposta) de taxa foram %s, por decreto", Coins(fee), levy.percent, levy.office())
+	return fmt.Sprintf("\n📜 E mais %s (%d%% da aposta) de taxa foram %s, %s", Coins(fee), levy.percent, levy.office(), levy.decreed())
 }
 
 func payLevy(ctx context.Context, tx *ledgerTx, chat types.JID, levy PixLevy, fee int64) error {
@@ -1134,12 +1174,12 @@ func incomeTaxText(tax int64, levy PixLevy) string {
 	if tax == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 Desse valor, %s (%d%%) foram de imposto de renda %s, por decreto", Coins(tax), levy.percent, levy.pocket())
+	return fmt.Sprintf("\n📜 Desse valor, %s (%d%%) foram de imposto de renda %s, %s", Coins(tax), levy.percent, levy.pocket(), levy.decreed())
 }
 
 func pixText(pix int64, levy PixLevy) string {
 	if pix == 0 {
 		return ""
 	}
-	return fmt.Sprintf("\n📜 E mais %s (%d%%) de taxa do pix foram %s, por decreto", Coins(pix), levy.percent, levy.pocket())
+	return fmt.Sprintf("\n📜 E mais %s (%d%%) de taxa do pix foram %s, %s", Coins(pix), levy.percent, levy.pocket(), levy.decreed())
 }

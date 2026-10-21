@@ -3,6 +3,7 @@ package economy
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 )
@@ -93,5 +94,37 @@ func TestPatronizedPerks(t *testing.T) {
 	}
 	if math.Abs(got.cordon-(0.1+protegeGuard)) > 1e-9 {
 		t.Fatalf("segurança do favorito = %v, want %v", got.cordon, 0.1+protegeGuard)
+	}
+}
+
+func TestProtegeIsNotPeople(t *testing.T) {
+	tyranny := decrees{tyrannyDecree.column: 1}
+	citizen := Profession{decrees: tyranny, uprising: 1}
+	protege := citizen.patronized(true)
+	if !citizen.oppressed() || protege.oppressed() {
+		t.Fatalf("na ditadura o cidadão é povo (%v) e o favorito não (%v)", citizen.oppressed(), protege.oppressed())
+	}
+	if protege.immunity() != 0 || protege.tyrantEscape() != 0 {
+		t.Fatalf("favorito com vantagem do povo: imunidade %v, fuga %v", protege.immunity(), protege.tyrantEscape())
+	}
+
+	fb := newFirmBench(t)
+	dictator, ana, bia := fb.person("1"), fb.person("2"), fb.person("3")
+	fb.tyrant(t, dictator)
+	fb.anoint(t, dictator, ana)
+	err := fb.s.inTx(fb.ctx, func(tx *ledgerTx) error {
+		for acc, want := range map[core.Account]time.Duration{ana: 0, bia: tyrantShelter, dictator: 0} {
+			got, err := tyrantShelterOn(fb.ctx, tx, fb.chat, acc, fb.now)
+			if err != nil {
+				return err
+			}
+			if got != want {
+				t.Errorf("escudo a mais de %s = %v, want %v", acc.JID.User, got, want)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
