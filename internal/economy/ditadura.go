@@ -14,11 +14,11 @@ import (
 
 const (
 	tyrantSavingsTaxMax = 100
-	tyrantIncomeTaxMax  = 70
-	tyrantShopTaxMax    = 60
-	tyrantPixMax        = 40
-	tyrantBailTaxMax    = 100
-	tyrantBetTaxMax     = 40
+	tyrantIncomeTaxMax  = 80
+	tyrantShopTaxMax    = 75
+	tyrantPixMax        = 50
+	tyrantBailTaxMax    = 130
+	tyrantBetTaxMax     = 50
 	tyrantCoupMin       = 2
 	tyrantCoupEvery     = 15 * time.Minute
 	revoltPerPoint      = 0.0005
