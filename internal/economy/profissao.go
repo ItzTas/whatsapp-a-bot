@@ -275,6 +275,7 @@ type Profession struct {
 
 	decrees  decrees
 	hangover float64
+	protege  bool
 }
 
 type shift struct {
@@ -463,6 +464,7 @@ func (p Profession) perks() []string {
 	}{
 		{p.career.worked > 0, p.career.perk()},
 		{p.president, fmt.Sprintf("🏛️ É presidente da conversa: segurança contra !sequestrar e !matar, imunidade que segura %d%% das prisões, pode !prender, !libertar e !reviver, abusa do poder %s no mandato no !prender, !trabalhar, !roubar e !sequestrar e baixa !decreto (veja !presidente)", percent(presidentImmunity), core.CountLabel(presidentAbuses, "vez", "vezes"))},
+		{p.protege, protegePerk()},
 		{p.bust > 0 && p.bustFine == 0, fmt.Sprintf("😬 Em %d%% das vezes dá ruim e não ganha nada", percent(p.bust))},
 		{p.bust > 0 && p.bustFine > 0, fmt.Sprintf("💥 Em %d%% das vezes dá ruim e ainda perde até %s", percent(p.bust), Coins(p.bustFine))},
 		{p.hazard.harm > 0, hazardPerk(p.hazard, p.safety)},
@@ -625,7 +627,7 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 	if st.president {
 		job = job.presidential().tyrannical(time.Now())
 	}
-	return job.seasoned(worked).housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).cleared(st.record, time.Now()).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held).hungover(won), nil
+	return job.patronized(st.protege).seasoned(worked).housed(st.estate).escorted(strongest(kindsOf(st.staff), watchOf)).cleared(st.record, time.Now()).hexed(st.cursed).armed(weapon).drugged(st.drug).adorned(passive).implanted(body, time.Now()).tooled(passive).titled(st.title).devoted(st.church, st.doctrine, st.temple, st.tithe).famed(fans).charmed(held).hungover(won), nil
 }
 
 func (b *bot) rivalProfessions(ctx context.Context, chat types.JID, attacker, target core.Account) (attackerJob, targetJob Profession, err error) {

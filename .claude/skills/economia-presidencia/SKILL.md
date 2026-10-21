@@ -156,3 +156,14 @@ Presidente, decretos, impeachment, renúncia e golpe.
   vaga, e todo texto de morte mostra o `deposedText` quando o `death.deposed` vem marcado. As
   colunas `revolta` e `exercito_ate` entram no `decreeColumns()` pelo `tyrannyColumns`, então o
   `inaugurate` e o `seize` também zeram as duas.
+- O favorito do ditador (`favorecido.go`, tabela `ditadura_favoritos`, uma linha por conversa com
+  `pessoa`, `jid` e `favorito_em`) sai do `!decreto favorecer @pessoa` (`protegeDecree`, só na
+  ditadura, e não aceita o próprio ditador nem o bot). É um só por vez: o `anointProtege` troca a
+  linha e avisa se tinha outro antes. O favorito só vale enquanto a ditadura em que foi escolhido
+  durar: o `protegeOf`, lido no `standing`, exige mandato em andamento, `ditadura` ligada e
+  `favorito_em` a partir da hora gravada na coluna `ditadura`, então golpe, renúncia, morte, fim do
+  mandato ou uma ditadura nova derrubam ele sem precisar apagar a linha. Os bônus são de propósito
+  bem menores que os do presidente: o `patronized`, primeiro passo do `ProfessionOf` depois da
+  presidência, soma `protegePayBonus`% no `!trabalhar`, `protegeDailyBonus`% no `!daily` e
+  `protegeGuard` no `cordon` (só contra `!matar`, `!sequestrar` e `!golpe`). O favorito continua
+  `oppressed()` como o resto do povo.
