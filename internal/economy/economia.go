@@ -585,17 +585,18 @@ func Coins(n int64) string {
 func (b *bot) economia(ctx context.Context, evt *events.Message) error {
 	args := strings.Fields(core.MessageText(evt.Message))[1:]
 	actions := map[string]func(context.Context, *events.Message, []string) error{
-		"resetar":     b.resetEconomy,
-		"vincular":    b.linkEconomy,
-		"desvincular": b.unlinkEconomy,
-		"vinculos":    b.showEconomyLinks,
+		"resetar":        b.resetEconomy,
+		"vincular":       b.linkEconomy,
+		"desvincular":    b.unlinkEconomy,
+		"vinculos":       b.showEconomyLinks,
+		"enriquecimento": b.showEnrichment,
 	}
 	if len(args) > 0 {
 		if action, ok := actions[core.FoldLetters(args[0])]; ok {
 			return action(ctx, evt, args[1:])
 		}
 	}
-	return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Use assim: !economia resetar intervalos, !economia vincular <nome do grupo>, !economia desvincular ou !economia vinculos")
+	return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Use assim: !economia resetar intervalos, !economia vincular <nome do grupo>, !economia desvincular, !economia vinculos ou !economia enriquecimento")
 }
 
 func (b *bot) resetEconomy(ctx context.Context, evt *events.Message, args []string) error {

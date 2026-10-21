@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/economy"
 )
@@ -366,4 +367,28 @@ func TestNameByNumber(t *testing.T) {
 	}
 	wantReply(t, b.say(chat, ana, "!nome "+mentionTag(bia)), "Esqueci o nome de @"+bia.jid.User)
 	wantReply(t, b.replyContact(chat, ana, "!nome Bibi", bia), "o nome de @"+bia.jid.User+" (Bibi) é Bibi")
+}
+
+func TestEnrichmentRanksEveryone(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "economia")
+	b.say(chat, ana, "!daily")
+	b.say(chat, bia, "!daily")
+	wantReply(t, b.say(chat, b.owner, "!economia enriquecimento"), "Ainda não tem histórico")
+
+	if _, err := b.db.ExecContext(b.ctx, "INSERT INTO patrimonios (chat, pessoa, valor, em) SELECT chat, pessoa, 0, ? FROM carteiras", time.Now().Add(-3*time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	reply := wantReply(t, b.say(chat, b.owner, "!economia enriquecimento"), "Taxa de enriquecimento")
+	for _, p := range []person{ana, bia} {
+		if !strings.Contains(reply, "@"+p.jid.User) {
+			t.Fatalf("a taxa devia listar %s, veio %q", p.name, reply)
+		}
+	}
+	if !strings.Contains(reply, "2 enriquecendo e 0 empobrecendo") {
+		t.Fatalf("quem pegou o daily nas últimas 3h tá enriquecendo, veio %q", reply)
+	}
+	wantReply(t, b.say(chat, b.owner, "!economia enriquecimento ontem"), "Não entendi a janela")
 }

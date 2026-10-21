@@ -114,6 +114,16 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   a ficha (com o `ficha_em` zerado a pessoa volta pra ficha limpa cheia). Também enche a saúde (`saude` e
   `saude_em`). Nunca mexe em saldo, mochila,
   poupança, empréstimo nem presidência. Coluna de espera nova entra na lista do `resetCooldowns`.
+- A taxa de enriquecimento (`enriquecimento.go`, tabela `patrimonios` com `chat`, `pessoa`, `valor`
+  e `em`) serve pra balancear a economia. O `runWealthLog` (job) grava de hora em hora
+  (`wealthLogEvery`, com o `em` na hora cheia e `ON CONFLICT DO NOTHING`, então reiniciar não
+  duplica) o patrimônio em moeda de cada carteira, que é saldo + `cofre_casa` + valor da poupança
+  (a mochila fica de fora), pula os grupos congelados (`economia_vinculos`) e apaga o que passou de
+  `wealthKeep` (7 dias). O `!economia enriquecimento [12h|3d]` (dono) compara o patrimônio de agora
+  com o retrato mais velho de cada pessoa dentro da janela (padrão `wealthWindow`, 24h) e ordena pelo
+  ganho por hora, com a profissão e o total da economia. Quem tem menos de 1h de histórico, ou nada
+  de patrimônio, fica de fora. Lugar novo onde o dinheiro fique guardado entra na soma do
+  `logWealth` e do `enrichments`.
 - Os ralos de dinheiro existem porque a economia só tinha torneira: o dinheiro gasto neles some
   (nunca vai pra ninguém), a não ser quando o texto diz o contrário. Preço de ralo, quando dá, é
   uma porcentagem do saldo com piso, pra pesar igual pra rico e pobre. Pra cobrar e fazer alguma

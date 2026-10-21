@@ -1023,6 +1023,7 @@ func (b *bot) economyOwnerCommands() []core.Command {
 				{"!economia vincular <nome do grupo>", "este grupo passa a usar a economia do outro: carteira, mochila, presidente, ranking, loteria, cadeia, tudo junto, e os avisos automáticos saem em todos os grupos vinculados. O que este grupo tinha antes fica guardado"},
 				{"!economia desvincular", "este grupo sai da economia compartilhada e volta pra economia que tinha antes de vincular"},
 				{"!economia vinculos", "mostra quais grupos usam a mesma economia desta conversa"},
+				{"!economia enriquecimento [12h|3d]", "mostra quanto cada pessoa da economia ganhou ou perdeu por hora nas últimas 24h (ou na janela pedida, até 7d), da que mais enriquece pra que mais empobrece, com a profissão de cada uma e o total da economia. Conta saldo, poupança e cofre de casa, e serve pra balancear a economia"},
 			},
 			Run: b.economia,
 		},

@@ -31,6 +31,7 @@ import (
 var errOffline = errors.New("rede falsa: chamada sem suporte no teste")
 
 type sentMessage struct {
+	id      types.MessageID
 	chat    types.JID
 	message *waE2E.Message
 }
@@ -52,8 +53,9 @@ type fakeNetwork struct {
 func (n *fakeNetwork) SendMessage(_ context.Context, to types.JID, message *waE2E.Message, _ ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.sent = append(n.sent, sentMessage{chat: to.ToNonAD(), message: message})
-	return whatsmeow.SendResponse{ID: types.MessageID(fmt.Sprintf("BOT%d", n.ids.Add(1))), Timestamp: time.Now()}, nil
+	id := types.MessageID(fmt.Sprintf("BOT%d", n.ids.Add(1)))
+	n.sent = append(n.sent, sentMessage{id: id, chat: to.ToNonAD(), message: message})
+	return whatsmeow.SendResponse{ID: id, Timestamp: time.Now()}, nil
 }
 
 func (n *fakeNetwork) GetGroupInfo(_ context.Context, jid types.JID) (*types.GroupInfo, error) {

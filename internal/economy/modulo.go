@@ -71,6 +71,7 @@ func (b *bot) Register() {
 	b.AddJob(b.runWanted)
 	b.AddJob(b.runGravity)
 	b.AddJob(b.runSuccession)
+	b.AddJob(b.runWealthLog)
 	b.AddRestorers(map[string]core.GameRestorer{
 		blackjackKind:   b.restoreBlackjack,
 		crashKind:       b.restoreCrash,
