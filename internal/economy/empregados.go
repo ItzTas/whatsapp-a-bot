@@ -349,7 +349,7 @@ func (b *bot) staffStatus(ctx context.Context, evt *events.Message) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { crew, err = b.Wallets.crew(gctx, chat, acc); return err })
 	g.Go(func() (err error) { level, err = b.Wallets.estateLevel(gctx, chat, acc); return err })
-	g.Go(func() (err error) { decreed, err = b.Wallets.decrees(gctx, chat, now); return err })
+	g.Go(func() (err error) { decreed, err = b.Wallets.decreesOf(gctx, chat, acc, now); return err })
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler empregados: %w", err)
 	}
@@ -514,7 +514,7 @@ func (b *bot) collectStaff(ctx context.Context, evt *events.Message) error {
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
 	now := time.Now()
-	decreed, err := b.Wallets.decrees(ctx, chat, now)
+	decreed, err := b.Wallets.decreesOf(ctx, chat, acc, now)
 	if err != nil {
 		return fmt.Errorf("ler decretos: %w", err)
 	}

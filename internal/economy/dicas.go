@@ -188,6 +188,7 @@ func economyTips() []string {
 		"O presidente tem !decreto anistia (solta todo mundo e limpa a ficha, uma vez por mandato) e !decreto indulto @pessoa (tira alguém da cadeia na hora). Vale a pena fazer amizade com ele 🤝",
 		fmt.Sprintf("O !decreto ditadura não tem volta: o presidente pode cobrar imposto muito acima do teto e o !impeachment deixa de existir. Em troca, o !golpe precisa de só %d golpistas e pode ser tentado a cada %s, e ditador que morre perde o cargo 🪖",
 			tyrantCoupMin, core.FormatWait(tyrantCoupEvery)),
+		fmt.Sprintf("Na ditadura, bondade do ditador é só pra ele: se ele baixa imposto, corta espera ou sobe salário por !decreto, vale inteiro pro bolso dele e o povo só sente %d%% da mudança. Já decreto ruim pega todo mundo cheio 🪖", tyrantPeopleShare),
 		fmt.Sprintf("Na ditadura, todo imposto cobrado acima do teto normal deixa o povo mais revoltado, e a revolta tira até %d%% da segurança do ditador contra !matar, !sequestrar e !golpe. Quanto mais ele abusa, mais fácil fica derrubar 🔥",
 			percent(revoltMax)),
 		fmt.Sprintf("Ditador com medo de cair contrata batalhões no !decreto exercito: cada um custa %d%% do saldo dele, soma %d%% de segurança e deserta em %s. Pra derrubar, junta a galera antes que ele se blinde 🪖",

@@ -239,7 +239,7 @@ func decreeColumns() []string {
 	for _, d := range onceDecrees {
 		columns = append(columns, d.column)
 	}
-	return append(columns, tyrannyColumns...)
+	return slices.Concat(columns, tyrannyColumns, rulerColumns())
 }
 
 func zipDecrees(columns []string, values []int64) decrees {
@@ -273,9 +273,10 @@ func (d decrees) note(pd percentDecree) string {
 
 func (d decrees) inForce() []string {
 	var texts []string
+	ruled := d.ruled()
 	for _, pd := range percentDecrees {
-		if level := d.level(pd); level != 0 {
-			texts = append(texts, pd.effect(level))
+		if text := d.percentInForce(pd, ruled); text != "" {
+			texts = append(texts, text)
 		}
 	}
 	for _, td := range toggleDecrees {
@@ -429,11 +430,11 @@ func (pb PrizeBoost) Tag(stake, payout int64) string {
 	return " (" + strings.Join(parts, ", ") + ")"
 }
 
-func (p presidency) workCooldown(every time.Duration) time.Duration {
-	return every * time.Duration(100+p.decrees.level(workDecree)) / 100
+func (p Profession) workCooldown() time.Duration {
+	return p.every * time.Duration(100+p.decrees.level(workDecree)) / 100
 }
 
-func (p presidency) payFor(s shift) shift {
+func (p Profession) payFor(s shift) shift {
 	if !s.busted {
 		s.amount += s.amount * p.decrees.level(payDecree) / 100
 	}
@@ -641,10 +642,11 @@ func (b *bot) percentDecreeRun(pd percentDecree) decree {
 		if problem != "" {
 			return fmt.Sprintf("🤔 %s. O !decreto %s vai %s, e 0 tira o decreto. Exemplo: %s", problem, pd.names[0], boundsText(lo, hi), pd.syntax), nil
 		}
-		if level == call.p.decrees.level(pd) {
+		people, extra := call.p.decrees.split(pd, level)
+		if people == call.p.decrees.level(pd) && level == call.p.decrees.ruled().level(pd) {
 			return pd.unchanged(level), nil
 		}
-		set, err := b.Wallets.setDecree(ctx, call.chat, call.p.president, pd.column, level, call.now)
+		set, err := b.Wallets.setDecree(ctx, call.chat, call.p.president, pd, people, extra, call.now)
 		if err != nil {
 			return "", fmt.Errorf("decreto %s: %w", pd.names[0], err)
 		}
@@ -652,6 +654,9 @@ func (b *bot) percentDecreeRun(pd percentDecree) decree {
 			return termOverText, nil
 		}
 		user := call.p.president.JID.User
+		if extra != 0 {
+			return pd.ruledText(user, level, people), nil
+		}
 		if level == 0 {
 			return fmt.Sprintf("📜 @%s revogou o decreto: %s", user, pd.revoked), nil
 		}
@@ -945,29 +950,13 @@ func collectTax(ctx context.Context, tx *ledgerTx, chat types.JID, president cor
 }
 
 func (s *walletStore) decrees(ctx context.Context, chat types.JID, now time.Time) (decrees, error) {
-	columns := decreeColumns()
-	values := make([]int64, len(columns))
-	dest := make([]any, len(values))
-	for i := range values {
-		dest[i] = &values[i]
-	}
-	err := s.db.QueryRowContext(ctx,
-		"SELECT "+strings.Join(columns, ", ")+" FROM presidencias WHERE chat = ? AND (mandato_ate > ? OR renunciou = 1)",
-		chat.String(), now.Unix(),
-	).Scan(dest...)
-	if errors.Is(err, sql.ErrNoRows) {
-		return decrees{}, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("ler decretos: %w", err)
-	}
-	return zipDecrees(columns, values), nil
+	return s.decreesOf(ctx, chat, core.Account{}, now)
 }
 
-func (s *walletStore) setDecree(ctx context.Context, chat types.JID, president core.Account, column string, value int64, now time.Time) (bool, error) {
+func (s *walletStore) setDecree(ctx context.Context, chat types.JID, president core.Account, pd percentDecree, people, extra int64, now time.Time) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		"UPDATE presidencias SET "+column+" = ? WHERE chat = ? AND pessoa = ? AND mandato_ate > ?",
-		value, chat.String(), president.Key, now.Unix(),
+		"UPDATE presidencias SET "+pd.column+" = ?, "+pd.rulerColumn()+" = ? WHERE chat = ? AND pessoa = ? AND mandato_ate > ?",
+		people, extra, chat.String(), president.Key, now.Unix(),
 	)
 	if err != nil {
 		return false, err

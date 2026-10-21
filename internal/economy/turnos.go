@@ -30,10 +30,10 @@ func stampedAt(ctx context.Context, q rowQuerier, chat types.JID, acc core.Accou
 	return time.Unix(last, 0), err
 }
 
-func (p presidency) toil(job Profession, now time.Time, turns int) shift {
-	s := p.payFor(job.work(now))
+func (p Profession) toil(now time.Time, turns int) shift {
+	s := p.payFor(p.work(now))
 	for range turns - 1 {
-		s = s.merge(p.payFor(job.work(now)))
+		s = s.merge(p.payFor(p.work(now)))
 	}
 	return s
 }

@@ -167,3 +167,21 @@ Presidente, decretos, impeachment, renúncia e golpe.
   presidência, soma `protegePayBonus`% no `!trabalhar`, `protegeDailyBonus`% no `!daily` e
   `protegeGuard` no `cordon` (só contra `!matar`, `!sequestrar` e `!golpe`). O favorito continua
   `oppressed()` como o resto do povo.
+- Bondade de ditador é só dele (`decretoditador.go`). Cada decreto de porcentagem tem uma segunda
+  coluna na `presidencias`, o `rulerColumn()` (`<coluna>_ditador`, migração `00126`), com quanto o
+  nível do ditador passa do nível do povo. A coluna normal continua sendo o nível do povo, que todo
+  mundo lê; o `ruled()` soma as duas, e o `walletStore.decreesOf(chat, acc)` já devolve os decretos
+  somados quando `acc` é o presidente (o `decrees` sem pessoa é o `decreesOf` com conta vazia). Por
+  isso o `ProfessionOf` e os `!empregados` leem pelo `decreesOf`, e o `!trabalhar` (`workCooldown`,
+  `payFor` e `toil`, métodos da `Profession`) e o prêmio do `cassino` no `PlaceBet` leem os
+  `decrees` da profissão, nunca os da presidência. Fora da ditadura, o `split` grava o nível pedido
+  pros dois. Com ela ligada, o ditador sempre fica com o nível que pediu, e o povo anda
+  `tyrantPeopleShare` (20%) de cada mudança no nível do ditador (corte arredondado pra baixo, aumento
+  pra cima), mas nunca fica mais leve que ele: piora além do que o povo já tem vale inteiro, e
+  repetir ou ir e voltar com o mesmo decreto não alivia o povo. Exemplo: imposto de renda em 80%, o
+  ditador manda 0 e o povo cai pra 64%; depois manda 50 e o povo vai pra 74%. Os impostos de decreto
+  não cobram do presidente, então lá só o nível do povo importa. O `ruledText` é a resposta quando os
+  dois níveis ficam diferentes, o "em vigor" mostra os dois (`percentInForce`) e o `!renunciar` zera
+  as colunas do ditador (`rulerReset`), junto da `ditadura`. Os tetos dos impostos na ditadura são
+  `tyrantIncomeTaxMax` (80), `tyrantShopTaxMax` (75), `tyrantPixMax` (50), `tyrantBailTaxMax` (130),
+  `tyrantBetTaxMax` (50) e `tyrantSavingsTaxMax` (100, todos os juros).

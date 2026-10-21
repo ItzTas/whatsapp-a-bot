@@ -44,7 +44,7 @@ func (b *bot) renunciar(ctx context.Context, evt *events.Message) error {
 
 func (s *walletStore) resign(ctx context.Context, chat types.JID, president core.Account, now time.Time) (bool, error) {
 	return s.vacate(ctx, chat, now,
-		"UPDATE presidencias SET mandato_ate = ?, renunciou = 1, "+tyrannyDecree.column+" = 0 WHERE chat = ? AND pessoa = ? AND mandato_ate > ?",
+		"UPDATE presidencias SET mandato_ate = ?, renunciou = 1, "+tyrannyDecree.column+" = 0, "+rulerReset()+" WHERE chat = ? AND pessoa = ? AND mandato_ate > ?",
 		now.Unix(), chat.String(), president.Key, now.Unix(),
 	)
 }

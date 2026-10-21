@@ -17,7 +17,6 @@ type idleBoard struct {
 	now    time.Time
 	busy   string
 	bag    []stack
-	boss   presidency
 	worked time.Time
 	dug    []time.Time
 	beds   []bed
@@ -29,7 +28,6 @@ func (b *bot) meanwhile(ctx context.Context, chat types.JID, acc core.Account, j
 	board := idleBoard{job: job, now: now, busy: busy, dug: make([]time.Time, len(activities))}
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { board.bag, err = b.Wallets.inventory(gctx, chat, acc); return err })
-	g.Go(func() (err error) { board.boss, _, err = b.Wallets.presidency(gctx, chat, now); return err })
 	g.Go(func() (err error) {
 		board.worked, err = stampedAt(gctx, b.Wallets.db, chat, acc, "trabalho_em")
 		return err
@@ -66,7 +64,7 @@ func (b *bot) readyGathers(chat types.JID, board idleBoard) []string {
 
 func (board idleBoard) text(gathers []string) string {
 	ready := gathers
-	if board.busy != "!trabalhar" && !board.now.Before(board.worked.Add(board.boss.workCooldown(board.job.every))) {
+	if board.busy != "!trabalhar" && !board.now.Before(board.worked.Add(board.job.workCooldown())) {
 		ready = append([]string{"!trabalhar"}, ready...)
 	}
 	var lines []string

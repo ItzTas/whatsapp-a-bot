@@ -253,7 +253,7 @@ func (b *bot) PlaceBet(ctx context.Context, chat types.JID, acc core.Account, ar
 	if refusal, err = b.markWarning(ctx, chat, acc, syntax, stake); err != nil || refusal != "" {
 		return wager{}, refusal, err
 	}
-	return wager{Stake: stake, Boost: PrizeBoost{decree: max(p.decrees.level(casinoDecree), 0), levy: p.casinoLevy(acc), luck: job.casinoLuck, heat: heat, solace: solace, rescued: rand.Float64() < job.rescueOdds}, job: job}, "", nil
+	return wager{Stake: stake, Boost: PrizeBoost{decree: max(job.decrees.level(casinoDecree), 0), levy: p.casinoLevy(acc), luck: job.casinoLuck, heat: heat, solace: solace, rescued: rand.Float64() < job.rescueOdds}, job: job}, "", nil
 }
 
 func (b *bot) placeStake(ctx context.Context, chat types.JID, acc core.Account, arg, syntax string) (int64, string, error) {

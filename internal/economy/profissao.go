@@ -615,7 +615,7 @@ func (b *bot) ProfessionOf(ctx context.Context, chat types.JID, acc core.Account
 	g.Go(func() (err error) { won, err = b.Wallets.recentWinnings(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { body, err = b.Wallets.body(gctx, chat, acc); return err })
 	g.Go(func() (err error) { st, err = b.Wallets.standing(gctx, chat, acc); return err })
-	g.Go(func() (err error) { decreed, err = b.Wallets.decrees(gctx, chat, time.Now()); return err })
+	g.Go(func() (err error) { decreed, err = b.Wallets.decreesOf(gctx, chat, acc, time.Now()); return err })
 	g.Go(func() (err error) { weapon, err = b.Wallets.bestWeapon(gctx, chat, acc); return err })
 	g.Go(func() (err error) { passive, err = b.Wallets.passives(gctx, chat, acc); return err })
 	g.Go(func() (err error) { fans, err = b.Wallets.audience(gctx, chat, acc, time.Now()); return err })
@@ -656,8 +656,8 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 	if err := g.Wait(); err != nil {
 		return err
 	}
-	cd := cooldown{column: "trabalho_em", every: p.workCooldown(job.every)}
-	s := p.toil(job, now, backlog(now.Sub(last), cd.every))
+	cd := cooldown{column: "trabalho_em", every: job.workCooldown()}
+	s := job.toil(now, backlog(now.Sub(last), cd.every))
 	s.wound = job.hazard.roll(job.safety)
 	levy := p.incomeLevy(acc)
 	w, err := b.Wallets.work(ctx, chat, acc, cd, job.abuse(workAbuse), s, levy, lien, now)
@@ -679,7 +679,7 @@ func (b *bot) trabalhar(ctx context.Context, evt *events.Message) error {
 		}
 		text = fmt.Sprintf("😮‍💨 @%s ainda tá cansado do último trampo. Volta em %s", person.User, core.FormatWait(w.wait)) + idle
 	}
-	text += p.decrees.note(workDecree) + p.decrees.note(payDecree)
+	text += job.decrees.note(workDecree) + job.decrees.note(payDecree)
 	if job.cursed && w.wait == 0 {
 		text += "\n🧿 Tem uma praga do !zoar em cima de você: o trampo pagou metade. Pra se livrar: !zoar limpar"
 	}

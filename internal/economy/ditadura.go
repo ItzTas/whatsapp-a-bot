@@ -36,12 +36,12 @@ const (
 var (
 	tyrannyDecree = toggleDecree{
 		names: []string{"ditadura", "ditador", "estadodeexcecao", "excecao", "ai5", "autogolpe"}, column: "ditadura", emoji: "🪖",
-		effect: fmt.Sprintf("vale a ditadura: os impostos por decreto passam do teto, não existe mais !impeachment, o !golpe precisa de só %d golpistas e pode ser tentado a cada %s, todo imposto abusivo cobrado deixa o povo mais revoltado e, se o ditador morrer, perde o cargo",
-			tyrantCoupMin, core.FormatWait(tyrantCoupEvery)),
+		effect: fmt.Sprintf("vale a ditadura: os impostos por decreto passam do teto, decreto que alivia vale inteiro pro ditador e só %d%% pro povo, não existe mais !impeachment, o !golpe precisa de só %d golpistas e pode ser tentado a cada %s, todo imposto abusivo cobrado deixa o povo mais revoltado e, se o ditador morrer, perde o cargo",
+			tyrantPeopleShare, tyrantCoupMin, core.FormatWait(tyrantCoupEvery)),
 		lasting: "🪖 Ditadura não se desfaz por decreto. Ela só acaba com o fim do mandato, com um !golpe, com a morte do ditador ou com o !renunciar",
 		syntax:  "!decreto ditadura",
-		about: fmt.Sprintf("declara ditadura até o fim do mandato, sem volta: os impostos por decreto vão bem além do teto e o !impeachment deixa de existir, mas o !golpe fica mais fácil (%d golpistas, a cada %s), cada imposto abusivo cobrado aumenta a revolta (que tira até %d%% da segurança do ditador) e quem matar o ditador derruba ele. Pra se proteger, tem o !decreto exercito",
-			tyrantCoupMin, core.FormatWait(tyrantCoupEvery), percent(revoltMax)),
+		about: fmt.Sprintf("declara ditadura até o fim do mandato, sem volta: os impostos por decreto vão bem além do teto, decreto que alivia (imposto menor, espera menor, salário maior...) vale inteiro pro ditador e pro povo só chega %d%% da mudança, e o !impeachment deixa de existir, mas o !golpe fica mais fácil (%d golpistas, a cada %s), cada imposto abusivo cobrado aumenta a revolta (que tira até %d%% da segurança do ditador) e quem matar o ditador derruba ele. Pra se proteger, tem o !decreto exercito",
+			tyrantPeopleShare, tyrantCoupMin, core.FormatWait(tyrantCoupEvery), percent(revoltMax)),
 	}
 	tyrannyColumns = []string{revoltColumn, armyColumn}
 	armySyntax     = "!decreto exercito 2"
