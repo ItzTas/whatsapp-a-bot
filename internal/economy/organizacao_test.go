@@ -66,7 +66,7 @@ func TestLockUpNotesJailing(t *testing.T) {
 		return err
 	})
 	jailed := fb.s.jailings.take(fb.chat)
-	if err != nil || len(jailed) != 1 || jailed[acc.Key] != acc {
+	if err != nil || len(jailed) != 1 || jailed[acc.Key].acc != acc {
 		t.Fatalf("prisão que entrou no banco fica anotada pra oferta, deu %+v (%v)", jailed, err)
 	}
 	if again := fb.s.jailings.take(fb.chat); len(again) != 0 {
@@ -124,5 +124,100 @@ func TestBreakout(t *testing.T) {
 	}
 	if until, _ := jailState(broke); until == 0 {
 		t.Fatal("sem pagar, continua preso")
+	}
+}
+
+func TestSeizureRidesJailing(t *testing.T) {
+	fb := newFirmBench(t)
+	acc := fb.person("5511900000001")
+	fb.setBalance(t, acc, 1_000)
+	err := fb.s.inTx(fb.ctx, func(tx *ledgerTx) error {
+		for _, add := range []struct {
+			id     string
+			grades []grade
+		}{
+			{"oitao", []grade{{1, 2}, {normalQuality, 1}}},
+			{"baseado", []grade{{normalQuality, 3}}},
+			{"vara-de-pesca", []grade{{normalQuality, 1}}},
+		} {
+			if err := addGrades(fb.ctx, tx, fb.chat, acc, add.id, add.grades); err != nil {
+				return err
+			}
+		}
+		if _, err := lockUp(fb.ctx, tx, fb.chat, acc, fb.now); err != nil {
+			return err
+		}
+		_, err := seizeContraband(fb.ctx, tx, fb.chat, acc)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seized := map[string]stack{}
+	for _, s := range fb.s.jailings.take(fb.chat)[acc.Key].contraband {
+		seized[s.item.id] = s
+	}
+	if gun := seized["oitao"]; len(seized) != 2 || gun.quantity != 3 || len(gun.grades) != 2 || seized["baseado"].quantity != 3 {
+		t.Fatalf("a prisão leva o que foi apreendido, com a qualidade de cada unidade, deu %+v", seized)
+	}
+	bag, err := fb.s.inventory(fb.ctx, fb.chat, acc)
+	if err != nil || len(bag) != 1 || bag[0].item.id != "vara-de-pesca" {
+		t.Fatalf("só o que é legal fica na mochila, deu %+v (%v)", bag, err)
+	}
+}
+
+func TestReclaimContraband(t *testing.T) {
+	fb := newFirmBench(t)
+	firma := mustFirm(t, "firma-do-157")
+	gun, _ := itemByID("oitao")
+	contraband := []stack{{item: gun, quantity: 2, grades: []grade{{1, 1}, {normalQuality, 1}}}}
+	offer := func(acc core.Account) *breakoutOffer {
+		return &breakoutOffer{chat: fb.chat, acc: acc, firm: firma, contraband: contraband, expires: fb.now.Add(offerWindow)}
+	}
+	price := worthOf(gun, contraband[0].grades) * firma.stash / 100
+
+	rich := fb.person("5511900000001")
+	fb.setBalance(t, rich, 10_000)
+	if err := fb.s.reclaim(fb.ctx, offer(rich)); err != nil || fb.balance(t, rich) != 10_000-price {
+		t.Fatalf("devolver a muamba cobra %d%% do valor dela, deu saldo %d (%v)", firma.stash, fb.balance(t, rich), err)
+	}
+	bag, err := fb.s.inventory(fb.ctx, fb.chat, rich)
+	if err != nil || len(bag) != 1 || bag[0].quantity != 2 || len(bag[0].grades) != 2 {
+		t.Fatalf("a muamba volta pra mochila com a qualidade de antes, deu %+v (%v)", bag, err)
+	}
+
+	broke := fb.person("5511900000002")
+	fb.setBalance(t, broke, price-1)
+	if err := fb.s.reclaim(fb.ctx, offer(broke)); !errors.Is(err, ErrNoFunds) {
+		t.Fatalf("sem o preço no saldo a muamba não volta, deu %v", err)
+	}
+	if bag, err := fb.s.inventory(fb.ctx, fb.chat, broke); err != nil || len(bag) != 0 {
+		t.Fatalf("quem não pagou fica sem a muamba, deu %+v (%v)", bag, err)
+	}
+}
+
+func TestBreakoutPicks(t *testing.T) {
+	gun, _ := itemByID("oitao")
+	both := &breakoutOffer{escape: true, contraband: []stack{{item: gun, quantity: 1, grades: []grade{{normalQuality, 1}}}}}
+	cases := []struct {
+		offer          *breakoutOffer
+		pick           string
+		escape, stash  bool
+		leftover       bool
+		leftoverEscape bool
+	}{
+		{both, "", true, true, false, false},
+		{both, "fuga", true, false, true, false},
+		{both, "muamba", false, true, true, true},
+		{both, "Provas", false, true, true, true},
+		{&breakoutOffer{escape: true}, "muamba", false, false, true, true},
+		{&breakoutOffer{escape: true}, "", true, false, false, false},
+	}
+	for _, c := range cases {
+		escape, stash := c.offer.picked(c.pick)
+		rest := c.offer.without(escape, stash)
+		if escape != c.escape || stash != c.stash || rest.open() != c.leftover || rest.escape != c.leftoverEscape {
+			t.Errorf("!aceitar %q numa oferta %+v fecha fuga=%v muamba=%v e sobra %+v", c.pick, c.offer, escape, stash, rest)
+		}
 	}
 }

@@ -36,6 +36,7 @@ type firm struct {
 	edge         float64
 	breakout     int64
 	breakoutOdds float64
+	stash        int64
 	rate         int64
 	floor        int64
 	aliases      []string
@@ -181,7 +182,7 @@ func takeOffer[T firmOffer](offers *sync.Map, key string, now time.Time) (T, boo
 	return o, true
 }
 
-func (b *bot) answerFirmOffer(ctx context.Context, key string, accepted bool) (bool, error) {
+func (b *bot) answerFirmOffer(ctx context.Context, key string, accepted bool, pick string) (bool, error) {
 	now := time.Now()
 	if o, ok := takeOffer[*boostOffer](&b.boostOffers, key, now); ok {
 		if !accepted {
@@ -199,7 +200,7 @@ func (b *bot) answerFirmOffer(ctx context.Context, key string, accepted bool) (b
 		if !accepted {
 			return true, b.dismissFirm(ctx, o.chat, o.acc, o.firm)
 		}
-		return true, b.acceptBreakout(ctx, o)
+		return true, b.acceptBreakout(ctx, key, o, pick)
 	}
 	return false, nil
 }
@@ -293,7 +294,7 @@ func sectors() []sector {
 		},
 		{
 			id: crimeSector, title: "🕴️ *Organizações do crime*", firms: syndicates,
-			footer: "Se você rodar com o contrato ativo, a organização oferece o resgate na hora, é só !aceitar",
+			footer: "Se você rodar com o contrato ativo, a organização oferece na hora te tirar da cadeia (!aceitar fuga) e devolver a muamba apreendida (!aceitar muamba). O !aceitar sozinho fecha as duas",
 		},
 	}
 }

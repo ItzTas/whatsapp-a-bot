@@ -496,7 +496,7 @@ func (b *bot) aceitar(ctx context.Context, evt *events.Message) error {
 	if value, ok := b.debtRequests.LoadAndDelete(key); ok {
 		return b.acceptDebtRequest(ctx, key, value.(*debtRequest))
 	}
-	if answered, err := b.answerFirmOffer(ctx, key, true); answered {
+	if answered, err := b.answerFirmOffer(ctx, key, true, core.FirstPlainArg(core.MessageText(evt.Message))); answered {
 		return err
 	}
 	return b.SendText(ctx, chat, "Ninguém te ofereceu nada nem te pediu emprestado agora 🤷 Quando alguém mandar !vender @você ou !agiota @você, é só !aceitar")
@@ -545,7 +545,7 @@ func (b *bot) recusar(ctx context.Context, evt *events.Message) error {
 	if value, ok := b.debtRequests.LoadAndDelete(key); ok {
 		return b.refuseDebtRequest(ctx, key, value.(*debtRequest))
 	}
-	if answered, err := b.answerFirmOffer(ctx, key, false); answered {
+	if answered, err := b.answerFirmOffer(ctx, key, false, ""); answered {
 		return err
 	}
 

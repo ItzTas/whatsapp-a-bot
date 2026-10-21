@@ -845,7 +845,7 @@ func (b *bot) economyCommands() []core.Command {
 			Name:     "aceitar",
 			Aliases:  []string{"aceito"},
 			Category: core.EconomyCategory,
-			Help:     []core.Usage{{"!aceitar", "fecha a compra que alguém te ofereceu com o !vender @você, ou empresta as moedas que alguém te pediu com o !agiota @você, ou paga a proteção que uma empresa de segurança te ofereceu, ou paga o resgate da cadeia que a tua organização do crime ofereceu, ou diz sim pro pedido de casamento ou namoro ✅"}},
+			Help:     []core.Usage{{"!aceitar", "fecha a compra que alguém te ofereceu com o !vender @você, ou empresta as moedas que alguém te pediu com o !agiota @você, ou paga a proteção que uma empresa de segurança te ofereceu, ou paga o resgate da cadeia e a devolução da muamba apreendida que a tua organização do crime ofereceu (!aceitar fuga ou !aceitar muamba pra pegar uma só), ou diz sim pro pedido de casamento ou namoro ✅"}},
 			Run:      b.aceitar,
 		},
 		{

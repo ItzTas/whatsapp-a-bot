@@ -348,11 +348,15 @@ func seizedText(seized []stack) string {
 	if len(seized) == 0 {
 		return ""
 	}
-	labels := make([]string, len(seized))
-	for i, s := range seized {
+	return "\n🚨 A polícia apreendeu " + stackLabels(seized) + " da mochila"
+}
+
+func stackLabels(stacks []stack) string {
+	labels := make([]string, len(stacks))
+	for i, s := range stacks {
 		labels[i] = quantityLabel(s.item, s.quantity)
 	}
-	return "\n🚨 A polícia apreendeu " + core.JoinWithAnd(labels) + " da mochila"
+	return core.JoinWithAnd(labels)
 }
 
 func priceTrend(pct int64) string {
@@ -608,7 +612,7 @@ func jailSmuggler(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Ac
 func seizeContraband(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account) (seized []stack, err error) {
 	ids := contrabandIDs(func(item) bool { return true })
 	rows, err := tx.QueryContext(ctx,
-		"DELETE FROM inventarios WHERE chat = ? AND pessoa = ? AND item IN ("+core.SQLPlaceholders(len(ids))+") RETURNING item, quantidade",
+		"DELETE FROM inventarios WHERE chat = ? AND pessoa = ? AND item IN ("+core.SQLPlaceholders(len(ids))+") RETURNING item, qualidade, quantidade",
 		append([]any{chat.String(), acc.Key}, ids...)...,
 	)
 	if err != nil {
@@ -617,17 +621,28 @@ func seizeContraband(ctx context.Context, tx *ledgerTx, chat types.JID, acc core
 	defer func() { err = errors.Join(err, rows.Close()) }()
 	for rows.Next() {
 		var (
-			id       string
-			quantity int64
+			id string
+			g  grade
 		)
-		if err := rows.Scan(&id, &quantity); err != nil {
+		if err := rows.Scan(&id, &g.quality, &g.quantity); err != nil {
 			return nil, err
 		}
-		if it, ok := itemByID(id); ok {
-			seized = append(seized, stack{item: it, quantity: quantity, grades: []grade{{normalQuality, quantity}}})
+		it, ok := itemByID(id)
+		if !ok {
+			continue
 		}
+		if i := slices.IndexFunc(seized, func(s stack) bool { return s.item.id == id }); i >= 0 {
+			seized[i].quantity += g.quantity
+			seized[i].grades = append(seized[i].grades, g)
+			continue
+		}
+		seized = append(seized, stack{item: it, quantity: g.quantity, grades: []grade{g}})
 	}
-	return seized, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	tx.confiscated(chat, acc, seized)
+	return seized, nil
 }
 
 func (s *walletStore) bestWeapon(ctx context.Context, chat types.JID, acc core.Account) (best item, err error) {

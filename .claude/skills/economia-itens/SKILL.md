@@ -302,7 +302,8 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
     fortes, mas com overdose alta. Campo novo no `high` precisa entrar no `drugged` e no `effects()`.
   - O `walletStore.arrest` (`!prender` e `!denunciar`) apreende tudo o que é ilegal da mochila de
     quem vai preso (`seizeContraband`), e a batida também. Os outros caminhos de cadeia não
-    apreendem. O `arrest` também arranca os implantes clandestinos (`seizeImplants`, veja a skill
+    apreendem. O que foi apreendido fica anotado na prisão, e quem tem contrato com uma organização
+    do crime recebe a oferta de pagar pra ter tudo de volta (skill `economia-empresas`). O `arrest` também arranca os implantes clandestinos (`seizeImplants`, veja a skill
     `economia-dinheiro`), mas a batida não.
 - Os bichinhos do `!petshop` (`petshop.go`) são itens normais do `catalog` com `shop` e `pet`: o
   `!loja` pula eles, o `!comprar` compra igual (com a mensagem de levar pra casa) e o `sources`

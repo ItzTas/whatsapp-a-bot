@@ -33,8 +33,9 @@ user-invocable: false
 - O `!empresa` sem nada lista os dois ramos (`sectors()`, cada um com título, lista e rodapé), e o
   `!empresa seguranca` e o `!empresa crime` listam um só.
 - **Organizações do crime** (`organizacao.go`): cada uma tem `edge` (chance somada no crime),
-  `gangs` (se o `edge` vale também no `!assalto` e na `!quadrilha`), e o resgate: `breakout` é o
-  preço fixo, que não depende do saldo, e `breakoutOdds` a chance de dar certo.
+  `gangs` (se o `edge` vale também no `!assalto` e na `!quadrilha`), o resgate (`breakout` é o
+  preço fixo, que não depende do saldo, e `breakoutOdds` a chance de dar certo) e o `stash`, a
+  porcentagem do valor da muamba apreendida que ela cobra pra devolver.
   - Bônus: o `!roubar` lê o `syndicateOf` do ladrão em paralelo com as profissões e soma o `edge`
     na chance antes do `sober`. Na `!quadrilha` (lido em paralelo no `runGang`) e no `!assalto`
     (lido dentro da transação do `heist`), o `crewSyndicate` fica com a melhor organização com
@@ -43,12 +44,22 @@ user-invocable: false
   - Resgate: o `lockUp` (toda ida pra cadeia, skill `economia-crime`) anota a pessoa no
     `ledgerTx.jailed`, e o `inTx` passa pro `walletStore.jailings` (`jailLog`, por conversa) só
     depois do commit. O `offerBreakouts`, no `AddAfterMessage` depois do `announcePayouts`, tira as
-    prisões daquela conversa e, pra quem tem contrato no ramo do crime e ainda tá preso, guarda um
-    `breakoutOffer` em `breakoutOffers` (chave `OfferKey`, vence em `offerWindow`). Quem não tem
-    contrato não recebe oferta. No `!aceitar`, o `walletStore.breakout` cobra o `breakout` com o
+    prisões daquela conversa (`jailing`) e, pra quem tem contrato no ramo do crime, guarda um
+    `breakoutOffer` em `breakoutOffers` (chave `OfferKey`, vence em `offerWindow`) com duas partes:
+    a fuga (`escape`, só se ainda tá preso) e a muamba (`contraband`, só se a polícia apreendeu
+    alguma coisa). Quem não tem contrato não recebe oferta. O `!aceitar` sozinho fecha as duas, e o
+    `!aceitar fuga` ou `!aceitar muamba` fecha uma só (`picked`); a outra parte volta pro
+    `breakoutOffers` com o mesmo prazo (`without`), e o `!recusar` dispensa tudo.
+  - Fuga: o `walletStore.breakout` cobra o `breakout` com o
     `spend` e, em `breakoutOdds` das vezes, zera o `preso_ate` e marca `crime_em` e `ficha_em`
     (é fuga, então a polícia pode prender de novo); dando errado, as moedas somem e a pessoa fica
     presa. Se ela já saiu, o `errNotHeld` desfaz a cobrança.
+  - Muamba: o `seizeContraband` (`mercadonegro.go`, chamado pelo `arrest` do `!prender`/`!denunciar`
+    e pela batida do `!mercadonegro`, sempre depois do `lockUp`) devolve as pilhas com a qualidade de
+    cada unidade e anota elas na prisão da mesma transação (`ledgerTx.confiscated`). O
+    `walletStore.reclaim` cobra o `stashPrice` (o `stash` por cento do `worth` das pilhas) com o
+    `spend` e põe tudo de volta na mochila com o `addGrades`, sem chance de dar errado. Os usos
+    gastos (doses, desgaste) não voltam, e o limite de mochila (`trimCarry`) vale como sempre.
 - **Anulação da marca** (`escortMark` em `escolta.go`): o `walletStore.rob` e o `gangRob` chamam
   logo depois do `markOf`, então vale antes do `jackpotPace`, do `stampOrAbuse`, do alarme, do
   `looted` e do `jackpotShield`. Só age com a marca ligada (prêmio fresco ou `lucky`). Sorteia uma
@@ -87,4 +98,4 @@ user-invocable: false
 - O `!saldo` e o `!tu` mostram os contratos ativos dos dois ramos (`contractText` com o
   `walletStore.contracts`), e o `!empresa` lista as empresas com a diária calculada pro saldo de
   quem pediu.
-- Teste: `go test ./internal/economy/ -run 'TestSignFirm|TestCancelContract|TestEscort|TestEventCushion|TestBoostContract|TestRecover|TestTakeOffer|TestMarkLevel|TestStalk|TestSignSyndicate|TestCrewSyndicate|TestLockUpNotesJailing|TestBreakout'`.
+- Teste: `go test ./internal/economy/ -run 'TestSignFirm|TestCancelContract|TestEscort|TestEventCushion|TestBoostContract|TestRecover|TestTakeOffer|TestMarkLevel|TestStalk|TestSignSyndicate|TestCrewSyndicate|TestLockUpNotesJailing|TestBreakout|TestSeizureRidesJailing|TestReclaimContraband'`.
