@@ -534,6 +534,9 @@ func (b *bot) decrees() map[string]decree {
 	for _, name := range protegeNames {
 		runs[name] = b.protegeDecree
 	}
+	for _, name := range restockNames {
+		runs[name] = b.restockDecree
+	}
 	once := []struct {
 		od  onceDecree
 		run decree
@@ -588,7 +591,7 @@ func onceDecreeHelp() []core.Usage {
 }
 
 func decreeHelp() []core.Usage {
-	return slices.Concat(percentDecreeHelp(", e 0 tira o decreto"), toggleDecreeHelp(), onceDecreeHelp(), []core.Usage{armyHelp(), protegeHelp()})
+	return slices.Concat(percentDecreeHelp(", e 0 tira o decreto"), toggleDecreeHelp(), onceDecreeHelp(), []core.Usage{restockHelp(), armyHelp(), protegeHelp()})
 }
 
 func decreesMenu() string {
@@ -600,6 +603,7 @@ func decreesMenu() string {
 		{"📊 POR PORCENTAGEM", "Ficam valendo até o fim do mandato. Manda 0 pra tirar o decreto", percentDecreeHelp("")},
 		{"🔀 LIGA E DESLIGA", "Manda o mesmo decreto de novo pra desligar (menos a ditadura)", toggleDecreeHelp()},
 		{"⚡ DE UMA VEZ", "Têm efeito na hora e gastam um uso do mandato", onceDecreeHelp()},
+		{"⏳ COM ESPERA", "Têm efeito na hora e depois esperam um tempo, que não zera quando muda o presidente", []core.Usage{restockHelp()}},
 		{"🪖 SÓ NA DITADURA", "Depois do !decreto ditadura, que não tem volta, os impostos também passam do teto", []core.Usage{armyHelp(), protegeHelp()}},
 	}
 	var sb strings.Builder

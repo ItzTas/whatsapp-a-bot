@@ -7,6 +7,7 @@ import (
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/sync/errgroup"
 )
 
 type bot struct {
@@ -101,8 +102,21 @@ func (b *bot) economyGuard(ctx context.Context, evt *events.Message, cmd core.Co
 }
 
 func New(ctx context.Context, c *core.Bot) (*Module, error) {
-	if err := ledgers.load(ctx, c.Messages.DB); err != nil {
-		return nil, fmt.Errorf("ler vínculos de economia: %w", err)
+	var g errgroup.Group
+	g.Go(func() error {
+		if err := ledgers.load(ctx, c.Messages.DB); err != nil {
+			return fmt.Errorf("ler vínculos de economia: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := restocks.load(ctx, c.Messages.DB); err != nil {
+			return fmt.Errorf("ler reposições das lojas: %w", err)
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	return &bot{Bot: c, Wallets: &walletStore{db: &ledgerDB{db: c.Messages.DB}}}, nil
 }

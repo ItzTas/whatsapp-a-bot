@@ -317,7 +317,8 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   `petPerk`, dentro do `effectPerk`, então aparece no `!petshop` e no `!item`.
 - Item com `shop` e `rotating` é oferta do dia (`rotatingStock` em `loja.go`): a `!loja` tira ele da
   lista fixa e mostra só os `rotatingShopSize` sorteados do dia na seção "⏳ Só hoje" (o
-  `dailyRand` com o sal `loja`, trocando à meia-noite de BRT), e o `!comprar` recusa quando ele não
+  `shopRand` com o sal `loja`, trocando à meia-noite de BRT ou no `!decreto repor`, skill
+  `economia-presidencia`, que também troca a `!luxo` e o `!mercadonegro`), e o `!comprar` recusa quando ele não
   tá no sorteio de hoje. Uma das vagas é sempre de ferramenta de extração (`featuredTool`, hoje as
   três épicas: Vara de titânio, Picareta de nióbio e Rede de náilon), em rodízio pelo dia
   (`localDay`), então cada uma volta em até 3 dias; as outras vagas são sorteadas e podem trazer

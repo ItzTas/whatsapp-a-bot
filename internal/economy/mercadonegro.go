@@ -174,13 +174,13 @@ func hotTools() []item {
 func hotGearArrivals(chat types.JID, now time.Time) []item {
 	var arrived []item
 	for _, it := range catalog {
-		if hotGear(it) && !hotTool(it) && dailyRand(chat, now, "muamba:"+it.id).Float64() < hotGearChance {
+		if hotGear(it) && !hotTool(it) && shopRand(chat, now, "muamba:"+it.id).Float64() < hotGearChance {
 			arrived = append(arrived, it)
 		}
 	}
 	grafts := implantGoods()
-	arrived = append(arrived, grafts[dailyRand(chat, now, "muamba:implante").IntN(len(grafts))])
-	r := dailyRand(chat, now, "muamba:ferramenta")
+	arrived = append(arrived, grafts[shopRand(chat, now, "muamba:implante").IntN(len(grafts))])
+	r := shopRand(chat, now, "muamba:ferramenta")
 	if r.Float64() >= hotToolChance {
 		return arrived
 	}
@@ -233,14 +233,14 @@ func inStock(stock []item) func(item) bool {
 
 func blackMarketStock(chat types.JID, now time.Time) []item {
 	pool := slices.DeleteFunc(contraband(), func(it item) bool { return it.graft != nil })
-	dailyRand(chat, now, "mercadonegro").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+	shopRand(chat, now, "mercadonegro").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 	stock := append(pool[:min(blackMarketStockSize, len(pool))], hotGearArrivals(chat, now)...)
 	slices.SortFunc(stock, compareItems)
 	return stock
 }
 
 func blackMarketPercent(chat types.JID, it item, now time.Time) int64 {
-	return int64(blackMarketMinPercent + dailyRand(chat, now, it.id).IntN(blackMarketMaxPercent-blackMarketMinPercent+1))
+	return int64(blackMarketMinPercent + shopRand(chat, now, it.id).IntN(blackMarketMaxPercent-blackMarketMinPercent+1))
 }
 
 func blackMarketPrice(chat types.JID, it item, now time.Time) int64 {

@@ -53,7 +53,7 @@ func rotatingStock(chat types.JID, now time.Time) []item {
 	tools := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !featuredTool(it) })
 	featured := tools[localDay(now)%int64(len(tools))]
 	pool := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !it.shop || !it.rotating || it.id == featured.id })
-	dailyRand(chat, now, "loja").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+	shopRand(chat, now, "loja").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 	stock := append([]item{featured}, pool[:min(rotatingShopSize-1, len(pool))]...)
 	slices.SortFunc(stock, compareItems)
 	return stock

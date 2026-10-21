@@ -49,7 +49,7 @@ func dailyRand(chat types.JID, now time.Time, salt string) *rand.Rand {
 
 func luxuryStock(chat types.JID, now time.Time) []item {
 	pool := slices.DeleteFunc(slices.Clone(catalog), func(it item) bool { return !luxuryGoods(it) })
-	dailyRand(chat, now, "").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+	shopRand(chat, now, "").Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 	stock := pool[:min(luxuryStockSize, len(pool))]
 	slices.SortFunc(stock, func(a, b item) int { return cmp.Compare(a.value, b.value) })
 	return stock

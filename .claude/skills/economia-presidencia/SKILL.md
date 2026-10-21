@@ -77,6 +77,16 @@ Presidente, decretos, impeachment, renúncia e golpe.
   no `acoes_precos`, e a reversão do passeio aleatório puxa o preço de volta com o tempo). Decreto
   novo precisa de coluna numa migração, de entrada numa das três tabelas (e no mapa `decrees()`, se
   for de uma vez) e do gancho no comando.
+- O `!decreto repor` (`reposicao.go`, seção "⏳ COM ESPERA" do menu) troca na hora as ofertas do dia
+  das lojas: o "Só hoje" da `!loja`, a `!luxo` e o `!mercadonegro` (estoque, preço do dia e muamba).
+  A espera (`restockEvery`, 12h) não é do mandato: fica na tabela `lojas_reposicoes` (uma linha por
+  economia, com o `reposta_em`), que o `inaugurate` não zera, então trocar de presidente não libera
+  outra reposição. O `restockShops` confere na mesma transação que quem pediu ainda tá no cargo. As
+  lojas sorteiam pelo `shopRand`, que é o `dailyRand` com o `reposta_em` no sal quando a reposição
+  foi no mesmo dia (`localDay`), então à meia-noite tudo volta pro sorteio normal do dia. Pra não ler
+  o banco a cada sorteio, o `reposta_em` fica num cache por economia (`restocks`, carregado no `New`
+  junto do `ledgers` e atualizado depois do commit). As missões e o `!leilao` continuam no
+  `dailyRand` e não mudam com a reposição. Sorteio novo de loja usa o `shopRand`.
 - Cargo vago vira sorteio (`sucessao.go`). A rotina `runSuccession` passa a cada `core.ReminderTick`
   pelas economias que são grupo (`economies`, só o grupo principal) e com a economia ligada em algum
   grupo. Sem mandato em andamento e sem linha na `presidencia_vagas`, ela abre a vaga
