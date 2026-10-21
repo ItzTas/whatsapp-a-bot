@@ -306,6 +306,11 @@ func TestCrimesReachSomeoneWhoLeft(t *testing.T) {
 	b.setup(chat, "economia zoeira")
 	b.say(chat, ana, "!daily")
 	b.say(chat, bia, "!daily")
+	biaNumber := regexp.MustCompile(`#\d+`).FindString(wantReply(t, b.say(chat, bia, "!saldo"), "@"+bia.jid.User))
+	if biaNumber == "" {
+		t.Fatal("o !saldo devia mostrar o número da Bia na economia")
+	}
+	wantReply(t, b.say(chat, ana, "!ricos"), "@"+bia.jid.User+" ("+biaNumber+")")
 	b.leave(chat, bia)
 
 	fresh := func() { b.say(chat, b.owner, "!economia resetar intervalos") }
@@ -320,6 +325,7 @@ func TestCrimesReachSomeoneWhoLeft(t *testing.T) {
 	}
 	robbed("pelo nome do zap", func() []string { return b.say(chat, ana, "!roubar bia souza") })
 	robbed("pelo número", func() []string { return b.say(chat, ana, "!roubar "+mentionTag(bia)) })
+	robbed("pelo número da economia", func() []string { return b.say(chat, ana, "!roubar "+biaNumber) })
 	robbed("respondendo uma mensagem", func() []string { return b.reply(chat, ana, "!roubar", bia) })
 	robbed("respondendo um contato", func() []string { return b.replyContact(chat, ana, "!roubar", bia) })
 
@@ -327,6 +333,7 @@ func TestCrimesReachSomeoneWhoLeft(t *testing.T) {
 	wantReply(t, b.say(chat, ana, "!sequestrar Bia Souza"), "@"+bia.jid.User)
 	fresh()
 	wantReply(t, b.say(chat, ana, "!matar Ninguem"), "Ninguém aqui tem o nome ou o apelido Ninguem")
+	wantReply(t, b.say(chat, ana, "!matar #999"), "Ninguém tem o número #999")
 
 	b.say(chat, cris, "!apelido Bia Souza")
 	fresh()

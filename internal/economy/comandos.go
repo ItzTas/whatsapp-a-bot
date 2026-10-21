@@ -670,6 +670,17 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.titulo,
 		},
 		{
+			Name:         "prestigio",
+			Aliases:      []string{"renascer"},
+			Category:     core.EconomyCategory,
+			BarredInJail: true,
+			Help: []core.Usage{
+				{"!prestigio", fmt.Sprintf("mostra seu prestígio e quanto falta pro próximo 🌟 Quem junta %s de patrimônio (saldo, poupança e cofre de casa) pode renascer: perde tudo que tem e ganha +%d%% no !trabalhar e no !daily pra sempre, que acumula até o prestígio %d. Cada prestígio pede bem mais que o anterior, e quem renasce ganha uma ⭐ no nome no !saldo e no !ricos", Coins(prestigeCost(0)), prestigeStep, prestigeTop)},
+				{"!prestigio confirmar", "renasce na hora: zera saldo, poupança, cofre, imóvel, mochila, guardados, ações, empregados, implantes, títulos, horta e anúncios da !feira. A profissão, a carreira, a fama, a igreja e o romance continuam. Não dá pra renascer devendo no !emprestimo ou no !agiota, nem sendo presidente"},
+			},
+			Run: b.prestigio,
+		},
+		{
 			Name:     "implante",
 			Aliases:  []string{"implantes", "cirurgia", "ciborgue"},
 			Category: core.EconomyCategory,

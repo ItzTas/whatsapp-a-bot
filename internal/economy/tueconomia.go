@@ -85,6 +85,9 @@ func (e EconomyProfile) Lines() []string {
 	if badge := strings.TrimSpace(titleBadge(e.titleID)); badge != "" {
 		lines = append(lines, "🎖️ Título: "+badge)
 	}
+	if e.job.prestige > 0 {
+		lines = append(lines, fmt.Sprintf("🌟 Prestígio %d %s", e.job.prestige, strings.TrimSpace(prestigeBadge(e.job.prestige))))
+	}
 	if home := homeText(e.job.estate); home != "" {
 		lines = append(lines, home)
 	}

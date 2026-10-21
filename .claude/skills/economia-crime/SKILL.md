@@ -224,8 +224,12 @@ Cadeia, flagrante, morte, saúde e tribunal.
   `jailFactor` (via `sentence`), com o `crime_em` zerado.
 - O alvo do `!roubar`, `!furtar`, `!sequestrar`, `!matar`, `!quadrilha`, `!prender` e `!denunciar`
   sai do `targetOf` (`alvo.go`), nesta ordem: a marcação, o número do contato (vcard, pelo `core.QuotedContact`) da mensagem
-  respondida, o autor da mensagem respondida (menos o próprio bot), o primeiro `@número` digitado e,
-  por último, o nome (`personNamed`): o começo do texto depois do comando comparado com os nomes do
+  respondida, o autor da mensagem respondida (menos o próprio bot), o primeiro `@número` digitado, o
+  número da economia (`personNumbered` em `numero.go`, só quando o `#N` é a primeira palavra depois
+  do comando, pra não brigar com o `#12` de item do `!furtar`) e, por último, o nome (`personNamed`):
+  o número vem da tabela `numeros` (`chat`, `pessoa`, `numero`, migração `00134`), que o trigger
+  `numero_na_carteira` preenche com o próximo da economia a cada carteira nova e nunca apaga, então
+  ele é fixo e vale pra quem saiu do grupo; o `!saldo` e o `!ricos` mostram ele. No nome, é o começo do texto depois do comando comparado com os nomes do
   `!nome` (inclusive os automáticos) e os `!apelido` da conversa, sem acento e sem maiúscula, ficando
   com o nome mais comprido que bate. O `target.rest` é o texto sem o nome, que o `!furtar` usa pra
   achar o item. Nome que ninguém tem ou que mais de uma pessoa tem volta um texto de recusa, menos na

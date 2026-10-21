@@ -244,7 +244,8 @@ O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar cont
 **Antes de mexer num assunto, carregue a skill dele** (e a `economia-base` junto de qualquer
 `economia-*`):
 
-- `economia-base`: carteiras, profissões, deus, `ProfessionOf`, ralos, reset de intervalos.
+- `economia-base`: carteiras, profissões, deus, `ProfessionOf`, ralos, reset de intervalos,
+  prestígio.
 - `economia-itens`: catálogo, raridades, qualidade, ferramentas, lojas, vendas, mercado negro,
   primordiais, o Meteorito do Bendegó e a horta (`!plantar`, `!colher`, `!horta`).
 - `economia-crime`: cadeia, fuga, sequestro, morte, saúde, assalto, suborno, tribunal.

@@ -27,10 +27,12 @@ type walletStore struct {
 }
 
 type wallet struct {
-	Owner   types.JID
-	Balance int64
-	title   string
-	key     string
+	Owner    types.JID
+	Balance  int64
+	title    string
+	prestige int
+	key      string
+	number   int
 }
 
 type cooldown struct {
@@ -90,7 +92,9 @@ func (s *walletStore) Balance(ctx context.Context, chat types.JID, acc core.Acco
 
 func (s *walletStore) Richest(ctx context.Context, chat types.JID, limit int) (wallets []wallet, err error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT pessoa, jid, saldo, titulo FROM carteiras WHERE chat = ? AND saldo > 0 ORDER BY saldo DESC LIMIT ?",
+		`SELECT c.pessoa, c.jid, c.saldo, c.titulo, c.prestigio, COALESCE(n.numero, 0)
+		 FROM carteiras c LEFT JOIN numeros n ON n.chat = c.chat AND n.pessoa = c.pessoa
+		 WHERE c.chat = ? AND c.saldo > 0 ORDER BY c.saldo DESC LIMIT ?`,
 		chat.String(), limit,
 	)
 	if err != nil {
@@ -103,7 +107,7 @@ func (s *walletStore) Richest(ctx context.Context, chat types.JID, limit int) (w
 			w     wallet
 			owner string
 		)
-		if err := rows.Scan(&w.key, &owner, &w.Balance, &w.title); err != nil {
+		if err := rows.Scan(&w.key, &owner, &w.Balance, &w.title, &w.prestige, &w.number); err != nil {
 			return nil, err
 		}
 		if w.Owner, err = types.ParseJID(owner); err != nil {
@@ -204,6 +208,7 @@ type standing struct {
 	temple     int
 	tithe      int64
 	record     int64
+	prestige   int
 }
 
 func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Account) (st standing, err error) {
@@ -215,11 +220,11 @@ func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Acc
 		        c.imovel, `+staffKinds+`,
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END,
-		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0), COALESCE(i.dizimo, ?), c.ficha_em
+		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0), COALESCE(i.dizimo, ?), c.ficha_em, c.prestigio
 		 FROM carteiras c LEFT JOIN igrejas i ON i.id = c.igreja
 		 WHERE c.chat = ? AND c.pessoa = ?`,
 		now, now, curseKind, now, now, unsetTithe, chat.String(), acc.Key,
-	).Scan(&st.profession, &st.president, &st.protege, &st.estate, &st.staff, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple, &st.tithe, &st.record)
+	).Scan(&st.profession, &st.president, &st.protege, &st.estate, &st.staff, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple, &st.tithe, &st.record, &st.prestige)
 	if errors.Is(err, sql.ErrNoRows) {
 		return standing{}, nil
 	}

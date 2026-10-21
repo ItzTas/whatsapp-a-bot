@@ -17,6 +17,7 @@ const (
 	lossBet    lossCause = "aposta"
 	lossRobbed lossCause = "roubo"
 	lossTax    lossCause = "imposto"
+	lossReborn lossCause = "prestigio"
 )
 
 type execer interface {
@@ -162,6 +163,7 @@ func (f richFall) text() string {
 		lossBet:    "empobreceu apostando 🎰",
 		lossRobbed: "empobreceu sendo roubado 🥷",
 		lossTax:    "empobreceu pagando imposto pro Leão 🦁",
+		lossReborn: "largou tudo pra renascer no !prestigio 🌟",
 	}[f.cause]
 	if why == "" {
 		why = "empobreceu torrando dinheiro por aí 💸"

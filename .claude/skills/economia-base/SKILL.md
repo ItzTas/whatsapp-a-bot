@@ -278,3 +278,19 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `solaceStep` de propósito: apostar de uma vez o que perdeu sempre fica com `Risk`, então a maré
   só ajuda quem volta com aposta menor que a perda. É escondido como a série, e o `!bicho` não
   passa pelo `PlaceBet` e fica de fora.
+- O prestígio (`prestigio.go`, coluna `prestigio` da `carteiras`, migração `00130`) é o renascer:
+  quem tem patrimônio (saldo + `cofre_casa` + poupança, a mesma conta do `enriquecimento.go`) de
+  pelo menos `prestigeCost(nível)` (`prestigeBase` vezes `(nível + 1)²`: 5M, 20M, 45M...) manda o
+  `!prestigio confirmar` e o `walletStore.rebirth` zera tudo numa transação só: apaga as linhas da
+  pessoa no `wiped` (mochila, guardados, poupança, ações, empregados, implantes, horta, títulos e
+  anúncios da feira), zera saldo, cofre, imóvel, título equipado e canteiros comprados na
+  `carteiras`, soma 1 no `prestigio` e anota o patrimônio todo no `noteLoss` com o `lossReborn`,
+  então o `!ricos` mostra que a pessoa largou tudo pra renascer. Profissão, carreira, fama, igreja,
+  romance, saúde e ficha ficam. O `prestigeOf` lê nível, patrimônio e os bloqueios numa consulta só
+  (a mesma no menu e dentro da transação), e o `blocker` recusa deus, quem já tá no `prestigeTop`,
+  o presidente com mandato e quem deve no `!emprestimo` ou no `!agiota` (como devedor). O bônus é
+  baixo de propósito, pros ricos não abusarem: o `prestiged`, logo depois do `seasoned` no
+  `ProfessionOf`, soma `prestigeStep`% por nível no `min`/`max` do `!trabalhar` e no `dailyBonus`
+  (deus não ganha nada), e o nível aparece como ⭐ no `!saldo`, no `!ricos` (`prestigeBadge`) e no
+  `!tu`. Patrimônio novo que deva sumir no renascer entra no `wiped` (ou no `UPDATE` da carteira) e
+  no texto do `menu`.

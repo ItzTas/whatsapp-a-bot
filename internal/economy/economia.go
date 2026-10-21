@@ -56,9 +56,11 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 		vault      homeVault
 		shield     time.Duration
 		contracts  []contract
+		number     int
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) { balance, rank, err = b.Wallets.Balance(gctx, chat, acc); return err })
+	g.Go(func() (err error) { number, err = b.Wallets.numberOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { saved, hasSavings, err = b.Wallets.Savings(gctx, chat, acc); return err })
 	g.Go(func() (err error) { titleID, err = b.Wallets.titleOf(gctx, chat, acc); return err })
 	g.Go(func() (err error) { job, err = b.ProfessionOf(gctx, chat, acc); return err })
@@ -73,7 +75,10 @@ func (b *bot) saldo(ctx context.Context, evt *events.Message) error {
 	if balance == 0 {
 		note = "_Tá liso. Usa !daily e !trabalhar pra começar_"
 	}
-	lines := []string{fmt.Sprintf("💰 %s@%s tem %s", titleBadge(titleID), person.User, Coins(balance)), note}
+	lines := []string{fmt.Sprintf("💰 %s%s@%s tem %s", prestigeBadge(job.prestige), titleBadge(titleID), person.User, Coins(balance)), note}
+	if number > 0 {
+		lines = append(lines, fmt.Sprintf("🔢 Número na economia: #%d, pra te acharem mesmo fora do grupo (!matar #%d)", number, number))
+	}
 	if hasSavings {
 		lines = append(lines, fmt.Sprintf("🔒 Na poupança: %s, que voltam com %s de juros", Coins(saved.Amount), Coins(saved.Interest)))
 	}
@@ -470,7 +475,7 @@ func (b *bot) ricos(ctx context.Context, evt *events.Message) error {
 	lines := []string{"🏆 *Os mais ricos do grupo*", ""}
 	owners := make([]types.JID, len(wallets))
 	for i, w := range wallets {
-		lines = append(lines, fmt.Sprintf("%s %s@%s: %s", richPlace(i+1), titleBadge(w.title), w.Owner.User, Coins(w.Balance)))
+		lines = append(lines, fmt.Sprintf("%s %s%s@%s%s: %s", richPlace(i+1), prestigeBadge(w.prestige), titleBadge(w.title), w.Owner.User, numberTag(w.number), Coins(w.Balance)))
 		owners[i] = w.Owner
 	}
 	falls, err := b.Wallets.falls(ctx, chat, wallets)

@@ -12,7 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-const targetHint = "Quem saiu do grupo também vale: manda o nome da pessoa, o número (@5511999999999) ou responde uma mensagem ou um contato dela"
+const targetHint = "Quem saiu do grupo também vale: manda o nome da pessoa, o número dela na economia (#12, que aparece no !saldo e no !ricos), o telefone (@5511999999999) ou responde uma mensagem ou um contato dela"
 
 type target struct {
 	person types.JID
@@ -39,7 +39,11 @@ func (b *bot) targetOf(ctx context.Context, evt *events.Message) (target, string
 	if tag := core.MentionTagPattern.FindString(text); tag != "" {
 		return target{person: types.NewJID(tag[1:], types.DefaultUserServer), rest: text}, ""
 	}
-	return b.personNamed(ctx, evt.Info.Chat.ToNonAD(), text)
+	chat := evt.Info.Chat.ToNonAD()
+	if aim, problem, typed := b.personNumbered(ctx, chat, text); typed {
+		return aim, problem
+	}
+	return b.personNamed(ctx, chat, text)
 }
 
 func (b *bot) personNamed(ctx context.Context, chat types.JID, text string) (target, string) {
