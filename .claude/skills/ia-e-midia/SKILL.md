@@ -36,6 +36,14 @@ Camadas da IA, ferramentas dela e os comandos de mídia.
   sobre gente (`askAboutPerson`, `!processaria`, `!fofoca @pessoa`, `!ficia`).
 - O `!cotacao` e o `!clima` (`cotacao.go`, `clima.go`) leem APIs públicas sem chave com o
   `net/http` padrão e timeout (`fetchPublicJSON`).
+- O `!info` (`info.go`) procura na Wikipédia em português: a busca do `rest.php` traz até
+  `infoCandidates` páginas, e o resumo (`page/summary`) de cada uma é lido em ordem até achar uma
+  que não seja desambiguação. Vai o resumo com a foto (JPEG ou PNG) e o link, mais os outros
+  títulos achados. A Wikimedia recusa (403) pedido sem `User-Agent` próprio, por isso o `infoGet`
+  manda o `infoUserAgent`. Sem texto depois do comando, procura o texto da mensagem respondida.
+  Se o assunto começa com `!` (`!info !imoveis`), não vai pra Wikipédia: o `b.CommandInfo`
+  (`internal/core/comandos.go`) acha os comandos com aquele nome ou alias (os de dono só pra
+  quem é dono) e mostra a ajuda deles, avisando quando o modo do comando tá desligado na conversa.
 - Trabalho pesado com binários externos passa por `b.WithMediaJob`
   (`internal/core/utilidades.go`): limita a 2
   jobs simultâneos, aplica timeout, roda com `nice` e reage com ⏳/✅/❌ na mensagem.

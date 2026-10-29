@@ -187,6 +187,49 @@ func commandsMenu(commands []Command, lifetime time.Duration) string {
 	return sb.String()
 }
 
+func (b *Bot) CommandInfo(ctx context.Context, evt *events.Message, name string) (string, bool, error) {
+	var (
+		active []string
+		owner  bool
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { active, err = b.Modes.active(gctx, evt.Info.Chat.ToNonAD()); return err })
+	g.Go(func() error { owner = b.IsOwner(gctx, evt); return nil })
+	if err := g.Wait(); err != nil {
+		return "", false, err
+	}
+
+	commands := b.commands()
+	if owner {
+		commands = slices.Concat(commands, b.OwnerCommands())
+	}
+	matching := slices.DeleteFunc(commands, func(c Command) bool { return !c.Matches(name) })
+	if len(matching) == 0 {
+		return "", false, nil
+	}
+	sections := make([]string, 0, len(matching))
+	for _, c := range matching {
+		sections = append(sections, commandInfo(c, active))
+	}
+	return strings.Join(sections, "\n\n━━━━━━━━━━━━━━\n\n"), true, nil
+}
+
+func commandInfo(c Command, active []string) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "ℹ️ *!%s*", c.Name)
+	if len(c.Aliases) > 0 {
+		fmt.Fprintf(&sb, " (também: !%s)", strings.Join(c.Aliases, ", !"))
+	}
+	fmt.Fprintf(&sb, "\n%s", c.Category.title)
+	for _, u := range c.Help {
+		fmt.Fprintf(&sb, "\n\n▸ `%s`\n     _%s_", u.Syntax, u.Description)
+	}
+	if c.Category.Mode != "" && !modeActive(active, c.Category.Mode) {
+		fmt.Fprintf(&sb, "\n\n⚠️ Ele é do modo *%s*, que tá desligado nesta conversa (o dono liga com !modo ativar %s)", c.Category.Mode, c.Category.Mode)
+	}
+	return sb.String()
+}
+
 func (b *Bot) helpCommands() []Command {
 	return []Command{
 		{

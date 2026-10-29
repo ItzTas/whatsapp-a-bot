@@ -282,7 +282,7 @@ func (b *Bot) filterCommands() []Command {
 				{"!modo ativar jogos zoeira ia", "liga vários modos numa mensagem só (desativar também aceita vários)"},
 				{"!modo ativar palavras", "nesta conversa, o bot responde algumas palavras mesmo sem o !, tipo arrogante, nojo ou chorar"},
 				{"!modo ativar risada", "nesta conversa, o bot manda uma figurinha de risada quando alguém ri"},
-				{"!modo ativar utilidades", "nesta conversa, libera o !baixar, o !figurinha, o !mp3, o !musica, o !som, o !transcrever, o !lembrete, o !buscar, o !aniversario, o !cotacao, o !clima e o !ocr"},
+				{"!modo ativar utilidades", "nesta conversa, libera o !baixar, o !figurinha, o !mp3, o !musica, o !som, o !transcrever, o !lembrete, o !buscar, o !aniversario, o !cotacao, o !clima, o !info e o !ocr"},
 				{"!modo ativar iasemlimite", "submodo do ia: nesta conversa, a IA para de contar as perguntas por hora de cada um e responde sem pausa entre uma pergunta e outra"},
 				{"!modo ativar iaenxerida", "submodo do ia: nesta conversa, libera o !perseguir, que faz a IA responder toda mensagem da pessoa marcada"},
 				{"!modo ativar iainventa", "submodo do ia: nesta conversa, a IA responde os comandos que não existem como se existissem"},

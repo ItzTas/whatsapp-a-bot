@@ -109,7 +109,7 @@ func chatModes() []chatMode {
 		{name: ModeModeration, description: "libera pros admins o !ban, o !promover, o !rebaixar, o !mutar e o !desmutar (o bot também precisa ser admin), o !advertir (na 3ª advertência a pessoa é banida), o !perdoar, o !boasvindas, o !fixar (por um tempo ou pra sempre) e o !desfixar, e pra todo mundo o !advertencias. O bot passa a apagar as mensagens de quem tá mutado e dar boas-vindas a quem entra no grupo"},
 		{name: ModeWords, description: "o bot responde algumas palavras mesmo sem o !, tipo arrogante, nojo, aura, ego ou chorar"},
 		{name: ModeLaughs, description: "o bot manda uma figurinha de risada quando alguém ri (kkkk, hahaha, rsrs...)"},
-		{name: ModeUtilities, description: "libera o !baixar, o !figurinha, o !mp3, o !musica, o !som, o !transcrever, o !lembrete, o !buscar, o !aniversario (com parabéns automáticos no dia), o !cotacao, o !clima e o !ocr", submodes: []chatMode{
+		{name: ModeUtilities, description: "libera o !baixar, o !figurinha, o !mp3, o !musica, o !som, o !transcrever, o !lembrete, o !buscar, o !aniversario (com parabéns automáticos no dia), o !cotacao, o !clima, o !info e o !ocr", submodes: []chatMode{
 			{name: ModeAutoDownload, description: "o bot baixa sozinho e manda os vídeos, imagens e gifs dos links do Instagram, TikTok, X e outros, sem precisar do !baixar"},
 		}},
 	}

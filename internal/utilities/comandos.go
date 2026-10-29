@@ -121,6 +121,17 @@ func (b *bot) utilitiesCommands() []core.Command {
 			Run: b.clima,
 		},
 		{
+			Name:     "info",
+			Aliases:  []string{"wiki", "wikipedia"},
+			Category: core.UtilitiesCategory,
+			Help: []core.Usage{
+				{"!info <assunto>", "procura o assunto na Wikipédia e manda o resumo, com foto e link 📚 tipo !info capivara"},
+				{"!info !<comando>", "explica um comando do bot, com todos os jeitos de usar, tipo !info !imoveis"},
+				{"!info", "responda uma mensagem com !info e o bot procura o que tá escrito nela"},
+			},
+			Run: b.info,
+		},
+		{
 			Name:     "ocr",
 			Aliases:  []string{"ler", "texto"},
 			Category: core.UtilitiesCategory,

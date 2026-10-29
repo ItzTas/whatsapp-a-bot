@@ -422,3 +422,24 @@ func TestEnrichmentRanksEveryone(t *testing.T) {
 	}
 	wantReply(t, b.say(chat, b.owner, "!economia enriquecimento ontem"), "Não entendi a janela")
 }
+
+func TestInfoExplainsCommands(t *testing.T) {
+	b := newBench(t)
+	ana := newPerson("Ana", "5511990000002")
+	chat := b.group("Galera", ana)
+	b.setup(chat, "utilidades")
+
+	explained := wantReply(t, b.say(chat, ana, "!info !imoveis"), "ℹ️ *!imovel*")
+	for _, fragment := range []string{"!imoveis", "💰 Economia", "modo *economia*, que tá desligado"} {
+		if !strings.Contains(explained, fragment) {
+			t.Fatalf("esperava %q na explicação do !imovel, veio %q", fragment, explained)
+		}
+	}
+	b.say(chat, b.owner, "!modo ativar economia")
+	if strings.Contains(wantReply(t, b.say(chat, ana, "!info !imovel"), "ℹ️ *!imovel*"), "desligado") {
+		t.Fatal("o !info avisou que a economia tá desligada com ela ligada")
+	}
+	wantReply(t, b.say(chat, ana, "!info !naoexiste"), "Não existe nenhum comando !naoexiste")
+	wantReply(t, b.say(chat, ana, "!info !whitelist"), "Não existe nenhum comando !whitelist")
+	wantReply(t, b.say(chat, b.owner, "!info !whitelist"), "ℹ️ *!whitelist*")
+}
