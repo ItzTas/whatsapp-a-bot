@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -242,10 +243,11 @@ func writeLimited(file string, body io.Reader, limits downloadLimits) (err error
 
 func ytDlp(ctx context.Context, dir, link string, limits downloadLimits) ([]string, error) {
 	audioMaxMB := max(10, limits.maxMB/10)
-	fittingFormat := fmt.Sprintf("bv*[filesize<%dM]+ba[filesize<%dM]/b[filesize<%dM]/bv*+ba/b", limits.maxMB-audioMaxMB, audioMaxMB, limits.maxMB)
+	fits := func(mb int64) string { return fmt.Sprintf("[filesize<?%dM][filesize_approx<?%dM]", mb, mb) }
+	fittingFormat := fmt.Sprintf("bv*%s+ba%s/b%s/bv*+ba/b", fits(limits.maxMB-audioMaxMB), fits(audioMaxMB), fits(limits.maxMB))
 	return runYtDlp(ctx, dir, link, limits,
 		"--format", fittingFormat,
-		"--format-sort", "vcodec:h264,acodec:aac,ext:mp4:m4a",
+		"--format-sort", "res:1080,vcodec:h264,fps,acodec:aac,abr,ext:mp4:m4a",
 		"--merge-output-format", "mp4")
 }
 
@@ -304,7 +306,7 @@ func prepareMedia(ctx context.Context, file string) (core.Outgoing, bool, error)
 		"image/gif":  gifMedia,
 		"image/jpeg": imageMedia,
 		"image/png":  imageMedia,
-		"video/mp4":  videoMedia,
+		"video/mp4":  playableVideoMedia,
 	}
 	byFamily := map[string]func(context.Context, string) (core.Outgoing, error){
 		"image": convertedImageMedia,
@@ -350,7 +352,7 @@ func imageMedia(_ context.Context, file string) (core.Outgoing, error) {
 
 func convertedImageMedia(ctx context.Context, file string) (core.Outgoing, error) {
 	out := file + ".jpg"
-	if err := core.RunFFmpeg(ctx, "-y", "-loglevel", "error", "-i", file, "-frames:v", "1", out); err != nil {
+	if err := core.RunFFmpeg(ctx, "-y", "-loglevel", "error", "-i", file, "-frames:v", "1", "-q:v", "2", out); err != nil {
 		return core.Outgoing{}, err
 	}
 	return imageMedia(ctx, out)
@@ -374,10 +376,22 @@ func convertedVideoMedia(ctx context.Context, file string) (core.Outgoing, error
 	return videoMedia(ctx, out)
 }
 
+func playableVideoMedia(ctx context.Context, file string) (core.Outgoing, error) {
+	probe, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream=codec_name", "-of", "csv=p=0", file).Output()
+	if err != nil {
+		return core.Outgoing{}, fmt.Errorf("ffprobe: %w", err)
+	}
+	if strings.TrimSpace(string(probe)) == "h264" {
+		return videoMedia(ctx, file)
+	}
+	return convertedVideoMedia(ctx, file)
+}
+
 func encodeMP4(ctx context.Context, in, out string, extra ...string) error {
 	args := slices.Concat(
 		[]string{"-y", "-loglevel", "error", "-i", in,
-			"-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
+			"-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
 			"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart"},
 		extra,
 		[]string{out},
