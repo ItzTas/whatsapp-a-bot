@@ -336,11 +336,12 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   tem o desconto da profissão. Item de loja com `days` (dias da semana, em BRT) só aparece no "Só
   hoje" nesses dias (`weekdayStock`), fora das vagas sorteadas, e o `!comprar` recusa nos outros
   (`onSale`); hoje só a Tele Sena, aos domingos.
-- Item com `carry` tem um limite por mochila (hoje só o Alarme, com `alarmCarry` = 3, que também é oferta do dia com `rotating`).
+- Item com `carry` tem um limite por mochila (hoje o Alarme, com `alarmCarry` = 3, que também é
+  oferta do dia com `rotating`, e o Colete à prova de balas, com `vestCarry` = 3).
   O Alarme também tem `storeOnly`, que entra no `unboxable()`: ele só sai do "⏳ Só hoje" da `!loja`
   (e do `!criar`/`!milagre`), nunca de caixa, baú, evento nem dos achados do `!trabalhar`. Quem a
   pessoa escolhe passar recusa antes de mexer em qualquer coisa: o `roomFor` devolve `errBagFull` no
-  `buyItem` (`!comprar` e `!luxo`), no `moveItems` (`!dar` e `!vender @pessoa`) e no `shiftItems`
+  `buyItem` (`!comprar` e `!luxo`), no `give` do `!mercadonegro comprar`, no `moveItems` (`!dar` e `!vender @pessoa`) e no `shiftItems`
   quando tira do imóvel, e cada comando responde com o `carryRefusal`. O resto (caixa, evento,
   achado do `!trabalhar`, `!criar`, `!milagre`) passa pelo `trimCarry` no `addGradesTo`, que tira o
   que sobrou do limite. No `!furtar`, ladrão que já tá no limite tira o item da vítima e joga fora

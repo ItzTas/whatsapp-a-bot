@@ -31,6 +31,8 @@ const (
 	alarmItemID     = "alarme"
 	alarmCarry      = 3
 	vestItemID      = "colete"
+	vestCarry       = 3
+	vestChance      = 0.55
 	forgedReleaseID = "alvara-falso"
 	scannerTipoff   = 0.25
 )
@@ -986,7 +988,7 @@ var catalog = slices.Concat([]item{
 		flex: &flex{effect: "o mercado paga 10 pontos a mais do valor no !vender (até 95%)", apply: func(p Profession) Profession { p.salePercent = min(p.marketPercent()+10, 95); return p }}},
 	{id: "dado-viciado", name: "Dado viciado", emoji: "🎲", rarity: epic, value: 7_000, illegal: true, aliases: []string{"dado"},
 		flex: &flex{effect: "10% de chance de pegar a aposta inteira de volta quando perde no " + casinoGames, apply: func(p Profession) Profession { p.rescueOdds += 0.10; return p }}},
-	{id: vestItemID, name: "Colete à prova de balas", emoji: "🦺", rarity: rare, value: 2_500, illegal: true, aliases: []string{"colete", "colete balistico"}},
+	{id: vestItemID, name: "Colete à prova de balas", emoji: "🦺", rarity: rare, value: 2_500, illegal: true, carry: vestCarry, aliases: []string{"colete", "colete balistico"}},
 	{id: forgedReleaseID, name: "Alvará de soltura falso", emoji: "📜", rarity: epic, value: 3_000, illegal: true, aliases: []string{"alvara", "alvara falso", "habeas corpus"},
 		use: "📜 @%s mostrou um alvará de soltura falso"},
 	{id: "rebite", name: "Rebite", emoji: "🚚", rarity: uncommon, value: 250, illegal: true, aliases: []string{"anfetamina", "arrebite"},
@@ -1535,7 +1537,7 @@ func effectPerk(it item) string {
 	protections := map[string]string{
 		lockItemID:      "protege a mochila de um !furtar, e quebra segurando o ladrão",
 		alarmItemID:     fmt.Sprintf("tem %d%% de chance de disparar num !roubar e salvar o saldo, e queima quando dispara. Contra !quadrilha a chance cai %d%% por pessoa a mais, e quem acabou de ganhar uma bolada na aposta perde mais %d%%. Cada pessoa só carrega %d na mochila", percent(alarmChance), percent(alarmGangCut), percent(jackpotAlarmCut), alarmCarry),
-		vestItemID:      "salva você de um !matar que ia dar certo, e fica destruído segurando a bala (contra deus não adianta). A polícia apreende se você for preso",
+		vestItemID:      fmt.Sprintf("tem %d%% de chance de segurar um !matar que ia dar certo, e fica destruído quando segura a bala (contra deus e a Foice não adianta). Cada pessoa só carrega %d na mochila, e a polícia apreende se você for preso", percent(vestChance), vestCarry),
 		forgedReleaseID: fmt.Sprintf("!usar tira você da cadeia na hora (ou !usar alvará @pessoa tira outra pessoa), mas em %d%% das vezes o carcereiro percebe e a pena aumenta %s. Conta como crime, e a polícia apreende se você for preso", percent(forgeryCaught), core.FormatWait(escapePenalty)),
 	}
 	if text, ok := protections[it.id]; ok {

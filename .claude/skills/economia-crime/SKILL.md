@@ -109,8 +109,11 @@ Cadeia, flagrante, morte, saúde e tribunal.
   assaltante de banco, sequestrador e matador de aluguel). A chance é o `killChance` menos o
   `guard` da vítima, e a espera é `killCooldown` (coluna `assassinato_em`). A tentativa marca o
   `crime_em`, então dá pra `!prender` e `!denunciar`. Se ia dar certo e a vítima tem o Colete à
-  prova de balas (`vestItemID`, ilegal), o `kill` gasta um colete (`spendItem`) e ela não morre,
-  menos contra deus e contra quem tem a Foice da Comadre Morte (`killOdds.pierce`). Se der certo,
+  prova de balas (`vestItemID`, ilegal), o `wearVest` sorteia o `vestChance` (55%, igual à ideia
+  do `soundAlarm` do alarme): se segura, gasta um colete e ela não morre; se falha (`torn`), ela
+  morre, fica com o colete e o `deathCaption` avisa que ele não segurou. Nada disso vale contra
+  deus e contra quem tem a Foice da Comadre Morte (`killOdds.pierce`). Cada mochila carrega no
+  máximo `vestCarry` (3) coletes, pelo `carry` (skill `economia-itens`). Se der certo,
   a vítima morre pelo `bury` (`saude.go`, veja a saúde abaixo) com o `funeral` do `killOdds`: o
   normal (`plainFuneral`) ou, com a Foice (`reaper`, que também soma `reaperKillBonus` no
   `killChance` e libera o `!matar` pra qualquer um), `reaperHoldFactor` vezes o `deathHold` e o

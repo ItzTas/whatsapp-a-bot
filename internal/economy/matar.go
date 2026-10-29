@@ -31,6 +31,7 @@ type killing struct {
 	wait    time.Duration
 	success bool
 	vested  bool
+	torn    bool
 	jail    time.Duration
 	freed   types.JID
 	fine    int64
@@ -199,11 +200,14 @@ func deathCaption(k killing, killer, victim types.JID) string {
 		"🛗 @%s empurrou @%s no poço do elevador e fingiu que nem viu",
 		"🪤 @%s armou uma emboscada e @%s caiu direitinho",
 	}
-	lines := []string{
-		fmt.Sprintf(core.PickOne(scenes), killer.User, victim.User),
+	lines := []string{fmt.Sprintf(core.PickOne(scenes), killer.User, victim.User)}
+	if k.torn {
+		lines = append(lines, fmt.Sprintf("🦺 O colete de @%s até tentou, mas dessa vez não segurou", victim.User))
+	}
+	lines = append(lines,
 		"",
 		fmt.Sprintf("⚰️ @%s tá morto(a) por %s: até ressuscitar, nada de comando de economia (nem !saldo, !trabalhar ou !daily). Um necromante, o presidente ou quem tem o Livro de São Cipriano pode tentar !reviver", victim.User, core.FormatWait(k.hold)),
-	}
+	)
 	lines = append(lines, reapText(k, killer, victim)...)
 	if k.deposed {
 		lines = append(lines, deposedText(victim))
@@ -225,6 +229,17 @@ func deathCaption(k killing, killer, victim types.JID) string {
 	}
 	lines = append(lines, fmt.Sprintf("🚔 Homicídio é crime: a polícia pode !prender @%s nas próximas %s, e qualquer um pode !denunciar", killer.User, core.FormatWait(crimeWindow)))
 	return strings.Join(lines, "\n")
+}
+
+func wearVest(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Account) (held, torn bool, err error) {
+	vests, err := gradesIn(ctx, tx, backpackTable, chat, victim, vestItemID)
+	if err != nil || len(vests) == 0 {
+		return false, false, err
+	}
+	if rand.Float64() >= vestChance {
+		return false, true, nil
+	}
+	return true, false, takeItems(ctx, tx, chat, victim, vestItemID, 1)
 }
 
 func (b *bot) holdIfDead(ctx context.Context, evt *events.Message) bool {
@@ -296,7 +311,7 @@ func (s *walletStore) kill(ctx context.Context, chat types.JID, killer, victim c
 		}
 		k.success = rand.Float64() < odds.success
 		if k.success && !odds.pierce {
-			if k.vested, err = spendItem(ctx, tx, chat, victim, vestItemID); err != nil {
+			if k.vested, k.torn, err = wearVest(ctx, tx, chat, victim); err != nil {
 				return err
 			}
 			k.success = !k.vested

@@ -101,7 +101,7 @@ func brief(it item) string {
 	protections := map[string]string{
 		lockItemID:      "protege a mochila do !furtar",
 		alarmItemID:     fmt.Sprintf("protege o saldo do !roubar (máx. %d)", alarmCarry),
-		vestItemID:      "segura um !matar",
+		vestItemID:      fmt.Sprintf("pode segurar um !matar (máx. %d)", vestCarry),
 		forgedReleaseID: "tira da cadeia, mas é crime",
 	}
 	if text, ok := protections[it.id]; ok {

@@ -463,6 +463,9 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 	cost := blackMarketPrice(chat, it, now) * quantity
 	r, err := b.Wallets.smuggle(ctx, chat, acc, smuggling{
 		give: func(tx *ledgerTx) error {
+			if err := roomFor(ctx, tx, chat, acc, it.id, quantity); err != nil {
+				return err
+			}
 			if oneOfAKind(it) {
 				if err := claimHotGear(ctx, tx, chat, acc, it, now); err != nil {
 					return err
@@ -482,6 +485,9 @@ func (b *bot) buyContraband(ctx context.Context, evt *events.Message, it item, q
 	}
 	if errors.Is(err, errDailyCap) {
 		return b.SendText(ctx, chat, dailyCapText(it))
+	}
+	if errors.Is(err, errBagFull) {
+		return b.SendText(ctx, chat, carryRefusal(it, "sua mochila"))
 	}
 	if errors.Is(err, ErrNoFunds) {
 		return b.SendText(ctx, chat, fmt.Sprintf("Você não tem moeda pra isso: %s fica %s. Confere no !saldo", quantityLabel(it, quantity), Coins(cost)))
