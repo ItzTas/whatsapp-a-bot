@@ -1586,6 +1586,9 @@ func effectPerk(it item) string {
 	if it.pet {
 		return petPerk(it)
 	}
+	if _, ok := legendOf(it.id); ok {
+		return legendPerk
+	}
 	return ""
 }
 

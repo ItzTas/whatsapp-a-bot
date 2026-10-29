@@ -75,6 +75,7 @@ type scenario struct {
 	areas   []int
 	jobs    []string
 	stage   bool
+	item    string
 	when    func(c eventCase) bool
 	intros  []string
 	choices []choice
@@ -132,11 +133,12 @@ type listedScenario struct {
 var eventBooks = []eventBook{
 	generalEvents, fishingEvents, miningEvents, scavengingEvents, buggingEvents,
 	workEvents, craftEvents, professionEvents, crimeEvents, fameEvents, gamblingEvents, allInEvents, windfallEvents, tyrannyEvents, rareEvents,
+	legendEvents,
 }
 
 var eventCatalog = listScenarios(eventBooks)
 
-var sealedPlaces = placesOf(gamblingEvents, allInEvents, windfallEvents)
+var sealedPlaces = placesOf(gamblingEvents, allInEvents, windfallEvents, legendEvents)
 
 func placesOf(books ...eventBook) []string {
 	var places []string
@@ -503,11 +505,15 @@ func (b *bot) openEvent(ctx context.Context, chat types.JID, acc core.Account, i
 	if _, taken := b.scenes.pending.LoadOrStore(ev.key, ev); taken {
 		return nil
 	}
-	if err := b.Wallets.noteEvent(ctx, chat, acc, sc.id, c.now); err != nil {
+	return b.unveil(ctx, ev, sc, c.now)
+}
+
+func (b *bot) unveil(ctx context.Context, ev *pendingEvent, sc listedScenario, now time.Time) error {
+	if err := b.Wallets.noteEvent(ctx, ev.chat, ev.acc, sc.id, now); err != nil {
 		b.scenes.pending.CompareAndDelete(ev.key, ev)
 		return fmt.Errorf("anotar o evento: %w", err)
 	}
-	b.scenes.remember(chat, sc.id)
+	b.scenes.remember(ev.chat, sc.id)
 	return b.showEvent(ctx, ev, sc)
 }
 

@@ -356,6 +356,10 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   prêmios numa transação só (pelo `addItems`, então fragmento monta e `carry` corta igual), e falha
   com `errNoItems` se a mochila mudou no meio. A resposta agrupa os prêmios por raridade
   (`rarityGroups`).
+- Alguns itens de enfeite (`keep` com `use`, hoje oito lendários como a Lâmpada mágica e o Ovo de
+  dragão) guardam uma lenda: o primeiro `!usar` da economia toda abre um evento com escolha que
+  nunca mais se repete (skill `economia-eventos`, livro `legendEvents`). O `effectPerk` desses
+  itens é o `legendPerk`, então eles não saem no `!vender bugigangas`.
 - O `resets` (zerar esperas no `!usar`) sempre vem com um `limit` (`limiter` em `itens.go`), que é
   a espera própria entre usos e os textos dela: a `caffeine` (coluna `cafeina_em`) do café, do
   energético e do chimarrão, e o `disguise` (coluna `disfarce_em`) do Kit disfarce, que zera o

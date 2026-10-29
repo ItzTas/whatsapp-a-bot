@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro", "!postar", "!publi", "!apostar", "!cassino", "!blackjack", "!crash", "!corrida", windfallPlace, stalkPlace, allInPlace}
+	eventPlaces  = []string{"!pescar", "!minerar", "!vasculhar", "!catar", "!trabalhar", "!roubar", "!furtar", "!sequestrar", "!matar", "!assalto", "!quadrilha", "!mercadonegro", "!postar", "!publi", "!apostar", "!cassino", "!blackjack", "!crash", "!corrida", windfallPlace, stalkPlace, allInPlace, legendPlace}
 	victimPlaces = []string{"!roubar", "!furtar", "!sequestrar", "!matar", "!quadrilha"}
 	placeholder  = regexp.MustCompile(`\{[^}]*\}`)
 	offCharms    = []string{"dizimo", "pacto", "assombracao"}

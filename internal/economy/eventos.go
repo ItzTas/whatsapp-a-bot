@@ -31,16 +31,22 @@ func (b *bot) eventos(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat.ToNonAD()
 	person := core.FirstMentionOrSender(evt).ToNonAD()
 	acc := b.Account(ctx, person)
-	seen, err := b.Wallets.seenEvents(ctx, chat, acc)
-	if err != nil {
+	var (
+		seen  []seenEvent
+		woken []string
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) { seen, err = b.Wallets.seenEvents(gctx, chat, acc); return err })
+	g.Go(func() (err error) { woken, err = b.Wallets.wokenLegends(gctx, chat); return err })
+	if err := g.Wait(); err != nil {
 		return fmt.Errorf("ler o diário de eventos: %w", err)
 	}
 	_, waiting := b.scenes.pending.Load(eventKey(chat, acc))
-	_, err = b.SendMentions(ctx, chat, diaryText(person, seen, waiting), []types.JID{person})
+	_, err := b.SendMentions(ctx, chat, diaryText(person, seen, woken, waiting), []types.JID{person})
 	return err
 }
 
-func diaryText(person types.JID, seen []seenEvent, waiting bool) string {
+func diaryText(person types.JID, seen []seenEvent, woken []string, waiting bool) string {
 	found := map[string]bool{}
 	lived := 0
 	for _, s := range seen {
@@ -61,6 +67,7 @@ func diaryText(person types.JID, seen []seenEvent, waiting bool) string {
 	if latest := latestTitles(seen); len(latest) > 0 {
 		lines = append(lines, "🕰️ Últimos: "+strings.Join(latest, ", "))
 	}
+	lines = append(lines, sleepingLegends(woken))
 	if waiting {
 		lines = append(lines, "⏳ Tem um evento esperando a sua escolha aqui: vota na enquete!")
 	}
@@ -71,7 +78,7 @@ func diaryText(person types.JID, seen []seenEvent, waiting bool) string {
 func diaryShelves(found map[string]bool) []diaryShelf {
 	var shelves []diaryShelf
 	for _, sc := range eventCatalog {
-		if sc.stage {
+		if sc.stage || sc.item != "" {
 			continue
 		}
 		i := slices.IndexFunc(shelves, func(s diaryShelf) bool { return s.name == sc.book })

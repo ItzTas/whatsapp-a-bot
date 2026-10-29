@@ -1,6 +1,6 @@
 ---
 name: economia-eventos
-description: "Eventos com escolha da economia (motor em evento.go, efeitos em eventoefeitos.go, diário !eventos em eventos.go, livros de conteúdo eventos*.go, scenario/choice/ending/effect, stirEvent nos comandos, enquete que só conta o voto do dono, KeepGame do tipo evento, tabelas eventos_vistos e eventos_marcados, anti-repetição, etapas next e plant). Carregue antes de mexer num evento, criar um novo ou ligar o gatilho num comando."
+description: "Eventos com escolha da economia (motor em evento.go, efeitos em eventoefeitos.go, diário !eventos em eventos.go, livros de conteúdo eventos*.go, scenario/choice/ending/effect, stirEvent nos comandos, enquete que só conta o voto do dono, KeepGame do tipo evento, tabelas eventos_vistos e eventos_marcados, anti-repetição, etapas next e plant, lendas dos itens que só acordam uma vez na economia pelo !usar em lendas.go e eventoslendas.go, tabela lendas). Carregue antes de mexer num evento, criar um novo ou ligar o gatilho num comando."
 user-invocable: false
 ---
 
@@ -148,6 +148,24 @@ um evento: o bot manda o texto da situação com a @pessoa e uma enquete com as 
   `fortune` dos efeitos dele (`ending.omen`); o que sobra pra 100% é desfecho neutro. Como o voto é achado
   pelo hash do texto da opção e os textos ficam salvos (`labels`), a leitura não atrapalha o voto nem o
   `restoreEvent`. Ela deixa o valor esperado positivo pra quem tem, e é de propósito.
+- **Lendas** (`lendas.go`, livro `legendEvents` em `eventoslendas.go`, tabela `lendas` com `chat`,
+  `evento`, `pessoa` e `acordada_em`). Evento com `item` é a lenda daquele item e só abre pelo
+  `!usar` dele, uma vez na economia toda: o `usar` chama o `awaken` logo depois de conferir que o
+  item tem `use`, e o `awaken` acha a lenda pelo `legendOf`, pula quem já tem evento pendente e
+  grava a lenda com `claimLegend` (`INSERT ... ON CONFLICT DO NOTHING`, então dois `!usar` ao mesmo
+  tempo não acordam duas vezes). Quem chega depois cai no `!usar` normal do item, que continua na
+  mochila. Se o evento não chegar a abrir (outro evento pendente na corrida, ou falha no envio), o
+  `forgetLegend` devolve a lenda. O evento sai pelo `unveil`, o mesmo final do `openEvent` (diário,
+  memória do grupo e enquete), com o `place` `legendPlace` (`!usar`), que é fechado no
+  `sealedPlaces`, então nenhum outro evento sai ali e as lendas nunca entram no sorteio normal.
+  Os efeitos de espera (`refresh`, `delay`) caem no `!trabalhar`. Lenda não tem cadeia, morte nem
+  ferramenta quebrada, pra não virar `dreadful`: quem fica parado só perde a lenda pelo `idle`. A
+  opção de abrir mão do item (libertar o gênio, devolver o tridente...) é um `uses` do próprio item.
+  O `!eventos` deixa as lendas fora das prateleiras (só uma pessoa da economia vive cada uma) e
+  mostra no fim quais ainda dormem (`sleepingLegends`, lendo o `wokenLegends`). O item da lenda
+  precisa de `keep` e `use` e mostra o `legendPerk` no `!item`; o `lendas_test.go` cobra as duas
+  coisas, uma lenda por item e que nenhuma seja `dreadful`. Lenda nova é só um `scenario` com
+  `item` no `legendEvents`.
 - **Conteúdo.** Cada livro (`eventBook`) é um arquivo `eventos*.go` com nome, `places` padrão e os
   `scenario`; o `eventBooks` em `evento.go` lista todos, e o `!eventos` agrupa o diário pelo nome do livro
   (dois livros com o mesmo nome somam). Texto usa `{@}` pra pessoa e `{alvo}` pra vítima (só em crime com

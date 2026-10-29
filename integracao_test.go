@@ -277,6 +277,29 @@ func TestFairSellsBetweenPlayers(t *testing.T) {
 	wantReply(t, b.say(chat, ana, "!feira"), "A feira tá vazia")
 }
 
+func TestLegendWakesOncePerEconomy(t *testing.T) {
+	b := newBench(t)
+	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")
+	chat := b.group("Galera", ana, bia)
+	b.setup(chat, "economia")
+	b.say(chat, b.owner, "!profissao deus")
+	b.say(chat, b.owner, "!milagre lampada 1 "+mentionTag(ana)+" "+mentionTag(bia), ana, bia)
+
+	wantReply(t, b.say(chat, ana, "!item lampada"), "guarda uma lenda")
+	if diary := wantReply(t, b.say(chat, ana, "!eventos"), "Lendas dormindo na economia"); !strings.Contains(diary, "Lâmpada mágica") {
+		t.Fatalf("antes do primeiro !usar a lâmpada devia aparecer dormindo, veio %q", diary)
+	}
+
+	wantReply(t, b.say(chat, ana, "!usar lampada"), "Evento: O gênio de verdade")
+	wantReply(t, b.say(chat, bia, "!usar lampada"), "o gênio saiu pedindo um Pix")
+	if diary := wantReply(t, b.say(chat, bia, "!eventos"), "🪔"); strings.Contains(diary, "Lâmpada mágica") {
+		t.Fatalf("depois de acordada a lâmpada não devia aparecer dormindo, veio %q", diary)
+	}
+	if ana, bia := b.held(ana, "lampada-magica"), b.held(bia, "lampada-magica"); ana != 1 || bia != 1 {
+		t.Fatalf("acordar a lenda não gasta a lâmpada: Ana ficou com %d e Bia com %d", ana, bia)
+	}
+}
+
 func TestWaitSuggestsWhatIsFree(t *testing.T) {
 	b := newBench(t)
 	ana, bia := newPerson("Ana", "5511990000002"), newPerson("Bia", "5511990000003")

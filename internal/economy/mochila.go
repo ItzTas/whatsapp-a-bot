@@ -155,6 +155,9 @@ func (b *bot) usar(ctx context.Context, evt *events.Message) error {
 	if it.use == "" {
 		return b.SendText(ctx, chat, unusableText(it))
 	}
+	if woke, err := b.awaken(ctx, evt, it); woke || err != nil {
+		return err
+	}
 	if it.high != nil {
 		return b.takeDrug(ctx, evt, it)
 	}
