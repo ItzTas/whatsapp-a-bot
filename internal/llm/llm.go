@@ -44,7 +44,11 @@ func callTool(ctx context.Context, tools []Tool, name string, input json.RawMess
 }
 
 func toolSchema(t Tool) map[string]any {
-	return map[string]any{"type": "object", "properties": toolProperties(t), "required": t.Required}
+	schema := map[string]any{"type": "object", "properties": toolProperties(t)}
+	if len(t.Required) > 0 {
+		schema["required"] = t.Required
+	}
+	return schema
 }
 
 func toolProperties(t Tool) map[string]any {
@@ -183,6 +187,7 @@ type openAIToolCall struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	} `json:"function"`
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"`
 }
 
 func (c openAIToolCall) input() json.RawMessage {
