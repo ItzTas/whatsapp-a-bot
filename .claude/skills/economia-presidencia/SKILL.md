@@ -79,7 +79,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `saleTerms`, com o `boost` (nível positivo, lido dos `decrees` da profissão, então o ditador fica
   com o bônus inteiro dele) e o `levy` do `taxLevy` (o mesmo do `cassino`, que só vale com nível
   negativo). O `sellItems` credita o total mais o bônus (moeda nova) menos o imposto, e paga o imposto
-  pelo `payLevy` na mesma transação, então o imposto acima do teto normal alimenta a revolta. O
+  pelo `payLevy` na mesma transação, então o imposto cobrado na ditadura alimenta a revolta. O
   `saleTerms.text` mostra o bônus ou o imposto, a missão de venda conta o valor bruto, e o
   `!decreto imposto venda 5` cai nele pelo `taxedRun` (`impostovenda`/`taxavenda`). A venda pra
   outra pessoa (`!vender @pessoa`), a `!feira` e o `!mercadonegro` não leem. Os de uma vez são `imposto`, `auxilio`
@@ -183,8 +183,12 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `revoltKnee`, de 0 a 1) é o quanto das vantagens do povo já vale, e a barra do `revoltLines`
   enche até o `revoltKnee`. A coluna `revolta`
   sobe no `stirRevolt` a cada imposto cobrado pro ditador, chamado pelo `payLevy` e pelo
-  `transferWithPix`, somando o `excess` do `PixLevy` (o quanto o nível passa do
-  limite normal, pelo `abuse`, também salvo no `levySave`). O `brewedRevolt` (base + tempo) e o
+  `transferWithPix`, somando o `outrage()` do `PixLevy`: o `excess` (o quanto o nível passa do
+  limite normal, pelo `abuse`) conta inteiro e, se o `tyranny` tá marcado (ditadura ligada na hora
+  do `levy`), o resto do imposto dentro do teto conta `revoltMildShare` (25%, arredondado pra cima
+  pelo `mildRevolt`, então todo imposto do ditador revolta pelo menos 1 ponto). Os dois campos vão
+  no `levySave`, e o `decreed()` diz "um pouco mais revoltado" quando só a parte dentro do teto
+  contou. O `brewedRevolt` (base + tempo) e o
   `taxedRevolt` (imposto) separam as duas origens, e o `revoltOn` devolve zero fora da ditadura.
   A terceira origem é a coluna `agitacao` (migração `00132`, também no `tyrannyColumns`), os pontos
   dos eventos da ditadura (skill `economia-eventos`): o protesto do povo soma e a repressão do ditador
@@ -252,4 +256,4 @@ Presidente, decretos, impeachment, renúncia e golpe.
   dois níveis ficam diferentes, o "em vigor" mostra os dois (`percentInForce`) e o `!renunciar` zera
   as colunas do ditador (`rulerReset`), junto da `ditadura`. Os tetos dos impostos na ditadura são
   `tyrantIncomeTaxMax` (80), `tyrantShopTaxMax` (75), `tyrantPixMax` (50), `tyrantBailTaxMax` (130),
-  `tyrantBetTaxMax` (50), `tyrantSaleTaxMax` (25) e `tyrantSavingsTaxMax` (100, todos os juros).
+  `tyrantBetTaxMax` (50), `tyrantSaleTaxMax` (10) e `tyrantSavingsTaxMax` (100, todos os juros).

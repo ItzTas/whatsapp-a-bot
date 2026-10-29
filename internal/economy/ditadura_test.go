@@ -96,7 +96,7 @@ func TestRevoltLinesShowLevelAndNextRise(t *testing.T) {
 
 	d[revoltColumn] = 100
 	lines = strings.Join(d.revoltLines(start), "\n")
-	if !strings.Contains(lines, "Vem de 10% do tempo de ditadura e 5% de imposto cobrado acima do teto\n") {
+	if !strings.Contains(lines, "Vem de 10% do tempo de ditadura e 5% dos impostos cobrados\n") {
 		t.Errorf("revolta com imposto abusivo sem a origem:\n%s", lines)
 	}
 
@@ -108,19 +108,25 @@ func TestRevoltLinesShowLevelAndNextRise(t *testing.T) {
 	}
 }
 
-func TestDecreedTaxWarnsAboutRevolt(t *testing.T) {
+func TestDecreedTaxStirsRevolt(t *testing.T) {
 	tyrant := core.Account{Key: "5511900000001@s.whatsapp.net"}
 	cases := map[string]struct {
-		levy PixLevy
-		want string
+		levy    PixLevy
+		outrage int64
+		text    string
 	}{
-		"dentro do teto":            {PixLevy{president: tyrant, percent: 20}, "por decreto"},
-		"acima do teto":             {PixLevy{president: tyrant, percent: 70, excess: 40}, "por decreto da ditadura, e o povo ficou mais revoltado 🔥"},
-		"acima do teto sem ditador": {PixLevy{percent: 70, excess: 40}, "por decreto"},
+		"sem ditadura":                {PixLevy{president: tyrant, percent: 20}, 0, "por decreto"},
+		"ditadura dentro do teto":     {PixLevy{president: tyrant, percent: 20, tyranny: true}, 5, "por decreto da ditadura, e o povo ficou um pouco mais revoltado 🔥"},
+		"ditadura com imposto mínimo": {PixLevy{president: tyrant, percent: 1, tyranny: true}, 1, "por decreto da ditadura, e o povo ficou um pouco mais revoltado 🔥"},
+		"ditadura acima do teto":      {PixLevy{president: tyrant, percent: 70, excess: 40, tyranny: true}, 48, "por decreto da ditadura, e o povo ficou mais revoltado 🔥"},
+		"acima do teto sem ditador":   {PixLevy{percent: 70, excess: 40, tyranny: true}, 48, "por decreto"},
 	}
 	for name, c := range cases {
-		if got := c.levy.decreed(); got != c.want {
-			t.Errorf("%s: %q, want %q", name, got, c.want)
+		if got := c.levy.outrage(); got != c.outrage {
+			t.Errorf("%s: revolta de %d pontos, want %d", name, got, c.outrage)
+		}
+		if got := c.levy.decreed(); got != c.text {
+			t.Errorf("%s: %q, want %q", name, got, c.text)
 		}
 	}
 }

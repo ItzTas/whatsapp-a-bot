@@ -101,6 +101,7 @@ type PixLevy struct {
 	president core.Account
 	percent   int64
 	excess    int64
+	tyranny   bool
 }
 
 var (
@@ -481,7 +482,7 @@ func (p presidency) levy(pd percentDecree, payers ...core.Account) PixLevy {
 		}
 	}
 	level := p.decrees.level(pd)
-	return PixLevy{president: p.president, percent: level, excess: pd.abuse(level)}
+	return PixLevy{president: p.president, percent: level, excess: pd.abuse(level), tyranny: p.decrees.on(tyrannyDecree)}
 }
 
 func (b *bot) decreto(ctx context.Context, evt *events.Message) error {
@@ -1121,20 +1122,21 @@ type levySave struct {
 	President core.StoredAccount `json:"president"`
 	Percent   int64              `json:"percent"`
 	Excess    int64              `json:"excess,omitempty"`
+	Tyranny   bool               `json:"tyranny,omitempty"`
 }
 
 func (l PixLevy) saved() *levySave {
 	if l.percent == 0 {
 		return nil
 	}
-	return &levySave{President: core.StoreAccount(l.president), Percent: l.percent, Excess: l.excess}
+	return &levySave{President: core.StoreAccount(l.president), Percent: l.percent, Excess: l.excess, Tyranny: l.tyranny}
 }
 
 func (s *levySave) levy() PixLevy {
 	if s == nil {
 		return PixLevy{}
 	}
-	return PixLevy{president: s.President.Account(), percent: s.Percent, excess: s.Excess}
+	return PixLevy{president: s.President.Account(), percent: s.Percent, excess: s.Excess, tyranny: s.Tyranny}
 }
 
 func (pb PrizeBoost) Levy() PixLevy {

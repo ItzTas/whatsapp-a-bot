@@ -124,7 +124,7 @@ func TestSaleDecreeSale(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := int64(tyrantSaleTaxMax - saleDecreeSwing); d[revoltColumn] != want {
+		if want := int64(tyrantSaleTaxMax-saleDecreeSwing) + mildRevolt(saleDecreeSwing); d[revoltColumn] != want {
 			t.Fatalf("revolta do imposto de venda = %d pontos, want %d", d[revoltColumn], want)
 		}
 	})

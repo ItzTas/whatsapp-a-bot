@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -19,7 +20,7 @@ const (
 	tyrantPixMax          = 50
 	tyrantBailTaxMax      = 130
 	tyrantBetTaxMax       = 50
-	tyrantSaleTaxMax      = 25
+	tyrantSaleTaxMax      = 10
 	tyrantCoupMin         = 2
 	tyrantCoupEvery       = 15 * time.Minute
 	revoltPerPoint        = 0.0005
@@ -28,6 +29,7 @@ const (
 	revoltRiseEvery       = 15 * time.Minute
 	revoltKnee            = 0.4
 	revoltSlowdown        = 0.5
+	revoltMildShare       = 0.25
 	battalionGuard        = 0.05
 	battalionTime         = 20 * time.Minute
 	armyBattalions        = 6
@@ -49,12 +51,12 @@ const (
 var (
 	tyrannyDecree = toggleDecree{
 		names: []string{"ditadura", "ditador", "estadodeexcecao", "excecao", "ai5", "autogolpe"}, column: "ditadura", emoji: "🪖",
-		effect: fmt.Sprintf("vale a ditadura: os impostos por decreto passam do teto, decreto que alivia vale inteiro pro ditador e só %d%% pro povo, não existe mais !impeachment, o !golpe precisa de só %d golpistas e pode ser tentado a cada %s, o ditador perde a imunidade, o povo vai se revoltando com o tempo e mais ainda a cada imposto abusivo cobrado e, se o ditador morrer, perde o cargo. Quem não é presidente foge da cadeia com até %d%% a mais de chance e escapa de até %d%% das prisões, mais quanto maior a revolta, e fica %s a mais com o escudo depois de ser roubado(a)",
+		effect: fmt.Sprintf("vale a ditadura: os impostos por decreto passam do teto, decreto que alivia vale inteiro pro ditador e só %d%% pro povo, não existe mais !impeachment, o !golpe precisa de só %d golpistas e pode ser tentado a cada %s, o ditador perde a imunidade, o povo vai se revoltando com o tempo e a cada imposto cobrado (bem mais quando é abusivo) e, se o ditador morrer, perde o cargo. Quem não é presidente foge da cadeia com até %d%% a mais de chance e escapa de até %d%% das prisões, mais quanto maior a revolta, e fica %s a mais com o escudo depois de ser roubado(a)",
 			tyrantPeopleShare, tyrantCoupMin, core.FormatWait(tyrantCoupEvery), percent(tyrantEscapeBonus), percent(tyrantCitizenImmunity), core.FormatWait(tyrantShelter)),
 		lasting: "🪖 Ditadura não se desfaz por decreto. Ela só acaba com o fim do mandato, com um !golpe, com a morte do ditador, com ele vendido de refém no !venderrefem ou com o !renunciar",
 		syntax:  "!decreto ditadura",
-		about: fmt.Sprintf("declara ditadura até o fim do mandato, sem volta: os impostos por decreto vão bem além do teto, decreto que alivia (imposto menor, espera menor, salário maior...) vale inteiro pro ditador e pro povo só chega %d%% da mudança, e o !impeachment deixa de existir, mas o !golpe fica mais fácil (%d golpistas, a cada %s), o ditador perde a imunidade contra !prender e !denunciar, a revolta começa em %d%%, sobe %d%% a cada %s e mais ainda a cada imposto abusivo cobrado e a cada protesto do povo nos eventos (a repressão do ditador nos eventos abaixa ela), sem limite (passando de %d%%, sobe só %d%% do ritmo), e tira esse tanto da segurança do ditador e quem matar o ditador derruba ele. Já o povo fica largado pela polícia: quem não é presidente foge da cadeia com até %d%% a mais de chance e escapa de até %d%% das prisões (quanto maior a revolta, mais perto disso) e fica %s a mais sem poder ser roubado(a) depois de um roubo. Pra se proteger, tem o !decreto exercito. Quem foi ditador num mandato não pode declarar ditadura de novo no mandato seguinte dele",
-			tyrantPeopleShare, tyrantCoupMin, core.FormatWait(tyrantCoupEvery), percent(revoltBase), percent(revoltRise), core.FormatWait(revoltRiseEvery), percent(revoltKnee), percent(revoltSlowdown), percent(tyrantEscapeBonus), percent(tyrantCitizenImmunity), core.FormatWait(tyrantShelter)),
+		about: fmt.Sprintf("declara ditadura até o fim do mandato, sem volta: os impostos por decreto vão bem além do teto, decreto que alivia (imposto menor, espera menor, salário maior...) vale inteiro pro ditador e pro povo só chega %d%% da mudança, e o !impeachment deixa de existir, mas o !golpe fica mais fácil (%d golpistas, a cada %s), o ditador perde a imunidade contra !prender e !denunciar, a revolta começa em %d%%, sobe %d%% a cada %s, um pouco a cada imposto cobrado dentro do teto normal (%d%% do peso), bem mais a cada imposto abusivo e a cada protesto do povo nos eventos (a repressão do ditador nos eventos abaixa ela), sem limite (passando de %d%%, sobe só %d%% do ritmo), e tira esse tanto da segurança do ditador e quem matar o ditador derruba ele. Já o povo fica largado pela polícia: quem não é presidente foge da cadeia com até %d%% a mais de chance e escapa de até %d%% das prisões (quanto maior a revolta, mais perto disso) e fica %s a mais sem poder ser roubado(a) depois de um roubo. Pra se proteger, tem o !decreto exercito. Quem foi ditador num mandato não pode declarar ditadura de novo no mandato seguinte dele",
+			tyrantPeopleShare, tyrantCoupMin, core.FormatWait(tyrantCoupEvery), percent(revoltBase), percent(revoltRise), core.FormatWait(revoltRiseEvery), percent(revoltMildShare), percent(revoltKnee), percent(revoltSlowdown), percent(tyrantEscapeBonus), percent(tyrantCitizenImmunity), core.FormatWait(tyrantShelter)),
 	}
 	tyrannyColumns = []string{revoltColumn, armyColumn, agitationColumn}
 	armySyntax     = "!decreto exercito 2"
@@ -145,7 +147,7 @@ func (d decrees) revoltLines(now time.Time) []string {
 		lines = append(lines, origin)
 	}
 	next := revoltRiseEvery - d.reign(now)%revoltRiseEvery
-	return append(lines, fmt.Sprintf("↳ Sobe pra %d%% em %s, e mais a cada imposto cobrado acima do teto", percent(easedRevolt(raw+revoltRise)), core.FormatWait(next)))
+	return append(lines, fmt.Sprintf("↳ Sobe pra %d%% em %s, e mais a cada imposto cobrado, bem mais se passar do teto", percent(easedRevolt(raw+revoltRise)), core.FormatWait(next)))
 }
 
 func (d decrees) revoltOrigins(now time.Time) []string {
@@ -155,7 +157,7 @@ func (d decrees) revoltOrigins(now time.Time) []string {
 		text string
 	}{
 		{true, fmt.Sprintf("%d%% do tempo de ditadura", percent(d.brewedRevolt(now)))},
-		{taxed > 0, fmt.Sprintf("%d%% de imposto cobrado acima do teto", percent(taxed))},
+		{taxed > 0, fmt.Sprintf("%d%% dos impostos cobrados", percent(taxed))},
 		{stirred > 0, fmt.Sprintf("%d%% dos protestos do povo", percent(stirred))},
 		{stirred < 0, fmt.Sprintf("menos %d%% que a repressão abafou", percent(-stirred))},
 	}
@@ -308,20 +310,34 @@ func tyrantShelterOn(ctx context.Context, tx *ledgerTx, chat types.JID, victim c
 	return tyrantShelter, nil
 }
 
+func (l PixLevy) outrage() int64 {
+	if !l.tyranny {
+		return l.excess
+	}
+	return l.excess + mildRevolt(l.percent-l.excess)
+}
+
+func mildRevolt(points int64) int64 {
+	return int64(math.Ceil(float64(max(points, 0)) * revoltMildShare))
+}
+
 func (l PixLevy) decreed() string {
-	if l.excess == 0 || !l.collected() {
+	if l.outrage() == 0 || !l.collected() {
 		return "por decreto"
+	}
+	if l.excess == 0 {
+		return "por decreto da ditadura, e o povo ficou um pouco mais revoltado 🔥"
 	}
 	return "por decreto da ditadura, e o povo ficou mais revoltado 🔥"
 }
 
 func stirRevolt(ctx context.Context, tx *ledgerTx, chat types.JID, levy PixLevy) error {
-	if levy.excess == 0 || !levy.collected() {
+	if levy.outrage() == 0 || !levy.collected() {
 		return nil
 	}
 	_, err := tx.ExecContext(ctx,
 		"UPDATE presidencias SET "+revoltColumn+" = "+revoltColumn+" + ? WHERE chat = ? AND pessoa = ?",
-		levy.excess, chat.String(), levy.president.Key,
+		levy.outrage(), chat.String(), levy.president.Key,
 	)
 	return err
 }
