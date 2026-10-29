@@ -117,3 +117,34 @@ func TestLoadedCoinDailyCap(t *testing.T) {
 		t.Fatalf("ficaram %d dias de compra guardados", days)
 	}
 }
+
+func TestLoadedCoinWinMarks(t *testing.T) {
+	ctx := context.Background()
+	chat := types.NewJID("120363000000000001", types.GroupServer)
+	s, people := jackpotWallets(t, ctx, chat, "5511900000001", "5511900000002")
+	cheater, loser := people[0], people[1]
+	now := time.Unix(time.Now().Unix(), 0)
+
+	for _, step := range []struct {
+		acc    core.Account
+		net    int64
+		rigged bool
+		marked int64
+	}{
+		{cheater, -5_000, false, 0},
+		{cheater, 200, true, 200},
+		{loser, -300, true, 0},
+	} {
+		marked, err := s.noteWinnings(ctx, chat, step.acc, step.net, step.rigged, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if marked != step.marked {
+			t.Errorf("resultado de %d com moeda viciada %v: esperava a marca de %d, deu %d", step.net, step.rigged, step.marked, marked)
+		}
+	}
+
+	if jackpot, err := freshJackpot(ctx, s.db, chat, cheater, now.Add(jackpotWindow+time.Second)); err != nil || jackpot != 0 {
+		t.Fatalf("a marca da moeda viciada acaba com a janela do prêmio, deu %d (%v)", jackpot, err)
+	}
+}

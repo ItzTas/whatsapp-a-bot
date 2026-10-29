@@ -32,6 +32,7 @@ type settledBet struct {
 	acc    core.Account
 	stake  int64
 	payout int64
+	boost  PrizeBoost
 }
 
 func (t *tiltBoard) tally(key string, before, net int64, now time.Time) bool {
@@ -58,8 +59,8 @@ func (t *tiltBoard) tally(key string, before, net int64, now time.Time) bool {
 	return true
 }
 
-func (b *bot) tallyBet(ctx context.Context, chat types.JID, acc core.Account, place string, stake, payout, balance int64) {
-	b.NoteBet(ctx, chat, acc, stake, payout)
+func (b *bot) tallyBet(ctx context.Context, chat types.JID, acc core.Account, place string, stake, payout, balance int64, boost PrizeBoost) {
+	b.NoteBet(ctx, chat, acc, stake, payout, boost)
 	if !b.tilts.tally(eventKey(chat, acc), balance+stake-payout, stake-payout, time.Now()) {
 		return
 	}
@@ -76,6 +77,6 @@ func (b *bot) tallyRound(ctx context.Context, chat types.JID, place string, bets
 			b.Client.Log.Errorf("ler saldo de %s depois do %s: %v", bet.acc.JID, place, err)
 			continue
 		}
-		b.tallyBet(ctx, chat, bet.acc, place, bet.stake, bet.payout, balance)
+		b.tallyBet(ctx, chat, bet.acc, place, bet.stake, bet.payout, balance, bet.boost)
 	}
 }

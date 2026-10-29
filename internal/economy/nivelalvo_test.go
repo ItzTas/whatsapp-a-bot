@@ -49,7 +49,7 @@ func TestMarkLevelLifecycle(t *testing.T) {
 	acc := fb.person("5511900000001")
 	fb.setBalance(t, acc, 100_000)
 
-	if _, err := fb.s.noteWinnings(fb.ctx, fb.chat, acc, 10_000, fb.now); err != nil {
+	if _, err := fb.s.noteWinnings(fb.ctx, fb.chat, acc, 10_000, false, fb.now); err != nil {
 		t.Fatal(err)
 	}
 	m, err := markOf(fb.ctx, fb.s.db, fb.chat, acc, fb.now)
@@ -70,7 +70,7 @@ func TestMarkLevelLifecycle(t *testing.T) {
 		t.Fatalf("depois que a marca vence apostar não sobe nível, deu %d→%d (%v)", from, to, err)
 	}
 	fb.exec(t, "DELETE FROM apostas_lucro WHERE chat = ? AND pessoa = ?", fb.chat.String(), acc.Key)
-	if _, err := fb.s.noteWinnings(fb.ctx, fb.chat, acc, 10_000, later); err != nil {
+	if _, err := fb.s.noteWinnings(fb.ctx, fb.chat, acc, 10_000, false, later); err != nil {
 		t.Fatal(err)
 	}
 	if m, err = markOf(fb.ctx, fb.s.db, fb.chat, acc, later); err != nil || m.jackpot == 0 || m.level != 1 {

@@ -264,7 +264,8 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   a pena aumenta `escapePenalty`. Nos dois casos o alvará é gasto. A Moeda viciada
   (`moedaviciada.go`, `loadedCoinID`) também é contrabando com `flex`: soma `loadedCoinLuck` no
   `casinoLuck` e `loadedCoinFavor` no `cheat` da profissão, que o `PlaceBet` põe no `cheat` do
-  `PrizeBoost` (e os saves do `!blackjack`, `!crash` e `!corrida` guardam). O flagra é no
+  `PrizeBoost` (e os saves do `!blackjack`, `!crash` e `!corrida` guardam). Todo ganho com ela
+  vira alvo fácil na certa (o `premio_viciado`, skill `economia-crime`). O flagra é no
   `bustCheat`, chamado pelo `PlaceBet` em toda aposta (skill `economia-crime`). Item com `daily`
   (hoje só ela, `loadedCoinDaily` = 1) tem limite de compra por pessoa e por dia no
   `!mercadonegro comprar`: o `claimDaily` soma a compra na tabela `compras_diarias` (`chat`, `dia`

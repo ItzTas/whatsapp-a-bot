@@ -227,7 +227,7 @@ func (b *bot) gamble(ctx context.Context, evt *events.Message, syntax string, pl
 	if _, err := b.SendMentions(ctx, chat, text, []types.JID{person}); err != nil {
 		return err
 	}
-	b.tallyBet(ctx, chat, acc, syntax, stake, payout+saved+refund, balance)
+	b.tallyBet(ctx, chat, acc, syntax, stake, payout+saved+refund, balance, bet.Boost)
 	return nil
 }
 

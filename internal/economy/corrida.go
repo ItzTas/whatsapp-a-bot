@@ -415,7 +415,7 @@ func (r *raceRound) settled() []settledBet {
 	defer r.mu.Unlock()
 	bets := make([]settledBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = settledBet{acc: bet.acc, stake: bet.stake}
+		bets[i] = settledBet{acc: bet.acc, stake: bet.stake, boost: bet.boost}
 		if bet.horse == r.winner {
 			bets[i].payout = r.payout(bet)
 		}

@@ -21,9 +21,9 @@ var gatherGoods = []item{
 		gear: &gear{activities: []string{"!minerar", "!vasculhar"}, moreRare: 40}},
 	{id: loadedCoinID, name: "Moeda viciada", emoji: "🪙", rarity: epic, value: 6_500, illegal: true, daily: loadedCoinDaily, aliases: []string{"moeda adulterada", "moeda de duas caras"},
 		flex: &flex{
-			effect: fmt.Sprintf("deixa os jogos do %s um pouco mais a seu favor e dá +%d%% de lucro quando ganha, mas cada aposta tem %d%% de chance de te pegarem: a aposta não vale, a moeda é apreendida, o cassino toma de %d%% a %d%% do saldo e você vai preso ou morre",
+			effect: fmt.Sprintf("deixa os jogos do %s um pouco mais a seu favor e dá +%d%% de lucro quando ganha, mas todo ganho com ela te deixa *alvo fácil* na hora, e cada aposta tem %d%% de chance de te pegarem: a aposta não vale, a moeda é apreendida, o cassino toma de %d%% a %d%% do saldo e você vai preso ou morre",
 				casinoGames, loadedCoinLuck, percent(loadedCoinCaught), loadedCoinLossMin, loadedCoinLossMax),
-			brief: fmt.Sprintf("mais chance e +%d%% de lucro nas apostas, mas pode dar cadeia ou morte", loadedCoinLuck),
+			brief: fmt.Sprintf("mais chance e +%d%% de lucro nas apostas, mas ganhar te deixa alvo fácil e pode dar cadeia ou morte", loadedCoinLuck),
 			apply: func(p Profession) Profession {
 				p.cheat += loadedCoinFavor
 				p.casinoLuck += loadedCoinLuck

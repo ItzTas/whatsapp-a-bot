@@ -51,7 +51,7 @@ func slipsArrest(ctx context.Context, q rowQuerier, chat types.JID, acc core.Acc
 	return jackpot > 0 && rand.Float64() < slip, err
 }
 
-func (s *walletStore) noteWinnings(ctx context.Context, chat types.JID, acc core.Account, net int64, now time.Time) (marked int64, err error) {
+func (s *walletStore) noteWinnings(ctx context.Context, chat types.JID, acc core.Account, net int64, rigged bool, now time.Time) (marked int64, err error) {
 	if net == 0 {
 		return 0, nil
 	}
@@ -63,7 +63,7 @@ func (s *walletStore) noteWinnings(ctx context.Context, chat types.JID, acc core
 		if err := tallyWinnings(ctx, tx, chat, acc, net, now); err != nil {
 			return err
 		}
-		if err := stashJackpot(ctx, tx, chat, acc, net, now); err != nil {
+		if err := stashJackpot(ctx, tx, chat, acc, net, rigged && net > 0, now); err != nil {
 			return err
 		}
 		if before > 0 {
@@ -90,18 +90,25 @@ func tallyWinnings(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.A
 	return err
 }
 
-func stashJackpot(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, net int64, now time.Time) error {
-	if net < jackpotMin {
+func stashJackpot(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, net int64, rigged bool, now time.Time) error {
+	if net < jackpotMin && !rigged {
 		return nil
 	}
+	since := now.Add(-jackpotWindow).Unix()
 	_, err := tx.ExecContext(ctx,
 		`UPDATE carteiras SET
 		   premio_aposta = CASE WHEN premio_aposta_em >= ? THEN premio_aposta + ? ELSE ? END,
+		   premio_viciado = CASE WHEN premio_aposta_em >= ? THEN MAX(premio_viciado, ?) ELSE ? END,
 		   premio_aposta_em = ?
 		 WHERE chat = ? AND pessoa = ?`,
-		now.Add(-jackpotWindow).Unix(), net, net, now.Unix(), chat.String(), acc.Key,
+		since, net, net, since, rigged, rigged, now.Unix(), chat.String(), acc.Key,
 	)
 	return err
+}
+
+func riggedText(person types.JID, prize int64) string {
+	return fmt.Sprintf("🎯 @%s ganhou %s na aposta com uma moeda viciada e a rua inteira viu: virou *alvo fácil* por %s. Quem tentar te !roubar ou montar uma !quadrilha pra cima de você tem %d%% a mais de chance e leva %d%% a mais. Melhor guardar no !poupar ou no !imovel depositar",
+		person.User, Coins(prize), core.FormatWait(jackpotWindow), percent(jackpotRobBonus), percent(jackpotLootBonus))
 }
 
 func markedText(person types.JID, prize int64) string {
@@ -111,17 +118,24 @@ func markedText(person types.JID, prize int64) string {
 
 func freshJackpot(ctx context.Context, q rowQuerier, chat types.JID, acc core.Account, now time.Time) (int64, error) {
 	var prize, balance, at, profit int64
+	var rigged bool
 	err := q.QueryRowContext(ctx,
-		`SELECT premio_aposta, saldo, premio_aposta_em,
+		`SELECT premio_aposta, saldo, premio_aposta_em, premio_viciado,
 		   (SELECT COALESCE(SUM(lucro), 0) FROM apostas_lucro WHERE chat = carteiras.chat AND pessoa = carteiras.pessoa AND dia >= ?)
 		 FROM carteiras WHERE chat = ? AND pessoa = ?`,
 		luckySince(now), chat.String(), acc.Key,
-	).Scan(&prize, &balance, &at, &profit)
+	).Scan(&prize, &balance, &at, &rigged, &profit)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
-	if err != nil || time.Unix(at, 0).Before(now.Add(-jackpotWindow)) || profit < jackpotMin {
+	if err != nil || time.Unix(at, 0).Before(now.Add(-jackpotWindow)) {
 		return 0, err
+	}
+	if rigged {
+		return min(prize, balance), nil
+	}
+	if profit < jackpotMin {
+		return 0, nil
 	}
 	return min(prize, balance, profit), nil
 }

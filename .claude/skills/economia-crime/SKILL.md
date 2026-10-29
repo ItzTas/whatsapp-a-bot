@@ -291,7 +291,14 @@ Cadeia, flagrante, morte, saúde e tribunal.
   prêmio pelo `freshJackpot`, que fica com o menor entre o prêmio, o saldo e o lucro de aposta dos
   últimos `luckyDays` dias, e dá zero se o prêmio venceu ou se esse lucro tá abaixo de `jackpotMin`.
   Então quem tá no prejuízo não vira alvo fácil mesmo ganhando uma aposta grande, e quem perde o
-  lucro dentro da janela perde a marca: a espera do roubo de quem
+  lucro dentro da janela perde a marca. A exceção é a Moeda viciada: o `NoteBet` recebe o
+  `PrizeBoost` da aposta (o `tallyBet`, o `settledBet` do `!crash`/`!corrida`, o `blackjackReport`
+  e o `!roleta` levam ele), e aposta ganha com `cheat` chega no `noteWinnings` como `rigged`. Aí o
+  `stashJackpot` guarda o lucro de qualquer tamanho e liga a coluna `premio_viciado` (migração
+  `00136`, que zera quando um prêmio novo começa depois da janela), e o `freshJackpot` com ela
+  ligada fica com o menor entre o prêmio e o saldo, sem olhar o `jackpotMin` nem o lucro dos
+  `luckyDays`, então todo ganho com a moeda marca na certa, e o aviso sai pelo `riggedText`.
+  Com a marca, a espera do roubo de quem
   ataca cai `jackpotWaitCut` (`jackpotPace`, lido antes do `stampOrAbuse` no `rob` e no
   `robWait` da entrada da `!quadrilha`, que acha a vítima pelo `gangVictim`), a chance ganha
   `jackpotRobBonus` (`easyMark.odds`), o alarme dela perde `jackpotAlarmCut` de chance de disparar

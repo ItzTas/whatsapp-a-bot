@@ -43,7 +43,7 @@ func noteLoss(ctx context.Context, db execer, chat types.JID, acc core.Account, 
 	return err
 }
 
-func (b *bot) NoteBet(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64) {
+func (b *bot) NoteBet(ctx context.Context, chat types.JID, acc core.Account, stake, payout int64, boost PrizeBoost) {
 	b.noteMarkLevel(ctx, chat, acc, stake)
 	if err := noteLoss(ctx, b.Wallets.db, chat, acc, lossBet, stake-payout); err != nil {
 		b.Client.Log.Warnf("anotar prejuízo de aposta de %s: %v", acc.JID, err)
@@ -51,14 +51,14 @@ func (b *bot) NoteBet(ctx context.Context, chat types.JID, acc core.Account, sta
 	if err := b.Wallets.noteStreak(ctx, chat, acc, payout-stake); err != nil {
 		b.Client.Log.Warnf("anotar série de apostas de %s: %v", acc.JID, err)
 	}
-	b.noteWinnings(ctx, chat, acc, payout-stake)
+	b.noteWinnings(ctx, chat, acc, payout-stake, boost.cheat > 0)
 	if err := b.Wallets.noteRecentWinnings(ctx, chat, acc, payout-stake, time.Now()); err != nil {
 		b.Client.Log.Warnf("anotar lucro recente na aposta de %s: %v", acc.JID, err)
 	}
 }
 
-func (b *bot) noteWinnings(ctx context.Context, chat types.JID, acc core.Account, net int64) {
-	marked, err := b.Wallets.noteWinnings(ctx, chat, acc, net, time.Now())
+func (b *bot) noteWinnings(ctx context.Context, chat types.JID, acc core.Account, net int64, rigged bool) {
+	marked, err := b.Wallets.noteWinnings(ctx, chat, acc, net, rigged, time.Now())
 	if err != nil {
 		b.Client.Log.Warnf("anotar lucro de aposta de %s: %v", acc.JID, err)
 		return
@@ -66,7 +66,11 @@ func (b *bot) noteWinnings(ctx context.Context, chat types.JID, acc core.Account
 	if marked == 0 {
 		return
 	}
-	if _, err := b.SendMentions(ctx, chat, markedText(acc.JID, marked), []types.JID{acc.JID}); err != nil {
+	text := markedText(acc.JID, marked)
+	if rigged && net > 0 {
+		text = riggedText(acc.JID, marked)
+	}
+	if _, err := b.SendMentions(ctx, chat, text, []types.JID{acc.JID}); err != nil {
 		b.Client.Log.Errorf("avisar o alvo fácil %s: %v", acc.JID, err)
 	}
 	b.offerBoost(ctx, chat, acc, marked)

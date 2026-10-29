@@ -55,7 +55,7 @@ func TestJackpotRobbery(t *testing.T) {
 		{3_000, now, 3_000},
 		{2_000, now.Add(time.Minute), 0},
 	} {
-		marked, err := s.noteWinnings(ctx, chat, gambler, step.net, step.at)
+		marked, err := s.noteWinnings(ctx, chat, gambler, step.net, false, step.at)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +87,7 @@ func TestJackpotRobbery(t *testing.T) {
 		t.Fatalf("passado o escudo curto, a marca de 5.000 continua valendo, chegou %d (%+v, %v)", seen, r, err)
 	}
 
-	if _, err := s.noteWinnings(ctx, chat, other, 4_000, now); err != nil {
+	if _, err := s.noteWinnings(ctx, chat, other, 4_000, false, now); err != nil {
 		t.Fatal(err)
 	}
 	seen = -1
@@ -117,7 +117,7 @@ func TestJackpotOnlyInProfit(t *testing.T) {
 	}
 	for i, step := range steps {
 		at := now.Add(time.Duration(i) * time.Second)
-		marked, err := s.noteWinnings(ctx, chat, gambler, step.net, at)
+		marked, err := s.noteWinnings(ctx, chat, gambler, step.net, false, at)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -155,7 +155,7 @@ func TestJackpotShortensRobWait(t *testing.T) {
 	if _, err := s.rob(ctx, chat, thief, first, cd, nil, crimeRisk{}, flagrant{}, now, robMinVictim, miss); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.noteWinnings(ctx, chat, gambler, 5_000, now); err != nil {
+	if _, err := s.noteWinnings(ctx, chat, gambler, 5_000, false, now); err != nil {
 		t.Fatal(err)
 	}
 	short := jackpotPace(cd, 1).every
@@ -182,7 +182,7 @@ func TestJackpotDeath(t *testing.T) {
 	now := time.Unix(time.Now().Unix(), 0)
 
 	for _, acc := range []core.Account{gambler, stale} {
-		if _, err := s.noteWinnings(ctx, chat, acc, 20_000, now); err != nil {
+		if _, err := s.noteWinnings(ctx, chat, acc, 20_000, false, now); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -247,7 +247,7 @@ func TestLuckyMarkAfterJackpot(t *testing.T) {
 		{fresh, 12_000, now},
 	}
 	for _, w := range wins {
-		if _, err := s.noteWinnings(ctx, chat, w.acc, w.net, w.at); err != nil {
+		if _, err := s.noteWinnings(ctx, chat, w.acc, w.net, false, w.at); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -289,7 +289,7 @@ func TestJackpotArrestSlip(t *testing.T) {
 	cop, gambler, plain := people[0], people[1], people[2]
 	now := time.Unix(time.Now().Unix(), 0)
 
-	if _, err := s.noteWinnings(ctx, chat, gambler, 20_000, now); err != nil {
+	if _, err := s.noteWinnings(ctx, chat, gambler, 20_000, false, now); err != nil {
 		t.Fatal(err)
 	}
 	for _, acc := range []core.Account{gambler, plain} {

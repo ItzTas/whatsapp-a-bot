@@ -80,6 +80,7 @@ type blackjackReport struct {
 	text   string
 	stake  int64
 	payout int64
+	boost  PrizeBoost
 	over   bool
 }
 
@@ -275,7 +276,7 @@ func (b *bot) sendBlackjack(ctx context.Context, chat types.JID, report blackjac
 	if _, err := b.SendMentions(ctx, chat, report.text+"\n💰 Saldo: "+Coins(balance), mentions); err != nil {
 		return err
 	}
-	b.tallyBet(ctx, chat, report.acc, "!blackjack", report.stake, report.payout, balance)
+	b.tallyBet(ctx, chat, report.acc, "!blackjack", report.stake, report.payout, balance, report.boost)
 	return nil
 }
 
@@ -468,7 +469,7 @@ func (h *blackjackHand) report(note string) blackjackReport {
 	}
 	payout, result := h.outcome()
 	saved := h.boost.Rescue(h.stake, payout)
-	return blackjackReport{acc: h.acc, text: board + "\n\n" + result + SavedBetText(saved), stake: h.stake, payout: payout + saved, over: true}
+	return blackjackReport{acc: h.acc, text: board + "\n\n" + result + SavedBetText(saved), stake: h.stake, payout: payout + saved, boost: h.boost, over: true}
 }
 
 func (h *blackjackHand) choices() string {

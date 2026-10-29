@@ -127,7 +127,7 @@ func (b *bot) roleta(ctx context.Context, evt *events.Message) error {
 		return err
 	}
 	if settled {
-		b.economy.NoteBet(ctx, chat, bet.acc, bet.stake, paid)
+		b.economy.NoteBet(ctx, chat, bet.acc, bet.stake, paid, bet.boost)
 	}
 	return nil
 }

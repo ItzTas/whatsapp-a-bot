@@ -281,7 +281,8 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
 - A Moeda viciada (`moedaviciada.go`, skill `economia-itens`) usa o mesmo vício a favor: o `cheat`
   do `PrizeBoost` (pontos percentuais, do `cheat` da profissão) é descontado no `edge`, então vira
   `Favor` em todos os jogos do `PlaceBet`. Ao contrário da série e da maré, ela é visível: o efeito
-  do item e os `perks()` falam que os jogos ficam a favor (sem número). Em toda aposta, depois do
+  do item e os `perks()` falam que os jogos ficam a favor (sem número) e que todo ganho com ela
+  deixa a pessoa alvo fácil na certa (o `NoteBet` recebe o `PrizeBoost`, skill `economia-crime`). Em toda aposta, depois do
   `markWarning`, o `bustCheat` sorteia o flagra com `flagrantOdds(loadedCoinCaught)`; se pegar, ele
   mesmo manda a resposta e o `PlaceBet` volta com `wager.Busted`, que todo jogo checa junto do
   `err` pra sair sem apostar nem mandar recusa.

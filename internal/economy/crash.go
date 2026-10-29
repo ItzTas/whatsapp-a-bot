@@ -435,7 +435,7 @@ func (r *crashRound) settled() []settledBet {
 	defer r.mu.Unlock()
 	bets := make([]settledBet, len(r.bets))
 	for i, bet := range r.bets {
-		bets[i] = settledBet{acc: bet.acc, stake: bet.stake, payout: bet.payout()}
+		bets[i] = settledBet{acc: bet.acc, stake: bet.stake, payout: bet.payout(), boost: bet.boost}
 	}
 	return bets
 }
