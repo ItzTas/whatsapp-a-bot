@@ -136,6 +136,9 @@ func (b *bot) usar(ctx context.Context, evt *events.Message) error {
 	person := evt.Info.Sender.ToNonAD()
 	acc := b.Account(ctx, person)
 	q := parseItemQuery(core.MessageText(evt.Message))
+	if q.name == "" && q.all {
+		return b.openAll(ctx, evt)
+	}
 	if q.name == "" {
 		return b.SendText(ctx, chat, "Diz o que quer usar: !usar todynho, !usar caixa, !usar raspadinha... Manda !mochila pra ver o que você tem")
 	}

@@ -898,6 +898,7 @@ func (b *bot) economyCommands() []core.Command {
 			Category: core.EconomyCategory,
 			Help: []core.Usage{
 				{"!usar <item>", "usa um item: come, bebe, abre caixa, raspa raspadinha... cada um faz uma coisa (veja no !item <nome>) ✨ Item de bênção (trevo, terço, olho grego...) abençoa quem usa, item de cura (curativo, kit de primeiros socorros) recupera saúde, e item de maldição se joga em alguém, tipo !usar gato preto @pessoa. Dá pra mandar !comer, !beber ou !abrir também"},
+				{"!abrir tudo", "abre de uma vez todas as caixas e baús da mochila, e se sair caixa de dentro de caixa, abre ela também 📦"},
 			},
 			Run: b.usar,
 		},

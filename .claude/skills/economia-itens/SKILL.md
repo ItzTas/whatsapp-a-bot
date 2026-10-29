@@ -347,6 +347,15 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   que sobrou do limite. No `!furtar`, ladrão que já tá no limite tira o item da vítima e joga fora
   (`dumped`). Quem já tinha mais que o limite antes dele existir fica com o que tem até o próximo
   item entrar.
+- O `!abrir tudo` (ou `!usar tudo`, `todas`, `todos`: o `parseItemQuery` liga o `all` e deixa o
+  nome vazio) cai no `openAll` (`abrirtudo.go`), que abre de uma vez todo item com `loot` da
+  mochila (caixas e baús, relíquia e Rocha celeste inclusas; raspadinha e o resto que só tem
+  `prizes` ficam de fora). A sorte é a mesma do `!usar`, lida uma vez só pelo `boxLuck`. O `unbox`
+  sorteia tudo em memória com o `roll` e, quando sai uma caixa, abre ela também (`chained`), então
+  só chegam na mochila prêmios que não são caixa. O `walletStore.openBoxes` tira as caixas e põe os
+  prêmios numa transação só (pelo `addItems`, então fragmento monta e `carry` corta igual), e falha
+  com `errNoItems` se a mochila mudou no meio. A resposta agrupa os prêmios por raridade
+  (`rarityGroups`).
 - O `resets` (zerar esperas no `!usar`) sempre vem com um `limit` (`limiter` em `itens.go`), que é
   a espera própria entre usos e os textos dela: a `caffeine` (coluna `cafeina_em`) do café, do
   energético e do chimarrão, e o `disguise` (coluna `disfarce_em`) do Kit disfarce, que zera o
