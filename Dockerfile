@@ -1,18 +1,14 @@
 FROM golang:1.27.2-alpine3.24 AS build
 
-# hadolint ignore=DL3018
-RUN apk add --no-cache gcc musl-dev
-
 WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=1 go build \
+RUN CGO_ENABLED=0 go build \
       -trimpath \
-      -tags sqlite_omit_load_extension \
-      -ldflags '-s -w -linkmode external -extldflags "-static"' \
+      -ldflags '-s -w' \
       -o /out/whatsapp-a-bot . \
     && mkdir -p /out/data
 
