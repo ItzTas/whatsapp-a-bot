@@ -76,6 +76,7 @@ func TestPrestigeWipesWealthAndKeepsTheRest(t *testing.T) {
 	fb.exec(t, "INSERT INTO poupancas (chat, pessoa, valor, juros, vence_em) VALUES (?, ?, 100, 0, 0)", chat, ana.Key)
 	fb.exec(t, "INSERT INTO acoes_posicoes (chat, pessoa, empresa, quantidade, custo) VALUES (?, ?, 'PETR', 10, 100)", chat, ana.Key)
 	fb.exec(t, "INSERT INTO empregados (chat, pessoa, tipo, coletado_em) VALUES (?, ?, 'pescador', 0)", chat, ana.Key)
+	fb.exec(t, "INSERT INTO negocios (chat, pessoa, tipo, vendido_em) VALUES (?, ?, 'boteco', 0)", chat, ana.Key)
 	fb.exec(t, "INSERT INTO implantes (chat, pessoa, parte, implante, instalado_em, pago_ate) VALUES (?, ?, 'olhos', 'x', 0, 0)", chat, ana.Key)
 	fb.exec(t, "INSERT INTO plantacoes (chat, pessoa, semente, pronta_em) VALUES (?, ?, 'x', 0)", chat, ana.Key)
 	fb.exec(t, "INSERT INTO feira_anuncios (chat, vendedor, vendedor_jid, item, quantidade, preco, expira_em) VALUES (?, ?, ?, 'x', 1, 10, 0)", chat, ana.Key, ana.JID.String())
@@ -104,7 +105,7 @@ func TestPrestigeWipesWealthAndKeepsTheRest(t *testing.T) {
 	}
 	wiped := map[string]string{
 		"inventarios": "pessoa", "guardados": "pessoa", "poupancas": "pessoa", "acoes_posicoes": "pessoa",
-		"empregados": "pessoa", "implantes": "pessoa", "plantacoes": "pessoa", "titulos": "pessoa", "feira_anuncios": "vendedor",
+		"empregados": "pessoa", "negocios": "pessoa", "implantes": "pessoa", "plantacoes": "pessoa", "titulos": "pessoa", "feira_anuncios": "vendedor",
 	}
 	for table, owner := range wiped {
 		if n := fb.count(t, table, owner, ana); n != 0 {

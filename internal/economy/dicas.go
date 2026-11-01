@@ -130,6 +130,8 @@ func economyTips() []string {
 		"Um contador no !empregados corta parte do imposto e do IPTU todo dia, sem salário e sem precisar coletar. Só vale o melhor que você tiver, então não adianta contratar dois 🧮",
 		"Empregado que produz guarda só um limite de rodadas e depois para. Manda !empregados coletar com frequência e com saldo pro salário. Sem saldo, eles trabalham fiado e a tensão sobe, e quando ela chega no limite eles entram em greve e as rodadas se perdem até você pagar o atrasado 👷",
 		"Quer renda estável no !empregados? Vai de *corretor*, que nunca volta com menos do que cobrou de salário. O *apostador* perde tudo na maioria das rodadas e só às vezes estoura 🎰",
+		"No !negocio, o preço *barato* vende o dobro e lucra mais por hora, mas o estoque acaba na metade do tempo. Quem só aparece uma vez por dia se dá melhor no *caro*: lucra menos por hora, mas o estoque dura o dobro e o negócio não fica parado 🏪",
+		"Negócio com o caixa cheio ou sem estoque para de vender e perde as vendas daquele tempo. O !negocio mostra em quanto tempo cada um vai parar, e o !negocio repor já passa o caixa pro saldo antes de comprar a mercadoria 📦",
 		"Toda área de profissão tem um *instrumento de trabalho* na !loja. Só de estar na mochila, o !trabalhar paga mais e a chance de achar item sobe. Guardado no !imovel ele não vale 🧰",
 		"Antes de trocar de profissão, manda !profissao <área> pra comparar quanto cada uma paga e o que tem de especial, ou !profissao ver <nome> pra ver uma só. A troca tem espera, então escolhe com calma 💼",
 		"Imóvel e a doutrina Caridade da igreja aumentam o !daily, e bicho do !petshop às vezes traz um item de presente. Não esquece de pegar todo dia 🎁",

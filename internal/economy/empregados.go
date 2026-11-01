@@ -447,10 +447,16 @@ func (b *bot) contratar(ctx context.Context, evt *events.Message) error {
 
 func (b *bot) coletar(ctx context.Context, evt *events.Message) error {
 	args := strings.Fields(core.FoldLetters(core.MessageText(evt.Message)))[1:]
-	if len(args) > 0 && slices.Contains([]string{"empregados", "empregado", "funcionarios", "funcionario"}, args[0]) {
-		return b.collectStaff(ctx, evt)
+	targets := map[string]core.Handler{
+		"empregados": b.collectStaff, "empregado": b.collectStaff, "funcionarios": b.collectStaff, "funcionario": b.collectStaff,
+		"negocios": b.collectVentures, "negocio": b.collectVentures, "caixa": b.collectVentures,
 	}
-	return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Fala o que você quer coletar, tipo !coletar empregados")
+	if len(args) > 0 {
+		if run, ok := targets[args[0]]; ok {
+			return run(ctx, evt)
+		}
+	}
+	return b.SendText(ctx, evt.Info.Chat.ToNonAD(), "Fala o que você quer coletar, tipo !coletar empregados ou !coletar negocios")
 }
 
 func (b *bot) hireEmployee(ctx context.Context, evt *events.Message) error {

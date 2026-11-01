@@ -140,6 +140,7 @@ func (s *walletStore) rebirth(ctx context.Context, chat types.JID, acc core.Acco
 			"poupancas":      "pessoa",
 			"acoes_posicoes": "pessoa",
 			"empregados":     "pessoa",
+			"negocios":       "pessoa",
 			"implantes":      "pessoa",
 			"plantacoes":     "pessoa",
 			"titulos":        "pessoa",
@@ -206,7 +207,7 @@ func (r prestigeRank) menu() string {
 		lines = append(lines, fmt.Sprintf("Pro prestígio %d: %s de patrimônio. Ele dá +%d%% no !trabalhar e no !daily e mais uma ⭐ no seu nome", r.level+1, Coins(prestigeCost(r.level)), prestigeBonus(r.level+1)))
 	}
 	lines = append(lines, "",
-		"🔥 Renascer apaga: saldo, poupança, cofre e imóvel, mochila e guardados, ações, empregados, implantes, títulos, horta e anúncios da !feira",
+		"🔥 Renascer apaga: saldo, poupança, cofre e imóvel, mochila e guardados, ações, empregados, negócios, implantes, títulos, horta e anúncios da !feira",
 		"✅ Fica: profissão e carreira, fama, igreja, romance, saúde e ficha",
 		"",
 	)

@@ -1,6 +1,6 @@
 ---
 name: economia-dinheiro
-description: "Mercado e patrimônio da economia (!leilao, !bolao, jogo do bicho !bicho e runAnimalGame, !agiota e dívidas, !emprestimo do banco, !acoes, imposto diário runTaxes, imóveis imovel.go e guardados, !empregados, títulos titulo.go, implantes do !implante em implante.go, obras do !doar). Carregue antes de mexer em algum desses comandos ou nas tabelas deles."
+description: "Mercado e patrimônio da economia (!leilao, !bolao, jogo do bicho !bicho e runAnimalGame, !agiota e dívidas, !emprestimo do banco, !acoes, imposto diário runTaxes, imóveis imovel.go e guardados, !empregados, negócios do !negocio em negocio.go, títulos titulo.go, implantes do !implante em implante.go, obras do !doar). Carregue antes de mexer em algum desses comandos ou nas tabelas deles."
 user-invocable: false
 ---
 
@@ -234,3 +234,33 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   monumentos com a meta dobrando (`workAt`). Doação que passa da meta segue pra próxima, e a obra
   pronta homenageia quem mais doou pra ela (`obras_concluidas`). `!doar @pessoa` continua sendo o
   `!dar`.
+- Os negócios do `!negocio` (`negocio.go`, aliases `!negocios` e `!comercio`) vivem em código
+  (`businesses`), e só o `id` vai pra coluna `tipo` da tabela `negocios` (migração `00138`, PK
+  `chat`, `pessoa`, `tipo`, então é um de cada por pessoa). Nunca renomeie um `id`: o negócio some
+  da pessoa. A linha guarda `nome` (a placa do `!negocio nome`, sem `*_~` e até `bizNameMax`),
+  `nivel` (1 a `bizTop`), `estoque`, `preco` (o `id` de um dos `pricings`, que também nunca se
+  renomeia; id desconhecido cai no `normalPricing`) e `vendido_em`. Cada negócio tem `price`,
+  `cost` (o custo de uma unidade de mercadoria) e `rate` (unidades por hora no nível 1, no preço
+  normal). O nível multiplica o ritmo pelo `boost` (+50% por nível), e o estoque (`shelf`, as
+  vendas de `bizShelfHours` no preço normal) e o caixa (`till`, o estoque cheio vendido no preço
+  normal) crescem junto. Os preços (`pricings`) mudam o ritmo (`speed`) e o preço de venda
+  (`markup`, em porcentagem do `cost`): o barato vende o dobro com mais lucro por hora e o estoque
+  acaba na metade do tempo, e o caro faz o contrário. O `cost` tem que dar moeda inteira em todo
+  `markup` (múltiplo de 5), e o lucro por hora no normal (`hourlyProfit`) se paga em mais horas
+  quanto mais caro o negócio, de 100h na barraca de limonada a 400h na concessionária (o teste
+  `TestEveryBusinessSellsForWholeCoins...` confere as duas coisas).
+  - Nada roda em segundo plano e o caixa não é guardado: o `sell` calcula na leitura quantas
+    unidades saíram desde o `vendido_em` (uma a cada `every`), limitado pelo estoque e pelo que
+    cabe no caixa, e o `vendido_em` anda só o tempo das unidades vendidas, pra não perder a
+    fração. Quando o estoque acaba ou o caixa enche, o tempo parado se perde (`idle`) e o
+    `vendido_em` vai pra agora. Toda mexida no negócio passa antes pelo `visit.cash`, que grava
+    o estoque e o `vendido_em` e põe o caixa no saldo: o `!negocio coletar` (e o
+    `!coletar negocios`) só faz isso, o `!negocio repor` depois compra até encher o estoque com o
+    que o saldo der (`restock`, a mercadoria é ralo), e o `!negocio preco`, o `!negocio melhorar`
+    e o `!negocio vender` passam pelo `tend`, que cobra ou credita a diferença com o `settle`
+    (então o caixa ajuda a pagar a reforma). Como o caixa nunca fica guardado no banco, ele fica
+    fora do `logWealth` e do patrimônio do prestígio.
+  - A compra (`openVenture`) já vem com o estoque cheio. A reforma do nível N custa
+    `upgradeCost` (`price` vezes N / 2), e o `!negocio vender` devolve `bizResale` por cento da
+    compra mais as reformas (`resale`) e o estoque vai junto. O renascer do `!prestigio` apaga os
+    negócios (`wiped`).
