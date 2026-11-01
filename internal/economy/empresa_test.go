@@ -3,13 +3,13 @@ package economy
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core/coretest"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -23,11 +23,7 @@ type firmBench struct {
 func newFirmBench(t *testing.T) firmBench {
 	t.Helper()
 	ctx := context.Background()
-	store, err := core.OpenMessageStore(ctx, filepath.Join(t.TempDir(), "mensagens.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := coretest.MessageStore(t)
 	return firmBench{
 		ctx:  ctx,
 		s:    &walletStore{db: &ledgerDB{db: store.DB}},

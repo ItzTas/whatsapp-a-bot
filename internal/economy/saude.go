@@ -136,7 +136,7 @@ func bury(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, f
 		d.hold /= 2
 	}
 	_, err = tx.ExecContext(ctx,
-		"UPDATE carteiras SET morto_ate = MAX(morto_ate, ?), saude = ?, saude_em = ? WHERE chat = ? AND pessoa = ?",
+		"UPDATE carteiras SET morto_ate = GREATEST(morto_ate, ?), saude = ?, saude_em = ? WHERE chat = ? AND pessoa = ?",
 		now.Add(d.hold).Unix(), MaxHealth, now.Unix(), chat.String(), acc.Key,
 	)
 	if err != nil {

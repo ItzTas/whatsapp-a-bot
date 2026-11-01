@@ -683,9 +683,9 @@ func (s *walletStore) hurl(ctx context.Context, chat types.JID, thrower, target 
 func grantCharm(ctx context.Context, tx *ledgerTx, chat types.JID, bearer, author core.Account, c charm, now time.Time) error {
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO encantos (chat, alvo, tipo, autor, ate, parte, bonus, teto, continuo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = MAX(encantos.ate, excluded.ate),
+		 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = GREATEST(encantos.ate, excluded.ate),
 		   parte = excluded.parte, bonus = excluded.bonus, teto = excluded.teto, continuo = excluded.continuo`,
-		chat.String(), bearer.Key, c.id, author.Key, now.Add(c.hold).Unix(), c.toll, c.boon, c.boonCap, c.lasting,
+		chat.String(), bearer.Key, c.id, author.Key, now.Add(c.hold).Unix(), c.toll, c.boon, c.boonCap, core.BoolInt(c.lasting),
 	)
 	return err
 }

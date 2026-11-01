@@ -504,7 +504,7 @@ func (s *walletStore) buyStock(ctx context.Context, chat types.JID, acc core.Acc
 		}
 		_, err = tx.ExecContext(ctx,
 			`INSERT INTO acoes_posicoes (chat, pessoa, empresa, quantidade, custo) VALUES (?, ?, ?, ?, ?)
-			 ON CONFLICT (chat, pessoa, empresa) DO UPDATE SET quantidade = quantidade + excluded.quantidade, custo = custo + excluded.custo`,
+			 ON CONFLICT (chat, pessoa, empresa) DO UPDATE SET quantidade = acoes_posicoes.quantidade + excluded.quantidade, custo = acoes_posicoes.custo + excluded.custo`,
 			chat.String(), acc.Key, company.ticker, t.shares, t.cost,
 		)
 		return err

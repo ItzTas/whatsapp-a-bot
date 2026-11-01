@@ -568,7 +568,7 @@ func swearIn(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account
 		`INSERT INTO presidencias (chat, pessoa, jid, votos, eleito_em, mandato_ate, sorteado) VALUES (?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (chat) DO UPDATE SET pessoa = excluded.pessoa, jid = excluded.jid, votos = excluded.votos,
 		 eleito_em = excluded.eleito_em, mandato_ate = excluded.mandato_ate, sorteado = excluded.sorteado, impeachment_em = 0, golpe_em = 0, golpista = 0, renunciou = 0, `+strings.Join(append(abuseChargeColumns(), decreeColumns()...), " = 0, ")+` = 0`,
-		chat.String(), acc.Key, acc.JID.String(), votes, now.Unix(), now.Add(termLength).Unix(), drawn,
+		chat.String(), acc.Key, acc.JID.String(), votes, now.Unix(), now.Add(termLength).Unix(), core.BoolInt(drawn),
 	)
 	if err != nil {
 		return err

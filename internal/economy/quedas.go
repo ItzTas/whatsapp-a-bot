@@ -37,7 +37,7 @@ func noteLoss(ctx context.Context, db execer, chat types.JID, acc core.Account, 
 	}
 	_, err := db.ExecContext(ctx,
 		`INSERT INTO prejuizos (chat, pessoa, motivo, valor) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (chat, pessoa, motivo) DO UPDATE SET valor = valor + excluded.valor`,
+		 ON CONFLICT (chat, pessoa, motivo) DO UPDATE SET valor = prejuizos.valor + excluded.valor`,
 		chat.String(), acc.Key, string(cause), amount,
 	)
 	return err

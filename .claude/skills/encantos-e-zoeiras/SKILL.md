@@ -58,15 +58,14 @@ Encantos, zoeiras pagas e as reações automáticas do bot.
     pastor e da bruxa), com `toll` (`tithePercent`), e a bênção `Multiplicação` (do padre e do
     pastor), com `boon` (`boonPercent`) e `boonCap`. O `grantCharm` grava esses campos nas colunas
     `parte`, `bonus` e `teto` de `encantos`, e quem age é o trigger `encantos_no_ganho` da
-    `carteiras` (migração `00074`), não o Go: qualquer `UPDATE` que suba o saldo de quem tem um
+    `carteiras` (migração `00012_encantos`, em PL/pgSQL), não o Go: qualquer `UPDATE` que suba o saldo de quem tem um
     desses encantos passa a `parte` do que entrou pro `autor` e credita o `bonus` (limitado ao
     `teto`) em moedas novas, tudo calculado em cima do ganho original, na mesma transação. Depois
     ele apaga os encantos usados (menos os com a coluna `continuo`, gravada pelo `lasting` do
-    encanto, hoje só o Pacto do Livro de São Cipriano, que cobra em todo ganho até o `ate`; o
-    trigger foi recriado na migração `00078`) e grava um aviso por encanto em `encantos_avisos`. Por
+    encanto, hoje só o Pacto do Livro de São Cipriano, que cobra em todo ganho até o `ate`) e grava um aviso por encanto em `encantos_avisos`. Por
     isso vale em todo caminho de dinheiro sem gancho nenhum. Um ganho que daria valor zero não gasta
-    o encanto, e os créditos do próprio trigger não disparam outro (o SQLite roda sem
-    `recursive_triggers`). Os eventos com escolha também lançam esses encantos: a Multiplicação pelo
+    o encanto, e os créditos do próprio trigger não disparam outro (o `WHEN` dele exige
+    `pg_trigger_depth() = 0`, porque no Postgres trigger dispara em cascata). Os eventos com escolha também lançam esses encantos: a Multiplicação pelo
     `enchant` e o Dízimo e o Pacto pelo `grudge`, que grava a vítima do crime como `autor` (skill
     `economia-eventos`). Encanto novo desse tipo é só usar os mesmos campos; não crie outro
     trigger no `saldo`, senão um dispara o outro. O `announcePayouts` (`ganhos.go`) entra pelo

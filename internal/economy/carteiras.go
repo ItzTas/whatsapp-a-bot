@@ -391,7 +391,7 @@ func (s *walletStore) rob(ctx context.Context, chat types.JID, thief, victim cor
 
 func jailRobber(ctx context.Context, tx *ledgerTx, chat types.JID, thief core.Account, jail time.Duration, now time.Time) (int64, error) {
 	_, err := tx.ExecContext(ctx,
-		"UPDATE carteiras SET preso_ate = MAX(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
+		"UPDATE carteiras SET preso_ate = GREATEST(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
 		now.Add(jail).Unix(), chat.String(), thief.Key,
 	)
 	if err != nil {
@@ -510,6 +510,9 @@ func (s *walletStore) inTx(ctx context.Context, fn func(tx *ledgerTx) error) (er
 			err = errors.Join(err, tx.Rollback())
 		}
 	}()
+	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtext('economia'))"); err != nil {
+		return err
+	}
 	if err = fn(tx); err != nil {
 		return err
 	}

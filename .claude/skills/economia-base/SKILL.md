@@ -204,7 +204,7 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
 - Toda aposta segue o `betRule` (`stakeRule` em `limiteaposta.go`): o `most` é o limite de uma aposta
   só, `stakeSharePercent` do saldo e nunca mais do que falta pra pessoa chegar em `betWindowCap`
   apostados nas últimas `betWindow` (2h); o `whole` é o que o `tudo`/`all` aposta, `allInSharePercent`
-  do saldo (também até o `most`). O volume vem da tabela `apostas_volume` (migração `00121`): o
+  do saldo (também até o `most`). O volume vem da tabela `apostas_volume` (migração `00006_economia`): o
   `noteWager` grava cada valor apostado, com a hora, na mesma transação que tira a aposta do saldo
   (`SettleBet`, que o `holdStake` também usa, `betOnPool` do `!bolao` e `placeAnimalBet` do
   `!bicho`), e apaga as linhas da pessoa que já saíram da janela. O `betRuleOf` soma a janela
@@ -286,7 +286,7 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `markWarning`, o `bustCheat` sorteia o flagra com `flagrantOdds(loadedCoinCaught)`; se pegar, ele
   mesmo manda a resposta e o `PlaceBet` volta com `wager.Busted`, que todo jogo checa junto do
   `err` pra sair sem apostar nem mandar recusa.
-- O prestígio (`prestigio.go`, coluna `prestigio` da `carteiras`, migração `00130`) é o renascer:
+- O prestígio (`prestigio.go`, coluna `prestigio` da `carteiras`) é o renascer:
   quem tem patrimônio (saldo + `cofre_casa` + poupança, a mesma conta do `enriquecimento.go`) de
   pelo menos `prestigeCost(nível)` (`prestigeBase` vezes `(nível + 1)²`: 5M, 20M, 45M...) manda o
   `!prestigio confirmar` e o `walletStore.rebirth` zera tudo numa transação só: apaga as linhas da

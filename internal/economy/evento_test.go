@@ -2,7 +2,6 @@ package economy
 
 import (
 	"context"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -11,7 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core/coretest"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -250,11 +249,7 @@ func checkText(t *testing.T, id, text string, victimOK bool) {
 
 func TestEventEffects(t *testing.T) {
 	ctx := context.Background()
-	store, err := core.OpenMessageStore(ctx, filepath.Join(t.TempDir(), "mensagens.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := coretest.MessageStore(t)
 	s := &walletStore{db: &ledgerDB{db: store.DB}}
 	chat := types.NewJID("120363000000000000", types.GroupServer)
 	acc := core.Account{Key: "5511900000001@s.whatsapp.net", JID: types.NewJID("5511900000001", types.DefaultUserServer)}

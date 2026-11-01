@@ -130,13 +130,13 @@ func (s *walletStore) upgradeTool(ctx context.Context, chat types.JID, acc core.
 		if err := addItems(ctx, tx, chat, acc, upgraded.id, 1); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, "UPDATE inventarios SET usos = MAX(usos, ?) WHERE chat = ? AND pessoa = ? AND item = ?",
+		_, err = tx.ExecContext(ctx, "UPDATE inventarios SET usos = GREATEST(usos, ?) WHERE chat = ? AND pessoa = ? AND item = ?",
 			wear, chat.String(), acc.Key, upgraded.id)
 		if err != nil {
 			return err
 		}
 		_, err = tx.ExecContext(ctx,
-			"INSERT OR IGNORE INTO favoritos (chat, pessoa, item) SELECT chat, pessoa, ? FROM favoritos WHERE chat = ? AND pessoa = ? AND item = ?",
+			"INSERT INTO favoritos (chat, pessoa, item) SELECT chat, pessoa, ? FROM favoritos WHERE chat = ? AND pessoa = ? AND item = ? ON CONFLICT DO NOTHING",
 			upgraded.id, chat.String(), acc.Key, base.id)
 		return err
 	})

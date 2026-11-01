@@ -205,7 +205,7 @@ func (s *walletStore) donate(ctx context.Context, chat types.JID, acc core.Accou
 func recordDonation(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, level int, amount int64) error {
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO obras_doacoes (chat, nivel, pessoa, jid, valor) VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT (chat, nivel, pessoa) DO UPDATE SET valor = valor + excluded.valor, jid = excluded.jid`,
+		 ON CONFLICT (chat, nivel, pessoa) DO UPDATE SET valor = obras_doacoes.valor + excluded.valor, jid = excluded.jid`,
 		chat.String(), level, acc.Key, acc.JID.String(), amount,
 	)
 	return err

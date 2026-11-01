@@ -47,7 +47,7 @@ func (s *memoryStore) save(ctx context.Context, chat types.JID, text string) (bo
 func (s *memoryStore) search(ctx context.Context, chat types.JID, text string) (memories []iaMemory, err error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, texto, criada_em FROM ia_memorias
-		 WHERE chat = ? AND instr(lower(texto), lower(?)) > 0
+		 WHERE chat = ? AND strpos(lower(texto), lower(?)) > 0
 		 ORDER BY criada_em DESC, id DESC`,
 		chat.String(), text,
 	)

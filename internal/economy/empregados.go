@@ -53,7 +53,7 @@ const (
 	payrollPatience = 3
 )
 
-var staffKinds = "COALESCE((SELECT GROUP_CONCAT(w.tipo) FROM empregados w WHERE w.chat = c.chat AND w.pessoa = c.pessoa AND (w.coletado_em > unixepoch() OR w.tipo NOT IN (" + payrollIDs() + "))), '')"
+var staffKinds = "COALESCE((SELECT string_agg(w.tipo, ',') FROM empregados w WHERE w.chat = c.chat AND w.pessoa = c.pessoa AND (w.coletado_em > floor(extract(epoch FROM now())) OR w.tipo NOT IN (" + payrollIDs() + "))), '')"
 
 var staff = []employee{
 	{id: "pescador-aprendiz", name: "Pescador aprendiz", emoji: "🎣", activity: "!pescar", price: 3_300, wage: 10, every: 30 * time.Minute, stock: 24, gradeLuck: -1},

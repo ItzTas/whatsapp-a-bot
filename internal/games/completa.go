@@ -225,7 +225,7 @@ func (s *messageStore) completaQuotes(ctx context.Context, chat types.JID, limit
 
 func (s *messageStore) markCompletaUsed(ctx context.Context, chat types.JID, messageID string) error {
 	_, err := s.DB.ExecContext(ctx,
-		"INSERT OR IGNORE INTO completa_usadas (chat, mensagem) VALUES (?, ?)",
+		"INSERT INTO completa_usadas (chat, mensagem) VALUES (?, ?) ON CONFLICT DO NOTHING",
 		chat.String(), messageID,
 	)
 	return err

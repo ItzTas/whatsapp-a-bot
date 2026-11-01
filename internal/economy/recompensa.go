@@ -125,7 +125,7 @@ func (s *walletStore) postBounty(ctx context.Context, chat types.JID, poster, ta
 		}
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO recompensas (chat, alvo, autor, valor, em) VALUES (?, ?, ?, ?, ?)
-			 ON CONFLICT (chat, alvo, autor) DO UPDATE SET valor = valor + excluded.valor, em = excluded.em`,
+			 ON CONFLICT (chat, alvo, autor) DO UPDATE SET valor = recompensas.valor + excluded.valor, em = excluded.em`,
 			chat.String(), target.Key, poster.Key, amount, now.Unix(),
 		)
 		if err != nil {
@@ -163,7 +163,7 @@ func (s *walletStore) bounties(ctx context.Context, chat types.JID, limit int) (
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT c.jid, SUM(r.valor) AS total FROM recompensas r
 		 JOIN carteiras c ON c.chat = r.chat AND c.pessoa = r.alvo
-		 WHERE r.chat = ? GROUP BY r.alvo ORDER BY total DESC LIMIT ?`,
+		 WHERE r.chat = ? GROUP BY r.alvo, c.jid ORDER BY total DESC LIMIT ?`,
 		chat.String(), limit,
 	)
 	if err != nil {

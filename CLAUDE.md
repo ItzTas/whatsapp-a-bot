@@ -21,17 +21,24 @@ usam.
 ## Comandos
 
 ```bash
-go build -o whatsapp-a-bot .   # precisa de CGO (go-sqlite3), então gcc instalado
+go build -o whatsapp-a-bot .
 go vet ./...                   # é o único check que o CI roda
 go tool air                    # hot reload; o air é declarado como `tool` no go.mod
 docker build -t whatsapp-a-bot .
 ```
 
 - `go test ./...` roda os testes. Os de integração ficam na raiz (`integracao_test.go`) e montam o
-  bot inteiro pelo mesmo `assemble` do `main.go`, com bancos SQLite temporários e um WhatsApp falso
+  bot inteiro pelo mesmo `assemble` do `main.go`, com um banco Postgres temporário e um WhatsApp falso
   (`bancada_test.go`): o `say` manda uma mensagem pelo `HandleMessage` e devolve o que o bot
-  respondeu, e o `restart` sobe outro bot em cima dos mesmos bancos. Erro no log do bot reprova o
-  teste. A troca funciona porque o `b.Client` é um `core.Client` (`internal/core/cliente.go`), que
+  respondeu, e o `restart` sobe outro bot em cima do mesmo banco. Erro no log do bot reprova o
+  teste.
+- Os testes que usam banco passam pelo `internal/core/coretest`: o `TestMain` do pacote
+  (`banco_test.go`) chama o `coretest.Run`, que sobe um Postgres descartável com o `initdb` e o
+  `postgres` da máquina (num diretório em `/tmp`, morto junto com o processo do teste) e migra um
+  banco `modelo` uma vez só. Cada teste pega um banco novo, copiado do modelo, com o
+  `coretest.Database(t)` (endereço) ou o `coretest.MessageStore(t)` (store aberto). Com
+  `TEST_DATABASE_URL` definido, ele usa esse servidor em vez de subir um. Pacote novo com teste de
+  banco precisa do próprio `banco_test.go`. A troca funciona porque o `b.Client` é um `core.Client` (`internal/core/cliente.go`), que
   embute o `*whatsmeow.Client` e manda as chamadas de rede pela interface `Network`; chamada de
   rede nova que o bot passar a usar entra nessa interface.
 - Pra testar a versão localmente, gere o arquivo que o CI gera:
@@ -45,6 +52,8 @@ docker build -t whatsapp-a-bot .
 
 ## Configuração (variáveis de ambiente)
 
+- `DATABASE_URL`: endereço do Postgres (`postgres://usuario:senha@host:5432/banco`). O bot e a
+  sessão do `whatsmeow` usam o mesmo banco. Sem ele o bot não sobe.
 - `BOT_DONO`: números dos donos, separados por vírgula. Sem ele ninguém consegue usar os
   comandos de dono (`!modo`, `!blacklist`, `!whitelist`, `!economia`).
 - `LLM_PROVIDER_{API,URL,KEY,MODEL}`: modelo principal da IA (padrão `anthropic`), com cota por
@@ -84,7 +93,7 @@ docker build -t whatsapp-a-bot .
 - Só é exportado o que outro pacote usa. Isso vale também pro método de uma interface do `core`
   implementada num módulo, como o `Vote` das enquetes: método minúsculo de outro pacote não
   satisfaz a interface, e o type assertion falha em silêncio.
-- `games`, `stats`, `jokes` e `ai` têm consultas próprias no `mensagens.db`, e por isso embrulham
+- `games`, `stats`, `jokes` e `ai` têm consultas próprias na tabela `mensagens`, e por isso embrulham
   o `core.MessageStore` num `messageStore` local (o `b.messages`) com os métodos delas. Consulta
   que mais de um módulo usa vai pro `core`.
 - O `//go:embed` só lê pastas do próprio pacote, por isso `migracoes/`, `assets/` e `figurinhas/`
@@ -110,7 +119,7 @@ uma goroutine em `Bot.HandleMessage` (`internal/core/bot.go`), que segue esta or
    privadas continuam passando pelo filtro.
 2. `allowed` aplica blacklist/whitelist de grupos e pessoas. **O modo padrão é `whitelist`**
    (`filterDefault`), então numa instalação nova o bot ignora tudo até o dono liberar.
-3. A mensagem é gravada no `mensagens.db` (é dela que saem ranking, medidores, IA, etc.). Depois
+3. A mensagem é gravada na tabela `mensagens` (é dela que saem ranking, medidores, IA, etc.). Depois
    os reatores (`AddReactor`) tentam reagir, e o primeiro que reagir encerra: o `reactIfMarked`
    da `jokes` vem antes do `reactToAilments` da `economy`. O `AddAfterMessage` (o
    `settleMissions`, o `announceAssemblies`, o `announcePayouts`, o `offerBreakouts` e o `offerTip`) roda no fim, com `defer`.
@@ -198,11 +207,25 @@ conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderaç
 
 ### Estado e persistência
 
-- **Dois bancos SQLite**: `sessao.db` é a sessão do `whatsmeow` (não mexa no schema) e
-  `mensagens.db` é o banco do bot.
-- O schema do `mensagens.db` vem das migrações `goose` em `internal/core/migracoes/` (embutidas via
-  `//go:embed` e aplicadas na inicialização). Mudança de schema = novo arquivo numerado
-  `0000N_nome.sql` com `-- +goose Up`/`Down`; nunca edite uma migração existente.
+- **Um banco Postgres** (o do `DATABASE_URL`) guarda tudo: as tabelas `whatsmeow_*` são a sessão
+  do `whatsmeow`, que cuida do próprio schema (não mexa nelas), e o resto é do bot.
+- O schema do bot vem das migrações `goose` em `internal/core/migracoes/` (embutidas via
+  `//go:embed` e aplicadas na inicialização), uma por assunto (`00001_mensagens.sql` até
+  `00012_encantos.sql`). Mudança de schema = novo arquivo numerado `0000N_nome.sql` com
+  `-- +goose Up`/`Down`; nunca edite uma migração existente. Inteiro é sempre `BIGINT` (o código
+  usa `int64`), tempo é segundo unix em `BIGINT`, e flag é `BIGINT` com 0/1 (o pgx não converte
+  `bool` do Go em número: passe `core.BoolInt(x)`). Função ou trigger com `;` no corpo vai entre
+  `-- +goose StatementBegin`/`StatementEnd`.
+- As consultas são escritas com `?`, e o `core.OpenDatabase` (`banco.go`) troca por `$1`, `$2`...
+  antes de mandar pro Postgres; consulta que já vem com `$N` passa reto. O SQL é do Postgres:
+  `GREATEST`/`LEAST` em vez do `MAX`/`MIN` de dois valores, `ON CONFLICT DO NOTHING` em vez de
+  `INSERT OR IGNORE`, `string_agg` em vez de `GROUP_CONCAT`, toda coluna do `SELECT` no
+  `GROUP BY`, e no `DO UPDATE SET` de um upsert a coluna antiga vem com o nome da tabela
+  (`saldo = carteiras.saldo + excluded.saldo`). `SUM` de `BIGINT` volta `NUMERIC`, que o Go lê
+  num `int64` sem problema.
+- As transações da economia (`walletStore.inTx`) pegam a trava `pg_advisory_xact_lock` antes de
+  tudo e rodam uma de cada vez, então ler e depois gravar dentro delas é seguro. O resto do bot
+  roda em paralelo, e espera de trava desiste em 5 segundos (`lock_timeout`).
 - Cada domínio tem um `*Store` com acesso ao mesmo `*sql.DB`, criado no `New` do módulo dono e
   pendurado no `bot` dele (o `walletStore` é da `economy`, o `quizStore` da `games`). O que mais
   de um módulo usa fica no `core.Bot` (`Relationships`, `Adoptions`, `Nicknames`, `Names` e
@@ -214,9 +237,9 @@ conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderaç
   `bot` do módulo e se perde ao reiniciar. Jogos que seguram moedas no meio da rodada (`!blackjack`,
   `!crash`, `!corrida`) descontam a aposta na hora em que ela é feita e pagam no fim. O `!jokenpo`
   não vale moeda nenhuma, nem contra o bot nem no desafio.
-- O `mensagens.db` guarda no máximo 2 anos ou 1 milhão de mensagens (`mensagens.go`), com poda
+- A tabela `mensagens` guarda no máximo 2 anos ou 1 milhão de mensagens (`mensagens.go`), com poda
   periódica.
-- O `!retrospectiva`, o `!horario` e o `!primeiramsg` leem só o `mensagens.db` e o `risadas`, sem
+- O `!retrospectiva`, o `!horario` e o `!primeiramsg` leem só as tabelas `mensagens` e `risadas`, sem
   tabela própria. As horas usam o fuso `core.BrazilTime`, aplicado no SQL (`statsZoneOffset`). A
   "parceria de papo" sai de mensagens seguidas no chat (até 5 minutos entre elas, via `LAG`),
   porque o banco não guarda resposta nem marcação.

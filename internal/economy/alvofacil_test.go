@@ -2,21 +2,17 @@ package economy
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core/coretest"
 	"go.mau.fi/whatsmeow/types"
 )
 
 func jackpotWallets(t *testing.T, ctx context.Context, chat types.JID, people ...string) (*walletStore, []core.Account) {
 	t.Helper()
-	store, err := core.OpenMessageStore(ctx, filepath.Join(t.TempDir(), "mensagens.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := coretest.MessageStore(t)
 	s := &walletStore{db: &ledgerDB{db: store.DB}}
 	accounts := make([]core.Account, len(people))
 	for i, n := range people {

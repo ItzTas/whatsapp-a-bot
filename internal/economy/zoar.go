@@ -246,7 +246,7 @@ func (s *walletStore) prank(ctx context.Context, o prankOrder, target core.Accou
 		var end int64
 		err := tx.QueryRowContext(ctx,
 			`INSERT INTO zoeiras (chat, alvo, tipo, autor, ate) VALUES (?, ?, ?, ?, ?)
-			 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = MAX(zoeiras.ate, ?) + ?
+			 ON CONFLICT (chat, alvo, tipo) DO UPDATE SET autor = excluded.autor, ate = GREATEST(zoeiras.ate, ?) + ?
 			 RETURNING ate`,
 			o.chat.String(), target.Key, kind, o.payer.String(), o.now.Add(hold).Unix(), o.now.Unix(), int64(hold.Seconds()),
 		).Scan(&end)

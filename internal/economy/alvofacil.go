@@ -84,7 +84,7 @@ func tallyWinnings(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.A
 	}
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO apostas_lucro (chat, pessoa, dia, lucro) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (chat, pessoa, dia) DO UPDATE SET lucro = lucro + excluded.lucro`,
+		 ON CONFLICT (chat, pessoa, dia) DO UPDATE SET lucro = apostas_lucro.lucro + excluded.lucro`,
 		chat.String(), acc.Key, now.In(core.BrazilTime).Format(time.DateOnly), net,
 	)
 	return err
@@ -98,10 +98,10 @@ func stashJackpot(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Ac
 	_, err := tx.ExecContext(ctx,
 		`UPDATE carteiras SET
 		   premio_aposta = CASE WHEN premio_aposta_em >= ? THEN premio_aposta + ? ELSE ? END,
-		   premio_viciado = CASE WHEN premio_aposta_em >= ? THEN MAX(premio_viciado, ?) ELSE ? END,
+		   premio_viciado = CASE WHEN premio_aposta_em >= ? THEN GREATEST(premio_viciado, ?) ELSE ? END,
 		   premio_aposta_em = ?
 		 WHERE chat = ? AND pessoa = ?`,
-		since, net, net, since, rigged, rigged, now.Unix(), chat.String(), acc.Key,
+		since, net, net, since, core.BoolInt(rigged), core.BoolInt(rigged), now.Unix(), chat.String(), acc.Key,
 	)
 	return err
 }

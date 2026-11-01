@@ -605,7 +605,7 @@ func (s *walletStore) smuggle(ctx context.Context, chat types.JID, acc core.Acco
 func jailSmuggler(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Account, jail time.Duration, now time.Time) (r raid, err error) {
 	r.raided, r.jail = true, jail
 	_, err = tx.ExecContext(ctx,
-		"UPDATE carteiras SET preso_ate = MAX(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
+		"UPDATE carteiras SET preso_ate = GREATEST(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
 		now.Add(jail).Unix(), chat.String(), acc.Key,
 	)
 	if err != nil {

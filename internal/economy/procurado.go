@@ -163,7 +163,7 @@ func (s wantedSuspect) weight() int {
 func wantedSuspects(ctx context.Context, tx *ledgerTx, chat types.JID, now time.Time) (suspects []wantedSuspect, err error) {
 	rows, err := tx.QueryContext(ctx,
 		`SELECT pessoa, jid, saldo FROM carteiras
-		 WHERE chat = ? AND morto_ate <= ? AND MAX(daily_em, trabalho_em, roubo_em) >= ?`,
+		 WHERE chat = ? AND morto_ate <= ? AND GREATEST(daily_em, trabalho_em, roubo_em) >= ?`,
 		chat.String(), now.Unix(), now.Add(-wantedActive).Unix(),
 	)
 	if err != nil {

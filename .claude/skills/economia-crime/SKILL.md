@@ -238,8 +238,9 @@ Cadeia, flagrante, morte, saúde e tribunal.
   respondida, o autor da mensagem respondida (menos o próprio bot), o primeiro `@número` digitado, o
   número da economia (`personNumbered` em `numero.go`, só quando o `#N` é a primeira palavra depois
   do comando, pra não brigar com o `#12` de item do `!furtar`) e, por último, o nome (`personNamed`):
-  o número vem da tabela `numeros` (`chat`, `pessoa`, `numero`, migração `00134`), que o trigger
-  `numero_na_carteira` preenche com o próximo da economia a cada carteira nova e nunca apaga, então
+  o número vem da tabela `numeros` (`chat`, `pessoa`, `numero`, migração `00006_economia`), que o trigger
+  `numero_na_carteira` preenche com o próximo da economia a cada carteira nova (com uma trava
+  `pg_advisory_xact_lock` por conversa, pra duas carteiras novas não pegarem o mesmo número) e nunca apaga, então
   ele é fixo e vale pra quem saiu do grupo; o `!saldo` e o `!ricos` mostram ele. No nome, é o começo do texto depois do comando comparado com os nomes do
   `!nome` (inclusive os automáticos) e os `!apelido` da conversa, sem acento e sem maiúscula, ficando
   com o nome mais comprido que bate. O `target.rest` é o texto sem o nome, que o `!furtar` usa pra
@@ -297,8 +298,8 @@ Cadeia, flagrante, morte, saúde e tribunal.
   lucro dentro da janela perde a marca. A exceção é a Moeda viciada: o `NoteBet` recebe o
   `PrizeBoost` da aposta (o `tallyBet`, o `settledBet` do `!crash`/`!corrida`, o `blackjackReport`
   e o `!roleta` levam ele), e aposta ganha com `cheat` chega no `noteWinnings` como `rigged`. Aí o
-  `stashJackpot` guarda o lucro de qualquer tamanho e liga a coluna `premio_viciado` (migração
-  `00136`, que zera quando um prêmio novo começa depois da janela), e o `freshJackpot` com ela
+  `stashJackpot` guarda o lucro de qualquer tamanho e liga a coluna `premio_viciado` (da
+  `carteiras`, que zera quando um prêmio novo começa depois da janela), e o `freshJackpot` com ela
   ligada fica com o menor entre o prêmio e o saldo, sem olhar o `jackpotMin` nem o lucro dos
   `luckyDays`, então todo ganho com a moeda marca na certa, e o aviso sai pelo `riggedText`.
   Com a marca, a espera do roubo de quem

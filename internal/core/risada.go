@@ -75,8 +75,8 @@ func (s *MessageStore) recordLaugh(ctx context.Context, evt *events.Message, tex
 		return err
 	}
 	_, err = s.DB.ExecContext(ctx,
-		`INSERT OR IGNORE INTO risadas (chat, id, quem_riu, alvo, alvo_alt, mensagem_alvo, enviada_em)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO risadas (chat, id, quem_riu, alvo, alvo_alt, mensagem_alvo, enviada_em)
+		 VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
 		evt.Info.Chat.ToNonAD().String(), evt.Info.ID, evt.Info.Sender.User, l.target, l.targetAlt, l.targetMsg, evt.Info.Timestamp.Unix(),
 	)
 	return err

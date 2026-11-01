@@ -489,7 +489,7 @@ func (s *walletStore) sellHostage(ctx context.Context, chat types.JID, seller, s
 	err = s.inTx(ctx, func(tx *ledgerTx) error {
 		var until int64
 		err := tx.QueryRowContext(ctx,
-			"UPDATE sequestros SET sequestrador = NULL, ate = MIN(ate, ?) WHERE chat = ? AND refem = ? AND sequestrador = ? AND ate > ? RETURNING ate",
+			"UPDATE sequestros SET sequestrador = NULL, ate = LEAST(ate, ?) WHERE chat = ? AND refem = ? AND sequestrador = ? AND ate > ? RETURNING ate",
 			now.Add(soldHostageHold).Unix(), chat.String(), sold.Key, seller.Key, now.Unix(),
 		).Scan(&until)
 		if errors.Is(err, sql.ErrNoRows) {

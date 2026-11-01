@@ -323,7 +323,7 @@ func (s *messageStore) usedCharacters(ctx context.Context, chat types.JID) (ids 
 
 func (s *messageStore) markCharacterUsed(ctx context.Context, chat types.JID, id int) error {
 	_, err := s.DB.ExecContext(ctx,
-		"INSERT OR IGNORE INTO personagens_usados (chat, personagem) VALUES (?, ?)",
+		"INSERT INTO personagens_usados (chat, personagem) VALUES (?, ?) ON CONFLICT DO NOTHING",
 		chat.String(), id,
 	)
 	return err

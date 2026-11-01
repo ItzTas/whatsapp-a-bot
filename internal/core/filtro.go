@@ -157,7 +157,7 @@ func (s *filterStore) rename(ctx context.Context, id types.JID, name string) err
 }
 
 func (s *filterStore) listed(ctx context.Context, list string) (entries map[string][]filterEntry, err error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT alvo, id, nome FROM filtro_listas WHERE lista = ? ORDER BY rowid", list)
+	rows, err := s.db.QueryContext(ctx, "SELECT alvo, id, nome FROM filtro_listas WHERE lista = ? ORDER BY ordem", list)
 	if err != nil {
 		return nil, err
 	}

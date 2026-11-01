@@ -239,7 +239,7 @@ func stepMission(ctx context.Context, tx *ledgerTx, chat types.JID, step mission
 	}
 	var got, target int64
 	err = tx.QueryRowContext(ctx,
-		`UPDATE missoes SET progresso = MIN(progresso + ?, meta)
+		`UPDATE missoes SET progresso = LEAST(progresso + ?, meta)
 		 WHERE chat = ? AND pessoa = ? AND dia = ? AND missao = ? AND progresso < meta
 		 RETURNING progresso, meta`,
 		step.amount, chat.String(), step.acc.Key, step.day, step.mission.goal.id,

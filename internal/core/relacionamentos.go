@@ -97,13 +97,13 @@ type Relationship struct {
 func (s *relationshipStore) Add(ctx context.Context, chat types.JID, kind RelationshipKind, couple [2]types.JID, at time.Time, consented bool) error {
 	_, err := s.db.ExecContext(ctx,
 		"INSERT INTO relacionamentos (chat, tipo, pessoa1, pessoa2, desde, consentido) VALUES (?, ?, ?, ?, ?, ?)",
-		chat.ToNonAD().String(), string(kind), couple[0].ToNonAD().String(), couple[1].ToNonAD().String(), at.Unix(), consented,
+		chat.ToNonAD().String(), string(kind), couple[0].ToNonAD().String(), couple[1].ToNonAD().String(), at.Unix(), BoolInt(consented),
 	)
 	return err
 }
 
 func (s *relationshipStore) Confirm(ctx context.Context, r Relationship) error {
-	_, err := s.db.ExecContext(ctx, "UPDATE relacionamentos SET consentido = 1 WHERE rowid = ?", r.id)
+	_, err := s.db.ExecContext(ctx, "UPDATE relacionamentos SET consentido = 1 WHERE id = ?", r.id)
 	return err
 }
 
@@ -112,7 +112,7 @@ func (s *relationshipStore) Remove(ctx context.Context, relationships []Relation
 	for i, r := range relationships {
 		ids[i] = r.id
 	}
-	_, err := s.db.ExecContext(ctx, "DELETE FROM relacionamentos WHERE rowid IN ("+SQLPlaceholders(len(ids))+")", ids...)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM relacionamentos WHERE id IN ("+SQLPlaceholders(len(ids))+")", ids...)
 	return err
 }
 
@@ -122,7 +122,7 @@ func (s *relationshipStore) InChat(ctx context.Context, chat types.JID, kinds ..
 		args = append(args, string(k))
 	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT rowid, tipo, pessoa1, pessoa2, desde, consentido FROM relacionamentos WHERE chat = ? AND tipo IN ("+SQLPlaceholders(len(kinds))+") ORDER BY desde",
+		"SELECT id, tipo, pessoa1, pessoa2, desde, consentido FROM relacionamentos WHERE chat = ? AND tipo IN ("+SQLPlaceholders(len(kinds))+") ORDER BY desde",
 		args...,
 	)
 	if err != nil {

@@ -3,20 +3,16 @@ package economy
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core/coretest"
 	"go.mau.fi/whatsmeow/types"
 )
 
 func TestVest(t *testing.T) {
 	ctx := context.Background()
-	store, err := core.OpenMessageStore(ctx, filepath.Join(t.TempDir(), "mensagens.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := coretest.MessageStore(t)
 	s := &walletStore{db: &ledgerDB{db: store.DB}}
 	chat := types.NewJID("120363000000000001", types.GroupServer)
 	victim := core.Account{Key: "5511900000001@s.whatsapp.net", JID: types.NewJID("5511900000001", types.DefaultUserServer)}
@@ -45,7 +41,7 @@ func TestVest(t *testing.T) {
 		})
 	}
 
-	err = within(t, func(tx *ledgerTx) error {
+	err := within(t, func(tx *ledgerTx) error {
 		saved, torn, err := wearVest(ctx, tx, chat, victim)
 		if saved || torn {
 			t.Errorf("sem colete na mochila não tem o que segurar, deu saved=%v torn=%v", saved, torn)

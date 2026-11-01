@@ -313,14 +313,14 @@ func (s *messageStore) chatPartners(ctx context.Context, chat types.JID, users [
 		          LAG(remetente_alt) OVER w AS antes_alt,
 		          LAG(enviada_em) OVER w AS antes_em
 		   FROM mensagens
-		   WHERE chat = :chat AND enviada_em >= :since AND enviada_em < :until
+		   WHERE chat = $1 AND enviada_em >= $2 AND enviada_em < $3
 		   WINDOW w AS (ORDER BY enviada_em)
 		 ), pares AS (
 		   SELECT remetente, remetente_alt, antes, antes_alt,
-		          (remetente IN (:a, :b) OR remetente_alt IN (:a, :b)) AS eu_agora,
-		          (antes IN (:a, :b) OR antes_alt IN (:a, :b)) AS eu_antes
+		          (remetente IN ($4, $5) OR remetente_alt IN ($4, $5)) AS eu_agora,
+		          (antes IN ($4, $5) OR antes_alt IN ($4, $5)) AS eu_antes
 		   FROM seq
-		   WHERE antes IS NOT NULL AND enviada_em - antes_em <= :reach
+		   WHERE antes IS NOT NULL AND enviada_em - antes_em <= $6
 		 )
 		 SELECT CASE WHEN eu_agora THEN antes ELSE remetente END,
 		        CASE WHEN eu_agora THEN antes_alt ELSE remetente_alt END,
@@ -328,8 +328,7 @@ func (s *messageStore) chatPartners(ctx context.Context, chat types.JID, users [
 		 FROM pares
 		 WHERE eu_agora <> eu_antes
 		 GROUP BY 1, 2`,
-		sql.Named("chat", chat.String()), sql.Named("since", since), sql.Named("until", until),
-		sql.Named("a", users[0]), sql.Named("b", users[len(users)-1]), sql.Named("reach", int64(retroChatReach.Seconds())),
+		chat.String(), since, until, users[0], users[len(users)-1], int64(retroChatReach.Seconds()),
 	)
 }
 

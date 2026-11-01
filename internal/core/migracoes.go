@@ -17,7 +17,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	provider, err := goose.NewProvider(goose.DialectSQLite3, db, dir)
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, dir)
 	if err != nil {
 		return err
 	}

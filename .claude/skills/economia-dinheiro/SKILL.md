@@ -74,7 +74,7 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
     em paralelo no `trabalhar`, e `garnishPay` → `settleDebt`, o mesmo miolo do `repayDebt`); com
     mais de um credor desses, só o de vencimento mais antigo desconta.
 - O `!emprestimo` (`emprestimo.go`) é o empréstimo do banco: o bot empresta moedas novas e as
-  moedas pagas de volta somem (ralo). Fica na tabela `emprestimos` (refeita na migração `00080`),
+  moedas pagas de volta somem (ralo). Fica na tabela `emprestimos`,
   um por pessoa por conversa, e reaproveita o `debt` do `!agiota` sem credor (o `lender` fica
   vazio), então os juros compostos também saem do `debt.accrued`: `loanRate` por dia até o
   `vence_em` e `loanLateRate` depois. O limite (`loanLimit`) é o `max` do `!trabalhar` da
@@ -235,7 +235,7 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   pronta homenageia quem mais doou pra ela (`obras_concluidas`). `!doar @pessoa` continua sendo o
   `!dar`.
 - Os negócios do `!negocio` (`negocio.go`, aliases `!negocios` e `!comercio`) vivem em código
-  (`businesses`), e só o `id` vai pra coluna `tipo` da tabela `negocios` (migração `00138`, PK
+  (`businesses`), e só o `id` vai pra coluna `tipo` da tabela `negocios` (migração `00010_dinheiro`, PK
   `chat`, `pessoa`, `tipo`, então é um de cada por pessoa). Nunca renomeie um `id`: o negócio some
   da pessoa. A linha guarda `nome` (a placa do `!negocio nome`, sem `*_~` e até `bizNameMax`),
   `nivel` (1 a `bizTop`), `estoque`, `preco` (o `id` de um dos `pricings`, que também nunca se

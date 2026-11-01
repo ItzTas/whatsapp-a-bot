@@ -3,14 +3,13 @@ package economy
 import (
 	"context"
 	"crypto/sha256"
-	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 	"unicode/utf8"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core/coretest"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -174,11 +173,7 @@ func checkVoteOdds(t *testing.T, id string, ch choice) {
 
 func TestLiveEffects(t *testing.T) {
 	ctx := context.Background()
-	store, err := core.OpenMessageStore(ctx, filepath.Join(t.TempDir(), "mensagens.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := coretest.MessageStore(t)
 	s := &walletStore{db: &ledgerDB{db: store.DB}}
 	chat := types.NewJID("120363000000000001", types.GroupServer)
 	acc := core.Account{Key: "5511900000003@s.whatsapp.net", JID: types.NewJID("5511900000003", types.DefaultUserServer)}

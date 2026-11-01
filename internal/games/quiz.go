@@ -172,7 +172,7 @@ func (s *quizStore) next(ctx context.Context, chat types.JID) (QuizQuestion, err
 	if err != nil {
 		return QuizQuestion{}, err
 	}
-	_, err = s.db.ExecContext(ctx, "INSERT OR IGNORE INTO quiz_usadas (chat, pergunta) VALUES (?, ?)", chat.String(), id)
+	_, err = s.db.ExecContext(ctx, "INSERT INTO quiz_usadas (chat, pergunta) VALUES (?, ?) ON CONFLICT DO NOTHING", chat.String(), id)
 	return q, err
 }
 

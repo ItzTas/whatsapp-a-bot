@@ -3,11 +3,11 @@ package economy
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core/coretest"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -50,11 +50,7 @@ func TestShiftMerge(t *testing.T) {
 
 func TestGatherBacklog(t *testing.T) {
 	ctx := context.Background()
-	store, err := core.OpenMessageStore(ctx, filepath.Join(t.TempDir(), "mensagens.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := coretest.MessageStore(t)
 	s := &walletStore{db: &ledgerDB{db: store.DB}}
 	chat := types.NewJID("120363000000000001", types.GroupServer)
 	now := time.Unix(time.Now().Unix(), 0)

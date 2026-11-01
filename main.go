@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/joho/godotenv"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -55,18 +54,24 @@ func run(ctx context.Context) (err error) {
 		return fmt.Errorf("carregar gifs: %w", err)
 	}
 
-	container, err := sqlstore.New(ctx, "sqlite3", "file:sessao.db?_foreign_keys=on", waLog.Stdout("Database", "WARN", true))
-	if err != nil {
-		return fmt.Errorf("abrir sessao.db: %w", err)
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return errors.New("falta o DATABASE_URL com o endereço do postgres")
 	}
+
+	container, err := sqlstore.New(ctx, "pgx", databaseURL, waLog.Stdout("Database", "WARN", true))
+	if err != nil {
+		return fmt.Errorf("abrir sessão: %w", err)
+	}
+	defer func() { err = errors.Join(err, container.Close()) }()
 	device, err := container.GetFirstDevice(ctx)
 	if err != nil {
 		return fmt.Errorf("ler dispositivo: %w", err)
 	}
 
-	messages, err := core.OpenMessageStore(ctx, "mensagens.db")
+	messages, err := core.OpenMessageStore(ctx, databaseURL)
 	if err != nil {
-		return fmt.Errorf("abrir mensagens.db: %w", err)
+		return fmt.Errorf("abrir banco: %w", err)
 	}
 	defer func() { err = errors.Join(err, messages.Close()) }()
 

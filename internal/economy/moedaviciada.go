@@ -36,8 +36,8 @@ func claimDaily(ctx context.Context, tx *ledgerTx, chat types.JID, acc core.Acco
 	}
 	res, err := tx.ExecContext(ctx,
 		`INSERT INTO compras_diarias (chat, dia, pessoa, item, quantidade) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (chat, dia, pessoa, item) DO UPDATE SET quantidade = quantidade + excluded.quantidade
-		WHERE quantidade + excluded.quantidade <= ?`,
+		ON CONFLICT (chat, dia, pessoa, item) DO UPDATE SET quantidade = compras_diarias.quantidade + excluded.quantidade
+		WHERE compras_diarias.quantidade + excluded.quantidade <= ?`,
 		chat.String(), day, acc.Key, it.id, quantity, it.daily,
 	)
 	if err != nil {

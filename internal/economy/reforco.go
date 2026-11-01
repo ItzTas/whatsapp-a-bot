@@ -73,7 +73,7 @@ func (s *walletStore) boost(ctx context.Context, o *boostOffer, now time.Time) e
 			`INSERT INTO contratos (chat, pessoa, ramo, empresa, ate, reforco_ate) VALUES (?, ?, ?, ?, ?, ?)
 			 ON CONFLICT (chat, pessoa, ramo) DO UPDATE SET
 			   empresa = CASE WHEN contratos.ate > ? THEN contratos.empresa ELSE excluded.empresa END,
-			   ate = MAX(CASE WHEN contratos.ate > ? THEN contratos.ate ELSE 0 END, excluded.ate),
+			   ate = GREATEST(CASE WHEN contratos.ate > ? THEN contratos.ate ELSE 0 END, excluded.ate),
 			   reforco_ate = excluded.reforco_ate`,
 			o.chat.String(), o.acc.Key, securitySector, o.firm.id, o.until.Unix(), o.until.Unix(), now.Unix(), now.Unix(),
 		)

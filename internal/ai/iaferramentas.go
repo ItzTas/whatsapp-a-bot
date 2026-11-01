@@ -313,7 +313,7 @@ func (k *iaToolkit) searchMessages(ctx context.Context, input json.RawMessage) (
 	if text == "" {
 		return "", errors.New("faltou o texto pra procurar")
 	}
-	lines, err := k.b.messages.chatLines(ctx, k.chat, "instr(lower(texto), lower(?)) > 0", []any{text}, false, toolQuantity(args.Quantity))
+	lines, err := k.b.messages.chatLines(ctx, k.chat, "strpos(lower(texto), lower(?)) > 0", []any{text}, false, toolQuantity(args.Quantity))
 	if err != nil {
 		return "", err
 	}
@@ -398,7 +398,7 @@ func (b *bot) relatedHistory(ctx context.Context, evt *events.Message, question 
 	for i, keyword := range keywords {
 		g.Go(func() (err error) {
 			found[i], err = b.messages.chatLines(gctx, evt.Info.Chat.ToNonAD(),
-				"id != ? AND ltrim(texto) NOT LIKE '!%' AND instr(lower(texto), lower(?)) > 0",
+				"id != ? AND ltrim(texto) NOT LIKE '!%' AND strpos(lower(texto), lower(?)) > 0",
 				[]any{evt.Info.ID, keyword}, false, iaHistoryPerKeyword)
 			return err
 		})

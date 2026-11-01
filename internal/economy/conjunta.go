@@ -181,7 +181,7 @@ func (s *walletStore) depositJoint(ctx context.Context, chat types.JID, from, sp
 		}
 		return tx.QueryRowContext(ctx,
 			`INSERT INTO contas_conjuntas (chat, pessoa1, pessoa2, saldo) VALUES (?, ?, ?, ?)
-			 ON CONFLICT (chat, pessoa1, pessoa2) DO UPDATE SET saldo = saldo + excluded.saldo
+			 ON CONFLICT (chat, pessoa1, pessoa2) DO UPDATE SET saldo = contas_conjuntas.saldo + excluded.saldo
 			 RETURNING saldo`,
 			chat.String(), first, second, amount,
 		).Scan(&balance)

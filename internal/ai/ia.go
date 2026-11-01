@@ -211,13 +211,13 @@ type storedMessage struct {
 func (s *messageStore) recent(ctx context.Context, chat types.JID, skipID types.MessageID, limit int) (messages []storedMessage, err error) {
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT remetente, remetente_alt, texto, enviada_em, 0 FROM mensagens
-		 WHERE chat = @chat AND id != @skip
-		   AND (ltrim(texto) NOT LIKE '!%' OR id IN (SELECT pergunta_id FROM ia_respostas WHERE chat = @chat))
-		   AND id NOT IN (SELECT id FROM ia_respostas WHERE chat = @chat)
+		 WHERE chat = $1 AND id != $2
+		   AND (ltrim(texto) NOT LIKE '!%' OR id IN (SELECT pergunta_id FROM ia_respostas WHERE chat = $1))
+		   AND id NOT IN (SELECT id FROM ia_respostas WHERE chat = $1)
 		 UNION ALL
-		 SELECT '', '', texto, enviada_em, 1 FROM ia_respostas WHERE chat = @chat
-		 ORDER BY enviada_em DESC LIMIT @limit`,
-		sql.Named("chat", chat.ToNonAD().String()), sql.Named("skip", skipID), sql.Named("limit", limit),
+		 SELECT '', '', texto, enviada_em, 1 FROM ia_respostas WHERE chat = $1
+		 ORDER BY enviada_em DESC LIMIT $3`,
+		chat.ToNonAD().String(), skipID, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -238,7 +238,7 @@ func (s *messageStore) recent(ctx context.Context, chat types.JID, skipID types.
 
 func (s *messageStore) recordIAAnswer(ctx context.Context, question *events.Message, sent whatsmeow.SendResponse, text string) error {
 	_, err := s.DB.ExecContext(ctx,
-		"INSERT OR IGNORE INTO ia_respostas (chat, id, pergunta_id, texto, enviada_em) VALUES (?, ?, ?, ?, ?)",
+		"INSERT INTO ia_respostas (chat, id, pergunta_id, texto, enviada_em) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
 		question.Info.Chat.ToNonAD().String(), sent.ID, question.Info.ID, text, sent.Timestamp.Unix(),
 	)
 	return err

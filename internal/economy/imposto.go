@@ -230,7 +230,7 @@ func taxPayers(ctx context.Context, tx *ledgerTx, chat types.JID) (payers []taxP
 		`SELECT pessoa, jid, saldo, imovel,
 		        EXISTS (SELECT 1 FROM encantos e WHERE e.chat = carteiras.chat AND e.alvo = carteiras.pessoa AND e.tipo = ? AND e.ate > ?)
 		        AND NOT EXISTS (SELECT 1 FROM inventarios i WHERE i.chat = carteiras.chat AND i.pessoa = carteiras.pessoa AND i.item = ?),
-		        COALESCE((SELECT GROUP_CONCAT(w.tipo) FROM empregados w WHERE w.chat = carteiras.chat AND w.pessoa = carteiras.pessoa), '')
+		        COALESCE((SELECT string_agg(w.tipo, ',') FROM empregados w WHERE w.chat = carteiras.chat AND w.pessoa = carteiras.pessoa), '')
 		 FROM carteiras WHERE chat = ? AND saldo > 0`,
 		hauntID, time.Now().Unix(), carrancaItem, chat.String(),
 	)

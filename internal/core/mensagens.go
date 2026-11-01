@@ -55,8 +55,8 @@ type ChatActivity struct {
 	Senders  int
 }
 
-func OpenMessageStore(ctx context.Context, path string) (*MessageStore, error) {
-	db, err := sql.Open("sqlite3", "file:"+path+"?_journal_mode=WAL&_busy_timeout=5000")
+func OpenMessageStore(ctx context.Context, url string) (*MessageStore, error) {
+	db, err := OpenDatabase(url)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (s *MessageStore) record(ctx context.Context, evt *events.Message) error {
 		return nil
 	}
 	_, err := s.DB.ExecContext(ctx,
-		"INSERT OR IGNORE INTO mensagens (chat, id, remetente, remetente_alt, texto, enviada_em) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO mensagens (chat, id, remetente, remetente_alt, texto, enviada_em) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
 		evt.Info.Chat.ToNonAD().String(), evt.Info.ID, evt.Info.Sender.User, evt.Info.SenderAlt.User, text, evt.Info.Timestamp.Unix(),
 	)
 	if err != nil {

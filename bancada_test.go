@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -25,6 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
+	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core/coretest"
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/llm"
 )
 
@@ -176,16 +176,16 @@ func mentionTag(p person) string {
 }
 
 type bench struct {
-	t     *testing.T
-	ctx   context.Context
-	bot   *core.Bot
-	db    *sql.DB
-	net   *fakeNetwork
-	log   *errorLog
-	owner person
-	ids   atomic.Int64
-	dir   string
-	stop  func()
+	t        *testing.T
+	ctx      context.Context
+	bot      *core.Bot
+	db       *sql.DB
+	net      *fakeNetwork
+	log      *errorLog
+	owner    person
+	ids      atomic.Int64
+	database string
+	stop     func()
 }
 
 func newBench(t *testing.T) *bench {
@@ -193,11 +193,11 @@ func newBench(t *testing.T) *bench {
 	owner := newPerson("Dono", "5511990000001")
 	t.Setenv("BOT_DONO", owner.jid.User)
 	b := &bench{
-		t:     t,
-		net:   &fakeNetwork{groups: map[types.JID]*types.GroupInfo{}},
-		owner: owner,
-		dir:   t.TempDir(),
-		stop:  func() {},
+		t:        t,
+		net:      &fakeNetwork{groups: map[types.JID]*types.GroupInfo{}},
+		owner:    owner,
+		database: coretest.Database(t),
+		stop:     func() {},
 	}
 	t.Cleanup(func() { b.stop() })
 	b.start()
@@ -221,18 +221,18 @@ func (b *bench) start() {
 		}
 	}
 
-	container, err := sqlstore.New(ctx, "sqlite3", "file:"+filepath.Join(b.dir, "sessao.db")+"?_foreign_keys=on", waLog.Noop)
+	container, err := sqlstore.New(ctx, "pgx", b.database, waLog.Noop)
 	if err != nil {
-		b.t.Fatalf("abrir sessao.db: %v", err)
+		b.t.Fatalf("abrir sessão: %v", err)
 	}
 	closers = append(closers, container.Close)
 	device, err := b.device(ctx, container)
 	if err != nil {
 		b.t.Fatalf("preparar dispositivo: %v", err)
 	}
-	messages, err := core.OpenMessageStore(ctx, filepath.Join(b.dir, "mensagens.db"))
+	messages, err := core.OpenMessageStore(ctx, b.database)
 	if err != nil {
-		b.t.Fatalf("abrir mensagens.db: %v", err)
+		b.t.Fatalf("abrir banco: %v", err)
 	}
 	closers = append(closers, messages.Close)
 	gifs, err := core.LoadGIFs()

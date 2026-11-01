@@ -637,7 +637,7 @@ func (s *walletStore) maintain(ctx context.Context, chat types.JID, acc core.Acc
 			return err
 		}
 		_, err = tx.ExecContext(ctx,
-			"UPDATE implantes SET pago_ate = MAX(pago_ate, ?) WHERE chat = ? AND pessoa = ?",
+			"UPDATE implantes SET pago_ate = GREATEST(pago_ate, ?) WHERE chat = ? AND pessoa = ?",
 			now.Add(implantUpkeepMax).Unix(), chat.String(), acc.Key,
 		)
 		return err
@@ -657,7 +657,7 @@ func ripImplant(ctx context.Context, tx *ledgerTx, chat types.JID, victim, kille
 		wear int64
 	)
 	err = tx.QueryRowContext(ctx,
-		"DELETE FROM implantes WHERE rowid = (SELECT rowid FROM implantes WHERE chat = ? AND pessoa = ? ORDER BY RANDOM() LIMIT 1) RETURNING implante, desgaste",
+		"DELETE FROM implantes WHERE (chat, pessoa, parte) = (SELECT chat, pessoa, parte FROM implantes WHERE chat = ? AND pessoa = ? ORDER BY random() LIMIT 1) RETURNING implante, desgaste",
 		chat.String(), victim.Key,
 	).Scan(&id, &wear)
 	if errors.Is(err, sql.ErrNoRows) {

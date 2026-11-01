@@ -370,7 +370,7 @@ func (nabEffect) apply(ctx context.Context, tx *ledgerTx, run *eventRun) (string
 	}
 	jail := Profession{jailTime: baseJail}.sentence(run.job)
 	_, err := tx.ExecContext(ctx,
-		"UPDATE carteiras SET preso_ate = MAX(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
+		"UPDATE carteiras SET preso_ate = GREATEST(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
 		run.now.Add(jail).Unix(), run.chat.String(), run.acc.Key,
 	)
 	if err != nil {

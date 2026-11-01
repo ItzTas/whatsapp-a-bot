@@ -140,9 +140,9 @@ func newRig(t *testing.T, n int, roles []role) *rig {
 func clockColumns(t *testing.T, b *bench) []clockColumn {
 	t.Helper()
 	rows, err := b.db.QueryContext(b.ctx,
-		`SELECT m.name, c.name FROM sqlite_master m, pragma_table_info(m.name) c
-		 WHERE m.type = 'table' AND c.type LIKE 'INT%'
-		  AND (c.name = 'em' OR c.name LIKE '%\_em' ESCAPE '\' OR c.name LIKE '%\_ate' ESCAPE '\')`)
+		`SELECT table_name, column_name FROM information_schema.columns
+		 WHERE table_schema = current_schema() AND data_type = 'bigint'
+		   AND (column_name = 'em' OR column_name LIKE '%\_em' ESCAPE '\' OR column_name LIKE '%\_ate' ESCAPE '\')`)
 	if err != nil {
 		t.Fatalf("achar as colunas de tempo: %v", err)
 	}

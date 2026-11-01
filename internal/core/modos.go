@@ -230,7 +230,7 @@ func (s *modeStore) enable(ctx context.Context, chat types.JID, modes []string) 
 		if _, err := tx.ExecContext(ctx, "DELETE FROM conversa_modos_pausados WHERE chat = ? AND modo = ?", chat.String(), mode); err != nil {
 			return modeSwitch{}, err
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO conversa_modos (chat, modo) VALUES (?, ?)", chat.String(), mode); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO conversa_modos (chat, modo) VALUES (?, ?) ON CONFLICT DO NOTHING", chat.String(), mode); err != nil {
 			return modeSwitch{}, err
 		}
 	}
@@ -326,7 +326,7 @@ func stopMode(ctx context.Context, tx *sql.Tx, chat types.JID, mode string) (bac
 	}
 	slices.SortFunc(back, compareModes)
 	for _, m := range back {
-		if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO conversa_modos (chat, modo) VALUES (?, ?)", chat.String(), m); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO conversa_modos (chat, modo) VALUES (?, ?) ON CONFLICT DO NOTHING", chat.String(), m); err != nil {
 			return nil, err
 		}
 	}

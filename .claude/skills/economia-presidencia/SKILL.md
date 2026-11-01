@@ -61,7 +61,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `fianca` (imposto em cima do preço do `!fianca`, cobrado de quem paga no `buyExit` pelo `levy` do
   `exit` e pago pro presidente na mesma transação, a não ser que seja ele pagando; o `!decreto
   imposto fianca` cai nela pelo mesmo motivo do `iof`, e o `!hospital` e o `!resgate` não pagam).
-  O `cassino` (`casinoDecree`, coluna `cassino_pct`, que voltou na migração `00124`) vai de
+  O `cassino` (`casinoDecree`, coluna `cassino_pct`) vai de
   `-betTaxDecreeMax` a `+casinoDecreeMaxRaise` (10 pros dois lados, e `-tyrantBetTaxMax` na ditadura,
   pelo `tyrantLo`). O `PlaceBet` lê a presidência em paralelo e monta o `PrizeBoost` da hora da aposta
   (skill `economia-base`): positivo vai pro `decree`, e cada ponto soma 1% no lucro de quem ganha e,
@@ -73,7 +73,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `!blackjack`, inclusive no dobro (o `levy` vai no save da mão, `levySave`). O `BetLevyText` mostra a
   taxa na resposta. O `!decreto imposto aposta 5` cai nele, e o `taxedRun` dos apelidos
   `impostoaposta`/`taxaaposta` troca o sinal. O `!bicho` não lê (é clandestino). A `venda`
-  (`saleDecree`, coluna `venda_pct`, migração `00133`) é o mesmo bônus-ou-imposto no `!vender` pro
+  (`saleDecree`, coluna `venda_pct`) é o mesmo bônus-ou-imposto no `!vender` pro
   mercado, de `-saleDecreeSwing` a `+saleDecreeSwing` (5 pros dois lados, e `-tyrantSaleTaxMax` na
   ditadura, pelo `tyrantLo`): o `saleTermsOf` lê a profissão e a presidência em paralelo e monta o
   `saleTerms`, com o `boost` (nível positivo, lido dos `decrees` da profissão, então o ditador fica
@@ -190,7 +190,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   no `levySave`, e o `decreed()` diz "um pouco mais revoltado" quando só a parte dentro do teto
   contou. O `brewedRevolt` (base + tempo) e o
   `taxedRevolt` (imposto) separam as duas origens, e o `revoltOn` devolve zero fora da ditadura.
-  A terceira origem é a coluna `agitacao` (migração `00132`, também no `tyrannyColumns`), os pontos
+  A terceira origem é a coluna `agitacao` (também no `tyrannyColumns`), os pontos
   dos eventos da ditadura (skill `economia-eventos`): o protesto do povo soma e a repressão do ditador
   tira, presa entre `agitationFloor` (-15%) e `agitationCeiling` (+25%), e o `stirredRevolt` lê ela.
   Por isso o `rawRevolt` nunca fica abaixo de zero, o `routedAt` e o `raiseArmy` contam ela junto do
@@ -240,7 +240,7 @@ Presidente, decretos, impeachment, renúncia e golpe.
   `tyrantEscape`, sem a `tyrantImmunity` e sem a revolta do `roused`, e o `tyrantShelterOn` não dá
   o escudo a mais quando quem foi roubado(a) é o favorito daquela ditadura.
 - Bondade de ditador é só dele (`decretoditador.go`). Cada decreto de porcentagem tem uma segunda
-  coluna na `presidencias`, o `rulerColumn()` (`<coluna>_ditador`, migração `00126`), com quanto o
+  coluna na `presidencias`, o `rulerColumn()` (`<coluna>_ditador`), com quanto o
   nível do ditador passa do nível do povo. A coluna normal continua sendo o nível do povo, que todo
   mundo lê; o `ruled()` soma as duas, e o `walletStore.decreesOf(chat, acc)` já devolve os decretos
   somados quando `acc` é o presidente (o `decrees` sem pessoa é o `decreesOf` com conta vazia). Por

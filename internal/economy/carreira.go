@@ -105,7 +105,7 @@ func (s *walletStore) build(ctx context.Context, chat types.JID, acc core.Accoun
 	var minutes int64
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO carreiras (chat, pessoa, profissao, minutos) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (chat, pessoa, profissao) DO UPDATE SET minutos = minutos + excluded.minutos
+		 ON CONFLICT (chat, pessoa, profissao) DO UPDATE SET minutos = carreiras.minutos + excluded.minutos
 		 RETURNING minutos`,
 		chat.String(), acc.Key, c.job, int64(worked/time.Minute),
 	).Scan(&minutes)

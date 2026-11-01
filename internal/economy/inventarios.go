@@ -207,7 +207,7 @@ func wearIn(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc
 }
 
 func keepWear(ctx context.Context, tx *ledgerTx, table string, chat types.JID, acc core.Account, id string, wear int64) error {
-	_, err := tx.ExecContext(ctx, "UPDATE "+table+" SET usos = MAX(usos, ?) WHERE chat = ? AND pessoa = ? AND item = ?",
+	_, err := tx.ExecContext(ctx, "UPDATE "+table+" SET usos = GREATEST(usos, ?) WHERE chat = ? AND pessoa = ? AND item = ?",
 		wear, chat.String(), acc.Key, id)
 	return err
 }

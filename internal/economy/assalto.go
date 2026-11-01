@@ -317,7 +317,7 @@ func jailCrew(ctx context.Context, tx *ledgerTx, chat types.JID, robbers []robbe
 		r.caught = true
 		r.sentence = Profession{jailTime: baseJail}.sentence(r.job)
 		_, err := tx.ExecContext(ctx,
-			"UPDATE carteiras SET preso_ate = MAX(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
+			"UPDATE carteiras SET preso_ate = GREATEST(preso_ate, ?), crime_em = 0 WHERE chat = ? AND pessoa = ?",
 			now.Add(r.sentence).Unix(), chat.String(), r.acc.Key,
 		)
 		if err != nil {

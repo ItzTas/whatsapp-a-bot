@@ -231,7 +231,7 @@ func (s *messageStore) randomQuotes(ctx context.Context, chat types.JID, phrase 
 		 FROM mensagens m
 		 WHERE m.chat = ? AND m.enviada_em >= ?
 		   AND m.texto NOT LIKE '!%' AND length(m.texto) >= ?
-		   AND m.texto LIKE ? ESCAPE '\'
+		   AND m.texto ILIKE ? ESCAPE '\'
 		   AND NOT EXISTS (SELECT 1 FROM quemfalou_usadas u WHERE u.chat = m.chat AND u.mensagem = m.id)
 		 ORDER BY RANDOM() LIMIT ?`,
 		chat.String(), core.WindowStart(), minLength, pattern, limit,
@@ -257,7 +257,7 @@ func (s *messageStore) randomQuotes(ctx context.Context, chat types.JID, phrase 
 
 func (s *messageStore) markQuemfalouUsed(ctx context.Context, chat types.JID, messageID string) error {
 	_, err := s.DB.ExecContext(ctx,
-		"INSERT OR IGNORE INTO quemfalou_usadas (chat, mensagem) VALUES (?, ?)",
+		"INSERT INTO quemfalou_usadas (chat, mensagem) VALUES (?, ?) ON CONFLICT DO NOTHING",
 		chat.String(), messageID,
 	)
 	return err

@@ -68,7 +68,7 @@ func (s *walletStore) ailments(ctx context.Context, chat types.JID, acc core.Acc
 		        EXISTS (SELECT 1 FROM sequestros q WHERE q.chat = c.chat AND q.refem = c.pessoa AND q.ate > ?),
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
-		        COALESCE((SELECT GROUP_CONCAT(e.tipo) FROM encantos e WHERE e.chat = c.chat AND e.alvo = c.pessoa AND e.ate > ?), ''),
+		        COALESCE((SELECT string_agg(e.tipo, ',') FROM encantos e WHERE e.chat = c.chat AND e.alvo = c.pessoa AND e.ate > ?), ''),
 		        c.droga_ate > ?, c.saude, c.saude_em, `+staffKinds+`
 		 FROM carteiras c WHERE c.chat = ? AND c.pessoa = ?`,
 		at, at, at, clownKind, at, curseKind, at, at, at, chat.String(), acc.Key,
