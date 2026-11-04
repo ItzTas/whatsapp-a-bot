@@ -18,7 +18,7 @@ import (
 const (
 	kidnapChance       = 0.35
 	kidnapCaughtChance = 0.45
-	copVictimCaught    = 0.3
+	copVictimCaught    = 0.1
 	hostageHold        = 20 * time.Minute
 	hostagePriceFactor = 4
 	hostageSaleWait    = 3 * time.Minute
