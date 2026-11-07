@@ -25,6 +25,8 @@ const (
 	robSuccessChance  = 0.4
 	robLootMin        = 10
 	robLootMax        = 30
+	indemnityMin      = 10
+	indemnityMax      = 20
 	brokeThief        = 50
 	brokeCaughtChance = 0.5
 	coinWinChance     = 0.475
@@ -367,7 +369,7 @@ func robOutcome(chance float64, haul int64) func(thiefBalance, victimBalance int
 		if rand.Float64() < mark.odds(chance) {
 			return true, min(victimBalance, looted(victimBalance, mark.jackpot, robLootMin+rand.Int64N(robLootMax-robLootMin+1))*(100+haul)/100)
 		}
-		return false, thiefBalance * (10 + rand.Int64N(11)) / 100
+		return false, indemnity(thiefBalance)
 	}
 }
 
@@ -388,6 +390,10 @@ func exposed(balance, percent int64) int64 {
 		floor = br.upTo
 	}
 	return take / (100 * brackets[0].weight)
+}
+
+func indemnity(balance int64) int64 {
+	return exposed(max(balance, 0), indemnityMin+rand.Int64N(indemnityMax-indemnityMin+1))
 }
 
 func exposureText(balance int64) string {

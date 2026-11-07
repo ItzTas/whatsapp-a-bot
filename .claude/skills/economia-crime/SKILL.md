@@ -258,7 +258,7 @@ Cadeia, flagrante, morte, saúde e tribunal.
   recolher. O alarme da vítima (`soundAlarm`, em `carteiras.go`) dispara menos que no `!roubar`:
   lá a chance é `alarmChance`, e aqui o `gangAlarmChance` tira `alarmGangCut` por pessoa a mais. Se der certo, a quadrilha leva de
   `gangLootMin` a `gangLootMax` por cento do saldo da vítima, passado pelas faixas do `exposed` (veja o valor de roubo abaixo), dividido igual, e a parte de cada um cresce o `robHaul` da profissão dele (hoje só o Chapéu de Lampião, o mesmo que aumenta o que leva no `!roubar`); se der errado, cada
-  um paga de 10% a 20% do próprio saldo pra vítima, e quem tinha menos de `brokeThief` (o `broke`
+  um paga a indenização (`indemnity`, veja o valor de roubo abaixo) pra vítima, e quem tinha menos de `brokeThief` (o `broke`
   do `indemnify`) tem `brokeCaughtChance` de ir preso na hora pelo `jailBroke`, com as mesmas regras
   do ladrão liso do `!roubar` (veja abaixo).
 - Roubo de saldo tem duas travas (`escudo.go`, `ficha.go`):
@@ -286,7 +286,10 @@ Cadeia, flagrante, morte, saúde e tribunal.
   renda (3/4 até 10 mil, metade até 100 mil, 1/4 até 1 milhão e 1/10 dali pra frente), então
   rico perde mais moedas que pobre, mas uma fatia bem menor do saldo. O `robHaul` de quem rouba
   multiplica depois das faixas. O `exposureText` mostra o máximo de um `!roubar` no `!saldo` e no
-  `!tu`. Roubo novo que tire porcentagem do saldo de alguém passa pelo `exposed`.
+  `!tu`. A indenização de quem falha no `!roubar`, na `!quadrilha` e no `!sequestrar`
+  também passa por ele: o `indemnity` sorteia de `indemnityMin` a `indemnityMax` por cento do saldo
+  de quem falhou e aplica as mesmas faixas. Roubo novo que tire porcentagem do saldo de alguém, ou
+  indenização nova de crime, passa pelo `exposed`.
 - Quem acabou de ganhar muito em aposta vira alvo fácil (`alvofacil.go`, colunas `premio_aposta` e
   `premio_aposta_em` da `carteiras`), mas só se tiver no lucro. O `NoteBet` chama o `noteWinnings`,
   que numa transação só soma o lucro líquido da aposta na tabela `apostas_lucro` (`tallyWinnings`,

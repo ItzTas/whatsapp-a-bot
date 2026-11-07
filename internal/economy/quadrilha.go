@@ -461,7 +461,7 @@ func indemnify(ctx context.Context, tx *ledgerTx, chat types.JID, victim core.Ac
 		if err != nil {
 			return err
 		}
-		g.paid = balance * (10 + rand.Int64N(11)) / 100
+		g.paid = indemnity(balance)
 		g.broke = balance < brokeThief
 		if err := moveCoins(ctx, tx, chat, g.acc, victim, g.paid); err != nil {
 			return err

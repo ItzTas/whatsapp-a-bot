@@ -438,7 +438,7 @@ func (k *kidnapping) settle(ctx context.Context, tx *ledgerTx, chat types.JID, k
 	if err != nil {
 		return err
 	}
-	if k.fine = balance * (10 + rand.Int64N(11)) / 100; k.fine == 0 {
+	if k.fine = indemnity(balance); k.fine == 0 {
 		return nil
 	}
 	return moveCoins(ctx, tx, chat, kidnapper, victim, k.fine)
