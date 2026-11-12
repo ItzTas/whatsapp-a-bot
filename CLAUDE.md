@@ -211,7 +211,7 @@ conectar. O `*events.GroupInfo` vai pros `AddGroupInfo` (o `welcome` da moderaç
   do `whatsmeow`, que cuida do próprio schema (não mexa nelas), e o resto é do bot.
 - O schema do bot vem das migrações `goose` em `internal/core/migracoes/` (embutidas via
   `//go:embed` e aplicadas na inicialização), uma por assunto (`00001_mensagens.sql` até
-  `00012_encantos.sql`). Mudança de schema = novo arquivo numerado `0000N_nome.sql` com
+  `00013_ostentacao.sql`). Mudança de schema = novo arquivo numerado `0000N_nome.sql` com
   `-- +goose Up`/`Down`; nunca edite uma migração existente. Inteiro é sempre `BIGINT` (o código
   usa `int64`), tempo é segundo unix em `BIGINT`, e flag é `BIGINT` com 0/1 (o pgx não converte
   `bool` do Go em número: passe `core.BoolInt(x)`). Função ou trigger com `;` no corpo vai entre
