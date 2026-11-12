@@ -275,7 +275,7 @@ O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar cont
 - `economia-presidencia`: presidente, decretos, impeachment, renúncia, golpe.
 - `economia-fama`: redes do `!postar`, seguidores, níveis de fama, `!fama` e `!publi`.
 - `economia-dinheiro`: leilão, bolão, agiota, empréstimo, ações, imposto, imóveis, empregados,
-  negócios, títulos, implantes, obras.
+  negócios, títulos, implantes, obras e festa.
 - `economia-igrejas`: igrejas dos jogadores, doutrinas, dízimo e cofre.
 - `economia-empresas`: empresas de NPC, hoje as de segurança do `!empresa`: contratos, escolta
   contra o alvo fácil, cobertura nos eventos da bolada, reforço e recuperação pelo `!aceitar`.

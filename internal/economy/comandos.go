@@ -765,6 +765,16 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.doar,
 		},
 		{
+			Name:     "festa",
+			Aliases:  []string{"rodada", "openbar"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!festa", "mostra se tem festa rolando no grupo, quem bancou e quanto sai pra você bancar a próxima 🎉"},
+				{"!festa pagar", fmt.Sprintf("banca %s de festa pro grupo: enquanto ela durar, todo mundo ganha +%d%% no !trabalhar. Custa %d%% do seu saldo (no mínimo %s) e o dinheiro some. Pagar com a festa rolando estica ela, até %s de uma vez", core.FormatWait(partySpan), partyPayBonus, partyPercent, Coins(partyFloor), core.FormatWait(partyMaxSpan))},
+			},
+			Run: b.festa,
+		},
+		{
 			Name:     "zoar",
 			Aliases:  []string{"zoeira", "trollar"},
 			Category: core.EconomyCategory,

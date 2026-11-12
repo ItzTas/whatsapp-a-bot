@@ -244,6 +244,14 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
     (aplicando os `boost` numa profissão de referência) pro `!doar` e pros `perks()`
     (`worksPerk`), então obra nova é só um `perk` e um `boost`, sem mexer no texto. Mantenha os
     efeitos pequenos: valem pra todo mundo e pra sempre.
+- A festa do `!festa` (`festa.go`, tabela `festas` com `chat`, `ate`, `anfitriao` e `total`, uma por
+  economia) é um ralo de rico que ajuda o grupo: o `!festa pagar` (`walletStore.throwParty`) cobra
+  `partyPrice` (`partyPercent` do saldo com piso `partyFloor`, as moedas somem) e liga a festa por
+  `partySpan`. Pagar com a festa rolando estica ela a partir do fim e soma o `total`; com a festa
+  acabada começa outra do zero. Ela nunca passa de `partyMaxSpan` à frente (`full`, sem cobrar).
+  Enquanto o `ate` não passou, o `standing` traz o fim da festa e o `partying`, logo depois do
+  `civic`, soma `partyPayBonus`% no `min`/`max` do `!trabalhar` de todo mundo, com a linha do
+  `partyPerk` nos `perks()`.
 - Os negócios do `!negocio` (`negocio.go`, aliases `!negocios` e `!comercio`) vivem em código
   (`businesses`), e só o `id` vai pra coluna `tipo` da tabela `negocios` (migração `00010_dinheiro`, PK
   `chat`, `pessoa`, `tipo`, então é um de cada por pessoa). Nunca renomeie um `id`: o negócio some

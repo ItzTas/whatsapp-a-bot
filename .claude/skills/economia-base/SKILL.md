@@ -136,8 +136,8 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   Os seguidores do `!postar` (`famed`, lidos em paralelo pelo `walletStore.audience`, skill
   `economia-fama`) entram antes dos encantos, então toda profissão lida pelo `ProfessionOf` sabe
   o nível de fama da pessoa (`celebrity()`).
-  As obras prontas do `!doar` (`civic`), lidas no `standing` porque valem pra economia inteira,
-  entram logo depois do `housed` (skill `economia-dinheiro`).
+  As obras prontas do `!doar` (`civic`) e a festa do `!festa` (`partying`), lidas no `standing`
+  porque valem pra economia inteira, entram logo depois do `housed` (skill `economia-dinheiro`).
   Efeito novo que mude `guard`, ganho ou bônus de alguém por fora da profissão entra nesse mesmo
   ponto.
 - Grupos podem dividir uma economia só (`vinculos.go`, tabela `economia_vinculos` com `chat` e
