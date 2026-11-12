@@ -643,6 +643,18 @@ func (b *bot) economyCommands() []core.Command {
 			Run: b.empresa,
 		},
 		{
+			Name:         "encomendar",
+			Aliases:      []string{"encomenda", "capanga", "capangas"},
+			Category:     core.EconomyCategory,
+			BarredInJail: true,
+			Help: []core.Usage{
+				{"!encomendar", "mostra os serviços que dá pra encomendar de uma organização do crime e quanto custa cada um 🕴️"},
+				{"!encomendar @pessoa roubo", fmt.Sprintf("paga a sua organização do crime (!empresa crime) pra roubar a pessoa. Custa %d%% do seu saldo ou %d%% do saldo dela, o que for maior (no mínimo %s). Se der certo, os capangas levam o mesmo que um !roubar levaria e ficam com tudo", hitKinds[0].clientPercent, hitKinds[0].targetPercent, Coins(hitKinds[0].floor))},
+				{"!encomendar @pessoa sequestro", fmt.Sprintf("paga a organização pra sequestrar a pessoa e deixar ela %s no cativeiro, sem a polícia poder soltar. Custa %d%% do seu saldo ou %d%% do saldo dela, o que for maior (no mínimo %s). A chance é a da organização menos a proteção do alvo, o dinheiro some dando certo ou não, dá pra encomendar uma vez a cada %s e a polícia pode rastrear a encomenda até você", core.FormatWait(hitHostageHold), hitKinds[1].clientPercent, hitKinds[1].targetPercent, Coins(hitKinds[1].floor), core.FormatWait(hitEvery))},
+			},
+			Run: b.encomendar,
+		},
+		{
 			Name:     "negocio",
 			Aliases:  []string{"negocios", "comercio"},
 			Category: core.EconomyCategory,

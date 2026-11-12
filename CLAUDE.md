@@ -278,7 +278,8 @@ O resto da arquitetura fica em skills em `.claude/skills/`, pra não ocupar cont
   negócios, títulos, implantes, obras e festa.
 - `economia-igrejas`: igrejas dos jogadores, doutrinas, dízimo e cofre.
 - `economia-empresas`: empresas de NPC, hoje as de segurança do `!empresa`: contratos, escolta
-  contra o alvo fácil, cobertura nos eventos da bolada, reforço e recuperação pelo `!aceitar`.
+  contra o alvo fácil, cobertura nos eventos da bolada, reforço e recuperação pelo `!aceitar`, e
+  as encomendas do `!encomendar` pras organizações do crime.
 - `economia-eventos`: eventos com escolha do `!trabalhar`, das extrações e dos crimes, e o `!eventos`.
 - `economia-aovivo`: submodo `aovivo`, eventos ao vivo pro grupo todo (corrida do `!pegar`, chefão
   do `!atacar` e enquete coletiva) e o `!aovivo` do deus.

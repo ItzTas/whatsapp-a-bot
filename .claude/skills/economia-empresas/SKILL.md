@@ -60,6 +60,22 @@ user-invocable: false
     `walletStore.reclaim` cobra o `stashPrice` (o `stash` por cento do `worth` das pilhas) com o
     `spend` e põe tudo de volta na mochila com o `addGrades`, sem chance de dar errado. Os usos
     gastos (doses, desgaste) não voltam, e o limite de mochila (`trimCarry`) vale como sempre.
+- **Encomendas** (`encomenda.go`): quem tem contrato no ramo do crime paga a organização pra atacar
+  alguém pelo `!encomendar @pessoa <tipo>` (pessoa primeiro, como no `!furtar`, porque o `targetOf`
+  acha o nome no começo do texto). Os tipos ficam em `hitKinds` (hoje `roubo` e `sequestro`, com
+  `kidnap`), e o preço (`hitKind.price`) é o maior entre o piso `floor`, `clientPercent` do saldo
+  de quem encomenda e `targetPercent` do saldo do alvo, então pesa pro rico dos dois lados. A
+  chance é o `odds` do tipo mais o `edge` da organização menos o `guard` do alvo; deus não pode ser
+  alvo. O `walletStore.contractHit` faz tudo numa transação: confere a espera `hitEvery` (coluna
+  `encomenda_em`, que entra no `resetCooldowns`), recusa sem cobrar o roubo contra quem tá com
+  escudo ou com menos de `hitMinVictimPay` e o sequestro contra quem tá preso, morto ou em
+  cativeiro (`vet`), cobra com o `debitBalance` (as moedas somem dando certo ou não), carimba a
+  espera e sorteia. O roubo que dá certo (`strike`) tira da vítima o mesmo que um `!roubar` levaria
+  pelo `exposed` (a organização fica com tudo, nada vai pro cliente), levanta o escudo `robShield` e
+  anota o prejuízo com o `lossRobbed`. O sequestro grava a vítima em `sequestros` com o
+  `sequestrador` `NULL` por `hitHostageHold`, como refém vendido: a polícia não solta, mas dá pra
+  `!fugir` e pagar o `!resgate`. Com `hitTraceOnWin` (dando certo) ou `hitTraceOnMiss` (dando
+  errado), a polícia rastreia e o `markCrime` marca o `crime_em` e o `ficha_em` de quem encomendou.
 - **Anulação da marca** (`escortMark` em `escolta.go`): o `walletStore.rob` e o `gangRob` chamam
   logo depois do `markOf`, então vale antes do `jackpotPace`, do `stampOrAbuse`, do alarme, do
   `looted` e do `jackpotShield`. Só age com a marca ligada (prêmio fresco ou `lucky`). Sorteia uma

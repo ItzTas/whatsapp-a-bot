@@ -645,7 +645,7 @@ func (s *walletStore) resetCooldowns(ctx context.Context, chat types.JID, accoun
 		"assalto_em", "denuncia_em", "assassinato_em", "libertacao_em", "abuso_trabalho_em", "abuso_roubo_em",
 		"abuso_sequestro_em", "ressurreicao_em", "encanto_em", "disfarce_em", "preso_ate", "morto_ate", "crime_em",
 		"saude_em", "conversao_em", "desvio_em", "postagem_em", "publi_em", "cratera_em", "escudo_ate", "ficha_em",
-		"arremesso_em",
+		"arremesso_em", "encomenda_em",
 	}
 	args := []any{chat.String()}
 	for _, acc := range accounts {
