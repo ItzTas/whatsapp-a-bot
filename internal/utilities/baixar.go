@@ -16,7 +16,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
@@ -34,8 +33,8 @@ const (
 	mediaMaxDuration = 600
 	browserUserAgent = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
 
-	inlineVideoMaxBytes      = 64 << 20
-	requestedDownloadTimeout = 30 * time.Minute
+	inlineVideoMaxBytes = 64 << 20
+	whatsappMaxMB       = 1900
 )
 
 var (
@@ -43,13 +42,21 @@ var (
 	errNoMedia       = errors.New("nenhuma mídia encontrada no link")
 	errMediaTooLarge = fmt.Errorf("mídia passa de %d MB", mediaMaxMB)
 
-	mediaLimits             = downloadLimits{maxMB: mediaMaxMB, maxDuration: mediaMaxDuration}
-	requestedDownloadLimits = downloadLimits{maxMB: 1900, maxDuration: 3 * 60 * 60}
+	mediaLimits             = downloadLimits{maxMB: mediaMaxMB, maxDuration: mediaMaxDuration, maxItems: mediaMaxItems}
+	requestedDownloadLimits = downloadLimits{maxMB: whatsappMaxMB}
 )
 
 type downloadLimits struct {
 	maxMB       int64
 	maxDuration int
+	maxItems    int
+}
+
+func (l downloadLimits) firstItems(files []string) []string {
+	if l.maxItems <= 0 {
+		return files
+	}
+	return files[:min(len(files), l.maxItems)]
 }
 
 func (l downloadLimits) maxBytes() int64 {
@@ -74,14 +81,14 @@ func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
 	if link == "" {
 		return b.baixarFigurinha(ctx, evt, sticker)
 	}
-	err := b.WithTimedMediaJob(ctx, evt, requestedDownloadTimeout, func(ctx context.Context) error {
+	err := b.WithUntimedMediaJob(ctx, evt, func(ctx context.Context) error {
 		return b.downloadAndSend(ctx, evt, link, requestedDownloadLimits)
 	})
 	if err == nil {
 		return nil
 	}
 	b.Client.Log.Warnf("baixar %s: %v", link, err)
-	return b.SendText(ctx, chat, fmt.Sprintf("Não consegui baixar esse link 😕 Talvez o post seja privado, o site não funcione com o bot ou o arquivo passe de %d MB ou de %d minutos", requestedDownloadLimits.maxMB, requestedDownloadLimits.maxDuration/60))
+	return b.SendText(ctx, chat, fmt.Sprintf("Não consegui baixar esse link 😕 Talvez o post seja privado, o site não funcione com o bot ou o arquivo passe de %d MB, que é o máximo que o WhatsApp aceita", requestedDownloadLimits.maxMB))
 }
 
 func findLinks(text string) []string {
@@ -202,7 +209,7 @@ func (b *bot) downloadAndSend(ctx context.Context, evt *events.Message, link str
 	}
 	reply := core.ReplyTo(evt)
 	sent := 0
-	for _, file := range files[:min(len(files), mediaMaxItems)] {
+	for _, file := range limits.firstItems(files) {
 		m, ok, err := prepareMedia(ctx, file)
 		if err != nil {
 			return err
@@ -296,10 +303,12 @@ func ytDlpAudio(ctx context.Context, dir, link string) ([]string, error) {
 }
 
 func runYtDlp(ctx context.Context, dir, link string, limits downloadLimits, format ...string) ([]string, error) {
-	args := slices.Concat(
-		[]string{"--no-playlist", "--quiet", "--no-warnings",
-			"--max-filesize", fmt.Sprintf("%dM", limits.maxMB),
-			"--match-filter", fmt.Sprintf("duration <=? %d", limits.maxDuration)},
+	args := []string{"--no-playlist", "--quiet", "--no-warnings", "--max-filesize", fmt.Sprintf("%dM", limits.maxMB)}
+	if limits.maxDuration > 0 {
+		args = append(args, "--match-filter", fmt.Sprintf("duration <=? %d", limits.maxDuration))
+	}
+	args = slices.Concat(
+		args,
 		format,
 		[]string{"--paths", dir, "--output", "%(id)s.%(ext)s", link},
 	)
@@ -309,13 +318,11 @@ func runYtDlp(ctx context.Context, dir, link string, limits downloadLimits, form
 }
 
 func galleryDl(ctx context.Context, dir, link string, limits downloadLimits) ([]string, error) {
-	err := core.RunTool(ctx, "gallery-dl",
-		"--quiet",
-		"--range", fmt.Sprintf("1-%d", mediaMaxItems),
-		"--filesize-max", fmt.Sprintf("%dM", limits.maxMB),
-		"--directory", dir,
-		link,
-	)
+	args := []string{"--quiet", "--filesize-max", fmt.Sprintf("%dM", limits.maxMB), "--directory", dir}
+	if limits.maxItems > 0 {
+		args = append(args, "--range", fmt.Sprintf("1-%d", limits.maxItems))
+	}
+	err := core.RunTool(ctx, "gallery-dl", append(args, link)...)
 	files, listErr := downloadedFiles(dir)
 	return files, errors.Join(err, listErr)
 }

@@ -46,7 +46,10 @@ Camadas da IA, ferramentas dela e os comandos de mídia.
   quem é dono) e mostra a ajuda deles, avisando quando o modo do comando tá desligado na conversa.
 - Trabalho pesado com binários externos passa por `b.WithMediaJob`
   (`internal/core/utilidades.go`): limita a 2
-  jobs simultâneos, aplica timeout, roda com `nice` e reage com ⏳/✅/❌ na mensagem.
+  jobs simultâneos, aplica timeout, roda com `nice` e reage com ⏳/✅/❌ na mensagem. O
+  `!baixar` usa o `b.WithUntimedMediaJob`, que é igual mas sem timeout, e baixa sem limite de
+  duração nem de itens; só o tamanho fica no teto do WhatsApp (`whatsappMaxMB`). O download
+  automático do `baixarlinks` continua com os limites leves do `mediaLimits`.
 - GIFs (`internal/core/assets/<nome>/*.mp4`) e figurinhas (`internal/core/figurinhas/`) são
   embutidos no binário.
 - O `!buscar` (`buscar.go`) lê as páginas de busca do Buscapé e da KaBuM (JSON do

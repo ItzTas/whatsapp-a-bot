@@ -27,10 +27,14 @@ var (
 )
 
 func (b *Bot) WithMediaJob(ctx context.Context, evt *events.Message, job func(ctx context.Context) error) error {
-	return b.WithTimedMediaJob(ctx, evt, mediaJobTimeout, job)
+	return b.WithUntimedMediaJob(ctx, evt, func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, mediaJobTimeout)
+		defer cancel()
+		return job(ctx)
+	})
 }
 
-func (b *Bot) WithTimedMediaJob(ctx context.Context, evt *events.Message, timeout time.Duration, job func(ctx context.Context) error) (err error) {
+func (b *Bot) WithUntimedMediaJob(ctx context.Context, evt *events.Message, job func(ctx context.Context) error) (err error) {
 	b.React(ctx, evt, "⏳")
 	defer func() {
 		finalReaction := "❌"
@@ -45,8 +49,6 @@ func (b *Bot) WithTimedMediaJob(ctx context.Context, evt *events.Message, timeou
 		return ctx.Err()
 	}
 	defer func() { <-mediaJobs }()
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	return job(ctx)
 }
 
