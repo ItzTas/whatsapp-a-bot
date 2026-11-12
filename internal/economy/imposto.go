@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,15 +20,16 @@ const (
 )
 
 type taxBracket struct {
-	above   int64
-	percent int64
+	above  int64
+	tenths int64
 }
 
 var taxBrackets = []taxBracket{
-	{above: 20_000, percent: 1},
-	{above: 100_000, percent: 2},
-	{above: 500_000, percent: 3},
-	{above: 2_000_000, percent: 5},
+	{above: 20_000, tenths: 10},
+	{above: 100_000, tenths: 8},
+	{above: 500_000, tenths: 5},
+	{above: 2_000_000, tenths: 3},
+	{above: 10_000_000, tenths: 1},
 }
 
 type taxPayer struct {
@@ -52,9 +54,13 @@ func wealthTax(balance int64) int64 {
 		if i+1 < len(taxBrackets) {
 			top = min(balance, taxBrackets[i+1].above)
 		}
-		tax += (top - br.above) * br.percent / 100
+		tax += (top - br.above) * br.tenths / 1000
 	}
 	return tax
+}
+
+func (br taxBracket) rate() string {
+	return strings.Replace(strconv.FormatFloat(float64(br.tenths)/10, 'f', -1, 64), ".", ",", 1) + "%"
 }
 
 func dueTax(balance int64, level int, haunted bool, cut int64) int64 {
@@ -91,10 +97,10 @@ func (b *bot) imposto(ctx context.Context, evt *events.Message) error {
 	if cut > 0 {
 		discount = fmt.Sprintf(" (já com %d%% a menos do contador)", cut)
 	}
-	lines := []string{"🦁 *Imposto sobre fortuna*", fmt.Sprintf("_Todo dia às %dh o Leão passa e cobra de quem tem muito. As moedas somem_", taxHour), ""}
+	lines := []string{"🦁 *Imposto sobre fortuna*", fmt.Sprintf("_Todo dia às %dh o Leão passa e cobra de quem tem muito. As moedas somem_", taxHour), "_Igual no !roubar, a porcentagem cai nas faixas de cima, então rico paga uma fatia menor_", ""}
 	lines = append(lines, fmt.Sprintf("• Até %s: isento", Coins(taxBrackets[0].above)))
 	for _, br := range taxBrackets {
-		lines = append(lines, fmt.Sprintf("• O que passar de %s: %d%% ao dia", Coins(br.above), br.percent))
+		lines = append(lines, fmt.Sprintf("• O que passar de %s: %s ao dia", Coins(br.above), br.rate()))
 	}
 	lines = append(lines,
 		fmt.Sprintf("🏠 Quem tem imóvel paga o IPTU dele junto (veja no !imovel), e casa assombrada paga %dx", hauntTaxFactor),

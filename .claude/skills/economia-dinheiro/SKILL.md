@@ -93,7 +93,9 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
 - O imposto (`imposto.go`) roda no `runTaxes`, iniciado junto do `runBirthdays`: a partir de
   `taxHour` (BRT), cada economia com o modo `economia` ligado em pelo menos um grupo é marcada na tabela `impostos`
   (`chat`, `dia`) antes de cobrar, então reiniciar não cobra duas vezes. Cobra as faixas marginais
-  de `taxBrackets` (`wealthTax`) mais o IPTU do imóvel, menos o `taxCut` do melhor contador
+  de `taxBrackets` (`wealthTax`, em décimos de ponto percentual no `tenths`) mais o IPTU do imóvel.
+  As faixas são regressivas, como o `exposed` do `!roubar`: a porcentagem cai nas faixas de cima
+  (1% até 0,1%), então o rico paga uma fatia menor do saldo. Cobra isso menos o `taxCut` do melhor contador
   contratado no `!empregados` (lido no `taxPayers` junto da carteira), limitado ao saldo, e anuncia com o
   `announce` (respeitando o `AllowedIn` de quem mais pagou). O `!transferir` e a venda do `!vender @pessoa`
   não têm taxa fixa; a única taxa de transferência é a do decreto `pix`.
