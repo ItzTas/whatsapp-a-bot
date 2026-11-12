@@ -19,8 +19,8 @@ import (
 var assets embed.FS
 
 type GIF struct {
-	video     []byte
-	thumbnail []byte
+	video     string
+	thumbnail string
 }
 
 func LoadGIFs() (map[string][]GIF, error) {
@@ -46,15 +46,11 @@ func loadGIFDir(dir string) ([]GIF, error) {
 	}
 	gifs := make([]GIF, 0, len(paths))
 	for _, p := range paths {
-		video, err := assets.ReadFile(p)
-		if err != nil {
+		thumbnail := strings.TrimSuffix(p, ".mp4") + ".jpg"
+		if _, err := fs.Stat(assets, thumbnail); err != nil {
 			return nil, err
 		}
-		thumbnail, err := assets.ReadFile(strings.TrimSuffix(p, ".mp4") + ".jpg")
-		if err != nil {
-			return nil, err
-		}
-		gifs = append(gifs, GIF{video: video, thumbnail: thumbnail})
+		gifs = append(gifs, GIF{video: p, thumbnail: thumbnail})
 	}
 	return gifs, nil
 }
@@ -64,7 +60,15 @@ func PickGIF(gifs []GIF) GIF {
 }
 
 func (b *Bot) UploadGIF(ctx context.Context, g GIF) (*waE2E.VideoMessage, error) {
-	up, err := b.Client.Upload(ctx, g.video, whatsmeow.MediaVideo)
+	video, err := assets.ReadFile(g.video)
+	if err != nil {
+		return nil, err
+	}
+	thumbnail, err := assets.ReadFile(g.thumbnail)
+	if err != nil {
+		return nil, err
+	}
+	up, err := b.Client.Upload(ctx, video, whatsmeow.MediaVideo)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +81,7 @@ func (b *Bot) UploadGIF(ctx context.Context, g GIF) (*waE2E.VideoMessage, error)
 		FileSHA256:    up.FileSHA256,
 		FileLength:    proto.Uint64(up.FileLength),
 		GifPlayback:   proto.Bool(true),
-		JPEGThumbnail: g.thumbnail,
+		JPEGThumbnail: thumbnail,
 	}, nil
 }
 
