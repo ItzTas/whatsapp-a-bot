@@ -86,6 +86,9 @@ func marketPayout(it item, quantity int64) int64 {
 }
 
 func marketPercentOf(it item, percent int64) int64 {
+	if it.brainrot {
+		return min(percent, brainrotSalePercent)
+	}
 	if it.rarity == mythic {
 		return max(percent, mythicSalePercent)
 	}

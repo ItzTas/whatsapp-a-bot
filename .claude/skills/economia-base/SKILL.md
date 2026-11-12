@@ -137,7 +137,8 @@ Regras gerais da economia, que valem pra qualquer comando dela. Os assuntos espe
   `economia-fama`) entram antes dos encantos, então toda profissão lida pelo `ProfessionOf` sabe
   o nível de fama da pessoa (`celebrity()`).
   As obras prontas do `!doar` (`civic`) e a festa do `!festa` (`partying`), lidas no `standing`
-  porque valem pra economia inteira, entram logo depois do `housed` (skill `economia-dinheiro`).
+  porque valem pra economia inteira, entram logo depois do `housed` (skill `economia-dinheiro`), e
+  os brainrots (skill `economia-itens`) entram no `adorned` como qualquer item com `flex`.
   Efeito novo que mude `guard`, ganho ou bônus de alguém por fora da profissão entra nesse mesmo
   ponto.
 - Grupos podem dividir uma economia só (`vinculos.go`, tabela `economia_vinculos` com `chat` e

@@ -216,7 +216,7 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
   (`sellNumbered` → `sellBatch` → `walletStore.sellItems`). Item novo no meio do `catalog` empurra o número de
   todos os que vêm depois dele, então item novo vai sempre no fim do último bloco do `slices.Concat`
   do `catalog` (hoje o `gatherGoods`, em `apetrechos.go`), seja ele semente, acessório ou qualquer
-  outra coisa.
+  outra coisa. Hoje o último bloco é o `brainrotGoods` (`brainrot.go`).
 - A qualidade (`qualidade.go`) é a coluna `qualidade` do `inventarios`, que faz parte da chave, então
   cada qualidade de um item é uma linha própria. Os níveis ficam em `qualities` (de `-3` horrível a `3`
   lendária, com o `0` normal), cada um com a porcentagem do `value` que vale (`price`), o selo
@@ -315,6 +315,17 @@ Catálogo, raridades, qualidade, lojas e vendas de item.
     apreendem. O que foi apreendido fica anotado na prisão, e quem tem contrato com uma organização
     do crime recebe a oferta de pagar pra ter tudo de volta (skill `economia-empresas`). O `arrest` também arranca os implantes clandestinos (`seizeImplants`, veja a skill
     `economia-dinheiro`), mas a batida não.
+- Os brainrots (`brainrot.go`, campo `brainrot` do `item`) são os itens mais caros do jogo, um
+  ralo de rico: ficam no `brainrotGoods`, o último bloco do `catalog`, em ordem de preço, e só saem
+  do `!brainrot comprar` (ou do `!comprar`, que desvia pro `buyBrainrot`), pelo `value` cheio, sem
+  desconto de profissão nem decreto. Cada um tem um `flex` fraco que vale só de estar na mochila
+  (o `passives` já lê), então não têm qualidade e nunca caem nas vendas de inúteis. O `brainrot`
+  entra no `unboxable()` (caixa, baú, presente de bicho), fica fora do `auctionGoods`, o `!furtar`
+  recusa o furto mirado e o sorteado ignora eles, o `store()` aponta pro `!brainrot` e o tipo é
+  🧠 Brainrots, antes dos Bichinhos. Na revenda pro mercado, o `marketPercentOf` paga no máximo
+  `brainrotSalePercent`, mesmo com bônus de profissão; entre jogadores, a `!feira` e o `!dar`
+  funcionam normal. Brainrot novo é só uma entrada no fim do `brainrotGoods`, com preço maior que
+  o anterior.
 - Os bichinhos do `!petshop` (`petshop.go`) são itens normais do `catalog` com `shop` e `pet`: o
   `!loja` pula eles, o `!comprar` compra igual (com a mensagem de levar pra casa) e o `sources`
   aponta pro `!petshop` (`item.store()`). Bicho novo é só entrar no `catalog` com `pet: true`.

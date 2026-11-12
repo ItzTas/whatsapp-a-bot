@@ -199,6 +199,9 @@ func (b *bot) comprar(ctx context.Context, evt *events.Message) error {
 	}
 	it := matches[0]
 	quantity := q.quantity(0)
+	if it.brainrot {
+		return b.buyBrainrot(ctx, evt, it)
+	}
 	if !it.shop && slices.ContainsFunc(luxuryStock(chat, time.Now()), func(s item) bool { return s.id == it.id }) {
 		return b.buyLuxury(ctx, evt, it, quantity)
 	}

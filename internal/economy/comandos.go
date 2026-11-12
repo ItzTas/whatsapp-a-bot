@@ -857,6 +857,16 @@ func (b *bot) economyCommands() []core.Command {
 			Run:      b.petshop,
 		},
 		{
+			Name:     "brainrot",
+			Aliases:  []string{"brainrots", "italianbrainrot"},
+			Category: core.EconomyCategory,
+			Help: []core.Usage{
+				{"!brainrot", fmt.Sprintf("mostra os brainrots à venda 🧠 Do Lirilì Larilà ao La Grande Combinasion, custam de %s a %s. Cada um dá uma vantagem pequena só de estar na mochila, ninguém consegue furtar e o mercado paga só %d%% na revenda", Coins(brainrotGoods[0].value), Coins(brainrotGoods[len(brainrotGoods)-1].value), brainrotSalePercent)},
+				{"!brainrot comprar <nome>", "compra um brainrot (o !comprar também funciona)"},
+			},
+			Run: b.brainrot,
+		},
+		{
 			Name:     "comprar",
 			Aliases:  []string{"buy"},
 			Category: core.EconomyCategory,

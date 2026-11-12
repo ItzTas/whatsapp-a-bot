@@ -127,6 +127,7 @@ type item struct {
 	carry     int64
 	daily     int64
 	storeOnly bool
+	brainrot  bool
 }
 
 type stack struct {
@@ -1093,7 +1094,7 @@ var catalog = slices.Concat([]item{
 		gear: &gear{activities: []string{"!pescar", "!minerar", "!vasculhar", "!catar"}, pull: 1, alwaysFinds: true}},
 	{id: "scanner-da-policia", name: "Scanner da polícia", emoji: "📡", rarity: epic, value: 6_000, hot: true, aliases: []string{"scanner", "escuta da policia", "radio da policia"},
 		flex: &flex{effect: fmt.Sprintf("fica na frequência da polícia: %d%% de chance de ouvir a viatura chegando e escapar quando alguém tenta te !prender", percent(scannerTipoff)), apply: func(p Profession) Profession { p.tipoff += scannerTipoff; return p }}},
-}, implantGoods(), gardenGoods, gatherGoods)
+}, implantGoods(), gardenGoods, gatherGoods, brainrotGoods)
 
 func itemByID(id string) (item, bool) {
 	i := slices.IndexFunc(catalog, func(it item) bool { return it.id == id })
@@ -1117,6 +1118,9 @@ func (it item) number() int {
 func (it item) store() string {
 	if it.pet {
 		return "!petshop"
+	}
+	if it.brainrot {
+		return "!brainrot"
 	}
 	return "!loja"
 }
@@ -1202,6 +1206,7 @@ var itemCategories = []itemCategory{
 	{"💊", "Drogas", []string{"droga"}, func(it item) bool { return it.high != nil }},
 	{"🕶️", "Contrabando", []string{"contrabandos", "ilegal", "ilegais", "muamba"}, func(it item) bool { return it.illegal }},
 	{"🦹", "Equipamento de assalto", []string{"assalto", "assaltos"}, func(it item) bool { return it.heist > 0 }},
+	{"🧠", "Brainrots", []string{"brainrot", "italian brainrot"}, func(it item) bool { return it.brainrot }},
 	{"🐾", "Bichinhos", []string{"pets", "pet", "bichinho"}, func(it item) bool { return it.pet }},
 	{"🥂", "Luxo", []string{"luxos"}, func(it item) bool { return it.luxury }},
 	{"🎒", "Vantagens", []string{"vantagem", "passivas", "passiva"}, func(it item) bool { return it.flex != nil }},
@@ -1410,7 +1415,7 @@ func weightedIndex(n int, weight func(i int) int) int {
 }
 
 func (it item) unboxable() bool {
-	return it.luxury || it.illegal || it.hot || it.storeOnly || it.rarity >= mythic || it.relicOdds > 0 || it.upgrades != "" || it.graft != nil
+	return it.luxury || it.illegal || it.hot || it.storeOnly || it.brainrot || it.rarity >= mythic || it.relicOdds > 0 || it.upgrades != "" || it.graft != nil
 }
 
 func upgradeOf(base item) (item, bool) {
@@ -1617,7 +1622,7 @@ func sources(it item) []string {
 		return []string{fmt.Sprintf("!aprimorar %s, por %s", strings.ToLower(base.name), Coins(it.upgradeCost()))}
 	}
 	var found []string
-	if it.shop {
+	if it.shop || it.brainrot {
 		found = append(found, it.shelf())
 	}
 	if it.seed != nil {

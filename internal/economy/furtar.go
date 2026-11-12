@@ -43,6 +43,9 @@ func (b *bot) furtar(ctx context.Context, evt *events.Message) error {
 		}
 		wanted = matches[0]
 	}
+	if wanted.brainrot {
+		return b.SendText(ctx, chat, fmt.Sprintf("🧠 %s é brainrot, e brainrot não se furta: ninguém consegue carregar um bicho desses escondido. Escolhe outro item da mochila", wanted.label()))
+	}
 	if wanted.rarity >= relic {
 		r := rarities[wanted.rarity]
 		return b.SendText(ctx, chat, fmt.Sprintf("🏛️ %s é %s, e %s não se furta. Escolhe outro item da mochila", wanted.label(), r.name, r.name))
@@ -77,7 +80,7 @@ func theftChoice(wanted item, bonus float64) func(loot []stack) (item, bool) {
 		}
 	}
 	return func(loot []stack) (item, bool) {
-		loot = slices.DeleteFunc(slices.Clone(loot), func(s stack) bool { return s.item.rarity >= relic })
+		loot = slices.DeleteFunc(slices.Clone(loot), func(s stack) bool { return s.item.rarity >= relic || s.item.brainrot })
 		if len(loot) == 0 {
 			return item{}, false
 		}
