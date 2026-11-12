@@ -209,6 +209,7 @@ type standing struct {
 	tithe      int64
 	record     int64
 	prestige   int
+	works      int
 }
 
 func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Account) (st standing, err error) {
@@ -220,11 +221,12 @@ func (s *walletStore) standing(ctx context.Context, chat types.JID, acc core.Acc
 		        c.imovel, `+staffKinds+`,
 		        EXISTS (SELECT 1 FROM zoeiras z WHERE z.chat = c.chat AND z.alvo = c.pessoa AND z.tipo = ? AND z.ate > ?),
 		        CASE WHEN c.droga_ate > ? THEN c.droga ELSE '' END,
-		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0), COALESCE(i.dizimo, ?), c.ficha_em, c.prestigio
+		        c.titulo, COALESCE(i.nome, ''), COALESCE(i.doutrina, ''), COALESCE(i.templo, 0), COALESCE(i.dizimo, ?), c.ficha_em, c.prestigio,
+		        COALESCE((SELECT o.nivel FROM obras o WHERE o.chat = c.chat), 0)
 		 FROM carteiras c LEFT JOIN igrejas i ON i.id = c.igreja
 		 WHERE c.chat = ? AND c.pessoa = ?`,
 		now, now, curseKind, now, now, unsetTithe, chat.String(), acc.Key,
-	).Scan(&st.profession, &st.president, &st.protege, &st.estate, &st.staff, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple, &st.tithe, &st.record, &st.prestige)
+	).Scan(&st.profession, &st.president, &st.protege, &st.estate, &st.staff, &st.cursed, &st.drug, &st.title, &st.church, &st.doctrine, &st.temple, &st.tithe, &st.record, &st.prestige, &st.works)
 	if errors.Is(err, sql.ErrNoRows) {
 		return standing{}, nil
 	}

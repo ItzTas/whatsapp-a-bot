@@ -17,6 +17,8 @@ import (
 const (
 	benefactorCount  = 5
 	monumentMaxPower = 40
+	monumentPayStep  = 1
+	monumentPayTop   = 5
 )
 
 type publicWork struct {
@@ -24,17 +26,27 @@ type publicWork struct {
 	name  string
 	goal  int64
 	honor string
+	perk  string
+	boost func(Profession) Profession
 }
 
 var publicWorks = []publicWork{
-	{emoji: "🪑", name: "Banco da praça", goal: 5_000, honor: "ganhou uma plaquinha: \"doado por @%s\""},
-	{emoji: "🚏", name: "Ponto de ônibus com cobertura", goal: 15_000, honor: "foi batizado de Parada @%s"},
-	{emoji: "⛲", name: "Chafariz", goal: 40_000, honor: "tem a cara de @%s esculpida no meio, cuspindo água"},
-	{emoji: "🗿", name: "Estátua", goal: 100_000, honor: "é uma estátua de @%s em tamanho real, fazendo pose"},
-	{emoji: "🏟️", name: "Estádio", goal: 300_000, honor: "foi batizado de Arena @%s"},
-	{emoji: "🏥", name: "Hospital", goal: 800_000, honor: "tem uma ala inteira com o nome de @%s"},
-	{emoji: "🚀", name: "Programa espacial", goal: 2_000_000, honor: "mandou um foguete pro espaço com @%s pintado do lado"},
-	{emoji: "🌉", name: "Ponte Rio-Niterói 2", goal: 5_000_000, honor: "agora se chama Ponte @%s"},
+	{emoji: "🪑", name: "Banco da praça", goal: 5_000, honor: "ganhou uma plaquinha: \"doado por @%s\"",
+		perk: "+2% no !daily", boost: func(p Profession) Profession { p.dailyBonus += 2; return p }},
+	{emoji: "🚏", name: "Ponto de ônibus com cobertura", goal: 15_000, honor: "foi batizado de Parada @%s",
+		perk: "o !trabalhar recarrega 3% mais rápido", boost: func(p Profession) Profession { p.every = p.every * 97 / 100; return p }},
+	{emoji: "⛲", name: "Chafariz", goal: 40_000, honor: "tem a cara de @%s esculpida no meio, cuspindo água",
+		perk: "+2% de chance de achar item no !trabalhar", boost: func(p Profession) Profession { p.findBonus += 0.02; return p }},
+	{emoji: "🗿", name: "Estátua", goal: 100_000, honor: "é uma estátua de @%s em tamanho real, fazendo pose",
+		perk: "+2% de proteção", boost: func(p Profession) Profession { p.guard += 0.02; return p }},
+	{emoji: "🏟️", name: "Estádio", goal: 300_000, honor: "foi batizado de Arena @%s",
+		perk: "+3% no !trabalhar", boost: func(p Profession) Profession { return p.paidMore(3) }},
+	{emoji: "🏥", name: "Hospital", goal: 800_000, honor: "tem uma ala inteira com o nome de @%s",
+		perk: "10% menos chance de se machucar no trampo", boost: func(p Profession) Profession { p.safety += 10; return p }},
+	{emoji: "🚀", name: "Programa espacial", goal: 2_000_000, honor: "mandou um foguete pro espaço com @%s pintado do lado",
+		perk: "+3% no !trabalhar", boost: func(p Profession) Profession { return p.paidMore(3) }},
+	{emoji: "🌉", name: "Ponte Rio-Niterói 2", goal: 5_000_000, honor: "agora se chama Ponte @%s",
+		perk: "o !trabalhar recarrega 5% mais rápido", boost: func(p Profession) Profession { p.every = p.every * 95 / 100; return p }},
 }
 
 type finishedWork struct {
@@ -58,12 +70,72 @@ func workAt(level int) publicWork {
 	}
 	extra := level - len(publicWorks) + 1
 	last := publicWorks[len(publicWorks)-1]
-	return publicWork{
+	work := publicWork{
 		emoji: "🗽",
 		name:  fmt.Sprintf("Monumento nº %d", extra),
 		goal:  last.goal << min(extra, monumentMaxPower),
 		honor: "tem o nome de @%s gravado em ouro na base",
+		perk:  "nada além do orgulho",
+		boost: func(p Profession) Profession { return p },
 	}
+	if extra <= monumentPayTop {
+		work.perk = fmt.Sprintf("+%d%% no !trabalhar", monumentPayStep)
+		work.boost = func(p Profession) Profession { return p.paidMore(monumentPayStep) }
+	}
+	return work
+}
+
+func (p Profession) paidMore(percent int64) Profession {
+	p.min, p.max = p.min*(100+percent)/100, p.max*(100+percent)/100
+	return p
+}
+
+func (p Profession) civic(level int) Profession {
+	p.works = level
+	for i := range level {
+		p = workAt(i).boost(p)
+	}
+	return p
+}
+
+func worksPerk(level int) string {
+	return fmt.Sprintf("🏗️ %s do grupo: %s", core.CountLabel(level, "obra pronta", "obras prontas"), worksEffects(level))
+}
+
+func worksEffects(level int) string {
+	var (
+		pay, daily, safety int64
+		guard, find        int
+		pace               = 1.0
+	)
+	for i := range level {
+		base := Profession{min: 10_000, max: 10_000, every: time.Hour}
+		boosted := workAt(i).boost(base)
+		pay += boosted.min*100/base.min - 100
+		daily += boosted.dailyBonus
+		guard += percent(boosted.guard)
+		find += percent(boosted.findBonus)
+		safety += boosted.safety
+		pace *= float64(boosted.every) / float64(base.every)
+	}
+	parts := []struct {
+		on   bool
+		text string
+	}{
+		{pay > 0, fmt.Sprintf("+%d%% no !trabalhar", pay)},
+		{pace < 1, fmt.Sprintf("o !trabalhar recarrega %d%% mais rápido", int64((1-pace)*100+0.5))},
+		{daily > 0, fmt.Sprintf("+%d%% no !daily", daily)},
+		{find > 0, fmt.Sprintf("+%d%% de chance de achar item no !trabalhar", find)},
+		{guard > 0, fmt.Sprintf("+%d%% de proteção", guard)},
+		{safety > 0, fmt.Sprintf("%d%% menos chance de se machucar no trampo", safety)},
+	}
+	var found []string
+	for _, part := range parts {
+		if part.on {
+			found = append(found, part.text)
+		}
+	}
+	return core.JoinWithAnd(found)
 }
 
 func (w publicWork) label() string {
@@ -111,7 +183,10 @@ func (b *bot) donate(ctx context.Context, evt *events.Message, arg string) error
 		lines = append(lines, "", fmt.Sprintf("🎉 *Obra concluída!* %s", workAt(f.level).honorText(f.honoree)))
 		people = append(people, f.honoree)
 	}
-	lines = append(lines, "", fmt.Sprintf("Agora em construção: %s\n%s", current.label(), progressLine(progress.raised, current.goal)))
+	if len(finished) > 0 {
+		lines = append(lines, "", "✨ Agora o grupo inteiro ganha: "+worksEffects(progress.level))
+	}
+	lines = append(lines, "", fmt.Sprintf("Agora em construção: %s\n%s\nQuando ficar pronta: %s", current.label(), progressLine(progress.raised, current.goal), current.perk))
 	_, err = b.SendMentions(ctx, chat, strings.Join(lines, "\n"), people)
 	return err
 }
@@ -135,7 +210,7 @@ func (b *bot) worksStatus(ctx context.Context, chat types.JID) error {
 		return fmt.Errorf("ler obras: %w", err)
 	}
 	current := workAt(progress.level)
-	lines := []string{"🏗️ *Obras do grupo*", "", "Em construção: " + current.label(), progressLine(progress.raised, current.goal)}
+	lines := []string{"🏗️ *Obras do grupo*", "", "Em construção: " + current.label(), progressLine(progress.raised, current.goal), "Quando ficar pronta: " + current.perk}
 	var people []types.JID
 	if len(top) > 0 {
 		lines = append(lines, "", "🏆 *Benfeitores*")
@@ -155,8 +230,9 @@ func (b *bot) worksStatus(ctx context.Context, chat types.JID) error {
 			lines = append(lines, workAt(f.level).honorText(f.honoree))
 			people = append(people, f.honoree)
 		}
+		lines = append(lines, "", "✨ O grupo inteiro ganha: "+worksEffects(progress.level))
 	}
-	lines = append(lines, "", "_Manda !doar <valor> pra ajudar. O dinheiro vai todo pra obra e não volta, e quem mais doar pra cada obra é homenageado nela_")
+	lines = append(lines, "", fmt.Sprintf("_Manda !doar <valor> pra ajudar. O dinheiro vai todo pra obra e não volta, quem mais doar pra cada obra é homenageado nela, e toda obra pronta dá uma vantagem pra todo mundo do grupo, pra sempre. Depois da ponte vêm os monumentos, e os %d primeiros ainda dão +%d%% no !trabalhar cada_", monumentPayTop, monumentPayStep))
 	_, err := b.SendMentions(ctx, chat, strings.Join(lines, "\n"), people)
 	return err
 }

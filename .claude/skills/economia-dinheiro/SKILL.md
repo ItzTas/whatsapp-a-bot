@@ -236,6 +236,14 @@ Leilão, apostas de bolão, empréstimos, ações, imposto e patrimônio.
   monumentos com a meta dobrando (`workAt`). Doação que passa da meta segue pra próxima, e a obra
   pronta homenageia quem mais doou pra ela (`obras_concluidas`). `!doar @pessoa` continua sendo o
   `!dar`.
+  - Cada obra pronta dá um efeito pequeno e permanente pra todo mundo da economia (`perk` e
+    `boost` de cada `publicWork`): o `standing` lê o `nivel` da `obras` (o número de obras prontas)
+    numa subconsulta e o `ProfessionOf` aplica o `civic` logo depois do `housed`, que roda o `boost`
+    de cada obra abaixo do nível. Os `monumentPayTop` primeiros monumentos dão `monumentPayStep`% no
+    `!trabalhar` cada (`paidMore`); os de depois são só orgulho. O `worksEffects` soma os efeitos
+    (aplicando os `boost` numa profissão de referência) pro `!doar` e pros `perks()`
+    (`worksPerk`), então obra nova é só um `perk` e um `boost`, sem mexer no texto. Mantenha os
+    efeitos pequenos: valem pra todo mundo e pra sempre.
 - Os negócios do `!negocio` (`negocio.go`, aliases `!negocios` e `!comercio`) vivem em código
   (`businesses`), e só o `id` vai pra coluna `tipo` da tabela `negocios` (migração `00010_dinheiro`, PK
   `chat`, `pessoa`, `tipo`, então é um de cada por pessoa). Nunca renomeie um `id`: o negócio some
