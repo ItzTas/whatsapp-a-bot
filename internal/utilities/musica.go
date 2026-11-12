@@ -29,7 +29,7 @@ type audioSearch struct {
 
 func (b *bot) musica(ctx context.Context, evt *events.Message) error {
 	query := core.TextAfterFields(core.MessageText(evt.Message), 1)
-	if link := linkPattern.FindString(query); link != "" {
+	if link := findLink(query); link != "" {
 		return b.sendLinkAudio(ctx, evt, link)
 	}
 	if first, rest, _ := strings.Cut(query, " "); strings.EqualFold(first, "meme") {

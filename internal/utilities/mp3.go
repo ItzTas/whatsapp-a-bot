@@ -60,7 +60,7 @@ var audioExtractionFailure = fmt.Sprintf("Não consegui tirar o áudio 😕 Talv
 func (b *bot) findAudioSource(msg *waE2E.Message) (audioSource, bool) {
 	quoted := msg.GetExtendedTextMessage().GetContextInfo().GetQuotedMessage()
 	for _, m := range []*waE2E.Message{msg, quoted} {
-		if link := linkPattern.FindString(core.MessageText(m)); link != "" {
+		if link := findLink(core.MessageText(m)); link != "" {
 			return b.linkAudio(link), true
 		}
 		if media := audioMedia(m); media != nil {

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/ItzTas/personal-projects/whatsapp-a-bot/internal/core"
 	"go.mau.fi/whatsmeow"
@@ -38,7 +39,7 @@ const (
 )
 
 var (
-	linkPattern      = regexp.MustCompile(`https?://[^\s<>"]+`)
+	linkPattern      = regexp.MustCompile(`(?i)(?:https?://|www\.)[^\s\p{Z}<>"]+`)
 	errNoMedia       = errors.New("nenhuma mídia encontrada no link")
 	errMediaTooLarge = fmt.Errorf("mídia passa de %d MB", mediaMaxMB)
 
@@ -62,7 +63,7 @@ func (l downloadLimits) tooLarge() error {
 func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
 	chat := evt.Info.Chat
 	quoted := evt.Message.GetExtendedTextMessage().GetContextInfo().GetQuotedMessage()
-	link := cmp.Or(linkPattern.FindString(core.MessageText(evt.Message)), linkPattern.FindString(core.MessageText(quoted)))
+	link := cmp.Or(findLink(core.MessageText(evt.Message)), findLink(core.MessageText(quoted)))
 	if people := core.MentionedJIDs(evt.Message); link == "" && len(people) > 0 {
 		return b.baixarFotoPerfil(ctx, evt, people[0])
 	}
@@ -81,6 +82,44 @@ func (b *bot) baixar(ctx context.Context, evt *events.Message) error {
 	}
 	b.Client.Log.Warnf("baixar %s: %v", link, err)
 	return b.SendText(ctx, chat, fmt.Sprintf("Não consegui baixar esse link 😕 Talvez o post seja privado, o site não funcione com o bot ou o arquivo passe de %d MB ou de %d minutos", requestedDownloadLimits.maxMB, requestedDownloadLimits.maxDuration/60))
+}
+
+func findLinks(text string) []string {
+	found := linkPattern.FindAllString(text, -1)
+	links := make([]string, 0, len(found))
+	for _, link := range found {
+		links = append(links, cleanLink(link))
+	}
+	return links
+}
+
+func findLink(text string) string {
+	links := findLinks(text)
+	if len(links) == 0 {
+		return ""
+	}
+	return links[0]
+}
+
+func cleanLink(link string) string {
+	for {
+		link = strings.TrimRightFunc(link, strayLinkEnding)
+		if !strings.HasSuffix(link, ")") || strings.Count(link, "(") >= strings.Count(link, ")") {
+			break
+		}
+		link = strings.TrimSuffix(link, ")")
+	}
+	if strings.HasPrefix(strings.ToLower(link), "http") {
+		return link
+	}
+	return "https://" + link
+}
+
+func strayLinkEnding(r rune) bool {
+	if r == ')' || strings.ContainsRune("/=-_#&+%", r) {
+		return false
+	}
+	return unicode.IsPunct(r) || unicode.IsSymbol(r)
 }
 
 func (b *bot) baixarFotoPerfil(ctx context.Context, evt *events.Message, person types.JID) error {
@@ -120,7 +159,7 @@ func (b *bot) sendProfilePicture(ctx context.Context, evt *events.Message, perso
 }
 
 func (b *bot) answerLinks(ctx context.Context, evt *events.Message) error {
-	links := linkPattern.FindAllString(core.MessageText(evt.Message), -1)
+	links := findLinks(core.MessageText(evt.Message))
 	i := slices.IndexFunc(links, autoDownloadable)
 	if i < 0 {
 		return nil
